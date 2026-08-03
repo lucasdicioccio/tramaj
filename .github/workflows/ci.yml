@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  purescript:
+    name: PureScript (templating, templating-halogen, templating-cli)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PureScript and Spago
+        run: npm install -g purescript@0.15.15 spago@0.93.43
+
+      - name: Cache spago artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/spago-nodejs
+            .spago
+            output
+          key: ${{ runner.os }}-spago-${{ hashFiles('spago.lock') }}
+
+      - name: Build all packages
+        run: spago build
+
+      # The fixture suite lives in `templating`; templating-halogen and
+      # templating-cli have no tests of their own, so `spago build` above is
+      # the only check they get.
+      - name: Test
+        run: spago test -p templating
+
+      - name: Bundle the CLI and render a template
+        run: |
+          # --outfile is resolved relative to the package directory
+          spago bundle -p templating-cli --platform node \
+            --outfile dist/templating-cli.js
+          printf '@n=cardinality($ctx.items)\n.p("there are `$n` item(s)")' > /tmp/t.tmpl
+          printf '{"items":["a","b","c"]}' > /tmp/t.json
+          node templating-cli/dist/templating-cli.js /tmp/t.tmpl /tmp/t.json
+
+  haskell:
+    name: Haskell (templating-hs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.8.2"
+          cabal-version: "3.12.1.0"
+
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal', 'cabal.project') }}
+
+      - name: cabal update
+        run: cabal update
+
+      - name: Build
+        run: cabal build all
+
+      - name: Test
+        run: cabal test unit

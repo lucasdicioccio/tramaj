@@ -1,0 +1,15 @@
+package:
+  name: templating-cli
+  # Deliberately depends on `templating`, not `templating-halogen` — this
+  # CLI never folds to Halogen output, only to the generic `Node` AST via
+  # `Templating.Ast.nodeToJson`.
+  dependencies:
+    - prelude
+    - argonaut-core
+    - console
+    - effect
+    - node-fs
+    - node-process
+    - templating
+  run:
+    main: Main

@@ -1,0 +1,10 @@
+workspace:
+  packageSet:
+    registry: 77.11.0
+  # No extraPackages: the three PureScript packages in this repo
+  # (templating, templating-halogen, templating-cli) are all part of this
+  # workspace and are discovered automatically by Spago recursing into
+  # subdirectories for `spago.yaml` files with a `package:` section. That
+  # is why none of them carries a `workspace:` section of its own — a
+  # subdirectory declaring one would become a separate workspace and be
+  # ignored here.

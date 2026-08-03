@@ -1,0 +1,23 @@
+-- | Parser-only checks not covered by 'Templating.EvalSpec'\'s end-to-end
+-- fixtures -- in particular the attrs-after-child ordering *rejection*,
+-- which is a parse failure rather than a success/expected-'Node' pair (same
+-- split as @../templating/test/Test/Main.purs@).
+module Templating.ParserSpec (spec) where
+
+import Data.Either (isLeft, isRight)
+import Templating.Parser (parseProgram)
+import Test.Hspec
+
+spec :: Spec
+spec = describe "Templating.Parser" $ do
+  it "parses a plain nested element tree" $
+    parseProgram ".div(.p(\"Hello\"))" `shouldSatisfy` isRight
+
+  it "rejects a named-arg/action(...) appearing after a sibling child node" $
+    parseProgram ".div(.p(\"hi\"), \"attr\": \"value\")" `shouldSatisfy` isLeft
+
+  it "rejects more than one action(...) on the same node" $
+    parseProgram ".button(action(\"on-click\", \"a\", {}), action(\"on-click\", \"b\", {}))" `shouldSatisfy` isLeft
+
+  it "accepts a kebab-case tag and identifier" $
+    parseProgram "@my-var=1\n.my-tag(\"x\")" `shouldSatisfy` isRight
