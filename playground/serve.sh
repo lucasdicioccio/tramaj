@@ -13,6 +13,15 @@ PORT="${PORT:-8099}"
 WATCH=0
 [ "${1:-}" = "--watch" ] && WATCH=1
 
+# `spago bundle` shells out to esbuild and errors with "Failed to find
+# esbuild" if it isn't on PATH. It's a devDependency of the workspace root
+# rather than an assumed global, so install it on first run and put the
+# local .bin ahead of PATH. (purs and spago themselves are still expected
+# to be installed already — see the README.)
+ROOT="$(cd .. && pwd)"
+[ -d "$ROOT/node_modules" ] || (cd "$ROOT" && npm install)
+export PATH="$ROOT/node_modules/.bin:$PATH"
+
 # `spago bundle` reads module/platform/type/outfile from this package's
 # `bundle:` block in spago.yaml, so they aren't repeated here. -p is
 # needed because the workspace root has several packages.

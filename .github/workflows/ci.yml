@@ -19,6 +19,14 @@ jobs:
       - name: Install PureScript and Spago
         run: npm install -g purescript@0.15.15 spago@0.93.43
 
+      # esbuild, which `spago bundle` shells out to. Comes from the
+      # workspace root's package.json rather than a global install, so the
+      # version CI bundles with is the one committed in package-lock.json.
+      - name: Install JS build tooling
+        run: |
+          npm ci
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Cache spago artifacts
         uses: actions/cache@v4
         with:

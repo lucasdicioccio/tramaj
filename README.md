@@ -65,9 +65,25 @@ that format without new code in either package. Contributions welcome.
 
 ## Building
 
+You need `purs` and `spago` on your `PATH` (e.g.
+`npm install -g purescript spago`), plus GHC and `cabal` for the Haskell package.
+
+Anything that **bundles** — the playground and the CLI — also needs `esbuild`,
+which `spago` shells out to and cannot supply itself. It is a devDependency here,
+so `npm install` once in the repo root covers it:
+
+```bash
+npm install                        # esbuild, for `spago bundle`
+export PATH="$PWD/node_modules/.bin:$PATH"
+```
+
+Without that (and without a global esbuild) `spago bundle` fails with
+*"Failed to find esbuild. Have you installed it, and is it in your PATH?"*.
+`playground/serve.sh` does both steps for you.
+
 ### PureScript
 
-The three PureScript packages form a single [Spago](https://github.com/purescript/spago)
+The four PureScript packages form a single [Spago](https://github.com/purescript/spago)
 workspace rooted at this repository, so all commands run from the repo root:
 
 ```bash
