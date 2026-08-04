@@ -27,8 +27,14 @@ opaque, structured action to an element — the language recognises the syntax
 but assigns it no meaning, leaving the host to map the key onto a real event
 handler.
 
-The full grammar, builtin set, and design rationale live in
-[`specs/templating-language.md`](specs/templating-language.md).
+**[`specs/llm.md`](specs/llm.md) is the reference** — overview, design
+constraints, grammar, AST, how to embed it in a host, and the CLI. Start there,
+and point agents at it.
+
+[`specs/templating-language.md`](specs/templating-language.md) is the historical
+design record: why each decision went the way it did, in the order it was made.
+It preserves superseded intermediate designs on purpose, so where the two
+disagree, `llm.md` is correct.
 
 ## Packages
 
