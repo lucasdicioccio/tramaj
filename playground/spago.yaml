@@ -1,0 +1,22 @@
+package:
+  name: templating-playground
+  # A browser app, so it depends on `templating-halogen` (and therefore on
+  # `templating` transitively) — unlike `templating-cli`, which only ever
+  # produces the generic `Node` AST and stays halogen-free.
+  dependencies:
+    - prelude
+    - aff
+    - argonaut-core
+    - arrays
+    - effect
+    - either
+    - halogen
+    - maybe
+    - strings
+    - templating
+    - templating-halogen
+  bundle:
+    module: Playground.Main
+    platform: browser
+    type: app
+    outfile: dist/app.js

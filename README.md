@@ -37,6 +37,7 @@ The full grammar, builtin set, and design rationale live in
 | [`templating/`](templating) | PureScript | The core: `Templating.Ast`, `Templating.Parser`, `Templating.Eval`. No DOM, no Halogen — usable from any host. |
 | [`templating-halogen/`](templating-halogen) | PureScript | `Templating.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
 | [`templating-cli/`](templating-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
+| [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
 | [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. |
 
 `templating-halogen` is a separate package precisely so that `templating` itself
@@ -68,6 +69,25 @@ spago build                 # all three packages
 spago test -p templating    # the fixture suite
 spago run  -p templating-cli --args "template.txt context.json"
 ```
+
+### Playground
+
+The fastest way to get a feel for the language — a template box, a JSON context
+box, and three live views of the result (the evaluated `Node` tree as JSON, that
+tree folded to real HTML, and a log of the `action(...)` clicks it dispatches):
+
+```bash
+./playground/serve.sh            # bundle, then serve on http://localhost:8099
+./playground/serve.sh --watch    # also rebuild on .purs changes (reload to see them)
+PORT=9000 ./playground/serve.sh  # serve elsewhere
+```
+
+`--watch` also watches `templating/src` and `templating-halogen/src`, so it is a
+usable loop for working on the language itself, not just on templates.
+
+It is also the reference example of an *interactive* host: `Playground.Main`'s
+`dispatchAction` turns every `action(...)` into a real Halogen action, where a
+read-only host would pass `const Nothing` to `foldToHalogen`.
 
 To produce a standalone CLI bundle:
 

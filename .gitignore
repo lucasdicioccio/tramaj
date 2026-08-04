@@ -13,6 +13,11 @@ node_modules/
 # templating-cli bundle output
 templating-cli/dist/
 
+# Playground bundle output. Only the generated bundle — index.html and
+# style.css in the same directory are source and stay tracked.
+playground/dist/app.js
+playground/dist/app.js.map
+
 # Haskell / Cabal
 dist-newstyle/
 *.hi

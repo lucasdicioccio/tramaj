@@ -58,6 +58,27 @@
         "test": {
           "dependencies": []
         }
+      },
+      "templating-playground": {
+        "path": "playground",
+        "core": {
+          "dependencies": [
+            "aff",
+            "argonaut-core",
+            "arrays",
+            "effect",
+            "either",
+            "halogen",
+            "maybe",
+            "prelude",
+            "strings",
+            "templating",
+            "templating-halogen"
+          ]
+        },
+        "test": {
+          "dependencies": []
+        }
       }
     },
     "package_set": {

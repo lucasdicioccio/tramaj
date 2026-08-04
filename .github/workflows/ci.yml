@@ -7,7 +7,7 @@ on:
 
 jobs:
   purescript:
-    name: PureScript (templating, templating-halogen, templating-cli)
+    name: PureScript (templating, templating-halogen, templating-cli, playground)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,11 +31,14 @@ jobs:
       - name: Build all packages
         run: spago build
 
-      # The fixture suite lives in `templating`; templating-halogen and
-      # templating-cli have no tests of their own, so `spago build` above is
-      # the only check they get.
+      # The fixture suite lives in `templating`; templating-halogen,
+      # templating-cli and playground have no tests of their own, so
+      # `spago build` above is the only check they get.
       - name: Test
         run: spago test -p templating
+
+      - name: Bundle the playground
+        run: spago bundle -p templating-playground
 
       - name: Bundle the CLI and render a template
         run: |
