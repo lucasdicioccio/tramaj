@@ -54,7 +54,7 @@ non-browser host) depend on the core alone.
 
 `templating-hs` is a hand-written port, not a shared core behind an FFI. The two
 implementations are kept in agreement by test fixtures that were ported
-one-for-one: `templating/test/Test/Fixtures.purs` (24 fixtures) is the original,
+one-for-one: `templating/test/Test/Fixtures.purs` (25 fixtures) is the original,
 and `templating-hs/test/unit/Templating/EvalSpec.hs` mirrors it.
 
 **Known gap:** that agreement is maintained by hand and is not mechanically

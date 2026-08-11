@@ -24,8 +24,10 @@ main = do
     ".foo(.p(\"hi\"), \"bar\": \"baz\")"
   checkParseRejected "a node can have at most one action(...)"
     ".button(action(\"on-click\", \"a\", {}), action(\"on-click\", \"b\", {}))"
-  checkEvalRejected "action(...) rejects an unrecognized event type"
-    ".button(action(\"on-hover\", \"a\", {}))"
+  -- an *unrecognized* event type is no longer a thing: only the "must be a
+  -- string" shape is still checked, the vocabulary is the host's
+  checkEvalRejected "action(...) rejects a non-string event type"
+    ".button(action(42, \"a\", {}))"
   checkEvalRejected "closure arity mismatch is rejected at eval time"
     "@f=(x) => $x\n.p(\"`$f(1,2)`\")"
   checkEvalRejected "a closure can't call itself by name (no recursion)"

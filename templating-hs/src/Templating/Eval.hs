@@ -46,24 +46,20 @@ data Value'
 
 type Env = Map Text Value'
 
--- | Event types @action(...)@\'s Halogen host accepts -- kept here (not
--- Halogen-specific) since a non-browser host (this Haskell port's own
--- eventual callers) may validate against the same fixed vocabulary before
--- deciding what to do with an 'ActionPayload'.
-supportedActionEventTypes :: [Text]
-supportedActionEventTypes = ["on-click"]
-
+{- | Both @eventType@ and @key@ must reduce to strings, and that is the whole
+check: an event type is passed through to the host verbatim, whatever it says.
+The language has no vocabulary of its own here -- a DOM host knows about
+@on-click@, an email or static-site renderer has no DOM events at all -- so
+deciding which event types mean something is the host's job, not evaluation's.
+-}
 evalAction :: Env -> TAction -> Either EvalError ActionPayload
 evalAction env (TAction eventTypeExpr keyExpr payloadExpr) = do
   eventTypeJson <- evalExprAsJson env eventTypeExpr
   eventType <- requireString "action(...): the event type (1st argument) must be a string" eventTypeJson
-  if eventType `notElem` supportedActionEventTypes
-    then Left (TypeMismatch ("action(...): unrecognized event type " <> tshow eventType <> " -- supported: " <> tshow supportedActionEventTypes))
-    else do
-      keyJson <- evalExprAsJson env keyExpr
-      key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
-      payload <- evalExprAsJson env payloadExpr
-      pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
+  keyJson <- evalExprAsJson env keyExpr
+  key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
+  payload <- evalExprAsJson env payloadExpr
+  pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
   where
     requireString :: Text -> Value -> Either EvalError Text
     requireString _msg (String s) = Right s

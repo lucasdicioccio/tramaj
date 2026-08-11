@@ -6,6 +6,7 @@
 module Templating.EvalSpec (spec) where
 
 import Data.Aeson (Value (..), object, (.=))
+import Data.Either (isLeft)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Vector as V
@@ -135,6 +136,25 @@ templateSpec = describe "Templating end-to-end fixtures (ported from the PureScr
             , neChildren = [NText "Select"]
             }
         )
+
+  it "action(...)'s event type is passed through verbatim, whatever it says" $
+    run
+      ".input(action(\"on-whatever-the-host-calls-it\", \"select\", {}), \"Select\")"
+      Null
+      `shouldBe` Right
+        ( NElement
+            { neTag = "input"
+            , neAttrs = Map.empty
+            , neAction = Just (ActionPayload {apEventType = "on-whatever-the-host-calls-it", apKey = "select", apPayload = object []})
+            , neChildren = [NText "Select"]
+            }
+        )
+
+  -- an *unrecognized* event type is no longer a thing: only the "must be a
+  -- string" shape is still checked, the vocabulary is the host's
+  it "action(...) rejects a non-string event type" $
+    run ".button(action(42, \"a\", {}))" Null
+      `shouldSatisfy` isLeft
 
   it "kebab-case binding name with a $-prefixed builtin call" $
     run

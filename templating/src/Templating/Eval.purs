@@ -60,32 +60,29 @@ data Value
 
 type Env = Map String Value
 
--- | Event types `action(...)`'s Halogen host accepts — see
--- | `Templating.Ast`'s `TAction`. `eventType` is now an ordinary `expr`
--- | (a string literal, a computed path, ...), not a parse-time keyword —
--- | the language isn't Halogen-only, so a future host (an email or
--- | static-site renderer, say) may have its own event/hook vocabulary
--- | with nothing DOM-shaped in it at all. This particular fixed, small
--- | set is specifically the Halogen fold's vocabulary (mirrors the
--- | "fixed builtin set, no extension registry" posture elsewhere in this
--- | language) — grown only once a real Halogen host needs a second DOM
--- | event wired up. `Templating.Halogen.foldToHalogen` currently wires
--- | *every* present action to `HE.onClick` unconditionally, which is
--- | only correct as long as this is the only recognized event type.
-supportedActionEventTypes :: Array String
-supportedActionEventTypes = [ "on-click" ]
-
+-- | Both `eventType` and `key` must reduce to strings, and that is the
+-- | whole check — an event type is handed to the host verbatim, whatever
+-- | it says. `eventType` stopped being a parse-time keyword a while ago
+-- | (see `Templating.Ast`'s `TAction`) and no longer has a fixed
+-- | vocabulary at eval time either: the language isn't Halogen-only, so
+-- | which event/hook names mean something is the host's concern. A DOM
+-- | host knows `on-click`; an email or static-site renderer has no DOM
+-- | events at all and may want names of its own, possibly computed
+-- | (`action($ctx.eventName, ...)`).
+-- |
+-- | Consequence for hosts: a dispatcher must branch on `eventType`, not
+-- | assume it. `Templating.Halogen.foldToHalogen` wires `HE.onClick` for
+-- | any present action, so a Halogen host that starts using a second
+-- | event type has to return `Nothing` from `dispatch` for the ones it
+-- | does not want wired to a click.
 evalAction :: Env -> TAction -> Either EvalError ActionPayload
 evalAction env (TAction eventTypeExpr keyExpr payloadExpr) = do
   eventTypeJson <- evalExprAsJson env eventTypeExpr
   eventType <- maybe (Left (TypeMismatch "action(...): the event type (1st argument) must be a string")) Right (toString eventTypeJson)
-  if not (Array.elem eventType supportedActionEventTypes) then
-    Left (TypeMismatch ("action(...): unrecognized event type " <> show eventType <> " — supported: " <> show supportedActionEventTypes))
-  else do
-    keyJson <- evalExprAsJson env keyExpr
-    key <- maybe (Left (TypeMismatch "action(...): the key (2nd argument) must be a string")) Right (toString keyJson)
-    payload <- evalExprAsJson env payloadExpr
-    pure { eventType, key, payload }
+  keyJson <- evalExprAsJson env keyExpr
+  key <- maybe (Left (TypeMismatch "action(...): the key (2nd argument) must be a string")) Right (toString keyJson)
+  payload <- evalExprAsJson env payloadExpr
+  pure { eventType, key, payload }
 
 evalProgram :: Json -> Program -> Either EvalError Node
 evalProgram input program = do

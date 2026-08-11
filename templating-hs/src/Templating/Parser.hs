@@ -105,7 +105,14 @@ boolLit = try $ do
     "false" -> pure (BoolLit False)
     _ -> fail "not a boolean literal"
 
--- | A backtick-delimited interpolation holds an arbitrary 'expr'.
+{- | A backtick-delimited interpolation holds an arbitrary 'expr'.
+
+TODO: no escape sequences -- 'litPart' stops at @\"@ and at a backtick, so
+neither character can appear in a string at all. That makes generating quoted
+output (an HTML attribute, a @\<script\>@ block, JSON inside JSON) awkward,
+which server-side hosts emitting text hit sooner than a DOM-building one. See
+the TODO in @specs/llm.md@ §3.2; a fix has to land in both parsers at once.
+-}
 stringLit :: P Expr
 stringLit = lexeme $ do
   _ <- char '"'
