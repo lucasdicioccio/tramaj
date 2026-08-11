@@ -18,6 +18,7 @@
 -- placement one-for-one.
 module Templating.Parser
   ( parseProgram
+  , parseJsonProgram
   , parseExpr
   , parseTemplateNode
   ) where
@@ -388,6 +389,22 @@ program = do
 
 parseProgram :: Text -> Either (ParseErrorBundle Text Void) Program
 parseProgram input = runParser program "" input
+
+-- | Same computation block as 'program', but the root is an 'expr' rather
+-- than a 'node' -- the parser half of the JSON-producing mode (see
+-- 'Templating.Eval.evalJsonProgram'). The two roots can never be confused:
+-- an element root always starts with @.@, which no expression form does.
+jsonProgram :: P JsonProgram
+jsonProgram = do
+  skipSpaces
+  bindings <- compBlock
+  root <- expr
+  skipSpaces
+  eof
+  pure (JsonProgram bindings root)
+
+parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
+parseJsonProgram input = runParser jsonProgram "" input
 
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
 parseExpr input = runParser (skipSpaces *> expr <* eof) "" input

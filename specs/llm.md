@@ -374,6 +374,36 @@ case parseProgram src of
       bad -> renderError ("invalid attribute name(s): " <> show bad)
 ```
 
+### 5.1b Expression-rooted programs (JSON mode) — Haskell only
+
+A host that wants the *data* half of the language on its own — generate a JSON
+payload, not a document — can root a program at an expression instead of an
+element. `templating-hs` exposes this as a second entry point:
+
+```haskell
+parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
+evalJsonProgram  :: Value -> JsonProgram -> Either EvalError Value
+```
+
+Same computation block, same expression language, same builtins; only the root
+differs, and the two roots can never be confused because an element root always
+starts with `.` and no expression form does. The result is a real `Value`:
+nothing passes through `jsonToDisplayString`, so numbers stay numbers and nested
+objects stay objects — which is exactly what the `Node` path cannot give you,
+since `NElement`'s attributes are `Map Text Text`.
+
+```
+@posts=$ctx.datasets.index.posts
+@n=cardinality($posts)
+{"count": $n, "titles": map($posts, (p) => $p.title)}
+```
+
+This mode exists only in `templating-hs`; `../templating` has no counterpart, so
+nothing about it is covered by the cross-language fixture agreement. What it
+reuses (bindings, closures, builtins, `map`/`filter`/`scan`) is the shared
+expression language, so a divergence there would still surface in the ported
+fixtures.
+
 ### 5.2 Action binding
 
 This is the whole interactivity story. The language carries an opaque triple;

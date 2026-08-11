@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0.0
+
+Adds a JSON-producing mode for hosts that want the data half of the language on
+its own: `Templating.Ast.JsonProgram`, `Templating.Parser.parseJsonProgram` and
+`Templating.Eval.evalJsonProgram`. Same computation block and same expression
+language as `parseProgram`/`evalProgram`, but the root is an expression rather
+than an element, so the result is an aeson `Value` instead of a document `Node`
+-- nothing is stringified through `jsonToDisplayString`. Purely additive; no
+existing behavior changed. Haskell-only, with no counterpart in the PureScript
+`templating` package.
+
 ## 0.1.0.0
 
 Initial release, extracted from the repository it was written in. Ports the

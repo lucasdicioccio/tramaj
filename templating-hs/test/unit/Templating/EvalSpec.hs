@@ -10,8 +10,8 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Vector as V
 import Templating.Ast
-import Templating.Eval (evalProgram)
-import Templating.Parser (parseProgram)
+import Templating.Eval (EvalError (..), evalJsonProgram, evalProgram)
+import Templating.Parser (parseJsonProgram, parseProgram)
 import Test.Hspec
 
 elem_ :: Text -> [Node] -> Node
@@ -30,8 +30,66 @@ run template ctx = case parseProgram template of
     Left e -> Left ("eval error: " <> show e)
     Right n -> Right n
 
+-- | 'run''s counterpart for expression-rooted programs, keeping the eval
+-- error rather than flattening it, since the JSON-mode fixtures below
+-- assert on one.
+runJson :: Text -> Value -> Either String (Either EvalError Value)
+runJson template ctx = case parseJsonProgram template of
+  Left e -> Left ("parse error: " <> show e)
+  Right prog -> Right (evalJsonProgram ctx prog)
+
 spec :: Spec
-spec = describe "Templating end-to-end fixtures (ported from the PureScript templating package)" $ do
+spec = do
+  templateSpec
+  jsonSpec
+
+-- | JSON mode ('evalJsonProgram') is Haskell-only -- these fixtures have no
+-- counterpart in @../templating/test/Test/Fixtures.purs@, so unlike
+-- 'templateSpec' they are not held to cross-language agreement. Everything
+-- they exercise below the root (bindings, closures, builtins, map/filter) is
+-- the shared expression language, though, so a divergence there would still
+-- show up in 'templateSpec'.
+jsonSpec :: Spec
+jsonSpec = describe "expression-rooted programs (JSON mode, Haskell-only)" $ do
+  it "an object literal root keeps numbers as numbers, not display strings" $
+    runJson
+      "@n=cardinality($ctx.items)\n{\"count\": $n, \"first\": $ctx.items}"
+      (object ["items" .= (["a", "b"] :: [Text])])
+      `shouldBe` Right (Right (object ["count" .= (2 :: Int), "first" .= (["a", "b"] :: [Text])]))
+
+  it "an array literal root, with a nested object preserved structurally" $
+    runJson
+      "[$ctx.who, {\"nested\": {\"deep\": true}}]"
+      (object ["who" .= ("me" :: Text)])
+      `shouldBe` Right (Right (Array (V.fromList [String "me", object ["nested" .= object ["deep" .= True]]])))
+
+  it "map(...) as the root produces an array of objects" $
+    runJson
+      "map($ctx.items, (i) => {\"title\": $i.title})"
+      (object ["items" .= [itemTitled "Alpha", itemTitled "Beta"]])
+      `shouldBe` Right (Right (Array (V.fromList [itemTitled "Alpha", itemTitled "Beta"])))
+
+  it "filter(...) and a bound lambda work the same as in template mode" $
+    runJson
+      "@is-big=(n) => $gt($n, 10)\nfilter($ctx.ns, $is-big)"
+      (object ["ns" .= ([3, 20, 7, 40] :: [Int])])
+      `shouldBe` Right (Right (Array (V.fromList [Number 20, Number 40])))
+
+  it "a plain interpolated string root evaluates to a JSON string" $
+    runJson "\"there are `cardinality($ctx.items)` item(s)\"" (object ["items" .= ([1, 2, 3] :: [Int])])
+      `shouldBe` Right (Right (String "there are 3 item(s)"))
+
+  it "an unbound name in the root is an eval error, not a parse error" $
+    runJson "{\"x\": $nope}" Null
+      `shouldBe` Right (Left (UnboundName "nope"))
+
+  it "an element root is rejected -- that is template mode, not JSON mode" $
+    case runJson ".div(\"hi\")" Null of
+      Left _ -> pure ()
+      Right r -> expectationFailure ("expected a parse error, got " <> show r)
+
+templateSpec :: Spec
+templateSpec = describe "Templating end-to-end fixtures (ported from the PureScript templating package)" $ do
   it "plain nested element tree" $
     run ".div(.p(\"Hello\"))" Null
       `shouldBe` Right (elem_ "div" [elem_ "p" [NText "Hello"]])

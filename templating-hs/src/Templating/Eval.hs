@@ -13,6 +13,7 @@
 module Templating.Eval
   ( EvalError (..)
   , evalProgram
+  , evalJsonProgram
   ) where
 
 import Data.Aeson (Value (..))
@@ -72,6 +73,17 @@ evalProgram :: Value -> Program -> Either EvalError Node
 evalProgram input (Program bindings root) = do
   env <- evalBindings input bindings
   evalTemplate env root
+
+-- | Evaluates a 'JsonProgram': the same computation block as 'evalProgram'
+-- (same order, same closures, same no-recursion rule) but the root is an
+-- 'Expr', so the result is a JSON 'Value' rather than a document 'Node'.
+-- Nothing here is stringified through 'jsonToDisplayString' -- numbers stay
+-- numbers and nested objects stay objects, which is precisely what a host
+-- generating a JSON payload (rather than a document) needs.
+evalJsonProgram :: Value -> JsonProgram -> Either EvalError Value
+evalJsonProgram input (JsonProgram bindings root) = do
+  env <- evalBindings input bindings
+  evalExprAsJson env root
 
 -- | Run every comp-block binding once, in declaration order, against an
 -- environment that starts as just @{ ctx: input }@ and accumulates one more
