@@ -134,6 +134,10 @@ boolLit = try do
 -- | `stringLit` (via `interpPart`) and `expr` (which has `stringLit` as
 -- | an alternative) mutually recursive CAFs; both directions need a
 -- | `defer`-guard, same lesson as `expr`/`call` above.
+-- |
+-- | TODO: no escape sequences — `litPart` stops at `"` and at a backtick, so
+-- | neither character can appear in a string at all. See the TODO in
+-- | `specs/llm.md` §3.2; a fix has to land in both parsers at once.
 stringLit :: P Expr
 stringLit = lexeme do
   _ <- char '"'

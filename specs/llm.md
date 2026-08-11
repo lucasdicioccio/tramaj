@@ -152,6 +152,18 @@ Inside a string literal, `` `expr` `` splices in any expression, not just a path
 
 Values stringify for display (§4.3), so a number renders `3`, not `3.0`.
 
+**TODO — string literals have no escape sequences.** `litPart` consumes
+everything up to the next `"` or `` ` ``, and neither implementation recognises
+a backslash, so those two characters simply cannot appear in a string. That
+makes a whole class of output awkward to generate: anything carrying quoted
+attributes or quoted code (`<a href="…">`, a `<script>` block, a JSON string
+inside a JSON string). It bites hardest in non-browser hosts, which emit text
+rather than building DOM. A fix wants `\"`, `` \` `` and `\\` at minimum, added
+to `litPart` in *both* parsers plus a fixture on each side; the open questions
+are whether to also take `\n`/`\t` (the language has no other way to express
+them, but a template is line-oriented already) and whether an escape should be
+legal in a `quoted-key` too, for symmetry.
+
 ### 3.3 Calls
 
 `name(args)` and `$name(args)` are the same thing: look `name` up in the
@@ -374,6 +386,36 @@ case parseProgram src of
       bad -> renderError ("invalid attribute name(s): " <> show bad)
 ```
 
+### 5.1b Expression-rooted programs (JSON mode) — Haskell only
+
+A host that wants the *data* half of the language on its own — generate a JSON
+payload, not a document — can root a program at an expression instead of an
+element. `templating-hs` exposes this as a second entry point:
+
+```haskell
+parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
+evalJsonProgram  :: Value -> JsonProgram -> Either EvalError Value
+```
+
+Same computation block, same expression language, same builtins; only the root
+differs, and the two roots can never be confused because an element root always
+starts with `.` and no expression form does. The result is a real `Value`:
+nothing passes through `jsonToDisplayString`, so numbers stay numbers and nested
+objects stay objects — which is exactly what the `Node` path cannot give you,
+since `NElement`'s attributes are `Map Text Text`.
+
+```
+@posts=$ctx.datasets.index.posts
+@n=cardinality($posts)
+{"count": $n, "titles": map($posts, (p) => $p.title)}
+```
+
+This mode exists only in `templating-hs`; `../templating` has no counterpart, so
+nothing about it is covered by the cross-language fixture agreement. What it
+reuses (bindings, closures, builtins, `map`/`filter`/`scan`) is the shared
+expression language, so a divergence there would still surface in the ported
+fixtures.
+
 ### 5.2 Action binding
 
 This is the whole interactivity story. The language carries an opaque triple;
@@ -383,9 +425,8 @@ the host decides what it means.
 flowchart LR
   A["action(&quot;on-click&quot;, &quot;select&quot;, {…})<br/>in the template"] --> B["TAction<br/>3 unevaluated Exprs"]
   B --> C["eval: each → Json<br/>eventType/key must be strings"]
-  C --> D{"eventType in<br/>supportedActionEventTypes?"}
-  D -->|no| X["TypeMismatch"]
-  D -->|yes| P["ActionPayload<br/>{eventType, key, payload}"]
+  C -->|"not a string"| X["TypeMismatch"]
+  C --> P["ActionPayload<br/>{eventType, key, payload}"]
   P --> H["host dispatcher<br/>ActionPayload → Maybe action"]
   H -->|Just a| W["HE.onClick wired"]
   H -->|Nothing| R["no handler attached"]
@@ -408,10 +449,18 @@ dispatch ap = case ap.key of
   _        -> Nothing        -- unknown key: no effect, no error
 ```
 
-`supportedActionEventTypes` is `["on-click"]` today. That check is the *Halogen
-host's* vocabulary, not a language-level restriction — `eventType` is an ordinary
-evaluated string (it can be computed, e.g. `action($ctx.eventName, …)`), so a
-different host can define its own set. This is why it isn't a parser keyword.
+**`eventType` is not validated against any vocabulary.** Evaluation requires it
+to reduce to a string and passes that string through verbatim; it can be computed
+(`action($ctx.eventName, …)`), and a host is free to invent whatever event/hook
+names it wants — a DOM host knows `on-click`, an email or static-site renderer
+has no DOM events at all. There used to be a fixed
+`supportedActionEventTypes = ["on-click"]` check in both `Templating.Eval`s; it
+is gone.
+
+The consequence is on the host: **a dispatcher must branch on `eventType`, not
+assume it.** `foldToHalogen` wires `HE.onClick` for every action `dispatch`
+accepts, so a Halogen host using a second event type has to return `Nothing` for
+the ones it does not want treated as a click.
 
 ### 5.3 Consuming the packages
 
@@ -504,3 +553,5 @@ Ranked by how often they actually bite.
 9. **Context field names are the host's**, not the language's. Most "why is this
    `PathNotFound`" turns out to be a wrong field name — dump the context and
    check.
+10. **No escapes in a string literal** — a `"` or a `` ` `` cannot appear in one
+    at all, and a backslash is just a backslash. See the TODO in §3.2.

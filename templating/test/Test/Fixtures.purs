@@ -86,6 +86,20 @@ fixtures =
         , children: [ NText "Select" ]
         }
     }
+  , { name: "action(...)'s event type is passed through verbatim, whatever it says"
+    , template: ".input(action(\"on-whatever-the-host-calls-it\", \"select\", {}), \"Select\")"
+    , ctx: jsonNull
+    , expected: NElement
+        { tag: "input"
+        , attrs: Map.empty
+        , action: Just
+            { eventType: "on-whatever-the-host-calls-it"
+            , key: "select"
+            , payload: fromObject Object.empty
+            }
+        , children: [ NText "Select" ]
+        }
+    }
   , { name: "kebab-case binding name with a $-prefixed builtin call"
     , template: "@my-var=$cardinality($ctx.items)\n.p(\"`$my-var`\")"
     , ctx: fromObject (Object.singleton "items" (fromArray (fromString <$> [ "a", "b", "c", "d", "e" ])))

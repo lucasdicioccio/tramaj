@@ -44,7 +44,7 @@ disagree, `llm.md` is correct.
 | [`templating-halogen/`](templating-halogen) | PureScript | `Templating.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
 | [`templating-cli/`](templating-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
-| [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. |
+| [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a Haskell-only JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
 
 `templating-halogen` is a separate package precisely so that `templating` itself
 never pulls in Halogen; that is what lets `templating-cli` (and any other
@@ -54,7 +54,7 @@ non-browser host) depend on the core alone.
 
 `templating-hs` is a hand-written port, not a shared core behind an FFI. The two
 implementations are kept in agreement by test fixtures that were ported
-one-for-one: `templating/test/Test/Fixtures.purs` (24 fixtures) is the original,
+one-for-one: `templating/test/Test/Fixtures.purs` (25 fixtures) is the original,
 and `templating-hs/test/unit/Templating/EvalSpec.hs` mirrors it.
 
 **Known gap:** that agreement is maintained by hand and is not mechanically

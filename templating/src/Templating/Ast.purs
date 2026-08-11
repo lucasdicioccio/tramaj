@@ -109,10 +109,10 @@ instance showStringPart :: Show StringPart where
 -- | no DOM events at all), so it needs to be able to name whatever
 -- | event/hook concept a given host defines, possibly even computed
 -- | (`$ctx.eventName`) rather than a static literal — a bare-identifier
--- | keyword can't express that. `Templating.Eval` still validates it
--- | against a fixed set today (only Halogen exists as a host), but that's
--- | now a host-supplied concern in principle, not a parse-time keyword
--- | restriction.
+-- | keyword can't express that. `Templating.Eval` does not validate it
+-- | against a fixed set either: it requires a string and passes whatever
+-- | that string says to the host untouched, so naming the vocabulary is
+-- | entirely a host concern.
 data TAction = TAction Expr Expr Expr
 
 derive instance eqTAction :: Eq TAction
@@ -183,8 +183,8 @@ instance showTemplateNode :: Show TemplateNode where
 -- | `NElement`'s `action`, when present, is the structured
 -- | `ActionPayload` the host's dispatcher (`ActionPayload -> Maybe
 -- | action`) interprets — `Templating.Eval`/`Templating.Parser` never
--- | interpret its `key`/`payload` contents themselves, only validate
--- | `eventType` against the small fixed set of supported DOM events.
+-- | interpret its `eventType`/`key`/`payload` contents themselves, only
+-- | require that the first two reduce to strings.
 data Node
   = NElement
       { tag :: String

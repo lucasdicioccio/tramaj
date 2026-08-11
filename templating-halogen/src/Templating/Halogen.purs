@@ -29,10 +29,12 @@ import Web.HTML.Common (AttrName(..))
 -- | Halogen action; a host that wants purely read-only rendering just
 -- | supplies `const Nothing`. A payload that maps to `Nothing` —
 -- | including every payload, for a read-only host — attaches no click
--- | handler at all, matching the "fire-once action" scope. `eventType`
--- | is always `"on-click"` today (the only value `Templating.Eval`
--- | accepts — see `supportedActionEventTypes`), so this always wires
--- | `HE.onClick` when an action is present; continuous-input handling
+-- | handler at all, matching the "fire-once action" scope. This wires
+-- | `HE.onClick` for *any* action `dispatch` accepts, without looking at
+-- | `eventType`: evaluation no longer restricts that string to a fixed
+-- | vocabulary, so `dispatch` is the only place that can tell a
+-- | `"on-click"` from anything else and must return `Nothing` for event
+-- | types it does not want turned into a click. Continuous-input handling
 -- | (`HE.onValueInput`-style) is explicitly out of scope, see the spec.
 -- | `foldToHalogen` trusts `r.attrs`'s keys are legal DOM attribute names
 -- | and passes them straight to `HP.attr`/`Element.setAttribute` — but

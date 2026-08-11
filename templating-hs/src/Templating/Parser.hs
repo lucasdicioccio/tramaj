@@ -18,6 +18,7 @@
 -- placement one-for-one.
 module Templating.Parser
   ( parseProgram
+  , parseJsonProgram
   , parseExpr
   , parseTemplateNode
   ) where
@@ -104,7 +105,14 @@ boolLit = try $ do
     "false" -> pure (BoolLit False)
     _ -> fail "not a boolean literal"
 
--- | A backtick-delimited interpolation holds an arbitrary 'expr'.
+{- | A backtick-delimited interpolation holds an arbitrary 'expr'.
+
+TODO: no escape sequences -- 'litPart' stops at @\"@ and at a backtick, so
+neither character can appear in a string at all. That makes generating quoted
+output (an HTML attribute, a @\<script\>@ block, JSON inside JSON) awkward,
+which server-side hosts emitting text hit sooner than a DOM-building one. See
+the TODO in @specs/llm.md@ §3.2; a fix has to land in both parsers at once.
+-}
 stringLit :: P Expr
 stringLit = lexeme $ do
   _ <- char '"'
@@ -388,6 +396,22 @@ program = do
 
 parseProgram :: Text -> Either (ParseErrorBundle Text Void) Program
 parseProgram input = runParser program "" input
+
+-- | Same computation block as 'program', but the root is an 'expr' rather
+-- than a 'node' -- the parser half of the JSON-producing mode (see
+-- 'Templating.Eval.evalJsonProgram'). The two roots can never be confused:
+-- an element root always starts with @.@, which no expression form does.
+jsonProgram :: P JsonProgram
+jsonProgram = do
+  skipSpaces
+  bindings <- compBlock
+  root <- expr
+  skipSpaces
+  eof
+  pure (JsonProgram bindings root)
+
+parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
+parseJsonProgram input = runParser jsonProgram "" input
 
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
 parseExpr input = runParser (skipSpaces *> expr <* eof) "" input

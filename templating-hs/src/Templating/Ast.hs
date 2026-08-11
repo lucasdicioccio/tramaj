@@ -15,6 +15,7 @@ module Templating.Ast
   , TemplateNode (..)
   , Node (..)
   , Program (..)
+  , JsonProgram (..)
   , nodeToJson
   ) where
 
@@ -91,6 +92,19 @@ data Node
 data Program = Program
   { progBindings :: [(Text, Expr)]
   , progRoot :: TemplateNode
+  }
+  deriving stock (Eq, Show)
+
+-- | A parsed program whose root is an ordinary 'Expr' rather than a
+-- 'TemplateNode' -- same computation block, same expression language, but it
+-- evaluates to a JSON 'Value' instead of a document tree (see
+-- 'Templating.Eval.evalJsonProgram'). For hosts that want the data half of
+-- the language on its own: generating a JSON payload, not a document.
+--
+-- Haskell-only for now; @../templating@ has no counterpart.
+data JsonProgram = JsonProgram
+  { jpBindings :: [(Text, Expr)]
+  , jpRoot :: Expr
   }
   deriving stock (Eq, Show)
 

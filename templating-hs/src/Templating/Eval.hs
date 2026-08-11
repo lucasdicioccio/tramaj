@@ -13,6 +13,7 @@
 module Templating.Eval
   ( EvalError (..)
   , evalProgram
+  , evalJsonProgram
   ) where
 
 import Data.Aeson (Value (..))
@@ -45,24 +46,20 @@ data Value'
 
 type Env = Map Text Value'
 
--- | Event types @action(...)@\'s Halogen host accepts -- kept here (not
--- Halogen-specific) since a non-browser host (this Haskell port's own
--- eventual callers) may validate against the same fixed vocabulary before
--- deciding what to do with an 'ActionPayload'.
-supportedActionEventTypes :: [Text]
-supportedActionEventTypes = ["on-click"]
-
+{- | Both @eventType@ and @key@ must reduce to strings, and that is the whole
+check: an event type is passed through to the host verbatim, whatever it says.
+The language has no vocabulary of its own here -- a DOM host knows about
+@on-click@, an email or static-site renderer has no DOM events at all -- so
+deciding which event types mean something is the host's job, not evaluation's.
+-}
 evalAction :: Env -> TAction -> Either EvalError ActionPayload
 evalAction env (TAction eventTypeExpr keyExpr payloadExpr) = do
   eventTypeJson <- evalExprAsJson env eventTypeExpr
   eventType <- requireString "action(...): the event type (1st argument) must be a string" eventTypeJson
-  if eventType `notElem` supportedActionEventTypes
-    then Left (TypeMismatch ("action(...): unrecognized event type " <> tshow eventType <> " -- supported: " <> tshow supportedActionEventTypes))
-    else do
-      keyJson <- evalExprAsJson env keyExpr
-      key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
-      payload <- evalExprAsJson env payloadExpr
-      pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
+  keyJson <- evalExprAsJson env keyExpr
+  key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
+  payload <- evalExprAsJson env payloadExpr
+  pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
   where
     requireString :: Text -> Value -> Either EvalError Text
     requireString _msg (String s) = Right s
@@ -72,6 +69,17 @@ evalProgram :: Value -> Program -> Either EvalError Node
 evalProgram input (Program bindings root) = do
   env <- evalBindings input bindings
   evalTemplate env root
+
+-- | Evaluates a 'JsonProgram': the same computation block as 'evalProgram'
+-- (same order, same closures, same no-recursion rule) but the root is an
+-- 'Expr', so the result is a JSON 'Value' rather than a document 'Node'.
+-- Nothing here is stringified through 'jsonToDisplayString' -- numbers stay
+-- numbers and nested objects stay objects, which is precisely what a host
+-- generating a JSON payload (rather than a document) needs.
+evalJsonProgram :: Value -> JsonProgram -> Either EvalError Value
+evalJsonProgram input (JsonProgram bindings root) = do
+  env <- evalBindings input bindings
+  evalExprAsJson env root
 
 -- | Run every comp-block binding once, in declaration order, against an
 -- environment that starts as just @{ ctx: input }@ and accumulates one more
