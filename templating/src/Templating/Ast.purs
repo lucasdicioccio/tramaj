@@ -11,6 +11,7 @@ module Templating.Ast
   , TemplateNode(..)
   , Node(..)
   , Program
+  , JsonProgram
   , nodeToJson
   ) where
 
@@ -227,6 +228,17 @@ showAction (Just a) =
 type Program =
   { bindings :: Array (Tuple String Expr)
   , root :: TemplateNode
+  }
+
+-- | A parsed program whose root is an ordinary `Expr` rather than a
+-- | `TemplateNode` -- same computation block, same expression language, but
+-- | it evaluates to a `Json` value instead of a document tree (see
+-- | `Templating.Eval.evalJsonProgram`). For a host that wants the data half
+-- | of the language on its own: generating a JSON payload, not a document.
+-- | Ported from the Haskell-only `Templating.Ast.JsonProgram`.
+type JsonProgram =
+  { bindings :: Array (Tuple String Expr)
+  , root :: Expr
   }
 
 -- | Renders the evaluated `Node` tree as plain `Json` — a debugging/

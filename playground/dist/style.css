@@ -104,6 +104,9 @@ summary { cursor: pointer; font-size: .8rem; text-transform: uppercase; letter-s
   cursor: pointer;
 }
 .btn:disabled { opacity: .45; cursor: default; }
+.btn-active { background: var(--accent); color: var(--card); border-color: var(--accent); }
+
+.mode-toggle { display: flex; gap: .4rem; }
 
 .log { list-style: none; margin: 0; padding: 0; }
 .log li {

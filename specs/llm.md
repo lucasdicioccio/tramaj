@@ -386,23 +386,30 @@ case parseProgram src of
       bad -> renderError ("invalid attribute name(s): " <> show bad)
 ```
 
-### 5.1b Expression-rooted programs (JSON mode) — Haskell only
+### 5.1b Expression-rooted programs (JSON mode)
 
 A host that wants the *data* half of the language on its own — generate a JSON
 payload, not a document — can root a program at an expression instead of an
-element. `templating-hs` exposes this as a second entry point:
+element. Both implementations expose this as a second entry point:
 
 ```haskell
+-- templating-hs
 parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
 evalJsonProgram  :: Value -> JsonProgram -> Either EvalError Value
 ```
 
+```purescript
+-- templating (PureScript)
+parseJsonProgram :: String -> Either ParseError JsonProgram
+evalJsonProgram  :: Json -> JsonProgram -> Either EvalError Json
+```
+
 Same computation block, same expression language, same builtins; only the root
 differs, and the two roots can never be confused because an element root always
-starts with `.` and no expression form does. The result is a real `Value`:
+starts with `.` and no expression form does. The result is a real JSON value:
 nothing passes through `jsonToDisplayString`, so numbers stay numbers and nested
 objects stay objects — which is exactly what the `Node` path cannot give you,
-since `NElement`'s attributes are `Map Text Text`.
+since `NElement`'s attributes are a string-to-string map.
 
 ```
 @posts=$ctx.datasets.index.posts
@@ -410,11 +417,12 @@ since `NElement`'s attributes are `Map Text Text`.
 {"count": $n, "titles": map($posts, (p) => $p.title)}
 ```
 
-This mode exists only in `templating-hs`; `../templating` has no counterpart, so
-nothing about it is covered by the cross-language fixture agreement. What it
-reuses (bindings, closures, builtins, `map`/`filter`/`scan`) is the shared
-expression language, so a divergence there would still surface in the ported
-fixtures.
+The PureScript fixtures for this mode live in `templating/test/Test/Main.purs`
+(not `Test/Fixtures.purs`, which only covers `Node`-rooted programs) and are not
+held to cross-language agreement with `templating-hs`'s own JSON-mode fixtures
+in `EvalSpec.hs` — both exercise the shared expression language (bindings,
+closures, builtins, `map`/`filter`/`scan`), so a divergence there would still
+surface in the ported `Node`-rooted fixtures either package holds.
 
 ### 5.2 Action binding
 

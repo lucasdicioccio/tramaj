@@ -14,6 +14,7 @@
 module Templating.Eval
   ( EvalError(..)
   , evalProgram
+  , evalJsonProgram
   ) where
 
 import Prelude
@@ -29,7 +30,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Templating.Ast (ActionPayload, Expr(..), Node(..), Program, StringPart(..), TAction(..), TemplateNode(..))
+import Templating.Ast (ActionPayload, Expr(..), JsonProgram, Node(..), Program, StringPart(..), TAction(..), TemplateNode(..))
 
 data EvalError
   = UnboundName String
@@ -88,6 +89,17 @@ evalProgram :: Json -> Program -> Either EvalError Node
 evalProgram input program = do
   env <- evalBindings input program.bindings
   evalTemplate env program.root
+
+-- | Evaluates a `JsonProgram`: the same computation block as `evalProgram`
+-- | (same order, same closures, same no-recursion rule) but the root is an
+-- | `Expr`, so the result is a `Json` value rather than a document `Node`.
+-- | Nothing here is stringified through `jsonToDisplayString` -- numbers
+-- | stay numbers and nested objects stay objects, which is precisely what a
+-- | host generating a JSON payload (rather than a document) needs.
+evalJsonProgram :: Json -> JsonProgram -> Either EvalError Json
+evalJsonProgram input program = do
+  env <- evalBindings input program.bindings
+  evalExprAsJson env program.root
 
 -- | Run every `comp-block` binding once, in declaration order, against an
 -- | environment that starts as just `{ ctx: input }` and accumulates one

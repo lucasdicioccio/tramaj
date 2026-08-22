@@ -40,11 +40,11 @@ disagree, `llm.md` is correct.
 
 | Package | Language | What it is |
 |---|---|---|
-| [`templating/`](templating) | PureScript | The core: `Templating.Ast`, `Templating.Parser`, `Templating.Eval`. No DOM, no Halogen — usable from any host. |
+| [`templating/`](templating) | PureScript | The core: `Templating.Ast`, `Templating.Parser`, `Templating.Eval`. No DOM, no Halogen — usable from any host. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
 | [`templating-halogen/`](templating-halogen) | PureScript | `Templating.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
 | [`templating-cli/`](templating-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
-| [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a Haskell-only JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
+| [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
 
 `templating-halogen` is a separate package precisely so that `templating` itself
 never pulls in Halogen; that is what lets `templating-cli` (and any other

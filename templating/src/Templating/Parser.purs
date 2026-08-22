@@ -15,6 +15,7 @@
 -- | disambiguates a call from a plain value reference either way.
 module Templating.Parser
   ( parseProgram
+  , parseJsonProgram
   , parseExpr
   , parseTemplateNode
   ) where
@@ -33,7 +34,7 @@ import Parsing (ParseError, Parser, fail, runParser)
 import Parsing.Combinators (many, many1, optionMaybe, sepEndBy, try)
 import Parsing.String (char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, letter, skipSpaces)
-import Templating.Ast (Expr(..), Program, StringPart(..), TAction(..), TemplateNode(..))
+import Templating.Ast (Expr(..), JsonProgram, Program, StringPart(..), TAction(..), TemplateNode(..))
 
 type P a = Parser String a
 
@@ -494,6 +495,23 @@ program = do
 
 parseProgram :: String -> Either ParseError Program
 parseProgram input = runParser input program
+
+-- | Same computation block as `program`, but the root is an `expr` rather
+-- | than a `node` -- the parser half of the JSON-producing mode (see
+-- | `Templating.Eval.evalJsonProgram`). The two roots can never be
+-- | confused: an element root always starts with `.`, which no expression
+-- | form does.
+jsonProgram :: P JsonProgram
+jsonProgram = do
+  skipSpaces
+  bindings <- compBlock
+  root <- expr
+  skipSpaces
+  eof
+  pure { bindings, root }
+
+parseJsonProgram :: String -> Either ParseError JsonProgram
+parseJsonProgram input = runParser input jsonProgram
 
 parseExpr :: String -> Either ParseError Expr
 parseExpr input = runParser input (skipSpaces *> expr <* eof)

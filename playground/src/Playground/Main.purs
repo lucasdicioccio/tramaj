@@ -32,25 +32,42 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Templating.Ast (ActionPayload, Node, nodeToJson)
-import Templating.Eval (evalProgram)
+import Templating.Eval (evalJsonProgram, evalProgram)
 import Templating.Halogen (foldToHalogen, validateAttrNames)
-import Templating.Parser (parseProgram)
+import Templating.Parser (parseJsonProgram, parseProgram)
 
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   runUI component unit body
 
+-- | Which of the two program roots (see `specs/llm.md` §5.1b) the
+-- | "Template" card's textarea is currently parsed as: an element
+-- | (`Templating.Parser.parseProgram`, folded to Halogen HTML) or an
+-- | expression (`parseJsonProgram`, evaluated straight to `Json` — no
+-- | Halogen fold applies, since there's no `Node` to fold). Each mode
+-- | keeps its own textarea contents (`templateInput`/`jsonProgramInput`)
+-- | so switching modes doesn't clobber either draft; the JSON context
+-- | card is shared, since both modes evaluate against the same `$ctx`.
+data Mode = TemplateMode | JsonMode
+
+derive instance eqMode :: Eq Mode
+
 type State =
-  { templateInput :: String
+  { mode :: Mode
+  , templateInput :: String
+  , jsonProgramInput :: String
   , jsonInput :: String
   , actionLog :: Array { key :: String, payload :: Json }
   -- ^ Appended to by 'dispatchAction' on every `action(...)` click in the
-  -- rendered output; newest last, rendered newest-first.
+  -- rendered output; newest last, rendered newest-first. Template-mode
+  -- only — JSON mode never folds to Halogen HTML, so nothing can click.
   }
 
 data Action
-  = SetTemplateInput String
+  = SetMode Mode
+  | SetTemplateInput String
+  | SetJsonProgramInput String
   | SetJsonInput String
   | ActionFired String Json
   | ClearActionLog
@@ -65,7 +82,8 @@ component =
 
 initialState :: State
 initialState =
-  { templateInput:
+  { mode: TemplateMode
+  , templateInput:
       """@item-count=$cardinality($ctx.items)
 .div(
   "data-count": $item-count,
@@ -77,6 +95,9 @@ initialState =
     )
   ))
 )"""
+  , jsonProgramInput:
+      """@item-count=$cardinality($ctx.items)
+{"count": $item-count, "titles": map($ctx.items, (item) => $item.title)}"""
   , jsonInput:
       """{"items": [{"title": "Alpha"}, {"title": "Beta"}]}"""
   , actionLog: []
@@ -84,7 +105,9 @@ initialState =
 
 handleAction :: forall output. Action -> H.HalogenM State Action () output Aff Unit
 handleAction = case _ of
+  SetMode mode -> H.modify_ _ { mode = mode }
   SetTemplateInput template -> H.modify_ _ { templateInput = template }
+  SetJsonProgramInput template -> H.modify_ _ { jsonProgramInput = template }
   SetJsonInput json -> H.modify_ _ { jsonInput = json }
   ActionFired key payload -> H.modify_ \s -> s { actionLog = s.actionLog <> [ { key, payload } ] }
   ClearActionLog -> H.modify_ _ { actionLog = [] }
@@ -101,14 +124,28 @@ render state =
         ]
     , HH.div [ HP.class_ (HH.ClassName "cols") ]
         [ HH.div [ HP.class_ (HH.ClassName "card") ]
-            [ HH.h2_ [ HH.text "Template" ]
-            , HH.textarea
-                [ HP.class_ (HH.ClassName "input")
-                , HP.rows 16
-                , HP.spellcheck false
-                , HP.value state.templateInput
-                , HE.onValueInput SetTemplateInput
+            [ HH.div [ HP.class_ (HH.ClassName "row") ]
+                [ HH.h2_ [ HH.text "Template" ]
+                , renderModeToggle state.mode
                 ]
+            , modeHint state.mode
+            , case state.mode of
+                TemplateMode ->
+                  HH.textarea
+                    [ HP.class_ (HH.ClassName "input")
+                    , HP.rows 16
+                    , HP.spellcheck false
+                    , HP.value state.templateInput
+                    , HE.onValueInput SetTemplateInput
+                    ]
+                JsonMode ->
+                  HH.textarea
+                    [ HP.class_ (HH.ClassName "input")
+                    , HP.rows 16
+                    , HP.spellcheck false
+                    , HP.value state.jsonProgramInput
+                    , HE.onValueInput SetJsonProgramInput
+                    ]
             ]
         , HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "JSON context" ]
@@ -125,7 +162,10 @@ render state =
         [ HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "AST" ]
             , HH.p [ HP.class_ (HH.ClassName "hint") ]
-                [ HH.text "The evaluated Templating.Ast.Node tree — the same value foldToHalogen is folding on the right, shown as plain JSON before that fold happens." ]
+                [ HH.text case state.mode of
+                    TemplateMode -> "The evaluated Templating.Ast.Node tree — the same value foldToHalogen is folding on the right, shown as plain JSON before that fold happens."
+                    JsonMode -> "The evaluated JSON value, before it's pretty-printed on the right — for JSON mode this is the same value, just stringified with no indentation."
+                ]
             , renderAst state
             ]
         , HH.div [ HP.class_ (HH.ClassName "card") ]
@@ -144,38 +184,89 @@ render state =
                 [ HH.text "Clear" ]
             ]
         , HH.p [ HP.class_ (HH.ClassName "hint") ]
-            [ HH.text "Every action(...) click in the rendered output is dispatched here — real Halogen actions, appended by the demo handler passed to foldToHalogen." ]
+            [ HH.text case state.mode of
+                TemplateMode -> "Every action(...) click in the rendered output is dispatched here — real Halogen actions, appended by the demo handler passed to foldToHalogen."
+                JsonMode -> "JSON mode has no Node tree to fold to Halogen HTML, so nothing here can dispatch an action(...) click — switch to Template mode to try that."
+            ]
         , renderActionLog state
         ]
     ]
 
+-- | Two buttons switching `state.mode` — deliberately not a `<select>`,
+-- | since there are only ever these two roots (see `Mode`'s note on why
+-- | element vs. expression can never be ambiguous either).
+renderModeToggle :: Mode -> H.ComponentHTML Action () Aff
+renderModeToggle mode =
+  HH.div [ HP.class_ (HH.ClassName "mode-toggle") ]
+    [ modeButton TemplateMode "Template"
+    , modeButton JsonMode "JSON"
+    ]
+  where
+  modeButton :: Mode -> String -> H.ComponentHTML Action () Aff
+  modeButton m label =
+    HH.button
+      [ HP.class_ (HH.ClassName (if mode == m then "btn btn-active" else "btn"))
+      , HE.onClick \_ -> SetMode m
+      ]
+      [ HH.text label ]
+
+modeHint :: Mode -> H.ComponentHTML Action () Aff
+modeHint mode =
+  HH.p [ HP.class_ (HH.ClassName "hint") ]
+    [ HH.text case mode of
+        TemplateMode -> "Rooted at an element (parseProgram/evalProgram) — folded to real Halogen HTML on the right."
+        JsonMode -> "Rooted at an expression (parseJsonProgram/evalJsonProgram) — evaluates straight to a JSON value, no document tree involved."
+    ]
+
+-- | The two possible parse/eval outcomes, one per `Mode` — `ResultNode`
+-- | folds to real Halogen HTML (`renderOutput`) and to `Node`'s own JSON
+-- | shape (`renderAst`, via `nodeToJson`); `ResultJson` has no document
+-- | tree to fold, so it's shown the same prettified way in both panels.
+data EvalResult
+  = ResultNode Node
+  | ResultJson Json
+
 -- | Shared by 'renderOutput' and 'renderAst' so both panels reflect one
 -- | parse/eval result rather than each re-running the pipeline and
 -- | risking disagreement mid-edit.
-computeNode :: State -> Either String Node
-computeNode state = case jsonParser state.jsonInput of
+computeResult :: State -> Either String EvalResult
+computeResult state = case jsonParser state.jsonInput of
   Left err -> Left ("Invalid JSON: " <> err)
-  Right ctx -> case parseProgram state.templateInput of
-    Left err -> Left ("Template parse error: " <> show err)
-    Right program -> case evalProgram ctx program of
-      Left err -> Left ("Template eval error: " <> show err)
-      Right node -> Right node
+  Right ctx -> case state.mode of
+    TemplateMode -> case parseProgram state.templateInput of
+      Left err -> Left ("Template parse error: " <> show err)
+      Right program -> case evalProgram ctx program of
+        Left err -> Left ("Template eval error: " <> show err)
+        Right node -> Right (ResultNode node)
+    JsonMode -> case parseJsonProgram state.jsonProgramInput of
+      Left err -> Left ("Template parse error: " <> show err)
+      Right program -> case evalJsonProgram ctx program of
+        Left err -> Left ("Template eval error: " <> show err)
+        Right json -> Right (ResultJson json)
 
 renderOutput :: State -> H.ComponentHTML Action () Aff
-renderOutput state = case computeNode state of
+renderOutput state = case computeResult state of
   Left err -> renderError err
-  Right node -> case validateAttrNames node of
+  Right (ResultNode node) -> case validateAttrNames node of
     [] -> foldToHalogen dispatchAction node
     invalid -> renderError
       ( "Invalid attribute name(s): "
           <> joinWith ", " invalid
           <> " — attribute keys may only contain letters, digits, '-' and '_'"
       )
+  -- | JSON mode has no `Node` tree to fold to Halogen HTML — the
+  -- | "rendered" form of a JSON value is just the value itself,
+  -- | pretty-printed and wrapped in a `<code>` tag (inside a `<pre>` so
+  -- | the indentation survives HTML's whitespace collapsing).
+  Right (ResultJson json) ->
+    HH.pre [ HP.class_ (HH.ClassName "ref") ]
+      [ HH.code_ [ HH.text (stringifyWithIndent 2 json) ] ]
 
 renderAst :: State -> H.ComponentHTML Action () Aff
-renderAst state = case computeNode state of
+renderAst state = case computeResult state of
   Left err -> renderError err
-  Right node -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 (nodeToJson node)) ]
+  Right (ResultNode node) -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 (nodeToJson node)) ]
+  Right (ResultJson json) -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 json) ]
 
 -- | The demo dispatcher: every `action(...)` click becomes a real
 -- | Halogen action appended to the log. A read-only host would pass
