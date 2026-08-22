@@ -258,6 +258,18 @@ templateSpec = describe "Templating end-to-end fixtures (ported from the PureScr
             ]
         )
 
+  it "expr-level fold(...) reduces to a single final value (same step as scan, last only)" $
+    run
+      "@any-big=fold($ctx.nums, false, (acc, n) => $or($acc, $gt($n, 5)))\n.p(\"`$any-big`\")"
+      (object ["nums" .= ([1, 2, 8, 3] :: [Int])])
+      `shouldBe` Right (elem_ "p" [NText "true"])
+
+  it "expr-level fold(...) over an empty array returns the seed unchanged" $
+    run
+      "@any-big=fold($ctx.nums, false, (acc, n) => $or($acc, $gt($n, 5)))\n.p(\"`$any-big`\")"
+      (object ["nums" .= ([] :: [Int])])
+      `shouldBe` Right (elem_ "p" [NText "false"])
+
   it "template-block branch(...) selects a matching node" $
     run
       "@is-admin=$eq($ctx.role, \"admin\")\n.div(branch(.p(\"guest\"), $is-admin, .p(\"admin!\")))"

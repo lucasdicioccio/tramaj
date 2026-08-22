@@ -197,8 +197,22 @@ evalExpr env (ScanExpr arrExpr initExpr fnExpr) = do
       nextAcc <- applyFunctionValue "scan" fnVal [ VJson acc, VJson item ] >>= requireJson
       restAccs <- scanSteps fnVal nextAcc rest
       pure (Array.cons acc restAccs)
+evalExpr env (FoldExpr arrExpr initExpr fnExpr) = do
+  items <- evalArrayExpr "fold" env arrExpr
+  initAcc <- evalExprAsJson env initExpr
+  fnVal <- evalExpr env fnExpr
+  VJson <$> foldSteps fnVal initAcc items
+  where
+  -- | Same `(acc, item)` step and `scanl` iteration order as `scan`, but
+  -- | only the final accumulator is kept — no intermediate array.
+  foldSteps :: Value -> Json -> Array Json -> Either EvalError Json
+  foldSteps fnVal acc items = case Array.uncons items of
+    Nothing -> Right acc
+    Just { head: item, tail: rest } -> do
+      nextAcc <- applyFunctionValue "fold" fnVal [ VJson acc, VJson item ] >>= requireJson
+      foldSteps fnVal nextAcc rest
 
--- | Shared by `map`/`filter`/`scan`: evaluate the array-producing
+-- | Shared by `map`/`filter`/`scan`/`fold`: evaluate the array-producing
 -- | argument and require it actually be a `Json` array.
 evalArrayExpr :: String -> Env -> Expr -> Either EvalError (Array Json)
 evalArrayExpr who env arrExpr = do

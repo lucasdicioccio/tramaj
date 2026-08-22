@@ -842,3 +842,23 @@ each showing. Verified live in the browser against the default demo
 template: the AST panel shows the full evaluated tree (including the
 `action` field's `eventType`/`key`/`payload`) in sync with what Rendered
 displays.
+
+## `fold(arr, init, fn)` builtin, implemented 2026-08-22
+
+A fourth functional array primitive alongside `map`/`filter`/`scan`
+(§"Functional map/filter/scan..." above): `Expr` gained `FoldExpr Expr
+Expr Expr`, parsed as its own dedicated special form exactly like `scan`
+(`Templating.Parser.specialFormExpr`'s `foldShape`), sharing `scan`'s
+`(acc, item)` step signature and `scanl` (seed-first) iteration order —
+but where `scan` returns every intermediate accumulator as an array one
+longer than the input, `fold` returns only the **final** accumulator, a
+plain `Json` value (`init` unchanged, returned as-is, for an empty
+array). It exists specifically for the common case where only the
+end result of an accumulation is wanted (a running total, a single
+"did any item match" boolean) and building the whole `scan` array just
+to read its last element is wasted work. Implemented in both
+`templating` (PureScript) and `templating-hs` (Haskell); two new
+fixtures on each side (a non-empty and an empty-array case) bring the
+PureScript fixture count to 27 in `templating/test/Test/Fixtures.purs`,
+`spago test` passes; the Haskell port's `templating-hs/test/unit/Templating/EvalSpec.hs`
+mirrors both, `cabal test unit` passes.

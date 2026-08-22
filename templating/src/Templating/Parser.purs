@@ -214,7 +214,8 @@ lambdaExpr = do
   pure (LambdaExpr (Array.fromFoldable params) body)
 
 -- | The functional array primitives — `map(arr, fn)`, `filter(arr, fn)`,
--- | `scan(arr, init, fn)`, where `fn` is any `expr` expected to evaluate
+-- | `scan(arr, init, fn)`, `fold(arr, init, fn)`, where `fn` is any `expr`
+-- | expected to evaluate
 -- | to a closure at eval time (an inline `lambdaExpr`, or a `$name`
 -- | referencing a previously bound one — both are just `expr`, so no
 -- | special-casing is needed here beyond parsing `fn` as one). Parsed as
@@ -235,7 +236,8 @@ specialFormExpr = try do
     "map" -> mapShape
     "filter" -> filterShape
     "scan" -> scanShape
-    _ -> fail "not a map/filter/scan special form"
+    "fold" -> foldShape
+    _ -> fail "not a map/filter/scan/fold special form"
   where
   mapShape :: P Expr
   mapShape = do
@@ -265,6 +267,17 @@ specialFormExpr = try do
     fn <- defer \_ -> expr
     _ <- symbol ")"
     pure (ScanExpr arr initE fn)
+
+  foldShape :: P Expr
+  foldShape = do
+    _ <- symbol "("
+    arr <- defer \_ -> expr
+    _ <- symbol ","
+    initE <- defer \_ -> expr
+    _ <- symbol ","
+    fn <- defer \_ -> expr
+    _ <- symbol ")"
+    pure (FoldExpr arr initE fn)
 
 -- | `expr := bool-lit | lambda-expr | map/filter/scan-special-form |
 -- | call | path | string-lit | number-lit | array-lit | object-lit`.

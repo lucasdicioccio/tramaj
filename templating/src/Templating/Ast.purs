@@ -46,15 +46,17 @@ import Foreign.Object as Object
 -- | *before* its own binding is inserted, so a lambda can't call itself
 -- | by name from within its own body.
 -- |
--- | `MapExpr`/`FilterExpr`/`ScanExpr` are the functional-style array
--- | primitives: `map(arr, fn)`, `filter(arr, fn)`, `scan(arr, init,
--- | fn)`, where `fn` is any `expr` that evaluates to a closure — an
--- | inline `LambdaExpr` or a `Path` to a previously bound one. These
--- | aren't ordinary `Call`s: `arr`'s elements need binding into `fn`'s
--- | closure environment fresh per element (and, for `scan`, per
--- | accumulator step too), which the uniform "evaluate every argument to
--- | a `Json` value up front" `Call` dispatch can't express (see
--- | `Templating.Eval`).
+-- | `MapExpr`/`FilterExpr`/`ScanExpr`/`FoldExpr` are the functional-style
+-- | array primitives: `map(arr, fn)`, `filter(arr, fn)`, `scan(arr, init,
+-- | fn)`, `fold(arr, init, fn)`, where `fn` is any `expr` that evaluates
+-- | to a closure — an inline `LambdaExpr` or a `Path` to a previously
+-- | bound one. These aren't ordinary `Call`s: `arr`'s elements need
+-- | binding into `fn`'s closure environment fresh per element (and, for
+-- | `scan`/`fold`, per accumulator step too), which the uniform
+-- | "evaluate every argument to a `Json` value up front" `Call` dispatch
+-- | can't express (see `Templating.Eval`). `fold` shares `scan`'s
+-- | `(acc, item)` step signature and `scanl` iteration order, but returns
+-- | only the final accumulator instead of every intermediate step.
 data Expr
   = Path (Array String)
   | Call (Array String) (Array Expr)
@@ -67,6 +69,7 @@ data Expr
   | MapExpr Expr Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
+  | FoldExpr Expr Expr Expr
 
 derive instance eqExpr :: Eq Expr
 
@@ -82,6 +85,7 @@ instance showExpr :: Show Expr where
   show (MapExpr arr fn) = "MapExpr (" <> show arr <> ") (" <> show fn <> ")"
   show (FilterExpr arr fn) = "FilterExpr (" <> show arr <> ") (" <> show fn <> ")"
   show (ScanExpr arr initE fn) = "ScanExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
+  show (FoldExpr arr initE fn) = "FoldExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
 
 -- | One piece of a double-quoted string literal: either literal text or a
 -- | backtick-delimited interpolation of an arbitrary `Expr` (not just a

@@ -40,6 +40,7 @@ data Expr
   | MapExpr Expr Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
+  | FoldExpr Expr Expr Expr
   deriving stock (Eq, Show)
 
 -- | One piece of a double-quoted string literal: either literal text or a

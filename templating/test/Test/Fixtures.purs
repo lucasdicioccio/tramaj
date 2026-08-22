@@ -232,6 +232,20 @@ fixtures =
         , elem_ "li" [ NText "true" ]
         ]
     }
+  , { name: "expr-level fold(...) reduces to a single final value (same step as scan, last only)"
+    , template:
+        """@any-big=fold($ctx.nums, false, (acc, n) => $or($acc, $gt($n, 5)))
+.p("`$any-big`")"""
+    , ctx: fromObject (Object.singleton "nums" (fromArray (fromNumber <$> [ 1.0, 2.0, 8.0, 3.0 ])))
+    , expected: elem_ "p" [ NText "true" ]
+    }
+  , { name: "expr-level fold(...) over an empty array returns the seed unchanged"
+    , template:
+        """@any-big=fold($ctx.nums, false, (acc, n) => $or($acc, $gt($n, 5)))
+.p("`$any-big`")"""
+    , ctx: fromObject (Object.singleton "nums" (fromArray []))
+    , expected: elem_ "p" [ NText "false" ]
+    }
   , { name: "template-block branch(...) selects a matching node"
     , template:
         """@is-admin=$eq($ctx.role, "admin")

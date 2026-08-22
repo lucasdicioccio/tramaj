@@ -177,10 +177,11 @@ lambdaExpr = try $ do
   pure (LambdaExpr params body)
 
 -- | The functional array primitives -- @map(arr, fn)@, @filter(arr, fn)@,
--- @scan(arr, init, fn)@ -- parsed as their own dedicated shapes (not through
--- the generic 'call' production) since @arr@\'s elements need binding into
--- @fn@\'s closure environment fresh per element, which the uniform
--- eagerly-evaluate-every-argument 'Call' dispatch can't express.
+-- @scan(arr, init, fn)@, @fold(arr, init, fn)@ -- parsed as their own
+-- dedicated shapes (not through the generic 'call' production) since
+-- @arr@\'s elements need binding into @fn@\'s closure environment fresh per
+-- element, which the uniform eagerly-evaluate-every-argument 'Call'
+-- dispatch can't express.
 specialFormExpr :: P Expr
 specialFormExpr = try $ do
   _ <- optional (char '$')
@@ -189,7 +190,8 @@ specialFormExpr = try $ do
     "map" -> mapShape
     "filter" -> filterShape
     "scan" -> scanShape
-    _ -> fail "not a map/filter/scan special form"
+    "fold" -> foldShape
+    _ -> fail "not a map/filter/scan/fold special form"
   where
     mapShape :: P Expr
     mapShape = do
@@ -219,6 +221,17 @@ specialFormExpr = try $ do
       fn <- expr
       _ <- symbol ")"
       pure (ScanExpr arr initE fn)
+
+    foldShape :: P Expr
+    foldShape = do
+      _ <- symbol "("
+      arr <- expr
+      _ <- symbol ","
+      initE <- expr
+      _ <- symbol ","
+      fn <- expr
+      _ <- symbol ")"
+      pure (FoldExpr arr initE fn)
 
 -- | @expr := bool-lit | lambda-expr | map\/filter\/scan-special-form | call
 -- | path | string-lit | number-lit | array-lit | object-lit@. Every

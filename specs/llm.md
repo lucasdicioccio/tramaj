@@ -116,6 +116,7 @@ lambda         := "(" [ident ("," ident)*] ")" "=>" expr
 special-form   := "map"    "(" expr "," expr ")"
                 | "filter" "(" expr "," expr ")"
                 | "scan"   "(" expr "," expr "," expr ")"
+                | "fold"   "(" expr "," expr "," expr ")"
 bool-lit       := "true" | "false"
 number-lit     := digit+ ["." digit+]
 string-lit     := '"' (char | "`" expr "`")* '"'
@@ -221,6 +222,7 @@ Fixed set. Arity is strict.
 | `branch(fallback, p1, v1, p2, v2, ...)` | "if p1 then v1, … else fallback", as a value |
 | `map(arr, fn)` / `filter(arr, fn)` | as expected; `fn` is any expression evaluating to a closure |
 | `scan(arr, init, fn)` | `scanl` semantics — output is `[init, f(init,x1), f(f(init,x1),x2), …]`, one **longer** than the input, seed first. `fn` takes `(acc, item)`. |
+| `fold(arr, init, fn)` | same `(acc, item)` step and `scanl` iteration order as `scan`, but returns only the **final** accumulator — `init` unchanged for an empty array. |
 
 `has` and `lookup` are deliberately tolerant: they exist to test for something
 you don't already know is there, so erroring on exactly the case they detect
@@ -267,6 +269,7 @@ data Expr
   | MapExpr Expr Expr                         -- map(arr, fn)
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr                   -- scan(arr, init, fn)
+  | FoldExpr Expr Expr Expr                   -- fold(arr, init, fn)
 
 data StringPart = Lit String | Interp Expr
 
