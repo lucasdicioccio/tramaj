@@ -266,6 +266,8 @@ evalBuiltin name args = case name of
   "has" -> binary hasImpl
   "lookup" -> ternary lookupImpl
   "branch" -> branchImpl
+  "concat" -> concatImpl
+  "append" -> binary appendImpl
   _ -> Left (UnknownFunction name)
   where
   arity1 :: forall a. (Json -> Either EvalError a) -> Either EvalError a
@@ -391,6 +393,27 @@ evalBuiltin name args = case name of
         Just { head: valJson, tail: rest2 } -> do
           p <- asBoolean predJson
           if p then Right valJson else go fallback rest2
+
+  -- | `concat(a, b, ...)` — variadic, joins any number of arrays (0 or
+  -- | more, `concat()` is `[]`) into one, preserving order. Each argument
+  -- | must itself be an array; a non-array argument anywhere in the list
+  -- | is a `TypeMismatch`, not silently skipped or wrapped.
+  concatImpl :: Either EvalError Json
+  concatImpl = do
+    arrs <- traverse asArray args
+    pure (fromArray (Array.concat arrs))
+
+  -- | `append(arr, item)` — a new array with `item` added at the end.
+  -- | `item` can be any `Json` value, including another array or object
+  -- | (appended as a single element, not spliced in — use `concat` for
+  -- | that).
+  appendImpl :: Json -> Json -> Either EvalError Json
+  appendImpl arr item = do
+    a <- asArray arr
+    pure (fromArray (Array.snoc a item))
+
+  asArray :: Json -> Either EvalError (Array Json)
+  asArray j = maybe (Left (TypeMismatch (name <> " expects an array argument"))) Right (toArray j)
 
 -- | How a resolved `Json` value renders when interpolated into template
 -- | output (backtick interpolation, or a bare `value` used as a

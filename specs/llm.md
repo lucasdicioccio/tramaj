@@ -223,6 +223,8 @@ Fixed set. Arity is strict.
 | `map(arr, fn)` / `filter(arr, fn)` | as expected; `fn` is any expression evaluating to a closure |
 | `scan(arr, init, fn)` | `scanl` semantics — output is `[init, f(init,x1), f(f(init,x1),x2), …]`, one **longer** than the input, seed first. `fn` takes `(acc, item)`. |
 | `fold(arr, init, fn)` | same `(acc, item)` step and `scanl` iteration order as `scan`, but returns only the **final** accumulator — `init` unchanged for an empty array. |
+| `concat(a, b, ...)` | variadic; joins any number of arrays (0 or more) into one, preserving order. Each argument must itself be an array. |
+| `append(arr, item)` | a new array with `item` added at the end. `item` can be any value, including an array/object (added as one element — use `concat` to splice arrays together). |
 
 `has` and `lookup` are deliberately tolerant: they exist to test for something
 you don't already know is there, so erroring on exactly the case they detect

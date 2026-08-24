@@ -862,3 +862,24 @@ fixtures on each side (a non-empty and an empty-array case) bring the
 PureScript fixture count to 27 in `templating/test/Test/Fixtures.purs`,
 `spago test` passes; the Haskell port's `templating-hs/test/unit/Templating/EvalSpec.hs`
 mirrors both, `cabal test unit` passes.
+
+## `concat`/`append` builtins, implemented 2026-08-24
+
+Two more fixed builtins, for working with arrays produced by `map`/
+`filter`/`scan`/`fold`/`lookup`/literals: **`concat(a, b, ...)`** —
+variadic, joins any number of arrays (`concat()` is `[]`) into one,
+preserving order, erroring if any argument isn't itself an array — and
+**`append(arr, item)`** — a new array with `item` added at the end,
+where `item` is any `Json` value (including an array/object, added as
+one element, not spliced in; that's what `concat` is for). Unlike
+`map`/`filter`/`scan`/`fold`, neither takes a lambda, so both are
+ordinary `Call`-dispatched builtins (`Templating.Eval.evalBuiltin`) —
+no new `Expr` constructor or dedicated parser special-form needed, same
+as `cardinality`/`has`/`lookup`/etc. Two new fixtures on each side
+(`concat` over two `$ctx`-bound arrays plus an array literal; `append`
+checked via `cardinality` growing by one) bring the PureScript fixture
+count to 29 in `templating/test/Test/Fixtures.purs`, `spago test`
+passes; `templating-hs/test/unit/Templating/EvalSpec.hs` mirrors both,
+`cabal test unit` passes (42 examples). The playground's in-app
+language reference and `specs/llm.md`'s builtin table were updated to
+match.

@@ -241,6 +241,8 @@ evalBuiltin name args = case name of
   "has" -> binary hasImpl
   "lookup" -> ternary lookupImpl
   "branch" -> branchImpl
+  "concat" -> concatImpl
+  "append" -> binary appendImpl
   _ -> Left (UnknownFunction name)
   where
     arity1 :: (Value -> Either EvalError a) -> Either EvalError a
@@ -338,6 +340,28 @@ evalBuiltin name args = case name of
         go fallback (predJson : valJson : rest2) = do
           p <- asBoolean predJson
           if p then Right valJson else go fallback rest2
+
+    -- | @concat(a, b, ...)@ -- variadic, joins any number of arrays (0 or
+    -- more, @concat()@ is @[]@) into one, preserving order. Each argument
+    -- must itself be an array; a non-array argument anywhere in the list
+    -- is a 'TypeMismatch', not silently skipped or wrapped.
+    concatImpl :: Either EvalError Value
+    concatImpl = do
+      arrs <- mapM asArray args
+      pure (Array (V.concat arrs))
+
+    -- | @append(arr, item)@ -- a new array with @item@ added at the end.
+    -- @item@ can be any JSON value, including another array or object
+    -- (appended as a single element, not spliced in -- use @concat@ for
+    -- that).
+    appendImpl :: Value -> Value -> Either EvalError Value
+    appendImpl arr item = do
+      a <- asArray arr
+      pure (Array (V.snoc a item))
+
+    asArray :: Value -> Either EvalError (V.Vector Value)
+    asArray (Array arr) = Right arr
+    asArray _ = Left (TypeMismatch (name <> " expects an array argument"))
 
 -- | How a resolved JSON value renders when interpolated into template
 -- output: strings render raw (no surrounding quotes), numbers drop a

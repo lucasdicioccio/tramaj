@@ -5,7 +5,9 @@
 Adds `fold(arr, init, fn)`, a fourth functional array primitive alongside
 `map`/`filter`/`scan`: same `(acc, item)` step and `scanl` iteration order as
 `scan`, but returns only the final accumulator instead of every intermediate
-step. Purely additive; no existing behavior changed. Ported in lockstep to the
+step. Also adds `concat(a, b, ...)` (variadic array-joining) and
+`append(arr, item)` (add a single element at the end) as ordinary builtins.
+Purely additive; no existing behavior changed. Ported in lockstep to the
 PureScript `templating` package.
 
 ## 0.2.0.0

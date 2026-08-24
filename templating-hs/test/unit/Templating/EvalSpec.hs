@@ -270,6 +270,28 @@ templateSpec = describe "Templating end-to-end fixtures (ported from the PureScr
       (object ["nums" .= ([] :: [Int])])
       `shouldBe` Right (elem_ "p" [NText "false"])
 
+  it "concat(...) joins multiple arrays in order" $
+    run
+      "@all=concat($ctx.a, $ctx.b, [5, 6])\n.ul(map($all, (n) => .li($n)))"
+      (object ["a" .= ([1, 2] :: [Int]), "b" .= ([3, 4] :: [Int])])
+      `shouldBe` Right
+        ( elem_
+            "ul"
+            [ elem_ "li" [NText "1"]
+            , elem_ "li" [NText "2"]
+            , elem_ "li" [NText "3"]
+            , elem_ "li" [NText "4"]
+            , elem_ "li" [NText "5"]
+            , elem_ "li" [NText "6"]
+            ]
+        )
+
+  it "append(...) adds a single element at the end of an array" $
+    run
+      "@grown=append($ctx.items, \"new\")\n.p(\"`$cardinality($grown)`\")"
+      (object ["items" .= (["a", "b"] :: [Text])])
+      `shouldBe` Right (elem_ "p" [NText "3"])
+
   it "template-block branch(...) selects a matching node" $
     run
       "@is-admin=$eq($ctx.role, \"admin\")\n.div(branch(.p(\"guest\"), $is-admin, .p(\"admin!\")))"

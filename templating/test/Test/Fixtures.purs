@@ -246,6 +246,32 @@ fixtures =
     , ctx: fromObject (Object.singleton "nums" (fromArray []))
     , expected: elem_ "p" [ NText "false" ]
     }
+  , { name: "concat(...) joins multiple arrays in order"
+    , template:
+        """@all=concat($ctx.a, $ctx.b, [5, 6])
+.ul(map($all, (n) => .li($n)))"""
+    , ctx: fromObject
+        ( Object.fromFoldable
+            [ Tuple "a" (fromArray (fromNumber <$> [ 1.0, 2.0 ]))
+            , Tuple "b" (fromArray (fromNumber <$> [ 3.0, 4.0 ]))
+            ]
+        )
+    , expected: elem_ "ul"
+        [ elem_ "li" [ NText "1" ]
+        , elem_ "li" [ NText "2" ]
+        , elem_ "li" [ NText "3" ]
+        , elem_ "li" [ NText "4" ]
+        , elem_ "li" [ NText "5" ]
+        , elem_ "li" [ NText "6" ]
+        ]
+    }
+  , { name: "append(...) adds a single element at the end of an array"
+    , template:
+        """@grown=append($ctx.items, "new")
+.p("`$cardinality($grown)`")"""
+    , ctx: fromObject (Object.singleton "items" (fromArray (fromString <$> [ "a", "b" ])))
+    , expected: elem_ "p" [ NText "3" ]
+    }
   , { name: "template-block branch(...) selects a matching node"
     , template:
         """@is-admin=$eq($ctx.role, "admin")

@@ -430,4 +430,15 @@ FUNCTIONS (fixed set — no custom functions)
                               x1), step(step(init, x1), x2), ...] — the
                               output array is always one longer than arr
                               (the seed comes first). fn takes 2 args:
-                              (acc, item) => ..."""
+                              (acc, item) => ...
+  fold(arr, init, fn)           same (acc, item) step and seed-first order
+                              as scan, but returns only the final
+                              accumulator instead of the whole array —
+                              init unchanged if arr is empty
+  concat(a, b, ...)             joins any number of arrays (0 or more)
+                              into one, preserving order — each argument
+                              must itself be an array
+  append(arr, item)             a new array with item added at the end;
+                              item can be anything, including an array/
+                              object (added as one element — use concat
+                              to splice arrays together instead)"""
