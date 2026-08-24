@@ -16,7 +16,7 @@ import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Foreign.Object as Object
 import Templating.Ast (Program)
-import Templating.Eval (EvalError, LibraryTable, evalJsonProgram, evalProgram)
+import Templating.Eval (EvalError, LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
 import Templating.Parser (parseJsonProgram, parseProgram)
 import Test.Fixtures (Fixture, fixtures)
 
@@ -201,10 +201,10 @@ runImportTests = do
     twoArg <- mustParseProgram ".div(\"`$ctx.a`-`$ctx.b`\")"
     pure
       ( Map.fromFoldable
-          [ Tuple "greeter" greeter
-          , Tuple "cyclic" cyclic
-          , Tuple "one-arg" oneArg
-          , Tuple "two-arg" twoArg
+          [ Tuple "greeter" (ProgramSource greeter)
+          , Tuple "cyclic" (ProgramSource cyclic)
+          , Tuple "one-arg" (ProgramSource oneArg)
+          , Tuple "two-arg" (ProgramSource twoArg)
           ]
       )
 

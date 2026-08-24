@@ -14,6 +14,7 @@
 module Templating.Eval
   ( EvalError(..)
   , LibraryTable
+  , LibrarySource(..)
   , evalProgram
   , evalJsonProgram
   ) where
@@ -53,13 +54,25 @@ instance showEvalError :: Show EvalError where
   show (UnknownLibrary name) = "UnknownLibrary " <> show name
   show (ImportCycle name) = "ImportCycle " <> show name
 
+-- | A library can be rooted either way a top-level program can: an
+-- | element (`Program`, same as `evalProgram`) or an expression
+-- | (`JsonProgram`, same as `evalJsonProgram`). There's no principled
+-- | reason to force every library through the element-rooted grammar —
+-- | `.rendered` is just "whatever the root evaluated to," and an `Expr`
+-- | can already produce a `VNode` itself (e.g. a bare path to something
+-- | bound from a nested `import`), the same way a `map(...)` lambda body
+-- | already can. See `runLibrary`.
+data LibrarySource
+  = ProgramSource Program
+  | JsonSource JsonProgram
+
 -- | Host-supplied library store: a library name (as used in
 -- | `import(name, params)`/`partial-import(name, params)`) resolves to an
--- | already-parsed `Program`. Where that `Program` came from (a file, an
+-- | already-parsed `LibrarySource`. Where that source came from (a file, an
 -- | embedded string, a remote fetch) is entirely a host concern — the
 -- | evaluator only ever sees the parsed result, same posture as the `Json`
 -- | `input` argument it already takes.
-type LibraryTable = Map String Program
+type LibraryTable = Map String LibrarySource
 
 -- | Everything a name in the environment (or an evaluated `expr`) can be:
 -- | an ordinary `Json` value, a closure — a `LambdaExpr`'s parameter names
@@ -286,22 +299,40 @@ expectLibName :: Json -> Either EvalError String
 expectLibName j = maybe (Left (TypeMismatch "import(...)/partial-import(...): the library name (1st argument) must be a string")) Right (toString j)
 
 -- | Evaluates a library by name against its own fresh `$ctx = paramsJson`,
--- | producing a `VEnv { rendered: VNode, vals: VEnv libEnv }` — the shared
--- | path both `import` and (via `tryPartial`) `partial-import` run
--- | through, so a completed partial import and a direct `import` call with
--- | the same merged params are guaranteed to produce the same result: they
--- | run the exact same code, not two independently-written evaluators.
+-- | producing a `VEnv { rendered, vals: VEnv libEnv }` — the shared path
+-- | both `import` and (via `tryPartial`) `partial-import` run through, so a
+-- | completed partial import and a direct `import` call with the same
+-- | merged params are guaranteed to produce the same result: they run the
+-- | exact same code, not two independently-written evaluators.
 -- | `inProgress` is the set of library names already being imported on
 -- | this call chain — re-entering one of them is a cycle, not recursion.
+-- |
+-- | `rendered` is whatever the library's root actually evaluated to, not
+-- | unconditionally a `VNode`: an element-rooted (`ProgramSource`) library
+-- | evaluates its `TemplateNode` root and wraps the resulting `Node` in
+-- | `VNode` (as before), but an expression-rooted (`JsonSource`) library
+-- | just keeps the `Value` its `Expr` root produced — a `VJson` scalar/
+-- | array/object ordinarily, but a `VNode` too if that expression happens
+-- | to evaluate to one (e.g. a bare path to something bound from a nested
+-- | `import`). Every downstream consumer of `rendered` (`TValue`'s splice-
+-- | or-stringify, `requireJson`'s `nodeToJson` reduction) already handles
+-- | any `Value` uniformly, so which shape a given library used never
+-- | matters past this function.
 runLibrary :: LibraryTable -> Set String -> String -> Json -> Either EvalError Value
 runLibrary libs inProgress name paramsJson
   | Set.member name inProgress = Left (ImportCycle name)
   | otherwise = do
-      libProgram <- maybe (Left (UnknownLibrary name)) Right (Map.lookup name libs)
+      src <- maybe (Left (UnknownLibrary name)) Right (Map.lookup name libs)
       let inProgress' = Set.insert name inProgress
-      libEnv <- evalBindings libs inProgress' paramsJson libProgram.bindings
-      renderedNode <- evalTemplate libs inProgress' libEnv libProgram.root
-      pure (VEnv (Map.fromFoldable [ Tuple "rendered" (VNode renderedNode), Tuple "vals" (VEnv libEnv) ]))
+      case src of
+        ProgramSource libProgram -> do
+          libEnv <- evalBindings libs inProgress' paramsJson libProgram.bindings
+          renderedNode <- evalTemplate libs inProgress' libEnv libProgram.root
+          pure (VEnv (Map.fromFoldable [ Tuple "rendered" (VNode renderedNode), Tuple "vals" (VEnv libEnv) ]))
+        JsonSource libProgram -> do
+          libEnv <- evalBindings libs inProgress' paramsJson libProgram.bindings
+          renderedVal <- evalExpr libs inProgress' libEnv libProgram.root
+          pure (VEnv (Map.fromFoldable [ Tuple "rendered" renderedVal, Tuple "vals" (VEnv libEnv) ]))
 
 -- | `partial-import`'s core: try the library for real, and downgrade to a
 -- | suspended `VPartial` only when the *specific* reason it failed is a

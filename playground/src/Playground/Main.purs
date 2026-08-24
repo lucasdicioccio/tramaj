@@ -1,8 +1,12 @@
--- | A standalone browser playground for the templating language: a
--- | template and a JSON context, both freeform textarea input, parsed and
--- | evaluated live and shown three ways — the evaluated `Node` tree as
--- | JSON, the same tree folded to real Halogen HTML, and a log of every
--- | `action(...)` click that HTML dispatches.
+-- | A standalone browser playground for the templating language: a set of
+-- | named tabs, each a freeform textarea holding either an element-rooted
+-- | template or an expression-rooted JSON-mode program, plus a shared JSON
+-- | context. The active tab is parsed/evaluated live and shown three ways
+-- | — the evaluated `Node`/`Json` result as JSON, the same tree folded to
+-- | real Halogen HTML (template mode only), and a log of every
+-- | `action(...)` click that HTML dispatches. Every tab (including the
+-- | active one) is also exposed to `import`/`partial-import` as a library,
+-- | keyed by its tab name — see `buildLibraryTable`.
 -- |
 -- | It exists to exercise the whole pipeline end to end in one place:
 -- | `Templating.Parser` -> `Templating.Eval` -> `Templating.Halogen`'s
@@ -20,10 +24,12 @@ import Prelude
 import Data.Argonaut.Core (Json, stringify, stringifyWithIndent)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (null, reverse)
-import Data.Either (Either(..))
+import Data.Array as Array
+import Data.Either (Either(..), either)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (joinWith)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Halogen as H
@@ -33,7 +39,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Templating.Ast (ActionPayload, Node, nodeToJson)
-import Templating.Eval (evalJsonProgram, evalProgram)
+import Templating.Eval (LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
 import Templating.Halogen (foldToHalogen, validateAttrNames)
 import Templating.Parser (parseJsonProgram, parseProgram)
 
@@ -42,23 +48,38 @@ main = HA.runHalogenAff do
   body <- HA.awaitBody
   runUI component unit body
 
--- | Which of the two program roots (see `specs/llm.md` §5.1b) the
--- | "Template" card's textarea is currently parsed as: an element
--- | (`Templating.Parser.parseProgram`, folded to Halogen HTML) or an
--- | expression (`parseJsonProgram`, evaluated straight to `Json` — no
--- | Halogen fold applies, since there's no `Node` to fold). Each mode
--- | keeps its own textarea contents (`templateInput`/`jsonProgramInput`)
--- | so switching modes doesn't clobber either draft; the JSON context
--- | card is shared, since both modes evaluate against the same `$ctx`.
+-- | Which of the two program roots (see `specs/llm.md` §5.1b) a tab is
+-- | currently parsed as: an element (`Templating.Parser.parseProgram`,
+-- | folded to Halogen HTML when active) or an expression
+-- | (`parseJsonProgram`, evaluated straight to `Json` — no Halogen fold
+-- | applies when active, since there's no `Node` to fold). Also which
+-- | `LibrarySource` shape a tab contributes as a library for every other
+-- | tab's `import`/`partial-import` calls — see `tabLibrarySource`.
 data Mode = TemplateMode | JsonMode
 
 derive instance eqMode :: Eq Mode
 
+-- | One editor pane: a name (the key other tabs `import` it by), its own
+-- | mode, and its own source text. Independent of every other tab —
+-- | switching/editing one never touches another's draft.
+type Tab =
+  { name :: String
+  , mode :: Mode
+  , source :: String
+  }
+
 type State =
-  { mode :: Mode
-  , templateInput :: String
-  , jsonProgramInput :: String
+  { tabs :: Array Tab
+  , activeTab :: Int
+  -- ^ Index into `tabs` — which one is shown/evaluated as the root
+  -- program on the right. Every tab, including this one, is still
+  -- available to `import`/`partial-import` (see `buildLibraryTable`); a
+  -- tab importing itself is handled by the language's own cycle guard,
+  -- not excluded here.
   , jsonInput :: String
+  -- ^ The shared `$ctx` for whichever tab is active — *not* passed to
+  -- library tabs, which each get their own fresh `$ctx` from whatever
+  -- `params` the active tab's `import(...)` call supplies.
   , actionLog :: Array { key :: String, payload :: Json }
   -- ^ Appended to by 'dispatchAction' on every `action(...)` click in the
   -- rendered output; newest last, rendered newest-first. Template-mode
@@ -66,9 +87,12 @@ type State =
   }
 
 data Action
-  = SetMode Mode
-  | SetTemplateInput String
-  | SetJsonProgramInput String
+  = SetActiveTab Int
+  | SetTabMode Int Mode
+  | SetTabSource Int String
+  | SetTabName Int String
+  | AddTab
+  | RemoveTab Int
   | SetJsonInput String
   | ActionFired String Json
   | ClearActionLog
@@ -83,11 +107,15 @@ component =
 
 initialState :: State
 initialState =
-  { mode: TemplateMode
-  , templateInput:
-      """@item-count=$cardinality($ctx.items)
+  { tabs:
+      [ { name: "main"
+        , mode: TemplateMode
+        , source:
+            """@item-count=$cardinality($ctx.items)
+@greeting=import("greeting", {"name": "World"})
 .div(
   "data-count": $item-count,
+  $greeting.rendered,
   .p("there are `$item-count` item(s)"),
   .ul(map($ctx.items, (item) =>
     .li(
@@ -96,9 +124,19 @@ initialState =
     )
   ))
 )"""
-  , jsonProgramInput:
-      """@item-count=$cardinality($ctx.items)
+        }
+      , { name: "greeting"
+        , mode: TemplateMode
+        , source: """.p("hello, `$ctx.name`!")"""
+        }
+      , { name: "json-demo"
+        , mode: JsonMode
+        , source:
+            """@item-count=$cardinality($ctx.items)
 {"count": $item-count, "titles": map($ctx.items, (item) => $item.title)}"""
+        }
+      ]
+  , activeTab: 0
   , jsonInput:
       """{"items": [{"title": "Alpha"}, {"title": "Beta"}]}"""
   , actionLog: []
@@ -106,12 +144,55 @@ initialState =
 
 handleAction :: forall output. Action -> H.HalogenM State Action () output Aff Unit
 handleAction = case _ of
-  SetMode mode -> H.modify_ _ { mode = mode }
-  SetTemplateInput template -> H.modify_ _ { templateInput = template }
-  SetJsonProgramInput template -> H.modify_ _ { jsonProgramInput = template }
+  SetActiveTab i -> H.modify_ _ { activeTab = i }
+  SetTabMode i mode -> modifyTab i _ { mode = mode }
+  SetTabSource i source -> modifyTab i _ { source = source }
+  SetTabName i name -> modifyTab i _ { name = name }
+  AddTab -> H.modify_ \s ->
+    s
+      { tabs = Array.snoc s.tabs { name: "tab-" <> show (Array.length s.tabs + 1), mode: TemplateMode, source: "" }
+      , activeTab = Array.length s.tabs
+      }
+  RemoveTab i -> H.modify_ \s ->
+    if Array.length s.tabs <= 1 then s
+    else
+      s
+        { tabs = fromMaybe s.tabs (Array.deleteAt i s.tabs)
+        , activeTab = clampActive (Array.length s.tabs - 1) (if i <= s.activeTab then s.activeTab - 1 else s.activeTab)
+        }
   SetJsonInput json -> H.modify_ _ { jsonInput = json }
   ActionFired key payload -> H.modify_ \s -> s { actionLog = s.actionLog <> [ { key, payload } ] }
   ClearActionLog -> H.modify_ _ { actionLog = [] }
+  where
+  modifyTab :: Int -> (Tab -> Tab) -> H.HalogenM State Action () output Aff Unit
+  modifyTab i f = H.modify_ \s -> s { tabs = fromMaybe s.tabs (Array.modifyAt i f s.tabs) }
+
+  clampActive :: Int -> Int -> Int
+  clampActive maxIdx i = max 0 (min maxIdx i)
+
+-- | Every tab — including the active one — parsed as a `LibrarySource`
+-- | keyed by its name, per that tab's own `mode`. A tab that fails to
+-- | parse is simply left out of the map (see `tabParseError`, used
+-- | separately by the tab bar to flag it) rather than surfacing here —
+-- | importing a dropped tab just fails as the language's own
+-- | `UnknownLibrary`, no different from naming a library that never
+-- | existed.
+buildLibraryTable :: Array Tab -> LibraryTable
+buildLibraryTable tabs = Map.fromFoldable (Array.mapMaybe entry tabs)
+  where
+  entry :: Tab -> Maybe (Tuple String LibrarySource)
+  entry tab = either (const Nothing) (\src -> Just (Tuple tab.name src)) (tabLibrarySource tab)
+
+tabLibrarySource :: Tab -> Either String LibrarySource
+tabLibrarySource tab = case tab.mode of
+  TemplateMode -> bimapEither ProgramSource (parseProgram tab.source)
+  JsonMode -> bimapEither JsonSource (parseJsonProgram tab.source)
+  where
+  bimapEither :: forall a b e. Show e => (a -> b) -> Either e a -> Either String b
+  bimapEither f = either (\e -> Left (show e)) (Right <<< f)
+
+activeTabOf :: State -> Tab
+activeTabOf state = fromMaybe { name: "", mode: TemplateMode, source: "" } (Array.index state.tabs state.activeTab)
 
 render :: State -> H.ComponentHTML Action () Aff
 render state =
@@ -127,26 +208,19 @@ render state =
         [ HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.div [ HP.class_ (HH.ClassName "row") ]
                 [ HH.h2_ [ HH.text "Template" ]
-                , renderModeToggle state.mode
+                , renderModeToggle state.activeTab activeTab.mode
                 ]
-            , modeHint state.mode
-            , case state.mode of
-                TemplateMode ->
-                  HH.textarea
-                    [ HP.class_ (HH.ClassName "input")
-                    , HP.rows 16
-                    , HP.spellcheck false
-                    , HP.value state.templateInput
-                    , HE.onValueInput SetTemplateInput
-                    ]
-                JsonMode ->
-                  HH.textarea
-                    [ HP.class_ (HH.ClassName "input")
-                    , HP.rows 16
-                    , HP.spellcheck false
-                    , HP.value state.jsonProgramInput
-                    , HE.onValueInput SetJsonProgramInput
-                    ]
+            , renderTabBar state
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "Every tab is available to import(...)/partial-import(...) by its name, including the active one — switch tabs above to edit a library." ]
+            , modeHint activeTab.mode
+            , HH.textarea
+                [ HP.class_ (HH.ClassName "input")
+                , HP.rows 16
+                , HP.spellcheck false
+                , HP.value activeTab.source
+                , HE.onValueInput (SetTabSource state.activeTab)
+                ]
             ]
         , HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "JSON context" ]
@@ -163,7 +237,7 @@ render state =
         [ HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "AST" ]
             , HH.p [ HP.class_ (HH.ClassName "hint") ]
-                [ HH.text case state.mode of
+                [ HH.text case activeTab.mode of
                     TemplateMode -> "The evaluated Templating.Ast.Node tree — the same value foldToHalogen is folding on the right, shown as plain JSON before that fold happens."
                     JsonMode -> "The evaluated JSON value, before it's pretty-printed on the right — for JSON mode this is the same value, just stringified with no indentation."
                 ]
@@ -185,19 +259,63 @@ render state =
                 [ HH.text "Clear" ]
             ]
         , HH.p [ HP.class_ (HH.ClassName "hint") ]
-            [ HH.text case state.mode of
+            [ HH.text case activeTab.mode of
                 TemplateMode -> "Every action(...) click in the rendered output is dispatched here — real Halogen actions, appended by the demo handler passed to foldToHalogen."
                 JsonMode -> "JSON mode has no Node tree to fold to Halogen HTML, so nothing here can dispatch an action(...) click — switch to Template mode to try that."
             ]
         , renderActionLog state
         ]
     ]
+  where
+  activeTab = activeTabOf state
 
--- | Two buttons switching `state.mode` — deliberately not a `<select>`,
--- | since there are only ever these two roots (see `Mode`'s note on why
--- | element vs. expression can never be ambiguous either).
-renderModeToggle :: Mode -> H.ComponentHTML Action () Aff
-renderModeToggle mode =
+-- | One chip per tab (click activates it; an inline name field renames
+-- | it; a "×" removes it, disabled when it's the only tab left), plus a
+-- | trailing "+ tab" button. A tab whose `tabLibrarySource` doesn't parse
+-- | gets `tab-error` so a broken library is visible without switching to
+-- | it first.
+renderTabBar :: State -> H.ComponentHTML Action () Aff
+renderTabBar state =
+  HH.div [ HP.class_ (HH.ClassName "tabs") ]
+    ( Array.mapWithIndex renderTab state.tabs
+        <> [ HH.button
+              [ HP.class_ (HH.ClassName "btn")
+              , HE.onClick \_ -> AddTab
+              ]
+              [ HH.text "+ tab" ]
+          ]
+    )
+  where
+  renderTab :: Int -> Tab -> H.ComponentHTML Action () Aff
+  renderTab i tab =
+    HH.div
+      [ HP.class_
+          ( HH.ClassName
+              ( "tab"
+                  <> (if i == state.activeTab then " tab-active" else "")
+                  <> (if either (const true) (const false) (tabLibrarySource tab) then " tab-error" else "")
+              )
+          )
+      ]
+      [ HH.input
+          [ HP.class_ (HH.ClassName "tab-name")
+          , HP.value tab.name
+          , HE.onClick \_ -> SetActiveTab i
+          , HE.onValueInput (SetTabName i)
+          ]
+      , HH.button
+          [ HP.class_ (HH.ClassName "tab-close")
+          , HP.disabled (Array.length state.tabs <= 1)
+          , HE.onClick \_ -> RemoveTab i
+          ]
+          [ HH.text "\x00D7" ]
+      ]
+
+-- | Two buttons switching the active tab's `mode` — deliberately not a
+-- | `<select>`, since there are only ever these two roots (see `Mode`'s
+-- | note on why element vs. expression can never be ambiguous either).
+renderModeToggle :: Int -> Mode -> H.ComponentHTML Action () Aff
+renderModeToggle activeIdx mode =
   HH.div [ HP.class_ (HH.ClassName "mode-toggle") ]
     [ modeButton TemplateMode "Template"
     , modeButton JsonMode "JSON"
@@ -207,7 +325,7 @@ renderModeToggle mode =
   modeButton m label =
     HH.button
       [ HP.class_ (HH.ClassName (if mode == m then "btn btn-active" else "btn"))
-      , HE.onClick \_ -> SetMode m
+      , HE.onClick \_ -> SetTabMode activeIdx m
       ]
       [ HH.text label ]
 
@@ -233,17 +351,22 @@ data EvalResult
 computeResult :: State -> Either String EvalResult
 computeResult state = case jsonParser state.jsonInput of
   Left err -> Left ("Invalid JSON: " <> err)
-  Right ctx -> case state.mode of
-    TemplateMode -> case parseProgram state.templateInput of
-      Left err -> Left ("Template parse error: " <> show err)
-      Right program -> case evalProgram Map.empty ctx program of
-        Left err -> Left ("Template eval error: " <> show err)
-        Right node -> Right (ResultNode node)
-    JsonMode -> case parseJsonProgram state.jsonProgramInput of
-      Left err -> Left ("Template parse error: " <> show err)
-      Right program -> case evalJsonProgram Map.empty ctx program of
-        Left err -> Left ("Template eval error: " <> show err)
-        Right json -> Right (ResultJson json)
+  Right ctx ->
+    let
+      activeTab = activeTabOf state
+      libs = buildLibraryTable state.tabs
+    in
+      case activeTab.mode of
+        TemplateMode -> case parseProgram activeTab.source of
+          Left err -> Left ("Template parse error: " <> show err)
+          Right program -> case evalProgram libs ctx program of
+            Left err -> Left ("Template eval error: " <> show err)
+            Right node -> Right (ResultNode node)
+        JsonMode -> case parseJsonProgram activeTab.source of
+          Left err -> Left ("Template parse error: " <> show err)
+          Right program -> case evalJsonProgram libs ctx program of
+            Left err -> Left ("Template eval error: " <> show err)
+            Right json -> Right (ResultJson json)
 
 renderOutput :: State -> H.ComponentHTML Action () Aff
 renderOutput state = case computeResult state of
@@ -391,6 +514,23 @@ ACTIONS — dispatched to a real Halogen handler
   dispatcher: every action click is appended to the "Action log"
   panel below the rendered output below, showing exactly the
   key/payload the click carried.
+
+IMPORTS — reusing another tab as a library
+  import(nameExpr, paramsExpr)
+  partial-import(nameExpr, paramsExpr)
+  `nameExpr` is any expr reducing to a string naming a tab in this
+  playground (every tab, including the active one, is available —
+  see the tab bar above); `paramsExpr` is that tab's own `$ctx`.
+  Binding the result exposes `.rendered` (whatever the library's root
+  evaluated to — an element-rooted tab's `Node`, spliced as a child
+  when used as one, or an expression-rooted tab's plain JSON value)
+  and `.vals` (its own top-level bindings, dotted-path accessible,
+  e.g. `$lib.vals.something`). `partial-import` tolerates an
+  incomplete `paramsExpr`: instead of erroring on a missing `$ctx`
+  field, it suspends into a value you can call with the rest of the
+  params later (`$partial({"more": "params"})`), completing to
+  exactly the same result a direct `import` with the merged params
+  would have produced.
 
 FUNCTIONS (fixed set — no custom functions)
   cardinality(x) / count(x)   number of elements in an array, or number
