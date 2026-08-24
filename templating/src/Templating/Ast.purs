@@ -65,6 +65,15 @@ import Foreign.Object as Object
 -- | a document `Node`) and `.vals` (its top-level bindings). `PartialImportExpr`
 -- | is the same but tolerates an incomplete `params`: see
 -- | `Templating.Eval`'s `tryPartial`/`VPartial`.
+-- |
+-- | `FieldAccess baseExpr segs` — `<expr>.field1.field2...` — the postfix
+-- | counterpart to `Path`'s prefix dotted chain: `Path` only ever starts
+-- | from a bound name (`$name.field`), so it can't express field access on
+-- | the *result* of a call, e.g. completing a `partial-import` and reading
+-- | `.rendered` off it in one expression — `$btn({"title": $x}).rendered`
+-- | — without an intermediate `@`-binding. `baseExpr` is evaluated first,
+-- | then each segment walks it exactly like `Path`'s own field-walking
+-- | (see `Templating.Eval`'s `walkFields`, shared by both).
 data Expr
   = Path (Array String)
   | Call (Array String) (Array Expr)
@@ -80,6 +89,7 @@ data Expr
   | FoldExpr Expr Expr Expr
   | ImportExpr Expr Expr
   | PartialImportExpr Expr Expr
+  | FieldAccess Expr (Array String)
 
 derive instance eqExpr :: Eq Expr
 
@@ -98,6 +108,7 @@ instance showExpr :: Show Expr where
   show (FoldExpr arr initE fn) = "FoldExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
   show (ImportExpr nameE paramsE) = "ImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
   show (PartialImportExpr nameE paramsE) = "PartialImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
+  show (FieldAccess baseE segs) = "FieldAccess (" <> show baseE <> ") " <> show segs
 
 -- | One piece of a double-quoted string literal: either literal text or a
 -- | backtick-delimited interpolation of an arbitrary `Expr` (not just a

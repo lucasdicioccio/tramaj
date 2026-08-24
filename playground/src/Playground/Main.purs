@@ -113,10 +113,13 @@ initialState =
         , source:
             """@item-count=$cardinality($ctx.items)
 @greeting=import("greeting", {"name": "World"})
+@fgreet=partial-import("greeting", {})
+@g=$fgreet({"name": "World"})
 .div(
   "data-count": $item-count,
   $greeting.rendered,
-  .p("there are `$item-count` item(s)"),
+  $g.rendered,
+  .p("there are `$item-count` `$g.vals.magic` item(s)"),
   .ul(map($ctx.items, (item) =>
     .li(
       .span($item.title),
@@ -127,7 +130,10 @@ initialState =
         }
       , { name: "greeting"
         , mode: TemplateMode
-        , source: """.p("hello, `$ctx.name`!")"""
+        , source:
+            """@magic="magic"
+.p("hello, `$ctx.name`!")
+"""
         }
       , { name: "json-demo"
         , mode: JsonMode

@@ -10,12 +10,13 @@ import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject,
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
 import Data.Map as Map
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Foreign.Object as Object
-import Templating.Ast (Program)
+import Templating.Ast (Node(..), Program)
 import Templating.Eval (EvalError, LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
 import Templating.Parser (parseJsonProgram, parseProgram)
 import Test.Fixtures (Fixture, fixtures)
@@ -191,6 +192,16 @@ runImportTests = do
     (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "x-y") ]) ]) ]) in fromArray [ node, node ])
   checkJsonEvalRejectedWith libs "partial-import(...) still hard-errors for a reason unrelated to missing ctx params"
     "partial-import(\"nope\", {})"
+  checkJsonOk "completing a partial-import(...) and chaining .rendered directly, no intermediate binding"
+    "@p=partial-import(\"one-arg\", {})\n$p({\"arg0\": \"foo\"}).rendered"
+    libs
+    jsonNull
+    (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]))
+  checkTemplateOkWithLibs "completing a partial-import(...) and chaining .rendered as a bare child, in the template block"
+    "@p=partial-import(\"one-arg\", {})\n.div($p({\"arg0\": \"foo\"}).rendered)"
+    libs
+    jsonNull
+    (NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NText "foo" ] } ] })
   log "All import/partial-import fixtures passed."
   where
   buildLibraryTable :: Effect LibraryTable
@@ -235,3 +246,19 @@ runImportTests = do
     Right program -> case evalJsonProgram libs jsonNull program of
       Left (_ :: EvalError) -> log ("ok - " <> label)
       Right _ -> throw (label <> ": expected an eval error, got a successful eval")
+
+  checkTemplateOkWithLibs :: String -> String -> LibraryTable -> Json -> Node -> Effect Unit
+  checkTemplateOkWithLibs label template libs ctx expected = case parseProgram template of
+    Left err -> throw (label <> ": parse failed: " <> show err)
+    Right program -> case evalProgram libs ctx program of
+      Left err -> throw (label <> ": eval failed: " <> show err)
+      Right actual ->
+        if actual == expected then log ("ok - " <> label)
+        else
+          throw
+            ( label
+                <> ": mismatch\n  expected: "
+                <> show expected
+                <> "\n  actual:   "
+                <> show actual
+            )

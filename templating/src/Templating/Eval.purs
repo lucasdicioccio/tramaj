@@ -294,6 +294,9 @@ evalExpr libs inProgress env (PartialImportExpr nameExpr paramsExpr) = do
   name <- evalExprAsJson libs inProgress env nameExpr >>= expectLibName
   paramsJson <- evalExprAsJson libs inProgress env paramsExpr
   tryPartial libs inProgress name paramsJson
+evalExpr libs inProgress env (FieldAccess baseExpr segs) = do
+  v <- evalExpr libs inProgress env baseExpr
+  walkFields segs v segs
 
 expectLibName :: Json -> Either EvalError String
 expectLibName j = maybe (Left (TypeMismatch "import(...)/partial-import(...): the library name (1st argument) must be a string")) Right (toString j)
@@ -382,24 +385,34 @@ resolvePath env segs = case Array.uncons segs of
   Nothing -> Left (PathNotFound segs)
   Just { head, tail } -> case Map.lookup head env of
     Nothing -> Left (UnboundName head)
-    Just v -> walkFields v tail
-  where
-  walkFields :: Value -> Array String -> Either EvalError Value
-  walkFields v [] = Right v
-  walkFields v fields = case Array.uncons fields of
-    Nothing -> Right v
-    Just { head: field, tail: rest } -> case v of
-      VClosure _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a function value in path " <> show segs))
-      VNode _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a rendered node in path " <> show segs))
-      VPartial _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> show segs))
-      VEnv e -> case Map.lookup field e of
-        Nothing -> Left (PathNotFound segs)
-        Just v' -> walkFields v' rest
-      VJson j -> case toObject j of
-        Nothing -> Left (TypeMismatch ("expected an object to look up field " <> field <> " in path " <> show segs))
-        Just obj -> case Object.lookup field obj of
-          Nothing -> Left (PathNotFound segs)
-          Just v' -> walkFields (VJson v') rest
+    Just v -> walkFields segs v tail
+
+-- | Field-walks a `Value` by successive named segments — shared by `Path`
+-- | (`resolvePath` above, which has already consumed the leading bound
+-- | name before calling this) and `FieldAccess` (below, where `baseExpr`
+-- | is evaluated first and *every* segment is a field-walk, none consumed
+-- | by an environment lookup). `context` is only for error messages —
+-- | `resolvePath` passes the *original* full segment list (so a missing
+-- | `$ctx.arg0` still reports/detects as `PathNotFound ["ctx","arg0"]`,
+-- | load-bearing for `tryPartial`'s "was this just a missing ctx field"
+-- | check); `FieldAccess` has no such "original path" to report, so it
+-- | just passes its own field list.
+walkFields :: Array String -> Value -> Array String -> Either EvalError Value
+walkFields _ v [] = Right v
+walkFields context v fields = case Array.uncons fields of
+  Nothing -> Right v
+  Just { head: field, tail: rest } -> case v of
+    VClosure _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a function value in path " <> show context))
+    VNode _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a rendered node in path " <> show context))
+    VPartial _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> show context))
+    VEnv e -> case Map.lookup field e of
+      Nothing -> Left (PathNotFound context)
+      Just v' -> walkFields context v' rest
+    VJson j -> case toObject j of
+      Nothing -> Left (TypeMismatch ("expected an object to look up field " <> field <> " in path " <> show context))
+      Just obj -> case Object.lookup field obj of
+        Nothing -> Left (PathNotFound context)
+        Just v' -> walkFields context (VJson v') rest
 
 -- | Fixed builtin set — grown only on real demand, per the scope
 -- | decision against an extension registry. `map` is deliberately absent
