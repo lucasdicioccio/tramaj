@@ -13,6 +13,7 @@ module Templating.Ast
   , Program
   , JsonProgram
   , nodeToJson
+  , actionPayloadToJson
   ) where
 
 import Prelude
@@ -74,6 +75,17 @@ import Foreign.Object as Object
 -- | — without an intermediate `@`-binding. `baseExpr` is evaluated first,
 -- | then each segment walks it exactly like `Path`'s own field-walking
 -- | (see `Templating.Eval`'s `walkFields`, shared by both).
+-- |
+-- | `RemapActionsExpr nodeExpr fnExpr` — `remap-actions(node, fn)` —
+-- | contramaps every `action(...)` found anywhere in `nodeExpr`'s rendered
+-- | `Node` (recursively through its children, not just its own root) through
+-- | `fn`: a closure taking/returning the `{eventType, key, payload}` shape
+-- | `actionPayloadToJson` produces, letting a template that imports a
+-- | library rewrite (namespace a key, transform a payload) whatever
+-- | actions that library's own template fires before they're visible to
+-- | the host — the templating-language counterpart to remapping a child
+-- | component's output actions before they bubble up to a parent. See
+-- | `Templating.Eval`'s `remapActionsInNode`.
 data Expr
   = Path (Array String)
   | Call (Array String) (Array Expr)
@@ -90,6 +102,7 @@ data Expr
   | ImportExpr Expr Expr
   | PartialImportExpr Expr Expr
   | FieldAccess Expr (Array String)
+  | RemapActionsExpr Expr Expr
 
 derive instance eqExpr :: Eq Expr
 
@@ -109,6 +122,7 @@ instance showExpr :: Show Expr where
   show (ImportExpr nameE paramsE) = "ImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
   show (PartialImportExpr nameE paramsE) = "PartialImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
   show (FieldAccess baseE segs) = "FieldAccess (" <> show baseE <> ") " <> show segs
+  show (RemapActionsExpr nodeE fnE) = "RemapActionsExpr (" <> show nodeE <> ") (" <> show fnE <> ")"
 
 -- | One piece of a double-quoted string literal: either literal text or a
 -- | backtick-delimited interpolation of an arbitrary `Expr` (not just a
@@ -282,17 +296,22 @@ nodeToJson (NElement r) =
         [ Tuple "type" (fromString "element")
         , Tuple "tag" (fromString r.tag)
         , Tuple "attrs" (fromObject (Object.fromFoldable (map (\(Tuple k v) -> Tuple k (fromString v)) (Map.toUnfoldable r.attrs :: Array (Tuple String String)))))
-        , Tuple "action" (maybe jsonNull actionToJson r.action)
+        , Tuple "action" (maybe jsonNull actionPayloadToJson r.action)
         , Tuple "children" (fromArray (map nodeToJson r.children))
         ]
     )
-  where
-  actionToJson :: ActionPayload -> Json
-  actionToJson a =
-    fromObject
-      ( Object.fromFoldable
-          [ Tuple "eventType" (fromString a.eventType)
-          , Tuple "key" (fromString a.key)
-          , Tuple "payload" a.payload
-          ]
-      )
+
+-- | The `{eventType, key, payload}` shape an `ActionPayload` takes as
+-- | `Json` — used both by `nodeToJson` above (debug/inspection output) and
+-- | by `Templating.Eval`'s `remap-actions` (where a template-level closure
+-- | receives/returns exactly this shape to rewrite an imported node's
+-- | actions before they bubble up). One definition, so both stay in sync.
+actionPayloadToJson :: ActionPayload -> Json
+actionPayloadToJson a =
+  fromObject
+    ( Object.fromFoldable
+        [ Tuple "eventType" (fromString a.eventType)
+        , Tuple "key" (fromString a.key)
+        , Tuple "payload" a.payload
+        ]
+    )

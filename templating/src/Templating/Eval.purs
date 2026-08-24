@@ -21,10 +21,10 @@ module Templating.Eval
 
 import Prelude
 
-import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, stringify, toArray, toBoolean, toNumber, toObject, toString)
+import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
 import Data.Either (Either(..))
-import Data.Foldable (foldM)
+import Data.Foldable (foldM, foldl)
 import Data.Int as Int
 import Data.Map (Map)
 import Data.Map as Map
@@ -34,7 +34,7 @@ import Data.Set as Set
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Templating.Ast (ActionPayload, Expr(..), JsonProgram, Node(..), Program, StringPart(..), TAction(..), TemplateNode(..), nodeToJson)
+import Templating.Ast (ActionPayload, Expr(..), JsonProgram, Node(..), Program, StringPart(..), TAction(..), TemplateNode(..), actionPayloadToJson, nodeToJson)
 
 data EvalError
   = UnboundName String
@@ -96,6 +96,15 @@ type LibraryTable = Map String LibrarySource
 -- |   calling it with one more params object (`applyFunctionValue`) either
 -- |   completes the import (same result `import` would have produced with
 -- |   the merged params) or suspends again. See `tryPartial`.
+-- | * `VRemapPartial` — a `VPartial` with one or more `remap-actions`
+-- |   functions already queued up (`remap-actions($partial, fn)`, before
+-- |   `$partial` is complete): the library name, params so far, and the
+-- |   fns to apply, in order, once completion actually produces a node/env
+-- |   to remap. Lets a `remap-actions` wrapping be attached once to a
+-- |   partial import in the computation block, before the per-item value
+-- |   that completes it is even in scope (e.g. inside a `map(...)` body),
+-- |   instead of having to re-wrap `remap-actions(...)` around every call
+-- |   site that completes it. See `applyRemapChain`.
 -- |
 -- | **No recursion**: `evalBindings` inserts a binding's value only
 -- | *after* evaluating its right-hand side, so a closure's captured
@@ -107,6 +116,7 @@ data Value
   | VNode Node
   | VEnv Env
   | VPartial String Json
+  | VRemapPartial String Json (Array Value)
 
 type Env = Map String Value
 
@@ -177,6 +187,7 @@ requireJson (VClosure _ _ _) = Left (TypeMismatch "expected a value, got a funct
 requireJson (VNode n) = Right (nodeToJson n)
 requireJson (VEnv _) = Left (TypeMismatch "expected a value, got a library/env value — access .rendered, .vals, or a binding name first")
 requireJson (VPartial name _) = Left (TypeMismatch ("expected a value, got a partial import of " <> show name <> " still waiting on params — call it with the missing params first"))
+requireJson (VRemapPartial name _ _) = Left (TypeMismatch ("expected a value, got a partial import of " <> show name <> " still waiting on params — call it with the missing params first"))
 
 evalExprAsJson :: LibraryTable -> Set String -> Env -> Expr -> Either EvalError Json
 evalExprAsJson libs inProgress env e = evalExpr libs inProgress env e >>= requireJson
@@ -206,6 +217,12 @@ applyFunctionValue libs inProgress who (VPartial name given) argVals = case argV
     merged <- mergeParamObjects who given extraJson
     tryPartial libs inProgress name merged
   _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
+applyFunctionValue libs inProgress who (VRemapPartial name given fns) argVals = case argVals of
+  [ VJson extraJson ] -> do
+    merged <- mergeParamObjects who given extraJson
+    completed <- tryPartial libs inProgress name merged
+    applyRemapChain libs inProgress fns completed
+  _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
 applyFunctionValue _ _ who (VJson _) _ = Left (TypeMismatch (who <> " expects a function value (a lambda, or a name bound to one)"))
 applyFunctionValue _ _ who (VNode _) _ = Left (TypeMismatch (who <> " expects a function value, got a rendered node"))
 applyFunctionValue _ _ who (VEnv _) _ = Left (TypeMismatch (who <> " expects a function value, got a library/env value"))
@@ -225,6 +242,9 @@ evalExpr libs inProgress env (Call segs argExprs) = case segs of
       argVals <- traverse (evalExpr libs inProgress env) argExprs
       applyFunctionValue libs inProgress name boundVal argVals
     Just boundVal@(VPartial _ _) -> do
+      argVals <- traverse (evalExpr libs inProgress env) argExprs
+      applyFunctionValue libs inProgress name boundVal argVals
+    Just boundVal@(VRemapPartial _ _ _) -> do
       argVals <- traverse (evalExpr libs inProgress env) argExprs
       applyFunctionValue libs inProgress name boundVal argVals
     Just (VNode _) -> Left (TypeMismatch (name <> " is bound to a rendered node, not a function"))
@@ -297,6 +317,95 @@ evalExpr libs inProgress env (PartialImportExpr nameExpr paramsExpr) = do
 evalExpr libs inProgress env (FieldAccess baseExpr segs) = do
   v <- evalExpr libs inProgress env baseExpr
   walkFields segs v segs
+evalExpr libs inProgress env (RemapActionsExpr nodeExpr fnExpr) = do
+  v <- evalExpr libs inProgress env nodeExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
+  case v of
+    VNode _ -> remapActionsInValue libs inProgress fnVal v
+    VEnv _ -> remapActionsInValue libs inProgress fnVal v
+    VPartial _ _ -> remapActionsInValue libs inProgress fnVal v
+    VRemapPartial _ _ _ -> remapActionsInValue libs inProgress fnVal v
+    _ -> Left (TypeMismatch "remap-actions expects a rendered node, an import/partial-import result, or a still-suspended partial-import, e.g. $lib, $lib.rendered, or $partial")
+
+-- | Recursively remaps every rendered `Node` reachable from `v` — a bare
+-- | node remaps directly, and a `VEnv` (an import/partial-import result)
+-- | descends into *every* one of its values, not just `"rendered"`: a
+-- | binding under `.vals` can itself be a sub-import (another `VEnv`) with
+-- | its own `.rendered` and actions, and those should be remapped too in
+-- | case the caller reaches them via `.vals...rendered` instead of the
+-- | outer `.rendered`. A still-suspended `VPartial`/`VRemapPartial` has
+-- | nothing to remap yet — `fn` is queued onto it (see `VRemapPartial`,
+-- | `applyRemapChain`) and applied once completion actually produces a
+-- | node/env. Anything else (plain Json, a closure) has no actions to
+-- | remap and is passed through unchanged — so a `VEnv` with no node
+-- | anywhere inside it is simply a no-op, same as a node with no
+-- | `action(...)` anywhere.
+remapActionsInValue :: LibraryTable -> Set String -> Value -> Value -> Either EvalError Value
+remapActionsInValue libs inProgress fnVal (VNode n) =
+  VNode <$> remapActionsInNode (applyRemapFn libs inProgress fnVal) n
+remapActionsInValue libs inProgress fnVal (VEnv e) =
+  VEnv <$> traverse (remapActionsInValue libs inProgress fnVal) e
+remapActionsInValue _ _ fnVal (VPartial name given) = Right (VRemapPartial name given [ fnVal ])
+remapActionsInValue _ _ fnVal (VRemapPartial name given fns) = Right (VRemapPartial name given (fns <> [ fnVal ]))
+remapActionsInValue _ _ _ v = Right v
+
+-- | Applies each queued `remap-actions` function, in order, to a value a
+-- | `VRemapPartial` just finished completing (via `remapActionsInValue`) —
+-- | if completion is itself still incomplete (another `VPartial`), the
+-- | remaining queue stays attached rather than being lost, so currying a
+-- | remapped partial one param at a time still applies every queued fn
+-- | once it's finally complete.
+applyRemapChain :: LibraryTable -> Set String -> Array Value -> Value -> Either EvalError Value
+applyRemapChain libs inProgress fns v = foldl step (Right v) fns
+  where
+  step acc fn = acc >>= remapActionsInValue libs inProgress fn
+
+-- | Contramaps every `action(...)` found anywhere in a rendered `Node`
+-- | (recursively through children, not just the node's own root) through
+-- | `fn` — a closure taking/returning the `{eventType, key, payload}` shape
+-- | `Templating.Ast.actionPayloadToJson` produces. Lets a template that
+-- | imports a library rewrite (namespace a key, transform a payload)
+-- | whatever actions that library's own template fires before they're
+-- | visible to the host, without needing a new `Value` — the result is
+-- | still an ordinary `Node`, just with different `action` fields.
+remapActionsInNode :: (ActionPayload -> Either EvalError ActionPayload) -> Node -> Either EvalError Node
+remapActionsInNode _ n@(NText _) = Right n
+remapActionsInNode f (NElement r) = do
+  action' <- traverse f r.action
+  children' <- traverse (remapActionsInNode f) r.children
+  pure (NElement (r { action = action', children = children' }))
+
+-- | Applies a `remap-actions` closure to one `ActionPayload`: out to
+-- | `Json` (reusing `actionPayloadToJson`, the same shape `nodeToJson`
+-- | shows for an action), through the closure like any other function
+-- | value (a `VClosure`, or a `VPartial` completed by this one call — the
+-- | common case is an inline lambda, but nothing else about
+-- | `applyFunctionValue` is specific to that), then validated back into an
+-- | `ActionPayload` by `actionPayloadFromJson`.
+applyRemapFn :: LibraryTable -> Set String -> Value -> ActionPayload -> Either EvalError ActionPayload
+applyRemapFn libs inProgress fnVal action = do
+  resultVal <- applyFunctionValue libs inProgress "remap-actions" fnVal [ VJson (actionPayloadToJson action) ]
+  resultJson <- requireJson resultVal
+  actionPayloadFromJson resultJson
+
+-- | The inverse of `Templating.Ast.actionPayloadToJson` — what a
+-- | `remap-actions` closure's return value must look like: an object with
+-- | string `eventType`/`key` fields (the same requirement a literal
+-- | `action(...)` is held to by `evalAction`) and any `payload` (absent
+-- | defaults to `null`, so a remap fn that only cares about the key isn't
+-- | forced to echo `payload` back explicitly).
+actionPayloadFromJson :: Json -> Either EvalError ActionPayload
+actionPayloadFromJson j = do
+  obj <- maybe (Left (TypeMismatch "remap-actions: the function must return an object with eventType/key/payload fields")) Right (toObject j)
+  eventType <- fieldAsString obj "eventType"
+  key <- fieldAsString obj "key"
+  let payload = fromMaybe jsonNull (Object.lookup "payload" obj)
+  pure { eventType, key, payload }
+  where
+  fieldAsString :: Object.Object Json -> String -> Either EvalError String
+  fieldAsString obj field = case Object.lookup field obj >>= toString of
+    Just s -> Right s
+    Nothing -> Left (TypeMismatch ("remap-actions: the function's result is missing a string \"" <> field <> "\" field"))
 
 expectLibName :: Json -> Either EvalError String
 expectLibName j = maybe (Left (TypeMismatch "import(...)/partial-import(...): the library name (1st argument) must be a string")) Right (toString j)
@@ -405,6 +514,7 @@ walkFields context v fields = case Array.uncons fields of
     VClosure _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a function value in path " <> show context))
     VNode _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a rendered node in path " <> show context))
     VPartial _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> show context))
+    VRemapPartial _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> show context))
     VEnv e -> case Map.lookup field e of
       Nothing -> Left (PathNotFound context)
       Just v' -> walkFields context v' rest

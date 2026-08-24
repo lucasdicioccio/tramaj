@@ -254,7 +254,8 @@ specialFormExpr = try do
     "fold" -> foldShape
     "import" -> importShape
     "partial-import" -> partialImportShape
-    _ -> fail "not a map/filter/scan/fold/import/partial-import special form"
+    "remap-actions" -> remapActionsShape
+    _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess base segs)
@@ -307,6 +308,15 @@ specialFormExpr = try do
     paramsE <- defer \_ -> expr
     _ <- char ')'
     pure (ImportExpr nameE paramsE)
+
+  remapActionsShape :: P Expr
+  remapActionsShape = do
+    _ <- symbol "("
+    nodeE <- defer \_ -> expr
+    _ <- symbol ","
+    fnE <- defer \_ -> expr
+    _ <- char ')'
+    pure (RemapActionsExpr nodeE fnE)
 
   partialImportShape :: P Expr
   partialImportShape = do
@@ -471,9 +481,23 @@ templateSpecialForm = try do
 -- | it is unguarded, regardless of how deep the offending reference is
 -- | nested — so every edge in the family gets a `defer`, not just the
 -- | first one found.
+-- | `templateSpecialForm` only handles `map`/`branch` — the two forms that
+-- | need *structural* handling (they expand to zero-or-more/one-of-several
+-- | `TemplateNode`s, not a single evaluated value). Every other special
+-- | form (`scan`/`fold`/`import`/`partial-import`/`remap-actions`, ...)
+-- | still needs to be reachable as a bare `$`-prefixed child, not just via
+-- | an `@`-binding referenced by name — e.g. completing a `partial-import`
+-- | and `remap-actions`-wrapping it with a per-item value from an
+-- | enclosing `map(...)` can only be written inline, since there's no
+-- | `@`-binding scope inside a `map(...)` body. `specialFormExpr` already
+-- | backtracks cleanly (via its own `try`) for any name it doesn't
+-- | recognize, so trying it here just before `pathOrCallChild` (which
+-- | handles a bare path/call for every other name) costs nothing when it
+-- | doesn't apply.
 childArg :: P TemplateNode
 childArg = defer (\_ -> node)
   <|> defer (\_ -> templateSpecialForm)
+  <|> (TValue <$> defer (\_ -> specialFormExpr))
   <|> defer (\_ -> pathOrCallChild)
   <|> (TValue <$> stringLit)
 

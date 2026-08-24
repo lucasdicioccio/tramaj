@@ -115,6 +115,8 @@ initialState =
 @greeting=import("greeting", {"name": "World"})
 @fgreet=partial-import("greeting", {})
 @g=$fgreet({"name": "World"})
+@btn=partial-import("btn", {})
+@btn2=remap-actions($btn, (a) => {"eventType": $a.eventType, "key": "main-`$a.key`", "payload": $a.payload})
 .div(
   "data-count": $item-count,
   $greeting.rendered,
@@ -123,7 +125,7 @@ initialState =
   .ul(map($ctx.items, (item) =>
     .li(
       .span($item.title),
-      .button(action("on-click", "select-item", {"title": $item.title}), "Select")
+      $btn2({"title": $item.title}).rendered
     )
   ))
 )"""
@@ -133,6 +135,12 @@ initialState =
         , source:
             """@magic="magic"
 .p("hello, `$ctx.name`!")
+"""
+        }
+      , { name: "btn"
+        , mode: TemplateMode
+        , source:
+            """.button(action("on-click", "select-item", {"title": $ctx.title}), "Select")
 """
         }
       , { name: "json-demo"
@@ -527,7 +535,7 @@ IMPORTS — reusing another tab as a library
   `nameExpr` is any expr reducing to a string naming a tab in this
   playground (every tab, including the active one, is available —
   see the tab bar above); `paramsExpr` is that tab's own `$ctx`.
-  Binding the result exposes `.rendered` (whatever the library's root
+  The result exposes `.rendered` (whatever the library's root
   evaluated to — an element-rooted tab's `Node`, spliced as a child
   when used as one, or an expression-rooted tab's plain JSON value)
   and `.vals` (its own top-level bindings, dotted-path accessible,
@@ -536,7 +544,42 @@ IMPORTS — reusing another tab as a library
   field, it suspends into a value you can call with the rest of the
   params later (`$partial({"more": "params"})`), completing to
   exactly the same result a direct `import` with the merged params
-  would have produced.
+  would have produced — and since a call's result can itself be
+  field-accessed directly (`.field` chains after a closing `)`, not
+  just after a bound `$name`), that completion and reading `.rendered`
+  off it can be written in one expression with no intermediate
+  binding: `$partial({"more": "params"}).rendered`.
+
+  remap-actions(nodeExpr, fnExpr)
+  Contramaps every `action(...)` found anywhere in `nodeExpr`'s
+  rendered `Node` (recursively through its children, not just its own
+  root) through `fn` — a closure taking and returning an object with
+  the same shape a node's own `action` field prints as:
+  `{"eventType": ..., "key": ..., "payload": ...}`. Lets a template
+  that imports a library rewrite what that library's own actions look
+  like before they reach the host's dispatcher — e.g. namespace a key
+  (plain string interpolation: `"ns-`$a.key`"`) or transform a payload
+  as a function of the original key/payload — without the library
+  itself knowing anything about who imported it. `nodeExpr` may be a
+  rendered node directly (e.g. `$lib.rendered`), an import/partial-import
+  result itself (`$lib`, or a just-completed `$partial({...})`), or a
+  still-*incomplete* `partial-import(...)` — in every case `remap-actions`
+  descends into *every* value reachable from it: a `.vals` binding can
+  itself be a sub-import with its own rendered node and actions (those get
+  remapped too, in case they're reached via `.vals...rendered` rather than
+  the outer `.rendered`), and wrapping a still-incomplete partial just
+  queues the remap to run once the partial is finally completed —
+  including across currying it one param at a time — rather than requiring
+  it. That means `remap-actions(...)` can be attached once, in the
+  computation block, directly to a `partial-import(...)` before the value
+  that completes it is even in scope (e.g. a per-item value only available
+  inside a `map(...)` body):
+  `@btn2=remap-actions($btn, fn)` ... `map($ctx.items, (item) =>
+  $btn2({"title": $item.title}).rendered)` — no inline
+  `remap-actions(...)` wrapping needed at every call site. `fn`'s result
+  must have string `eventType`/`key` fields, same as a literal
+  `action(...)`; anything with no actions anywhere (a node, or an import
+  result) is left unchanged (`fn` is never called).
 
 FUNCTIONS (fixed set — no custom functions)
   cardinality(x) / count(x)   number of elements in an array, or number
