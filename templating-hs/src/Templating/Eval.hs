@@ -7,11 +7,13 @@
 -- @../templating/src/Templating/Eval.purs@ -- see that file's Haddock
 -- comments for the full semantic rationale (closures, no-recursion
 -- guarantee, builtin table, tolerant @has@\/@lookup@, eager-argument
--- @branch@ limitation, etc.); this port preserves that semantics exactly,
--- swapping argonaut 'Json' for aeson 'Value' and 'Foreign.Object' for
--- 'HashMap'.
+-- @branch@ limitation, import\/partial-import\/remap-actions, etc.); this
+-- port preserves that semantics exactly, swapping argonaut 'Json' for
+-- aeson 'Value' and 'Foreign.Object' for 'HashMap'.
 module Templating.Eval
   ( EvalError (..)
+  , LibraryTable
+  , LibrarySource (..)
   , evalProgram
   , evalJsonProgram
   ) where
@@ -23,6 +25,8 @@ import Data.List (foldl')
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific, toRealFloat)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -33,16 +37,47 @@ data EvalError
   | UnknownFunction Text
   | PathNotFound [Text]
   | TypeMismatch Text
+  | UnknownLibrary Text
+  | ImportCycle Text
   deriving stock (Eq, Show)
 
+-- | A library can be rooted either way a top-level program can: an element
+-- ('Program', same as 'evalProgram') or an expression ('JsonProgram', same
+-- as 'evalJsonProgram'). See 'runLibrary'.
+data LibrarySource
+  = ProgramSource Program
+  | JsonSource JsonProgram
+
+-- | Host-supplied library store: a library name (as used in
+-- @import(name, params)@\/@partial-import(name, params)@) resolves to an
+-- already-parsed 'LibrarySource'. Where that source came from (a file, an
+-- embedded string, a remote fetch) is entirely a host concern -- the
+-- evaluator only ever sees the parsed result.
+type LibraryTable = Map Text LibrarySource
+
 -- | Everything a name in the environment (or an evaluated expr) can be: an
--- ordinary JSON value, or a closure -- a 'LambdaExpr'\'s parameter names and
+-- ordinary JSON value, a closure -- a 'LambdaExpr'\'s parameter names and
 -- body, paired with the environment captured at the moment it was
--- evaluated. **No recursion**: 'evalBindings' inserts a binding's value
--- only *after* evaluating its right-hand side.
+-- evaluated -- or one of three values @import@\/@partial-import@
+-- introduce:
+--
+-- * 'VNode' -- a fully-evaluated document 'Node'.
+-- * 'VEnv' -- a named bag of 'Value''s, e.g. an @import@ result's
+--   @{ rendered, vals }@ record.
+-- * 'VPartial' -- a suspended @partial-import@: the library name plus
+--   whatever params were given so far.
+-- * 'VRemapPartial' -- a 'VPartial' with one or more @remap-actions@
+--   functions already queued up.
+--
+-- **No recursion**: 'evalBindings' inserts a binding's value only *after*
+-- evaluating its right-hand side.
 data Value'
   = VJson Value
   | VClosure [Text] Expr Env
+  | VNode Node
+  | VEnv Env
+  | VPartial Text Value
+  | VRemapPartial Text Value [Value']
 
 type Env = Map Text Value'
 
@@ -52,44 +87,41 @@ The language has no vocabulary of its own here -- a DOM host knows about
 @on-click@, an email or static-site renderer has no DOM events at all -- so
 deciding which event types mean something is the host's job, not evaluation's.
 -}
-evalAction :: Env -> TAction -> Either EvalError ActionPayload
-evalAction env (TAction eventTypeExpr keyExpr payloadExpr) = do
-  eventTypeJson <- evalExprAsJson env eventTypeExpr
+evalAction :: LibraryTable -> Set Text -> Env -> TAction -> Either EvalError ActionPayload
+evalAction libs inProgress env (TAction eventTypeExpr keyExpr payloadExpr) = do
+  eventTypeJson <- evalExprAsJson libs inProgress env eventTypeExpr
   eventType <- requireString "action(...): the event type (1st argument) must be a string" eventTypeJson
-  keyJson <- evalExprAsJson env keyExpr
+  keyJson <- evalExprAsJson libs inProgress env keyExpr
   key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
-  payload <- evalExprAsJson env payloadExpr
+  payload <- evalExprAsJson libs inProgress env payloadExpr
   pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
   where
     requireString :: Text -> Value -> Either EvalError Text
     requireString _msg (String s) = Right s
     requireString msg _ = Left (TypeMismatch msg)
 
-evalProgram :: Value -> Program -> Either EvalError Node
-evalProgram input (Program bindings root) = do
-  env <- evalBindings input bindings
-  evalTemplate env root
+evalProgram :: LibraryTable -> Value -> Program -> Either EvalError Node
+evalProgram libs input (Program bindings root) = do
+  env <- evalBindings libs Set.empty input bindings
+  evalTemplate libs Set.empty env root
 
 -- | Evaluates a 'JsonProgram': the same computation block as 'evalProgram'
 -- (same order, same closures, same no-recursion rule) but the root is an
 -- 'Expr', so the result is a JSON 'Value' rather than a document 'Node'.
--- Nothing here is stringified through 'jsonToDisplayString' -- numbers stay
--- numbers and nested objects stay objects, which is precisely what a host
--- generating a JSON payload (rather than a document) needs.
-evalJsonProgram :: Value -> JsonProgram -> Either EvalError Value
-evalJsonProgram input (JsonProgram bindings root) = do
-  env <- evalBindings input bindings
-  evalExprAsJson env root
+evalJsonProgram :: LibraryTable -> Value -> JsonProgram -> Either EvalError Value
+evalJsonProgram libs input (JsonProgram bindings root) = do
+  env <- evalBindings libs Set.empty input bindings
+  evalExprAsJson libs Set.empty env root
 
 -- | Run every comp-block binding once, in declaration order, against an
 -- environment that starts as just @{ ctx: input }@ and accumulates one more
 -- entry per binding.
-evalBindings :: Value -> [(Text, Expr)] -> Either EvalError Env
-evalBindings input = foldlEither step (Map.singleton "ctx" (VJson input))
+evalBindings :: LibraryTable -> Set Text -> Value -> [(Text, Expr)] -> Either EvalError Env
+evalBindings libs inProgress input = foldlEither step (Map.singleton "ctx" (VJson input))
   where
     step :: Env -> (Text, Expr) -> Either EvalError Env
     step env (name, e) = do
-      v <- evalExpr env e
+      v <- evalExpr libs inProgress env e
       pure (Map.insert name v env)
 
 foldlEither :: (b -> a -> Either e b) -> b -> [a] -> Either e b
@@ -98,15 +130,20 @@ foldlEither f = go
     go acc [] = Right acc
     go acc (x : xs) = f acc x >>= \acc' -> go acc' xs
 
--- | A 'Value'' used where a JSON value is required must actually be one --
--- a closure can't be stringified, stored inside a JSON array, or passed to
--- a fixed builtin.
+-- | A 'Value'' used where a JSON value is required must actually reduce to
+-- one. A closure can't (call it first); a 'VNode' reduces via 'nodeToJson';
+-- a 'VEnv'\/'VPartial'\/'VRemapPartial' can't either (access a field, or
+-- finish applying the partial import, first).
 requireJson :: Value' -> Either EvalError Value
 requireJson (VJson j) = Right j
 requireJson (VClosure _ _ _) = Left (TypeMismatch "expected a value, got a function -- call it first, e.g. $my-fn(...), instead of using it directly")
+requireJson (VNode n) = Right (nodeToJson n)
+requireJson (VEnv _) = Left (TypeMismatch "expected a value, got a library/env value -- access .rendered, .vals, or a binding name first")
+requireJson (VPartial name _) = Left (TypeMismatch ("expected a value, got a partial import of " <> tshow name <> " still waiting on params -- call it with the missing params first"))
+requireJson (VRemapPartial name _ _) = Left (TypeMismatch ("expected a value, got a partial import of " <> tshow name <> " still waiting on params -- call it with the missing params first"))
 
-evalExprAsJson :: Env -> Expr -> Either EvalError Value
-evalExprAsJson env e = evalExpr env e >>= requireJson
+evalExprAsJson :: LibraryTable -> Set Text -> Env -> Expr -> Either EvalError Value
+evalExprAsJson libs inProgress env e = evalExpr libs inProgress env e >>= requireJson
 
 requireBoolean :: Value' -> Either EvalError Bool
 requireBoolean v = do
@@ -116,54 +153,82 @@ requireBoolean v = do
     _ -> Left (TypeMismatch "expected a boolean")
 
 -- | Applies a function 'Value'' (a closure, from an inline 'LambdaExpr' or a
--- bound name) to already-evaluated argument 'Value''s.
-applyFunctionValue :: Text -> Value' -> [Value'] -> Either EvalError Value'
-applyFunctionValue _ (VClosure params body closureEnv) argVals = applyClosure params body closureEnv argVals
-applyFunctionValue who (VJson _) _ = Left (TypeMismatch (who <> " expects a function value (a lambda, or a name bound to one)"))
+-- bound name; or a suspended partial import) to already-evaluated argument
+-- 'Value''s -- shared by @Call@-on-a-bound-closure and by
+-- @map@\/@filter@\/@scan@\'s transform argument.
+--
+-- Completing a 'VPartial' shallow-merges its one JSON-object argument into
+-- the params already given (new keys win on conflict) and retries via
+-- 'tryPartial', so a still-incomplete merge suspends again and a complete
+-- one runs through exactly the same 'runLibrary' path @import@ uses.
+applyFunctionValue :: LibraryTable -> Set Text -> Text -> Value' -> [Value'] -> Either EvalError Value'
+applyFunctionValue libs inProgress _ (VClosure params body closureEnv) argVals = applyClosure libs inProgress params body closureEnv argVals
+applyFunctionValue libs inProgress who (VPartial name given) argVals = case argVals of
+  [VJson extraJson] -> do
+    merged <- mergeParamObjects who given extraJson
+    tryPartial libs inProgress name merged
+  _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
+applyFunctionValue libs inProgress who (VRemapPartial name given fns) argVals = case argVals of
+  [VJson extraJson] -> do
+    merged <- mergeParamObjects who given extraJson
+    completed <- tryPartial libs inProgress name merged
+    applyRemapChain libs inProgress fns completed
+  _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
+applyFunctionValue _ _ who (VJson _) _ = Left (TypeMismatch (who <> " expects a function value (a lambda, or a name bound to one)"))
+applyFunctionValue _ _ who (VNode _) _ = Left (TypeMismatch (who <> " expects a function value, got a rendered node"))
+applyFunctionValue _ _ who (VEnv _) _ = Left (TypeMismatch (who <> " expects a function value, got a library/env value"))
 
-applyClosure :: [Text] -> Expr -> Env -> [Value'] -> Either EvalError Value'
-applyClosure params body closureEnv argVals
+applyClosure :: LibraryTable -> Set Text -> [Text] -> Expr -> Env -> [Value'] -> Either EvalError Value'
+applyClosure libs inProgress params body closureEnv argVals
   | length params /= length argVals =
       Left (TypeMismatch ("closure expects " <> tshow (length params) <> " argument(s), got " <> tshow (length argVals)))
   | otherwise =
-      evalExpr (foldl' (\e (p, v) -> Map.insert p v e) closureEnv (zip params argVals)) body
+      evalExpr libs inProgress (foldl' (\e (p, v) -> Map.insert p v e) closureEnv (zip params argVals)) body
 
-evalExpr :: Env -> Expr -> Either EvalError Value'
-evalExpr env (Path segs) = resolvePath env segs
-evalExpr env (Call segs argExprs) = case segs of
+evalExpr :: LibraryTable -> Set Text -> Env -> Expr -> Either EvalError Value'
+evalExpr _ _ env (Path segs) = resolvePath env segs
+evalExpr libs inProgress env (Call segs argExprs) = case segs of
   [name] -> case Map.lookup name env of
-    Just (VClosure params body closureEnv) -> do
-      argVals <- mapM (evalExpr env) argExprs
-      applyClosure params body closureEnv argVals
+    Just boundVal@(VClosure _ _ _) -> do
+      argVals <- mapM (evalExpr libs inProgress env) argExprs
+      applyFunctionValue libs inProgress name boundVal argVals
+    Just boundVal@(VPartial _ _) -> do
+      argVals <- mapM (evalExpr libs inProgress env) argExprs
+      applyFunctionValue libs inProgress name boundVal argVals
+    Just boundVal@(VRemapPartial _ _ _) -> do
+      argVals <- mapM (evalExpr libs inProgress env) argExprs
+      applyFunctionValue libs inProgress name boundVal argVals
+    Just (VNode _) -> Left (TypeMismatch (name <> " is bound to a rendered node, not a function"))
+    Just (VEnv _) -> Left (TypeMismatch (name <> " is bound to a library/env value, not a function -- access a field first"))
     _ -> do
-      argJsons <- mapM (evalExprAsJson env) argExprs
+      argJsons <- mapM (evalExprAsJson libs inProgress env) argExprs
       VJson <$> evalBuiltin name argJsons
   _ -> Left (TypeMismatch ("cannot call " <> tshow segs <> " -- only a single bound/builtin name can be called, e.g. $cardinality(...), not a dotted path"))
-evalExpr env (StringLit parts) = VJson . String <$> evalStringParts env parts
-evalExpr _ (NumberLit n) = pure (VJson (Number (realToFrac n)))
-evalExpr _ (BoolLit b) = pure (VJson (Bool b))
-evalExpr env (ArrayLit elems) = VJson . Array . V.fromList <$> mapM (evalExprAsJson env) elems
-evalExpr env (ObjectLit entries) =
-  VJson . Object . KeyMap.fromList <$> mapM (\(k, e) -> (\v -> (Key.fromText k, v)) <$> evalExprAsJson env e) entries
-evalExpr env (LambdaExpr params body) = pure (VClosure params body env)
-evalExpr env (MapExpr arrExpr fnExpr) = do
-  items <- evalArrayExpr "map" env arrExpr
-  fnVal <- evalExpr env fnExpr
-  results <- mapM (\item -> applyFunctionValue "map" fnVal [VJson item] >>= requireJson) items
+evalExpr libs inProgress env (StringLit parts) = VJson . String <$> evalStringParts libs inProgress env parts
+evalExpr _ _ _ (NumberLit n) = pure (VJson (Number (realToFrac n)))
+evalExpr _ _ _ (BoolLit b) = pure (VJson (Bool b))
+evalExpr libs inProgress env (ArrayLit elems) = VJson . Array . V.fromList <$> mapM (evalExprAsJson libs inProgress env) elems
+evalExpr libs inProgress env (ObjectLit entries) =
+  VJson . Object . KeyMap.fromList <$> mapM (\(k, e) -> (\v -> (Key.fromText k, v)) <$> evalExprAsJson libs inProgress env e) entries
+evalExpr _ _ env (LambdaExpr params body) = pure (VClosure params body env)
+evalExpr libs inProgress env (MapExpr arrExpr fnExpr) = do
+  items <- evalArrayExpr libs inProgress "map" env arrExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
+  results <- mapM (\item -> applyFunctionValue libs inProgress "map" fnVal [VJson item] >>= requireJson) items
   pure (VJson (Array (V.fromList results)))
-evalExpr env (FilterExpr arrExpr fnExpr) = do
-  items <- evalArrayExpr "filter" env arrExpr
-  fnVal <- evalExpr env fnExpr
-  kept <- mapM (\item -> keepIf item <$> (applyFunctionValue "filter" fnVal [VJson item] >>= requireBoolean)) items
+evalExpr libs inProgress env (FilterExpr arrExpr fnExpr) = do
+  items <- evalArrayExpr libs inProgress "filter" env arrExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
+  kept <- mapM (\item -> keepIf item <$> (applyFunctionValue libs inProgress "filter" fnVal [VJson item] >>= requireBoolean)) items
   pure (VJson (Array (V.fromList [x | Just x <- kept])))
   where
     keepIf :: Value -> Bool -> Maybe Value
     keepIf item True = Just item
     keepIf _ False = Nothing
-evalExpr env (ScanExpr arrExpr initExpr fnExpr) = do
-  items <- evalArrayExpr "scan" env arrExpr
-  initAcc <- evalExprAsJson env initExpr
-  fnVal <- evalExpr env fnExpr
+evalExpr libs inProgress env (ScanExpr arrExpr initExpr fnExpr) = do
+  items <- evalArrayExpr libs inProgress "scan" env arrExpr
+  initAcc <- evalExprAsJson libs inProgress env initExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
   results <- scanSteps fnVal initAcc items
   pure (VJson (Array (V.fromList results)))
   where
@@ -172,13 +237,13 @@ evalExpr env (ScanExpr arrExpr initExpr fnExpr) = do
     scanSteps :: Value' -> Value -> [Value] -> Either EvalError [Value]
     scanSteps _ acc [] = Right [acc]
     scanSteps fnVal acc (item : rest) = do
-      nextAcc <- applyFunctionValue "scan" fnVal [VJson acc, VJson item] >>= requireJson
+      nextAcc <- applyFunctionValue libs inProgress "scan" fnVal [VJson acc, VJson item] >>= requireJson
       restAccs <- scanSteps fnVal nextAcc rest
       pure (acc : restAccs)
-evalExpr env (FoldExpr arrExpr initExpr fnExpr) = do
-  items <- evalArrayExpr "fold" env arrExpr
-  initAcc <- evalExprAsJson env initExpr
-  fnVal <- evalExpr env fnExpr
+evalExpr libs inProgress env (FoldExpr arrExpr initExpr fnExpr) = do
+  items <- evalArrayExpr libs inProgress "fold" env arrExpr
+  initAcc <- evalExprAsJson libs inProgress env initExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
   VJson <$> foldSteps fnVal initAcc items
   where
     -- | Same @(acc, item)@ step and @scanl@ iteration order as 'ScanExpr',
@@ -186,41 +251,178 @@ evalExpr env (FoldExpr arrExpr initExpr fnExpr) = do
     foldSteps :: Value' -> Value -> [Value] -> Either EvalError Value
     foldSteps _ acc [] = Right acc
     foldSteps fnVal acc (item : rest) = do
-      nextAcc <- applyFunctionValue "fold" fnVal [VJson acc, VJson item] >>= requireJson
+      nextAcc <- applyFunctionValue libs inProgress "fold" fnVal [VJson acc, VJson item] >>= requireJson
       foldSteps fnVal nextAcc rest
+evalExpr libs inProgress env (ImportExpr nameExpr paramsExpr) = do
+  name <- evalExprAsJson libs inProgress env nameExpr >>= expectLibName
+  paramsJson <- evalExprAsJson libs inProgress env paramsExpr
+  runLibrary libs inProgress name paramsJson
+evalExpr libs inProgress env (PartialImportExpr nameExpr paramsExpr) = do
+  name <- evalExprAsJson libs inProgress env nameExpr >>= expectLibName
+  paramsJson <- evalExprAsJson libs inProgress env paramsExpr
+  tryPartial libs inProgress name paramsJson
+evalExpr libs inProgress env (FieldAccess baseExpr segs) = do
+  v <- evalExpr libs inProgress env baseExpr
+  walkFields segs v segs
+evalExpr libs inProgress env (RemapActionsExpr nodeExpr fnExpr) = do
+  v <- evalExpr libs inProgress env nodeExpr
+  fnVal <- evalExpr libs inProgress env fnExpr
+  case v of
+    VNode _ -> remapActionsInValue libs inProgress fnVal v
+    VEnv _ -> remapActionsInValue libs inProgress fnVal v
+    VPartial _ _ -> remapActionsInValue libs inProgress fnVal v
+    VRemapPartial _ _ _ -> remapActionsInValue libs inProgress fnVal v
+    _ -> Left (TypeMismatch "remap-actions expects a rendered node, an import/partial-import result, or a still-suspended partial-import, e.g. $lib, $lib.rendered, or $partial")
+
+-- | Recursively remaps every rendered 'Node' reachable from @v@ -- a bare
+-- node remaps directly, and a 'VEnv' (an import\/partial-import result)
+-- descends into *every* one of its values, not just @"rendered"@. A still-
+-- suspended 'VPartial'\/'VRemapPartial' has nothing to remap yet -- @fn@ is
+-- queued onto it and applied once completion actually produces a node\/env.
+-- Anything else (plain JSON, a closure) has no actions to remap and is
+-- passed through unchanged.
+remapActionsInValue :: LibraryTable -> Set Text -> Value' -> Value' -> Either EvalError Value'
+remapActionsInValue libs inProgress fnVal (VNode n) =
+  VNode <$> remapActionsInNode (applyRemapFn libs inProgress fnVal) n
+remapActionsInValue libs inProgress fnVal (VEnv e) =
+  VEnv <$> traverse (remapActionsInValue libs inProgress fnVal) e
+remapActionsInValue _ _ fnVal (VPartial name given) = Right (VRemapPartial name given [fnVal])
+remapActionsInValue _ _ fnVal (VRemapPartial name given fns) = Right (VRemapPartial name given (fns ++ [fnVal]))
+remapActionsInValue _ _ _ v = Right v
+
+-- | Applies each queued @remap-actions@ function, in order, to a value a
+-- 'VRemapPartial' just finished completing -- if completion is itself still
+-- incomplete (another 'VPartial'), the remaining queue stays attached
+-- rather than being lost.
+applyRemapChain :: LibraryTable -> Set Text -> [Value'] -> Value' -> Either EvalError Value'
+applyRemapChain libs inProgress fns v = foldl step (Right v) fns
+  where
+    step acc fn = acc >>= remapActionsInValue libs inProgress fn
+
+-- | Contramaps every @action(...)@ found anywhere in a rendered 'Node'
+-- (recursively through children, not just the node's own root) through
+-- @fn@ -- a closure taking\/returning the @{eventType, key, payload}@ shape
+-- 'actionPayloadToJson' produces.
+remapActionsInNode :: (ActionPayload -> Either EvalError ActionPayload) -> Node -> Either EvalError Node
+remapActionsInNode _ n@(NText _) = Right n
+remapActionsInNode f n@(NElement {neAction, neChildren}) = do
+  action' <- traverse f neAction
+  children' <- traverse (remapActionsInNode f) neChildren
+  pure n {neAction = action', neChildren = children'}
+
+-- | Applies a @remap-actions@ closure to one 'ActionPayload': out to JSON
+-- (reusing 'actionPayloadToJson'), through the closure like any other
+-- function value, then validated back into an 'ActionPayload' by
+-- 'actionPayloadFromJson'.
+applyRemapFn :: LibraryTable -> Set Text -> Value' -> ActionPayload -> Either EvalError ActionPayload
+applyRemapFn libs inProgress fnVal action = do
+  resultVal <- applyFunctionValue libs inProgress "remap-actions" fnVal [VJson (actionPayloadToJson action)]
+  resultJson <- requireJson resultVal
+  actionPayloadFromJson resultJson
+
+-- | The inverse of 'Templating.Ast.actionPayloadToJson' -- what a
+-- @remap-actions@ closure's return value must look like: an object with
+-- string @eventType@\/@key@ fields and any @payload@ (absent defaults to
+-- @null@).
+actionPayloadFromJson :: Value -> Either EvalError ActionPayload
+actionPayloadFromJson (Object obj) = do
+  eventType <- fieldAsString "eventType"
+  key <- fieldAsString "key"
+  let payload = maybe Null id (KeyMap.lookup (Key.fromText "payload") obj)
+  pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
+  where
+    fieldAsString :: Text -> Either EvalError Text
+    fieldAsString field = case KeyMap.lookup (Key.fromText field) obj of
+      Just (String s) -> Right s
+      _ -> Left (TypeMismatch ("remap-actions: the function's result is missing a string \"" <> field <> "\" field"))
+actionPayloadFromJson _ = Left (TypeMismatch "remap-actions: the function must return an object with eventType/key/payload fields")
+
+expectLibName :: Value -> Either EvalError Text
+expectLibName (String s) = Right s
+expectLibName _ = Left (TypeMismatch "import(...)/partial-import(...): the library name (1st argument) must be a string")
+
+-- | Evaluates a library by name against its own fresh @$ctx = paramsJson@,
+-- producing a 'VEnv' @{ rendered, vals: VEnv libEnv }@ -- the shared path
+-- both @import@ and (via 'tryPartial') @partial-import@ run through.
+-- @inProgress@ is the set of library names already being imported on this
+-- call chain -- re-entering one of them is a cycle, not recursion.
+runLibrary :: LibraryTable -> Set Text -> Text -> Value -> Either EvalError Value'
+runLibrary libs inProgress name paramsJson
+  | Set.member name inProgress = Left (ImportCycle name)
+  | otherwise = do
+      src <- maybe (Left (UnknownLibrary name)) Right (Map.lookup name libs)
+      let inProgress' = Set.insert name inProgress
+      case src of
+        ProgramSource (Program bindings root) -> do
+          libEnv <- evalBindings libs inProgress' paramsJson bindings
+          renderedNode <- evalTemplate libs inProgress' libEnv root
+          pure (VEnv (Map.fromList [("rendered", VNode renderedNode), ("vals", VEnv libEnv)]))
+        JsonSource (JsonProgram bindings root) -> do
+          libEnv <- evalBindings libs inProgress' paramsJson bindings
+          renderedVal <- evalExpr libs inProgress' libEnv root
+          pure (VEnv (Map.fromList [("rendered", renderedVal), ("vals", VEnv libEnv)]))
+
+-- | @partial-import@\'s core: try the library for real, and downgrade to a
+-- suspended 'VPartial' only when the *specific* reason it failed is a
+-- @$ctx.\<field\>@ access landing on a key @paramsJson@ doesn't have (a
+-- 'PathNotFound' whose path starts at @"ctx"@) -- any other failure still
+-- propagates as a hard error, same as plain @import@.
+tryPartial :: LibraryTable -> Set Text -> Text -> Value -> Either EvalError Value'
+tryPartial libs inProgress name paramsJson = case runLibrary libs inProgress name paramsJson of
+  Left (PathNotFound ("ctx" : _)) -> Right (VPartial name paramsJson)
+  other -> other
+
+-- | Shallow-merges two JSON objects for completing a partial import --
+-- @extra@\'s keys\/values win over @given@\'s on conflict. Both arguments
+-- must be objects.
+mergeParamObjects :: Text -> Value -> Value -> Either EvalError Value
+mergeParamObjects who given extra = case (given, extra) of
+  (Object givenObj, Object extraObj) -> Right (Object (KeyMap.union extraObj givenObj))
+  _ -> Left (TypeMismatch (who <> ": completing a partial import expects an object argument"))
 
 -- | Shared by map\/filter\/scan\/fold: evaluate the array-producing argument and
 -- require it actually be a JSON array.
-evalArrayExpr :: Text -> Env -> Expr -> Either EvalError [Value]
-evalArrayExpr who env arrExpr = do
-  j <- evalExprAsJson env arrExpr
+evalArrayExpr :: LibraryTable -> Set Text -> Text -> Env -> Expr -> Either EvalError [Value]
+evalArrayExpr libs inProgress who env arrExpr = do
+  j <- evalExprAsJson libs inProgress env arrExpr
   case j of
     Array arr -> Right (V.toList arr)
     _ -> Left (TypeMismatch (who <> " expects an array as its first argument"))
 
-evalStringParts :: Env -> [StringPart] -> Either EvalError Text
-evalStringParts env parts = T.concat <$> mapM resolvePart parts
+evalStringParts :: LibraryTable -> Set Text -> Env -> [StringPart] -> Either EvalError Text
+evalStringParts libs inProgress env parts = T.concat <$> mapM resolvePart parts
   where
     resolvePart :: StringPart -> Either EvalError Text
     resolvePart (Lit s) = pure s
-    resolvePart (Interp e) = jsonToDisplayString <$> evalExprAsJson env e
+    resolvePart (Interp e) = jsonToDisplayString <$> evalExprAsJson libs inProgress env e
 
 resolvePath :: Env -> [Text] -> Either EvalError Value'
 resolvePath env segs = case segs of
   [] -> Left (PathNotFound segs)
   (headSeg : tailSegs) -> case Map.lookup headSeg env of
     Nothing -> Left (UnboundName headSeg)
-    Just v -> walkFields v tailSegs
-  where
-    walkFields :: Value' -> [Text] -> Either EvalError Value'
-    walkFields v [] = Right v
-    walkFields v (field : rest) = case v of
-      VClosure _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a function value in path " <> tshow segs))
-      VJson j -> case j of
-        Object obj -> case KeyMap.lookup (Key.fromText field) obj of
-          Nothing -> Left (PathNotFound segs)
-          Just v' -> walkFields (VJson v') rest
-        _ -> Left (TypeMismatch ("expected an object to look up field " <> field <> " in path " <> tshow segs))
+    Just v -> walkFields segs v tailSegs
+
+-- | Field-walks a 'Value'' by successive named segments -- shared by
+-- 'Path' ('resolvePath' above, which has already consumed the leading
+-- bound name before calling this) and 'FieldAccess' (where every segment
+-- is a field-walk, none consumed by an environment lookup). @context@ is
+-- only for error messages.
+walkFields :: [Text] -> Value' -> [Text] -> Either EvalError Value'
+walkFields _ v [] = Right v
+walkFields context v (field : rest) = case v of
+  VClosure _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a function value in path " <> tshow context))
+  VNode _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a rendered node in path " <> tshow context))
+  VPartial _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> tshow context))
+  VRemapPartial _ _ _ -> Left (TypeMismatch ("cannot access field " <> field <> " on a partial import in path " <> tshow context))
+  VEnv e -> case Map.lookup field e of
+    Nothing -> Left (PathNotFound context)
+    Just v' -> walkFields context v' rest
+  VJson j -> case j of
+    Object obj -> case KeyMap.lookup (Key.fromText field) obj of
+      Nothing -> Left (PathNotFound context)
+      Just v' -> walkFields context (VJson v') rest
+    _ -> Left (TypeMismatch ("expected an object to look up field " <> field <> " in path " <> tshow context))
 
 -- | Fixed builtin set -- grown only on real demand, per the scope decision
 -- against an extension registry. @map@ is deliberately absent here: it
@@ -384,39 +586,46 @@ formatNumber n =
 tshow :: (Show a) => a -> Text
 tshow = T.pack . show
 
-evalTemplate :: Env -> TemplateNode -> Either EvalError Node
-evalTemplate env (TElement tag attrExprs actionExpr children) = do
-  attrs <- Map.fromList <$> mapM (\(k, e) -> (,) k . jsonToDisplayString <$> evalExprAsJson env e) attrExprs
-  action <- traverse (evalAction env) actionExpr
-  childNodes <- evalChildren env children
+evalTemplate :: LibraryTable -> Set Text -> Env -> TemplateNode -> Either EvalError Node
+evalTemplate libs inProgress env (TElement tag attrExprs actionExpr children) = do
+  attrs <- Map.fromList <$> mapM (\(k, e) -> (,) k . jsonToDisplayString <$> evalExprAsJson libs inProgress env e) attrExprs
+  action <- traverse (evalAction libs inProgress env) actionExpr
+  childNodes <- evalChildren libs inProgress env children
   pure NElement {neTag = tag, neAttrs = attrs, neAction = action, neChildren = childNodes}
-evalTemplate env (TValue e) = NText . jsonToDisplayString <$> evalExprAsJson env e
-evalTemplate _ (TMap _ _ _) =
+-- | A bare child value doesn't force JSON unconditionally: a 'VNode'
+-- (typically @$someImport.rendered@) is spliced directly as this child --
+-- tag\/attrs\/children intact -- instead of being stringified.
+evalTemplate libs inProgress env (TValue e) = do
+  v <- evalExpr libs inProgress env e
+  case v of
+    VNode n -> pure n
+    _ -> NText . jsonToDisplayString <$> requireJson v
+evalTemplate _ _ _ (TMap _ _ _) =
   Left (TypeMismatch "a `map(...)` cannot be evaluated as a standalone node -- it only ever appears as a parent's child, never as a template's root")
-evalTemplate env (TBranch fallback pairs) = do
-  chosen <- pickBranch env fallback pairs
-  evalTemplate env chosen
+evalTemplate libs inProgress env (TBranch fallback pairs) = do
+  chosen <- pickBranch libs inProgress env fallback pairs
+  evalTemplate libs inProgress env chosen
 
 -- | Selects which node a @branch(...)@ child evaluates to -- only the
 -- *chosen* 'TemplateNode' is ever passed to 'evalTemplate', so an unreached
 -- branch's own errors never surface.
-pickBranch :: Env -> TemplateNode -> [(Expr, TemplateNode)] -> Either EvalError TemplateNode
-pickBranch _ fallback [] = Right fallback
-pickBranch env fallback ((predExpr, node) : rest) = do
-  predJson <- evalExprAsJson env predExpr
+pickBranch :: LibraryTable -> Set Text -> Env -> TemplateNode -> [(Expr, TemplateNode)] -> Either EvalError TemplateNode
+pickBranch _ _ _ fallback [] = Right fallback
+pickBranch libs inProgress env fallback ((predExpr, node) : rest) = do
+  predJson <- evalExprAsJson libs inProgress env predExpr
   p <- case predJson of
     Bool b -> Right b
     _ -> Left (TypeMismatch "branch predicate must evaluate to a boolean")
-  if p then Right node else pickBranch env fallback rest
+  if p then Right node else pickBranch libs inProgress env fallback rest
 
 -- | A 'TMap' child expands to zero-or-more 'Node's (one per array item,
 -- flattened into the parent's children); every other child produces
 -- exactly one.
-evalChildren :: Env -> [TemplateNode] -> Either EvalError [Node]
-evalChildren env children = concat <$> mapM (evalChild env) children
+evalChildren :: LibraryTable -> Set Text -> Env -> [TemplateNode] -> Either EvalError [Node]
+evalChildren libs inProgress env children = concat <$> mapM (evalChild env) children
   where
     evalChild :: Env -> TemplateNode -> Either EvalError [Node]
     evalChild env' (TMap arrExpr bindName body) = do
-      items <- evalArrayExpr "map" env' arrExpr
-      mapM (\item -> evalTemplate (Map.insert bindName (VJson item) env') body) items
-    evalChild env' tn = (: []) <$> evalTemplate env' tn
+      items <- evalArrayExpr libs inProgress "map" env' arrExpr
+      mapM (\item -> evalTemplate libs inProgress (Map.insert bindName (VJson item) env') body) items
+    evalChild env' tn = (: []) <$> evalTemplate libs inProgress env' tn

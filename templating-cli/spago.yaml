@@ -10,6 +10,7 @@ package:
     - effect
     - node-fs
     - node-process
+    - strings
     - templating
   run:
     main: Main

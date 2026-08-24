@@ -95,6 +95,7 @@
             "node-fs",
             "node-process",
             "prelude",
+            "strings",
             "templating"
           ],
           "build_plan": [

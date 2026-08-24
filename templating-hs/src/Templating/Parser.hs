@@ -70,6 +70,18 @@ pathTail = do
   rest <- many (char '.' *> rawIdent)
   pure (first : rest)
 
+-- | Zero or more @.field@ segments trailing a call's closing @)@ -- the
+-- postfix counterpart to 'pathTail'\'s prefix dotted chain, letting a call's
+-- result (most commonly a completed @partial-import@\'s @.rendered@\/
+-- @.vals@) be field-accessed directly. Same no-whitespace-around-@.@
+-- convention as 'pathTail'.
+fieldAccessSuffix :: P [Text]
+fieldAccessSuffix = many (char '.' *> rawIdent)
+
+applyFieldAccess :: Expr -> [Text] -> Expr
+applyFieldAccess base [] = base
+applyFieldAccess base segs = FieldAccess base segs
+
 -- | A double-quoted key with no interpolation -- used for attribute keys
 -- that aren't valid bare identifiers, and for JSON-object-literal keys.
 quotedKey :: P Text
@@ -141,8 +153,10 @@ call = try $ do
   name <- identifier
   _ <- symbol "("
   args <- sepEndBy expr (symbol ",")
-  _ <- symbol ")"
-  pure (Call [name] args)
+  _ <- char ')'
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Call [name] args) segs)
 
 arrayLit :: P Expr
 arrayLit = lexeme $ do
@@ -186,12 +200,18 @@ specialFormExpr :: P Expr
 specialFormExpr = try $ do
   _ <- optional (char '$')
   name <- identifier
-  case name of
+  base <- case name of
     "map" -> mapShape
     "filter" -> filterShape
     "scan" -> scanShape
     "fold" -> foldShape
-    _ -> fail "not a map/filter/scan/fold special form"
+    "import" -> importShape
+    "partial-import" -> partialImportShape
+    "remap-actions" -> remapActionsShape
+    _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess base segs)
   where
     mapShape :: P Expr
     mapShape = do
@@ -199,7 +219,7 @@ specialFormExpr = try $ do
       arr <- expr
       _ <- symbol ","
       fn <- expr
-      _ <- symbol ")"
+      _ <- char ')'
       pure (MapExpr arr fn)
 
     filterShape :: P Expr
@@ -208,7 +228,7 @@ specialFormExpr = try $ do
       arr <- expr
       _ <- symbol ","
       fn <- expr
-      _ <- symbol ")"
+      _ <- char ')'
       pure (FilterExpr arr fn)
 
     scanShape :: P Expr
@@ -219,7 +239,7 @@ specialFormExpr = try $ do
       initE <- expr
       _ <- symbol ","
       fn <- expr
-      _ <- symbol ")"
+      _ <- char ')'
       pure (ScanExpr arr initE fn)
 
     foldShape :: P Expr
@@ -230,8 +250,35 @@ specialFormExpr = try $ do
       initE <- expr
       _ <- symbol ","
       fn <- expr
-      _ <- symbol ")"
+      _ <- char ')'
       pure (FoldExpr arr initE fn)
+
+    importShape :: P Expr
+    importShape = do
+      _ <- symbol "("
+      nameE <- expr
+      _ <- symbol ","
+      paramsE <- expr
+      _ <- char ')'
+      pure (ImportExpr nameE paramsE)
+
+    partialImportShape :: P Expr
+    partialImportShape = do
+      _ <- symbol "("
+      nameE <- expr
+      _ <- symbol ","
+      paramsE <- expr
+      _ <- char ')'
+      pure (PartialImportExpr nameE paramsE)
+
+    remapActionsShape :: P Expr
+    remapActionsShape = do
+      _ <- symbol "("
+      nodeE <- expr
+      _ <- symbol ","
+      fnE <- expr
+      _ <- char ')'
+      pure (RemapActionsExpr nodeE fnE)
 
 -- | @expr := bool-lit | lambda-expr | map\/filter\/scan-special-form | call
 -- | path | string-lit | number-lit | array-lit | object-lit@. Every
@@ -300,8 +347,9 @@ pathOrCallChild = lexeme $ try $ do
     Nothing -> pure (TValue (Path segs))
     Just _ -> do
       args <- sepEndBy expr (symbol ",")
-      _ <- symbol ")"
-      pure (TValue (Call segs args))
+      _ <- char ')'
+      fieldSegs <- fieldAccessSuffix
+      pure (TValue (applyFieldAccess (Call segs args) fieldSegs))
 
 -- | The template-block counterparts of 'specialFormExpr': @map(arrExpr,
 -- (item) => node)@ produces a 'TMap' child; @branch(fallbackNode, pred1,
@@ -351,6 +399,7 @@ childArg :: P TemplateNode
 childArg =
   node
     <|> templateSpecialForm
+    <|> (TValue <$> specialFormExpr)
     <|> pathOrCallChild
     <|> (TValue <$> stringLit)
 

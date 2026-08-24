@@ -90,6 +90,7 @@ workspace rooted at this repository, so all commands run from the repo root:
 spago build                 # all three packages
 spago test -p templating    # the fixture suite
 spago run  -p templating-cli --args "template.txt context.json"
+spago run  -p templating-cli --args "--lib greeter=greeter.txt template.txt context.json"
 ```
 
 ### Playground
@@ -117,7 +118,13 @@ To produce a standalone CLI bundle:
 # note: --outfile is resolved relative to the package directory
 spago bundle -p templating-cli --platform node --outfile dist/templating-cli.js
 node templating-cli/dist/templating-cli.js template.txt context.json
+node templating-cli/dist/templating-cli.js --lib greeter=greeter.txt template.txt context.json
 ```
+
+Repeat `--lib name=path` for as many libraries as a template's `import(...)`/
+`partial-import(...)` calls need; each file is auto-detected as a plain
+template or a JSON-mode library (see `Templating.Ast`'s `import`/
+`partial-import` docs).
 
 ### Haskell
 
@@ -155,6 +162,18 @@ source-repository-package
   tag: v0.1.0
   subdir: templating-hs
 ```
+
+## Roadmap to a v1
+
+Assume anything could change until we get to a v1.
+
+- Some more syntax for combining/constructing records.
+- Stabilize feature set.
+- Revisit syntax/naming/combinators of primitives.
+- Add plenty of regression and compatibility tests.
+
+Then for a v2 we'll likely want to add some simple but effective typing.
+
 
 ## Publishing
 

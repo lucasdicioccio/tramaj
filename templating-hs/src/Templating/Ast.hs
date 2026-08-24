@@ -17,6 +17,7 @@ module Templating.Ast
   , Program (..)
   , JsonProgram (..)
   , nodeToJson
+  , actionPayloadToJson
   ) where
 
 import Data.Aeson (Value (..), object, (.=))
@@ -41,6 +42,10 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
   | FoldExpr Expr Expr Expr
+  | ImportExpr Expr Expr
+  | PartialImportExpr Expr Expr
+  | FieldAccess Expr [Text]
+  | RemapActionsExpr Expr Expr
   deriving stock (Eq, Show)
 
 -- | One piece of a double-quoted string literal: either literal text or a
@@ -125,10 +130,14 @@ nodeToJson (NElement {neTag, neAttrs, neAction, neChildren}) =
     [ "type" .= ("element" :: Text)
     , "tag" .= neTag
     , "attrs" .= neAttrs
-    , "action" .= maybe Null actionToJson neAction
+    , "action" .= maybe Null actionPayloadToJson neAction
     , "children" .= V.fromList (map nodeToJson neChildren)
     ]
-  where
-    actionToJson :: ActionPayload -> Value
-    actionToJson (ActionPayload {apEventType, apKey, apPayload}) =
-      object ["eventType" .= apEventType, "key" .= apKey, "payload" .= apPayload]
+
+-- | The @{eventType, key, payload}@ shape an 'ActionPayload' takes as JSON --
+-- used both by 'nodeToJson' above and by 'Templating.Eval'\'s
+-- @remap-actions@ (where a template-level closure receives\/returns exactly
+-- this shape to rewrite an imported node's actions before they bubble up).
+actionPayloadToJson :: ActionPayload -> Value
+actionPayloadToJson (ActionPayload {apEventType, apKey, apPayload}) =
+  object ["eventType" .= apEventType, "key" .= apKey, "payload" .= apPayload]

@@ -11,7 +11,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Vector as V
 import Templating.Ast
-import Templating.Eval (EvalError (..), evalJsonProgram, evalProgram)
+import Templating.Eval (EvalError (..), LibrarySource (..), LibraryTable, evalJsonProgram, evalProgram)
 import Templating.Parser (parseJsonProgram, parseProgram)
 import Test.Hspec
 
@@ -27,7 +27,7 @@ itemTitled t = object ["title" .= t]
 run :: Text -> Value -> Either String Node
 run template ctx = case parseProgram template of
   Left e -> Left ("parse error: " <> show e)
-  Right prog -> case evalProgram ctx prog of
+  Right prog -> case evalProgram Map.empty ctx prog of
     Left e -> Left ("eval error: " <> show e)
     Right n -> Right n
 
@@ -37,12 +37,13 @@ run template ctx = case parseProgram template of
 runJson :: Text -> Value -> Either String (Either EvalError Value)
 runJson template ctx = case parseJsonProgram template of
   Left e -> Left ("parse error: " <> show e)
-  Right prog -> Right (evalJsonProgram ctx prog)
+  Right prog -> Right (evalJsonProgram Map.empty ctx prog)
 
 spec :: Spec
 spec = do
   templateSpec
   jsonSpec
+  librarySpec
 
 -- | JSON mode ('evalJsonProgram') is Haskell-only -- these fixtures have no
 -- counterpart in @../templating/test/Test/Fixtures.purs@, so unlike
@@ -333,3 +334,215 @@ templateSpec = describe "Templating end-to-end fixtures (ported from the PureScr
       Left e -> expectationFailure e
       Right node ->
         nodeToJson node `shouldBe` object ["type" .= ("element" :: Text), "tag" .= ("p" :: Text), "attrs" .= object [], "action" .= Null, "children" .= V.fromList [object ["type" .= ("text" :: Text), "text" .= ("hi" :: Text)]]]
+
+-- | @import@\/@partial-import@\/@remap-actions@ fixtures, ported one-for-one
+-- from @../templating/test/Test/Main.purs@\'s @runImportTests@ -- same
+-- library fixtures and the same ~25 cases.
+librarySpec :: Spec
+librarySpec = describe "import/partial-import/remap-actions" $ do
+  it "import(...): .rendered is the library's evaluated template, spliced via nodeToJson" $
+    runJsonWithLibs "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.rendered" Null
+      `shouldBe` Right (divWithText "hello World")
+
+  it ".vals exposes the library's own bindings" $
+    runJsonWithLibs "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.vals.greeting" Null
+      `shouldBe` Right (String "hello World")
+
+  it "import(...) with an unknown library name is an eval error" $
+    runJsonWithLibs "import(\"nope\", {})" Null `shouldSatisfy` isLeft
+
+  it "import(...) with an unknown library name is an eval error (via bound name)" $
+    runJsonWithLibs "@bar=import(\"nope\", {})\n$bar.rendered" Null `shouldSatisfy` isLeft
+
+  it "a self-importing library fails as an import cycle, not a stack overflow" $
+    runJsonWithLibs "@bar=import(\"cyclic\", {})\n$bar.rendered" Null `shouldSatisfy` isLeft
+
+  it "a whole import result (VEnv) can't be used where a Json value is required" $
+    runJsonWithLibs "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar" Null `shouldSatisfy` isLeft
+
+  it "partial-import(...) with already-complete params matches import(...) with the same params" $
+    runJsonWithLibs
+      "@a=import(\"one-arg\", {\"arg0\": \"foo\"})\n@b=partial-import(\"one-arg\", {\"arg0\": \"foo\"})\n[$a.rendered, $b.rendered]"
+      Null
+      `shouldBe` Right (Array (V.fromList [divWithText "foo", divWithText "foo"]))
+
+  it "an incomplete partial-import(...) can't be used where a Json value is required" $
+    runJsonWithLibs "@p=partial-import(\"one-arg\", {})\n$p" Null `shouldSatisfy` isLeft
+
+  it "completing a partial-import(...) by calling it matches a direct import(...) with the merged params" $
+    runJsonWithLibs
+      "@direct=import(\"one-arg\", {\"arg0\": \"foo\"})\n@p=partial-import(\"one-arg\", {})\n@done=$p({\"arg0\": \"foo\"})\n[$direct.rendered, $done.rendered]"
+      Null
+      `shouldBe` Right (Array (V.fromList [divWithText "foo", divWithText "foo"]))
+
+  it "partial-import(...) currying two missing params one at a time matches supplying both up front" $
+    runJsonWithLibs
+      "@direct=import(\"two-arg\", {\"a\": \"x\", \"b\": \"y\"})\n@p=partial-import(\"two-arg\", {})\n@p2=$p({\"a\": \"x\"})\n@done=$p2({\"b\": \"y\"})\n[$direct.rendered, $done.rendered]"
+      Null
+      `shouldBe` Right (Array (V.fromList [divWithText "x-y", divWithText "x-y"]))
+
+  it "partial-import(...) still hard-errors for a reason unrelated to missing ctx params" $
+    runJsonWithLibs "partial-import(\"nope\", {})" Null `shouldSatisfy` isLeft
+
+  it "completing a partial-import(...) and chaining .rendered directly, no intermediate binding" $
+    runJsonWithLibs "@p=partial-import(\"one-arg\", {})\n$p({\"arg0\": \"foo\"}).rendered" Null
+      `shouldBe` Right (divWithText "foo")
+
+  it "completing a partial-import(...) and chaining .rendered as a bare child, in the template block" $
+    runTemplateWithLibs "@p=partial-import(\"one-arg\", {})\n.div($p({\"arg0\": \"foo\"}).rendered)" Null
+      `shouldBe` Right (elem_ "div" [elem_ "div" [NText "foo"]])
+
+  it "remap-actions(...) rewrites an action's key (string-interpolation prefix) and passes the payload through" $
+    runJsonWithLibs
+      "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["n" .= (5 :: Int)]) "click")
+
+  it "remap-actions(...)'s function can rewrite the payload as a function of the original key and payload" $
+    runJsonWithLibs
+      "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": $a.key, \"payload\": {\"from\": $a.key, \"orig\": $a.payload}})\n$remapped"
+      Null
+      `shouldBe` Right (buttonNode "foo" (object ["from" .= ("foo" :: Text), "orig" .= object ["n" .= (5 :: Int)]]) "click")
+
+  it "remap-actions(...) recurses through every action in the subtree, not just the root" $
+    runJsonWithLibs
+      "@bar=import(\"two-actions\", {})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped"
+      Null
+      `shouldBe` Right
+        ( object
+            [ "type" .= ("element" :: Text)
+            , "tag" .= ("div" :: Text)
+            , "attrs" .= object []
+            , "action" .= Null
+            , "children" .= V.fromList [button2 "ns-a" (1 :: Int) "A", button2 "ns-b" (2 :: Int) "B"]
+            ]
+        )
+
+  it "remap-actions(...) is a no-op (and never calls the function) on a node with no action anywhere" $
+    runJsonWithLibs
+      "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar.rendered, (a) => $nonexistent)\n$remapped"
+      Null
+      `shouldBe` Right (divWithText "hello World")
+
+  it "remap-actions(...) on something that isn't a rendered node (a plain Json value) is a clear error" $
+    runJsonWithLibs "remap-actions(5, (a) => $a)" Null `shouldSatisfy` isLeft
+
+  it "remap-actions(...)'s function returning a malformed record (missing key) is a clear error, not a silently-dropped action" $
+    runJsonWithLibs
+      "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
+      Null
+      `shouldSatisfy` isLeft
+
+  it "remap-actions(...) accepts an import(...) result directly (no .rendered projection needed), remapping in place and keeping .vals" $
+    runJsonWithLibs
+      "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.rendered"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["n" .= (5 :: Int)]) "click")
+
+  it "remap-actions(...) accepts a partial-import(...) result directly, once completed" $
+    runJsonWithLibs
+      "@p=partial-import(\"btn\", {})\n@remapped=remap-actions($p({\"n\": 5}), (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.rendered"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["n" .= (5 :: Int)]) "click")
+
+  it "remap-actions(...) on an import(...) result still surfaces .vals unchanged alongside the remapped .rendered" $
+    runJsonWithLibs "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar, (a) => $a)\n$remapped.vals.greeting" Null
+      `shouldBe` Right (String "hello World")
+
+  it "remap-actions(...) on a JSON-mode import's result (whose \"rendered\" is plain Json, not a node) is a no-op, not an error" $
+    runJsonWithLibs "@bar=import(\"json-lib\", {\"n\": 5})\n@remapped=remap-actions($bar, (a) => $a)\n$remapped.rendered" Null
+      `shouldBe` Right (object ["n" .= (5 :: Int)])
+
+  it "remap-actions(...) recurses into .vals too, reaching a sub-import's action even when it isn't spliced into the outer .rendered" $
+    runJsonWithLibs
+      "@bar=import(\"wraps-btn-in-vals\", {})\n@remapped=remap-actions($bar, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.vals.sub.rendered"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["n" .= (9 :: Int)]) "click")
+
+  it "remap-actions(...) works as a bare $-prefixed child directly in the template block, no @-binding needed" $
+    runTemplateWithLibs
+      "@btn=partial-import(\"one-arg\", {})\n.div(remap-actions($btn({\"arg0\": \"foo\"}).rendered, (a) => $a))"
+      Null
+      `shouldBe` Right (elem_ "div" [elem_ "div" [NText "foo"]])
+
+  it "remap-actions(...) can wrap a still-incomplete partial-import(...) before it's completed, and the remap still applies once it is" $
+    runJsonWithLibs
+      "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$p2({\"n\": 5}).rendered"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["n" .= (5 :: Int)]) "click")
+
+  it "remap-actions(...) queued on a partial survives currying it one param at a time, applying once it's finally complete" $
+    runJsonWithLibs
+      "@p=partial-import(\"two-arg-btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n@p3=$p2({\"a\": 1})\n@p4=$p3({\"b\": 2})\n$p4.rendered"
+      Null
+      `shouldBe` Right (buttonNode "ns-foo" (object ["a" .= (1 :: Int), "b" .= (2 :: Int)]) "click")
+
+  it "remap-actions(...) called twice on the same partial-import(...) queues both fns, applied in order once complete" $
+    runJsonWithLibs
+      "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"inner-`$a.key`\", \"payload\": $a.payload})\n@p3=remap-actions($p2, (a) => {\"eventType\": $a.eventType, \"key\": \"outer-`$a.key`\", \"payload\": $a.payload})\n$p3({\"n\": 5}).rendered"
+      Null
+      `shouldBe` Right (buttonNode "outer-inner-foo" (object ["n" .= (5 :: Int)]) "click")
+
+  it "a remap-actions(...)-wrapped partial that's still incomplete can't be used where a Json value is required, same as a plain partial" $
+    runJsonWithLibs "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => $a)\n$p2" Null `shouldSatisfy` isLeft
+  where
+    divWithText :: Text -> Value
+    divWithText t =
+      object
+        [ "type" .= ("element" :: Text)
+        , "tag" .= ("div" :: Text)
+        , "attrs" .= object []
+        , "action" .= Null
+        , "children" .= V.fromList [object ["type" .= ("text" :: Text), "text" .= t]]
+        ]
+
+    buttonNode :: Text -> Value -> Text -> Value
+    buttonNode key payload label =
+      object
+        [ "type" .= ("element" :: Text)
+        , "tag" .= ("button" :: Text)
+        , "attrs" .= object []
+        , "action" .= object ["eventType" .= ("on-click" :: Text), "key" .= key, "payload" .= payload]
+        , "children" .= V.fromList [object ["type" .= ("text" :: Text), "text" .= label]]
+        ]
+
+    button2 :: Text -> Int -> Text -> Value
+    button2 key v label = buttonNode key (object ["v" .= v]) label
+
+    buildLibraryTable :: LibraryTable
+    buildLibraryTable =
+      Map.fromList
+        [ ("greeter", ProgramSource (mustParseProgram "@greeting=\"hello `$ctx.name`\"\n.div(\"`$greeting`\")"))
+        , ("cyclic", ProgramSource (mustParseProgram "@self=import(\"cyclic\", {})\n.div(\"x\")"))
+        , ("one-arg", ProgramSource (mustParseProgram ".div(\"`$ctx.arg0`\")"))
+        , ("two-arg", ProgramSource (mustParseProgram ".div(\"`$ctx.a`-`$ctx.b`\")"))
+        , ("btn", ProgramSource (mustParseProgram ".button(action(\"on-click\", \"foo\", {\"n\": $ctx.n}), \"click\")"))
+        , ("two-actions", ProgramSource (mustParseProgram ".div(.button(action(\"on-click\", \"a\", {\"v\": 1}), \"A\"), .button(action(\"on-click\", \"b\", {\"v\": 2}), \"B\"))"))
+        , ("json-lib", JsonSource (mustParseJsonProgram "{\"n\": $ctx.n}"))
+        , ("wraps-btn-in-vals", ProgramSource (mustParseProgram "@sub=import(\"btn\", {\"n\": 9})\n.div(\"just text\")"))
+        , ("two-arg-btn", ProgramSource (mustParseProgram ".button(action(\"on-click\", \"foo\", {\"a\": $ctx.a, \"b\": $ctx.b}), \"click\")"))
+        ]
+
+    mustParseProgram :: Text -> Program
+    mustParseProgram src = case parseProgram src of
+      Left e -> error ("library fixture failed to parse: " <> show e)
+      Right p -> p
+
+    mustParseJsonProgram :: Text -> JsonProgram
+    mustParseJsonProgram src = case parseJsonProgram src of
+      Left e -> error ("library fixture failed to parse: " <> show e)
+      Right p -> p
+
+    runJsonWithLibs :: Text -> Value -> Either String Value
+    runJsonWithLibs template ctx = case parseJsonProgram template of
+      Left e -> Left ("parse error: " <> show e)
+      Right prog -> case evalJsonProgram buildLibraryTable ctx prog of
+        Left e -> Left ("eval error: " <> show e)
+        Right v -> Right v
+
+    runTemplateWithLibs :: Text -> Value -> Either String Node
+    runTemplateWithLibs template ctx = case parseProgram template of
+      Left e -> Left ("parse error: " <> show e)
+      Right prog -> case evalProgram buildLibraryTable ctx prog of
+        Left e -> Left ("eval error: " <> show e)
+        Right n -> Right n
