@@ -237,7 +237,9 @@ specialFormExpr = try do
     "filter" -> filterShape
     "scan" -> scanShape
     "fold" -> foldShape
-    _ -> fail "not a map/filter/scan/fold special form"
+    "import" -> importShape
+    "partial-import" -> partialImportShape
+    _ -> fail "not a map/filter/scan/fold/import/partial-import special form"
   where
   mapShape :: P Expr
   mapShape = do
@@ -278,6 +280,24 @@ specialFormExpr = try do
     fn <- defer \_ -> expr
     _ <- symbol ")"
     pure (FoldExpr arr initE fn)
+
+  importShape :: P Expr
+  importShape = do
+    _ <- symbol "("
+    nameE <- defer \_ -> expr
+    _ <- symbol ","
+    paramsE <- defer \_ -> expr
+    _ <- symbol ")"
+    pure (ImportExpr nameE paramsE)
+
+  partialImportShape :: P Expr
+  partialImportShape = do
+    _ <- symbol "("
+    nameE <- defer \_ -> expr
+    _ <- symbol ","
+    paramsE <- defer \_ -> expr
+    _ <- symbol ")"
+    pure (PartialImportExpr nameE paramsE)
 
 -- | `expr := bool-lit | lambda-expr | map/filter/scan-special-form |
 -- | call | path | string-lit | number-lit | array-lit | object-lit`.

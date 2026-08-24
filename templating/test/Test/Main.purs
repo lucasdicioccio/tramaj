@@ -9,12 +9,14 @@ import Prelude
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
+import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Foreign.Object as Object
-import Templating.Eval (EvalError, evalJsonProgram, evalProgram)
+import Templating.Ast (Program)
+import Templating.Eval (EvalError, LibraryTable, evalJsonProgram, evalProgram)
 import Templating.Parser (parseJsonProgram, parseProgram)
 import Test.Fixtures (Fixture, fixtures)
 
@@ -23,6 +25,7 @@ main = do
   traverseFixtures fixtures
   log ("All " <> show (arrayLength fixtures) <> " templating fixtures passed.")
   runJsonFixtures
+  runImportTests
   checkParseRejected "attrs-after-child is rejected at parse time"
     ".foo(.p(\"hi\"), \"bar\": \"baz\")"
   checkParseRejected "a node can have at most one action(...)"
@@ -58,14 +61,14 @@ checkParseRejected label template = case parseProgram template of
 checkEvalRejected :: String -> String -> Effect Unit
 checkEvalRejected label template = case parseProgram template of
   Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
-  Right program -> case evalProgram jsonNull program of
+  Right program -> case evalProgram Map.empty jsonNull program of
     Left _ -> log ("ok - " <> label)
     Right _ -> throw (label <> ": expected an eval error, got a successful eval")
 
 runFixture :: Fixture -> Effect Unit
 runFixture f = case parseProgram f.template of
   Left err -> throw (f.name <> ": parse failed: " <> show err)
-  Right program -> case evalProgram f.ctx program of
+  Right program -> case evalProgram Map.empty f.ctx program of
     Left err -> throw (f.name <> ": eval failed: " <> show err)
     Right node ->
       if node == f.expected then log ("ok - " <> f.name)
@@ -119,7 +122,7 @@ runJsonFixtures = do
   checkJsonOk :: String -> String -> Json -> Json -> Effect Unit
   checkJsonOk label template ctx expected = case parseJsonProgram template of
     Left err -> throw (label <> ": parse failed: " <> show err)
-    Right program -> case evalJsonProgram ctx program of
+    Right program -> case evalJsonProgram Map.empty ctx program of
       Left err -> throw (label <> ": eval failed: " <> show err)
       Right actual ->
         if actual == expected then log ("ok - " <> label)
@@ -135,7 +138,7 @@ runJsonFixtures = do
   checkJsonEvalRejected :: String -> String -> Effect Unit
   checkJsonEvalRejected label template = case parseJsonProgram template of
     Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
-    Right program -> case evalJsonProgram jsonNull program of
+    Right program -> case evalJsonProgram Map.empty jsonNull program of
       Left (_ :: EvalError) -> log ("ok - " <> label)
       Right _ -> throw (label <> ": expected an eval error, got a successful eval")
 
@@ -143,3 +146,92 @@ runJsonFixtures = do
   checkJsonParseRejected label template = case parseJsonProgram template of
     Left _ -> log ("ok - " <> label)
     Right _ -> throw (label <> ": expected a parse error, got a successful parse")
+
+-- | `import`/`partial-import` fixtures. Uses a small hand-built
+-- | `LibraryTable` (parsed once, below) rather than `Test.Fixtures`'
+-- | `Fixture` shape, since these need a library store alongside the usual
+-- | template/ctx that `Fixture` doesn't carry.
+runImportTests :: Effect Unit
+runImportTests = do
+  libs <- buildLibraryTable
+  checkJsonOk "import(...): .rendered is the library's evaluated template, spliced via nodeToJson"
+    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.rendered"
+    libs
+    jsonNull
+    (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "hello World") ]) ]) ]))
+  checkJsonOk "import(...): .vals exposes the library's own bindings"
+    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.vals.greeting"
+    libs
+    jsonNull
+    (fromString "hello World")
+  checkJsonEvalRejectedWith libs "import(...) with an unknown library name is an eval error"
+    "import(\"nope\", {})"
+  checkJsonEvalRejectedWith libs "import(...) with an unknown library name is an eval error (via bound name)"
+    "@bar=import(\"nope\", {})\n$bar.rendered"
+  checkJsonEvalRejectedWith libs "a self-importing library fails as an import cycle, not a stack overflow"
+    "@bar=import(\"cyclic\", {})\n$bar.rendered"
+  checkJsonEvalRejectedWith libs "a whole import result (VEnv) can't be used where a Json value is required"
+    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar"
+  checkJsonOk "partial-import(...) with already-complete params matches import(...) with the same params"
+    "@a=import(\"one-arg\", {\"arg0\": \"foo\"})\n@b=partial-import(\"one-arg\", {\"arg0\": \"foo\"})\n[$a.rendered, $b.rendered]"
+    libs
+    jsonNull
+    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]) in fromArray [ node, node ])
+  checkJsonEvalRejectedWith libs "an incomplete partial-import(...) can't be used where a Json value is required"
+    "@p=partial-import(\"one-arg\", {})\n$p"
+  checkJsonOk "completing a partial-import(...) by calling it matches a direct import(...) with the merged params"
+    "@direct=import(\"one-arg\", {\"arg0\": \"foo\"})\n@p=partial-import(\"one-arg\", {})\n@done=$p({\"arg0\": \"foo\"})\n[$direct.rendered, $done.rendered]"
+    libs
+    jsonNull
+    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]) in fromArray [ node, node ])
+  checkJsonOk "partial-import(...) currying two missing params one at a time matches supplying both up front"
+    "@direct=import(\"two-arg\", {\"a\": \"x\", \"b\": \"y\"})\n@p=partial-import(\"two-arg\", {})\n@p2=$p({\"a\": \"x\"})\n@done=$p2({\"b\": \"y\"})\n[$direct.rendered, $done.rendered]"
+    libs
+    jsonNull
+    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "x-y") ]) ]) ]) in fromArray [ node, node ])
+  checkJsonEvalRejectedWith libs "partial-import(...) still hard-errors for a reason unrelated to missing ctx params"
+    "partial-import(\"nope\", {})"
+  log "All import/partial-import fixtures passed."
+  where
+  buildLibraryTable :: Effect LibraryTable
+  buildLibraryTable = do
+    greeter <- mustParseProgram "@greeting=\"hello `$ctx.name`\"\n.div(\"`$greeting`\")"
+    cyclic <- mustParseProgram "@self=import(\"cyclic\", {})\n.div(\"x\")"
+    oneArg <- mustParseProgram ".div(\"`$ctx.arg0`\")"
+    twoArg <- mustParseProgram ".div(\"`$ctx.a`-`$ctx.b`\")"
+    pure
+      ( Map.fromFoldable
+          [ Tuple "greeter" greeter
+          , Tuple "cyclic" cyclic
+          , Tuple "one-arg" oneArg
+          , Tuple "two-arg" twoArg
+          ]
+      )
+
+  mustParseProgram :: String -> Effect Program
+  mustParseProgram src = case parseProgram src of
+    Left err -> throw ("library fixture failed to parse: " <> show err)
+    Right program -> pure program
+
+  checkJsonOk :: String -> String -> LibraryTable -> Json -> Json -> Effect Unit
+  checkJsonOk label template libs ctx expected = case parseJsonProgram template of
+    Left err -> throw (label <> ": parse failed: " <> show err)
+    Right program -> case evalJsonProgram libs ctx program of
+      Left err -> throw (label <> ": eval failed: " <> show err)
+      Right actual ->
+        if actual == expected then log ("ok - " <> label)
+        else
+          throw
+            ( label
+                <> ": mismatch\n  expected: "
+                <> stringify expected
+                <> "\n  actual:   "
+                <> stringify actual
+            )
+
+  checkJsonEvalRejectedWith :: LibraryTable -> String -> String -> Effect Unit
+  checkJsonEvalRejectedWith libs label template = case parseJsonProgram template of
+    Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
+    Right program -> case evalJsonProgram libs jsonNull program of
+      Left (_ :: EvalError) -> log ("ok - " <> label)
+      Right _ -> throw (label <> ": expected an eval error, got a successful eval")

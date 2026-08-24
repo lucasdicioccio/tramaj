@@ -57,6 +57,14 @@ import Foreign.Object as Object
 -- | can't express (see `Templating.Eval`). `fold` shares `scan`'s
 -- | `(acc, item)` step signature and `scanl` iteration order, but returns
 -- | only the final accumulator instead of every intermediate step.
+-- |
+-- | `ImportExpr nameExpr paramsExpr` — `import(name, params)` — evaluates a
+-- | library (a `Program` looked up by name in a host-supplied table, not
+-- | anything reachable from `$ctx`) with `params` as that library's own
+-- | `$ctx`, producing a value exposing `.rendered` (its evaluated template,
+-- | a document `Node`) and `.vals` (its top-level bindings). `PartialImportExpr`
+-- | is the same but tolerates an incomplete `params`: see
+-- | `Templating.Eval`'s `tryPartial`/`VPartial`.
 data Expr
   = Path (Array String)
   | Call (Array String) (Array Expr)
@@ -70,6 +78,8 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
   | FoldExpr Expr Expr Expr
+  | ImportExpr Expr Expr
+  | PartialImportExpr Expr Expr
 
 derive instance eqExpr :: Eq Expr
 
@@ -86,6 +96,8 @@ instance showExpr :: Show Expr where
   show (FilterExpr arr fn) = "FilterExpr (" <> show arr <> ") (" <> show fn <> ")"
   show (ScanExpr arr initE fn) = "ScanExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
   show (FoldExpr arr initE fn) = "FoldExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
+  show (ImportExpr nameE paramsE) = "ImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
+  show (PartialImportExpr nameE paramsE) = "PartialImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
 
 -- | One piece of a double-quoted string literal: either literal text or a
 -- | backtick-delimited interpolation of an arbitrary `Expr` (not just a

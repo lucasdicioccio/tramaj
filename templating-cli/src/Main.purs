@@ -14,6 +14,7 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (drop)
 import Data.Either (Either(..))
+import Data.Map as Map
 import Effect (Effect)
 import Effect.Class.Console (log, error)
 import Node.Encoding (Encoding(UTF8))
@@ -38,7 +39,7 @@ run templatePath ctxPath = do
     Left err -> die ("invalid JSON context (" <> ctxPath <> "): " <> err)
     Right ctxJson -> case parseProgram templateSrc of
       Left err -> die ("parse error (" <> templatePath <> "): " <> show err)
-      Right program -> case evalProgram ctxJson program of
+      Right program -> case evalProgram Map.empty ctxJson program of
         Left err -> die ("eval error: " <> show err)
         Right node -> log (stringify (nodeToJson node))
 

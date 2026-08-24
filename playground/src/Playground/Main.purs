@@ -21,6 +21,7 @@ import Data.Argonaut.Core (Json, stringify, stringifyWithIndent)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (null, reverse)
 import Data.Either (Either(..))
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Effect (Effect)
@@ -235,12 +236,12 @@ computeResult state = case jsonParser state.jsonInput of
   Right ctx -> case state.mode of
     TemplateMode -> case parseProgram state.templateInput of
       Left err -> Left ("Template parse error: " <> show err)
-      Right program -> case evalProgram ctx program of
+      Right program -> case evalProgram Map.empty ctx program of
         Left err -> Left ("Template eval error: " <> show err)
         Right node -> Right (ResultNode node)
     JsonMode -> case parseJsonProgram state.jsonProgramInput of
       Left err -> Left ("Template parse error: " <> show err)
-      Right program -> case evalJsonProgram ctx program of
+      Right program -> case evalJsonProgram Map.empty ctx program of
         Left err -> Left ("Template eval error: " <> show err)
         Right json -> Right (ResultJson json)
 
