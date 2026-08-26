@@ -11,11 +11,10 @@ file is correct: the other one is a running log that preserves superseded
 intermediate designs on purpose.
 
 [`position.md`](position.md) is a *positioning* document: it states what the
-language is meant to be, including some restrictions (static import names,
-static action keys, action-adaptation limited to identity/prefix) that this
-implementation does not yet enforce. Where this file and `position.md`
-disagree on current behavior, this file is correct — see the divergence notes
-in §3.9 and §5.2.
+language is meant to be. Import names (§3.9) are now enforced statically,
+matching it; static action keys and action-adaptation limited to
+identity/prefix are not yet — see the divergence note in §5.2. Where this
+file and `position.md` disagree on current behavior, this file is correct.
 
 ---
 
@@ -125,8 +124,8 @@ special-form   := ("map"    "(" expr "," expr ")"
                 | "filter" "(" expr "," expr ")"
                 | "scan"   "(" expr "," expr "," expr ")"
                 | "fold"   "(" expr "," expr "," expr ")"
-                | "import"         "(" expr "," expr ")"
-                | "partial-import" "(" expr "," expr ")"
+                | "import"         "(" quoted-key "," expr ")"
+                | "partial-import" "(" quoted-key "," expr ")"
                 | "remap-actions"  "(" expr "," expr ")") field-access*
 bool-lit       := "true" | "false"
 number-lit     := digit+ ["." digit+]
@@ -282,20 +281,18 @@ a `TypeMismatch`.
 
 ### 3.9 Imports and libraries
 
-**Divergence from `specs/position.md` §9.** That document describes the
-import name as "part of the program's static dependency information" — a
-statically identifiable name, alongside action keys and action-key prefixes.
-The shipped grammar does not enforce this: `nameExpr` in `import(nameExpr,
-paramsExpr)` is an ordinary `expr` (`importShape` in
-`Tramaj.Parser`), so `import($ctx.libname, {})` parses and evaluates
-today — nothing rejects a computed library name at parse time or restricts it
-to a string literal. Treat "import names are statically known" as an
-aspiration this implementation has not yet enforced, not a current guarantee;
-a tool that wants to inspect a template's static import set without
-evaluating it cannot rely on the grammar to guarantee every `import(...)`'s
-first argument is a literal.
+**Import names are static, matching `specs/position.md` §9.** `import(name,
+paramsExpr)`'s `name` is a bare quoted-string literal (`quoted-key` in the
+grammar — same "no interpolation" rule as an object-literal key), not an
+ordinary `expr`: `import($ctx.libname, {})` is a **parse error**, enforced by
+`importShape`/`partialImportShape` in `Tramaj.Parser`, which parse `name`
+with `quotedKey` rather than the general `expr` production. Only `paramsExpr`
+remains a computed expression. Because the name can never be computed, a
+template's whole set of import names is knowable by walking the parsed AST
+without evaluating it — see `Tramaj.Ast.staticImportNames :: Program -> Set
+String`.
 
-`import(nameExpr, paramsExpr)` runs another program — a **library** — by
+`import(name, paramsExpr)` runs another program — a **library** — by
 name, passing `paramsExpr` (an object) as *that library's own* `$ctx`,
 completely separate from the caller's `$ctx`:
 
@@ -327,7 +324,7 @@ Importing a name the host never supplied is `UnknownLibrary name`.
 
 ### 3.10 Partial imports and reusable components
 
-`partial-import(nameExpr, paramsExpr)` is like `import`, but tolerant of an
+`partial-import(name, paramsExpr)` is like `import`, but tolerant of an
 incomplete `paramsExpr`: if evaluating the library fails specifically because
 of a missing `$ctx.<field>` the library itself needed, evaluation doesn't
 error — it suspends into a callable value instead of failing:
@@ -408,8 +405,8 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr                   -- scan(arr, init, fn)
   | FoldExpr Expr Expr Expr                   -- fold(arr, init, fn)
-  | ImportExpr Expr Expr                      -- import(name, params)
-  | PartialImportExpr Expr Expr               -- partial-import(name, params)
+  | ImportExpr String Expr                    -- import(name, params) -- name is a bare literal
+  | PartialImportExpr String Expr             -- partial-import(name, params)
   | FieldAccess Expr (Array String)           -- expr.a.b, only after a call/special-form
   | RemapActionsExpr Expr Expr                -- remap-actions(node, fn)
 

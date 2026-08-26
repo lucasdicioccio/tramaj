@@ -196,10 +196,28 @@ lambdaExpr = try $ do
 -- @arr@\'s elements need binding into @fn@\'s closure environment fresh per
 -- element, which the uniform eagerly-evaluate-every-argument 'Call'
 -- dispatch can't express.
+--
+-- The 'try' here only covers *name recognition*: once @name@ matches one
+-- of the special forms, its shape is parsed without further backtracking,
+-- so a malformed @import(...)@\/@partial-import(...)@ (e.g. a computed,
+-- non-literal name) is a hard parse error rather than quietly falling
+-- through to 'call' and producing a meaningless @Call "import" [...]@ that
+-- would only fail later, at eval time, as @UnknownFunction "import"@ --
+-- see 'importShape'\/'partialImportShape'.
 specialFormExpr :: P Expr
-specialFormExpr = try $ do
-  _ <- optional (char '$')
-  name <- identifier
+specialFormExpr = do
+  name <- try $ do
+    _ <- optional (char '$')
+    n <- identifier
+    case n of
+      "map" -> pure n
+      "filter" -> pure n
+      "scan" -> pure n
+      "fold" -> pure n
+      "import" -> pure n
+      "partial-import" -> pure n
+      "remap-actions" -> pure n
+      _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
   base <- case name of
     "map" -> mapShape
     "filter" -> filterShape
@@ -208,7 +226,7 @@ specialFormExpr = try $ do
     "import" -> importShape
     "partial-import" -> partialImportShape
     "remap-actions" -> remapActionsShape
-    _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
+    _ -> fail "unreachable: name already checked against the recognized special-form set"
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess base segs)
@@ -256,20 +274,20 @@ specialFormExpr = try $ do
     importShape :: P Expr
     importShape = do
       _ <- symbol "("
-      nameE <- expr
+      name <- quotedKey
       _ <- symbol ","
       paramsE <- expr
       _ <- char ')'
-      pure (ImportExpr nameE paramsE)
+      pure (ImportExpr name paramsE)
 
     partialImportShape :: P Expr
     partialImportShape = do
       _ <- symbol "("
-      nameE <- expr
+      name <- quotedKey
       _ <- symbol ","
       paramsE <- expr
       _ <- char ')'
-      pure (PartialImportExpr nameE paramsE)
+      pure (PartialImportExpr name paramsE)
 
     remapActionsShape :: P Expr
     remapActionsShape = do

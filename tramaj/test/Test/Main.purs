@@ -31,6 +31,10 @@ main = do
     ".foo(.p(\"hi\"), \"bar\": \"baz\")"
   checkParseRejected "a node can have at most one action(...)"
     ".button(action(\"on-click\", \"a\", {}), action(\"on-click\", \"b\", {}))"
+  checkParseRejected "import(...)'s name must be a string literal, not a computed expr"
+    "@bar=import($ctx.libname, {})\n.div($bar.rendered)"
+  checkParseRejected "partial-import(...)'s name must be a string literal, not a computed expr"
+    "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)"
   -- an *unrecognized* event type is no longer a thing: only the "must be a
   -- string" shape is still checked, the vocabulary is the host's
   checkEvalRejected "action(...) rejects a non-string event type"
@@ -116,6 +120,8 @@ runJsonFixtures = do
     "{\"x\": $nope}"
   checkJsonParseRejected "an element root is rejected -- that is template mode, not JSON mode"
     ".div(\"hi\")"
+  checkJsonParseRejected "import(...)'s name must be a string literal, not a computed expr"
+    "import($ctx.libname, {})"
   where
   itemTitled :: String -> Json
   itemTitled title = fromObject (Object.singleton "title" (fromString title))

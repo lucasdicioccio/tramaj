@@ -982,3 +982,53 @@ arbitrary rewriting of `eventType`/`key`/`payload`, not just prefixing.
 enforced. If the static-name/static-key/prefix-only restriction is wanted
 later, it needs its own design and implementation pass — nothing here
 enforces it today.
+
+## Static import names, implemented 2026-08-26
+
+First half of closing the gap the note above flags: **import names are now
+statically identifiable**, per `specs/position.md` §1/§9. Action keys and
+`remap-actions`'s arbitrary rewriting are unchanged — that's still open, see
+the note above and `specs/llm.md` §5.2.
+
+- **`ImportExpr`/`PartialImportExpr`'s name field is a bare `String`, not an
+  `Expr`.** `import(nameExpr, paramsExpr)` used to accept any expression in
+  the name position; `importShape`/`partialImportShape` (`Tramaj.Parser`,
+  both languages) now parse it with `quotedKey` — the same
+  no-interpolation double-quoted-string production object-literal keys use
+  — so `import($ctx.libname, {})` is a **parse error**, not a runtime
+  `TypeMismatch`. Only `paramsExpr` remains a computed expression.
+- **Enforced without a runtime check.** Since the grammar itself no longer
+  has a production for a computed import name, there was nothing left for
+  `Tramaj.Eval` to validate — `evalExpr`'s `ImportExpr`/`PartialImportExpr`
+  cases now use the name directly, and the `expectLibName` runtime check
+  they used to call (in both `Tramaj.Eval.purs` and `Tramaj.Eval.hs`) is
+  gone, dead code once the name can't be anything but a `String` already.
+- **Parser fix needed alongside this**: `specialFormExpr` used to wrap
+  *all* of name recognition and shape parsing in one `try`, so a
+  recognized-but-malformed special form (e.g. `import` followed by
+  something other than a quoted string) silently backtracked into the
+  generic `call` production, producing a meaningless `Call ["import"]
+  [...]` that only failed later, at eval time, as `UnknownFunction
+  "import"` — not the intended parse-time rejection. Fixed by narrowing
+  the `try` to cover only "is this identifier one of the seven special-form
+  names" — once recognized, the corresponding shape parser runs without
+  further backtracking, so its failure is a genuine parse error. This
+  applies to all seven special forms (`map`/`filter`/`scan`/`fold`/
+  `import`/`partial-import`/`remap-actions`), not just the two touched by
+  this change, since they all shared the same dispatch.
+- **The actual payoff**: `Tramaj.Ast.staticImportNames :: Program -> Set
+  String` (`Tramaj.Ast.staticImportNames :: Program -> Set Text` on the
+  Haskell side) walks a parsed program's bindings and template-block root
+  recursively — through every `Expr`/`TemplateNode`/`TAction`/
+  `StringPart` — and collects every import/partial-import name referenced,
+  without evaluating anything. A host or tool can now enumerate a
+  template's library dependencies up front.
+- Fixture fallout: every existing `import("nav", ...)`-style fixture was
+  already a literal, so all pass unchanged. New rejection fixtures added
+  on both sides: `import($ctx.libname, {})`/`partial-import($ctx.libname,
+  {})` (element mode) and `import($ctx.libname, {})` (JSON mode,
+  PureScript only — `tramaj-hs` has no JSON-mode parse-rejection test file
+  to add one to).
+- `specs/llm.md` §3.9's divergence-from-`position.md` callout is gone
+  (import names now match); the grammar (`§3`) and AST (`§4.1`) sections
+  are updated to show `name` as a bare literal, not `nameExpr`.

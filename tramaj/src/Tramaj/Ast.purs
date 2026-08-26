@@ -14,15 +14,19 @@ module Tramaj.Ast
   , JsonProgram
   , nodeToJson
   , actionPayloadToJson
+  , staticImportNames
   ) where
 
 import Prelude
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
+import Data.Foldable (foldMap)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Data.Tuple (Tuple(..))
+import Data.Set (Set)
+import Data.Set as Set
+import Data.Tuple (Tuple(..), snd)
 import Foreign.Object as Object
 
 -- | A dotted path, e.g. `$ctx.items` is `Path [ "ctx", "items" ]` and a
@@ -59,13 +63,19 @@ import Foreign.Object as Object
 -- | `(acc, item)` step signature and `scanl` iteration order, but returns
 -- | only the final accumulator instead of every intermediate step.
 -- |
--- | `ImportExpr nameExpr paramsExpr` — `import(name, params)` — evaluates a
+-- | `ImportExpr name paramsExpr` — `import(name, params)` — evaluates a
 -- | library (a `Program` looked up by name in a host-supplied table, not
 -- | anything reachable from `$ctx`) with `params` as that library's own
 -- | `$ctx`, producing a value exposing `.rendered` (its evaluated template,
 -- | a document `Node`) and `.vals` (its top-level bindings). `PartialImportExpr`
 -- | is the same but tolerates an incomplete `params`: see
 -- | `Tramaj.Eval`'s `tryPartial`/`VPartial`.
+-- |
+-- | `name` is a bare `String`, not an `Expr` — the parser only ever accepts
+-- | a plain quoted literal (no `` `interp` ``) in this position, so a
+-- | template's import names are knowable by walking the parsed AST, without
+-- | evaluating it (see `staticImportNames` below). This matches
+-- | `specs/position.md`'s "imports are statically identifiable" claim.
 -- |
 -- | `FieldAccess baseExpr segs` — `<expr>.field1.field2...` — the postfix
 -- | counterpart to `Path`'s prefix dotted chain: `Path` only ever starts
@@ -99,8 +109,8 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
   | FoldExpr Expr Expr Expr
-  | ImportExpr Expr Expr
-  | PartialImportExpr Expr Expr
+  | ImportExpr String Expr
+  | PartialImportExpr String Expr
   | FieldAccess Expr (Array String)
   | RemapActionsExpr Expr Expr
 
@@ -119,8 +129,8 @@ instance showExpr :: Show Expr where
   show (FilterExpr arr fn) = "FilterExpr (" <> show arr <> ") (" <> show fn <> ")"
   show (ScanExpr arr initE fn) = "ScanExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
   show (FoldExpr arr initE fn) = "FoldExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
-  show (ImportExpr nameE paramsE) = "ImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
-  show (PartialImportExpr nameE paramsE) = "PartialImportExpr (" <> show nameE <> ") (" <> show paramsE <> ")"
+  show (ImportExpr name paramsE) = "ImportExpr " <> show name <> " (" <> show paramsE <> ")"
+  show (PartialImportExpr name paramsE) = "PartialImportExpr " <> show name <> " (" <> show paramsE <> ")"
   show (FieldAccess baseE segs) = "FieldAccess (" <> show baseE <> ") " <> show segs
   show (RemapActionsExpr nodeE fnE) = "RemapActionsExpr (" <> show nodeE <> ") (" <> show fnE <> ")"
 
@@ -315,3 +325,52 @@ actionPayloadToJson a =
         , Tuple "payload" a.payload
         ]
     )
+
+-- | Every `import`/`partial-import` name statically referenced anywhere in
+-- | a parsed program — the computation-block bindings and the
+-- | template-block root, recursively through every nested `Expr`/
+-- | `TemplateNode` — without evaluating anything. Exhaustive because the
+-- | name position of `ImportExpr`/`PartialImportExpr` is a bare `String` in
+-- | the AST, never a computed `Expr`: a template's whole set of library
+-- | dependencies is knowable up front, matching `specs/position.md` §1/§9.
+staticImportNames :: Program -> Set String
+staticImportNames program =
+  foldMap (importNamesInExpr <<< snd) program.bindings
+    <> importNamesInNode program.root
+
+importNamesInExpr :: Expr -> Set String
+importNamesInExpr (Path _) = Set.empty
+importNamesInExpr (Call _ args) = foldMap importNamesInExpr args
+importNamesInExpr (StringLit parts) = foldMap importNamesInStringPart parts
+importNamesInExpr (NumberLit _) = Set.empty
+importNamesInExpr (BoolLit _) = Set.empty
+importNamesInExpr (ArrayLit elems) = foldMap importNamesInExpr elems
+importNamesInExpr (ObjectLit entries) = foldMap (importNamesInExpr <<< snd) entries
+importNamesInExpr (LambdaExpr _ body) = importNamesInExpr body
+importNamesInExpr (MapExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
+importNamesInExpr (FilterExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
+importNamesInExpr (ScanExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
+importNamesInExpr (FoldExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
+importNamesInExpr (ImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
+importNamesInExpr (PartialImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
+importNamesInExpr (FieldAccess baseE _) = importNamesInExpr baseE
+importNamesInExpr (RemapActionsExpr nodeE fnE) = importNamesInExpr nodeE <> importNamesInExpr fnE
+
+importNamesInStringPart :: StringPart -> Set String
+importNamesInStringPart (Lit _) = Set.empty
+importNamesInStringPart (Interp e) = importNamesInExpr e
+
+importNamesInNode :: TemplateNode -> Set String
+importNamesInNode (TElement _ attrs action children) =
+  foldMap (importNamesInExpr <<< snd) attrs
+    <> foldMap importNamesInTAction action
+    <> foldMap importNamesInNode children
+importNamesInNode (TValue e) = importNamesInExpr e
+importNamesInNode (TMap arr _ body) = importNamesInExpr arr <> importNamesInNode body
+importNamesInNode (TBranch fallback pairs) =
+  importNamesInNode fallback
+    <> foldMap (\(Tuple predE node) -> importNamesInExpr predE <> importNamesInNode node) pairs
+
+importNamesInTAction :: TAction -> Set String
+importNamesInTAction (TAction eventTypeExpr keyExpr payloadExpr) =
+  importNamesInExpr eventTypeExpr <> importNamesInExpr keyExpr <> importNamesInExpr payloadExpr

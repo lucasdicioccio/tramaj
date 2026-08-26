@@ -28,5 +28,11 @@ spec = describe "Tramaj.Parser" $ do
   it "accepts a bare import(...) as a node child" $
     parseProgram ".div(import(\"lib\", {}))" `shouldSatisfy` isRight
 
+  it "rejects import(...) with a computed (non-literal) name" $
+    parseProgram "@bar=import($ctx.libname, {})\n.div($bar.rendered)" `shouldSatisfy` isLeft
+
+  it "rejects partial-import(...) with a computed (non-literal) name" $
+    parseProgram "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)" `shouldSatisfy` isLeft
+
   it "does not misparse a '.' starting the next line's node as a field access after a closing call" $
     parseProgram "@x=cardinality($ctx.items)\n.div(\"`$x`\")" `shouldSatisfy` isRight

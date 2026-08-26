@@ -253,12 +253,10 @@ evalExpr libs inProgress env (FoldExpr arrExpr initExpr fnExpr) = do
     foldSteps fnVal acc (item : rest) = do
       nextAcc <- applyFunctionValue libs inProgress "fold" fnVal [VJson acc, VJson item] >>= requireJson
       foldSteps fnVal nextAcc rest
-evalExpr libs inProgress env (ImportExpr nameExpr paramsExpr) = do
-  name <- evalExprAsJson libs inProgress env nameExpr >>= expectLibName
+evalExpr libs inProgress env (ImportExpr name paramsExpr) = do
   paramsJson <- evalExprAsJson libs inProgress env paramsExpr
   runLibrary libs inProgress name paramsJson
-evalExpr libs inProgress env (PartialImportExpr nameExpr paramsExpr) = do
-  name <- evalExprAsJson libs inProgress env nameExpr >>= expectLibName
+evalExpr libs inProgress env (PartialImportExpr name paramsExpr) = do
   paramsJson <- evalExprAsJson libs inProgress env paramsExpr
   tryPartial libs inProgress name paramsJson
 evalExpr libs inProgress env (FieldAccess baseExpr segs) = do
@@ -336,10 +334,6 @@ actionPayloadFromJson (Object obj) = do
       Just (String s) -> Right s
       _ -> Left (TypeMismatch ("remap-actions: the function's result is missing a string \"" <> field <> "\" field"))
 actionPayloadFromJson _ = Left (TypeMismatch "remap-actions: the function must return an object with eventType/key/payload fields")
-
-expectLibName :: Value -> Either EvalError Text
-expectLibName (String s) = Right s
-expectLibName _ = Left (TypeMismatch "import(...)/partial-import(...): the library name (1st argument) must be a string")
 
 -- | Evaluates a library by name against its own fresh @$ctx = paramsJson@,
 -- producing a 'VEnv' @{ rendered, vals: VEnv libEnv }@ -- the shared path

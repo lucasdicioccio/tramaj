@@ -530,9 +530,9 @@ ACTIONS — dispatched to a real Halogen handler
   key/payload the click carried.
 
 IMPORTS — reusing another tab as a library
-  import(nameExpr, paramsExpr)
-  partial-import(nameExpr, paramsExpr)
-  `nameExpr` is any expr reducing to a string naming a tab in this
+  import(name, paramsExpr)
+  partial-import(name, paramsExpr)
+  `name` is a bare quoted-string literal naming a tab in this
   playground (every tab, including the active one, is available —
   see the tab bar above); `paramsExpr` is that tab's own `$ctx`.
   The result exposes `.rendered` (whatever the library's root

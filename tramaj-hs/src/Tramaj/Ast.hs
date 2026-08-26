@@ -18,10 +18,13 @@ module Tramaj.Ast
   , JsonProgram (..)
   , nodeToJson
   , actionPayloadToJson
+  , staticImportNames
   ) where
 
 import Data.Aeson (Value (..), object, (.=))
 import Data.Map.Strict (Map)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Vector as V
 
@@ -42,8 +45,8 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr
   | FoldExpr Expr Expr Expr
-  | ImportExpr Expr Expr
-  | PartialImportExpr Expr Expr
+  | ImportExpr Text Expr
+  | PartialImportExpr Text Expr
   | FieldAccess Expr [Text]
   | RemapActionsExpr Expr Expr
   deriving stock (Eq, Show)
@@ -141,3 +144,49 @@ nodeToJson (NElement {neTag, neAttrs, neAction, neChildren}) =
 actionPayloadToJson :: ActionPayload -> Value
 actionPayloadToJson (ActionPayload {apEventType, apKey, apPayload}) =
   object ["eventType" .= apEventType, "key" .= apKey, "payload" .= apPayload]
+
+-- | Every import\/partial-import name statically referenced anywhere in a
+-- parsed program -- the computation-block bindings and the template-block
+-- root, recursively through every nested 'Expr'\/'TemplateNode' -- without
+-- evaluating anything. Mirrors the PureScript sibling's
+-- @Tramaj.Ast.staticImportNames@ exactly.
+staticImportNames :: Program -> Set Text
+staticImportNames (Program {progBindings, progRoot}) =
+  foldMap (importNamesInExpr . snd) progBindings <> importNamesInNode progRoot
+
+importNamesInExpr :: Expr -> Set Text
+importNamesInExpr (Path _) = Set.empty
+importNamesInExpr (Call _ args) = foldMap importNamesInExpr args
+importNamesInExpr (StringLit parts) = foldMap importNamesInStringPart parts
+importNamesInExpr (NumberLit _) = Set.empty
+importNamesInExpr (BoolLit _) = Set.empty
+importNamesInExpr (ArrayLit elems) = foldMap importNamesInExpr elems
+importNamesInExpr (ObjectLit entries) = foldMap (importNamesInExpr . snd) entries
+importNamesInExpr (LambdaExpr _ body) = importNamesInExpr body
+importNamesInExpr (MapExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
+importNamesInExpr (FilterExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
+importNamesInExpr (ScanExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
+importNamesInExpr (FoldExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
+importNamesInExpr (ImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
+importNamesInExpr (PartialImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
+importNamesInExpr (FieldAccess baseE _) = importNamesInExpr baseE
+importNamesInExpr (RemapActionsExpr nodeE fnE) = importNamesInExpr nodeE <> importNamesInExpr fnE
+
+importNamesInStringPart :: StringPart -> Set Text
+importNamesInStringPart (Lit _) = Set.empty
+importNamesInStringPart (Interp e) = importNamesInExpr e
+
+importNamesInNode :: TemplateNode -> Set Text
+importNamesInNode (TElement _ attrs action children) =
+  foldMap (importNamesInExpr . snd) attrs
+    <> foldMap importNamesInTAction action
+    <> foldMap importNamesInNode children
+importNamesInNode (TValue e) = importNamesInExpr e
+importNamesInNode (TMap arr _ body) = importNamesInExpr arr <> importNamesInNode body
+importNamesInNode (TBranch fallback pairs) =
+  importNamesInNode fallback
+    <> foldMap (\(predE, node) -> importNamesInExpr predE <> importNamesInNode node) pairs
+
+importNamesInTAction :: TAction -> Set Text
+importNamesInTAction (TAction eventTypeExpr keyExpr payloadExpr) =
+  importNamesInExpr eventTypeExpr <> importNamesInExpr keyExpr <> importNamesInExpr payloadExpr
