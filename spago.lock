@@ -1,8 +1,8 @@
 {
   "workspace": {
     "packages": {
-      "templating": {
-        "path": "templating",
+      "tramaj": {
+        "path": "tramaj",
         "core": {
           "dependencies": [
             "argonaut-core",
@@ -85,8 +85,8 @@
           ]
         }
       },
-      "templating-cli": {
-        "path": "templating-cli",
+      "tramaj-cli": {
+        "path": "tramaj-cli",
         "core": {
           "dependencies": [
             "argonaut-core",
@@ -96,7 +96,7 @@
             "node-process",
             "prelude",
             "strings",
-            "templating"
+            "tramaj"
           ],
           "build_plan": [
             "aff",
@@ -151,7 +151,7 @@
             "st",
             "strings",
             "tailrec",
-            "templating",
+            "tramaj",
             "transformers",
             "tuples",
             "type-equality",
@@ -166,8 +166,8 @@
           "build_plan": []
         }
       },
-      "templating-halogen": {
-        "path": "templating-halogen",
+      "tramaj-halogen": {
+        "path": "tramaj-halogen",
         "core": {
           "dependencies": [
             "arrays",
@@ -175,7 +175,7 @@
             "maybe",
             "ordered-collections",
             "prelude",
-            "templating",
+            "tramaj",
             "tuples"
           ],
           "build_plan": [
@@ -233,7 +233,7 @@
             "st",
             "strings",
             "tailrec",
-            "templating",
+            "tramaj",
             "transformers",
             "tuples",
             "type-equality",
@@ -258,7 +258,7 @@
           "build_plan": []
         }
       },
-      "templating-playground": {
+      "tramaj-playground": {
         "path": "playground",
         "core": {
           "dependencies": [
@@ -271,8 +271,8 @@
             "maybe",
             "prelude",
             "strings",
-            "templating",
-            "templating-halogen"
+            "tramaj",
+            "tramaj-halogen"
           ],
           "build_plan": [
             "aff",
@@ -329,8 +329,8 @@
             "st",
             "strings",
             "tailrec",
-            "templating",
-            "templating-halogen",
+            "tramaj",
+            "tramaj-halogen",
             "transformers",
             "tuples",
             "type-equality",

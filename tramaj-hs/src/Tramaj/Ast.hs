@@ -9,6 +9,7 @@
 -- 'HashMap'/'Map' instead of 'Foreign.Object'/'Data.Map').
 module Tramaj.Ast
   ( Expr (..)
+  , KeySpec (..)
   , StringPart (..)
   , TAction (..)
   , ActionPayload (..)
@@ -48,7 +49,13 @@ data Expr
   | ImportExpr Text Expr
   | PartialImportExpr Text Expr
   | FieldAccess Expr [Text]
-  | RemapActionsExpr Expr Expr
+  | RemapActionsExpr Expr KeySpec Expr
+  deriving stock (Eq, Show)
+
+-- | The key-rewriting operation @remap-actions(...)@'s second argument
+-- names -- currently just @prefix(prefixExpr)@. See the PureScript
+-- sibling's Haddock on 'Tramaj.Ast.RemapActionsExpr' for the rationale.
+newtype KeySpec = KeyPrefix Expr
   deriving stock (Eq, Show)
 
 -- | One piece of a double-quoted string literal: either literal text or a
@@ -170,7 +177,10 @@ importNamesInExpr (FoldExpr arr initE fn) = importNamesInExpr arr <> importNames
 importNamesInExpr (ImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
 importNamesInExpr (PartialImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
 importNamesInExpr (FieldAccess baseE _) = importNamesInExpr baseE
-importNamesInExpr (RemapActionsExpr nodeE fnE) = importNamesInExpr nodeE <> importNamesInExpr fnE
+importNamesInExpr (RemapActionsExpr nodeE keySpec fnE) = importNamesInExpr nodeE <> importNamesInKeySpec keySpec <> importNamesInExpr fnE
+
+importNamesInKeySpec :: KeySpec -> Set Text
+importNamesInKeySpec (KeyPrefix e) = importNamesInExpr e
 
 importNamesInStringPart :: StringPart -> Set Text
 importNamesInStringPart (Lit _) = Set.empty

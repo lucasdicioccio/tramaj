@@ -12,9 +12,10 @@ intermediate designs on purpose.
 
 [`position.md`](position.md) is a *positioning* document: it states what the
 language is meant to be. Import names (§3.9) are now enforced statically,
-matching it; static action keys and action-adaptation limited to
-identity/prefix are not yet — see the divergence note in §5.2. Where this
-file and `position.md` disagree on current behavior, this file is correct.
+matching it; `remap-actions`'s key-rewriting is now limited to `prefix(...)`
+(§3.11), also matching it; static action *keys* on `action(...)` itself are
+not yet enforced — see the divergence note in §5.2. Where this file and
+`position.md` disagree on current behavior, this file is correct.
 
 ---
 
@@ -126,7 +127,8 @@ special-form   := ("map"    "(" expr "," expr ")"
                 | "fold"   "(" expr "," expr "," expr ")"
                 | "import"         "(" quoted-key "," expr ")"
                 | "partial-import" "(" quoted-key "," expr ")"
-                | "remap-actions"  "(" expr "," expr ")") field-access*
+                | "remap-actions"  "(" expr "," key-spec "," expr ")") field-access*
+key-spec       := "prefix" "(" expr ")"
 bool-lit       := "true" | "false"
 number-lit     := digit+ ["." digit+]
 string-lit     := '"' (char | "`" expr "`")* '"'
@@ -352,29 +354,39 @@ performs an import is expected to keep that inner import fully applied.
 
 ### 3.11 Action remapping
 
-`remap-actions(nodeExpr, fnExpr)` rewrites every `action(...)` found anywhere
-in a document tree, via an arbitrary closure — there is no restriction to
-prefixing or any other fixed shape:
+`remap-actions(nodeExpr, keySpec, fnExpr)` rewrites every `action(...)` found
+anywhere in a document tree. Key rewriting is now restricted to a small
+closed set of operations — currently just `prefix(prefixExpr)` — rather than
+arbitrary rewriting; `eventType`/`payload` still go through `fnExpr`, an
+ordinary closure:
 
 ```
 @btn=import("button", {"title": "Save"})
-@wrapped=remap-actions($btn.rendered, (a) => {"eventType": $a.eventType, "key": concat("user:", $a.key), "payload": $a.payload})
+@wrapped=remap-actions($btn.rendered, prefix("user:"), (a) => {"eventType": $a.eventType, "payload": $a.payload})
 ```
 
-`fnExpr` must evaluate to a closure of shape `{eventType, key, payload} ->
-{eventType, key, payload}`; it is applied to every action found, recursively
-through all children, and its result must have string `eventType`/`key`
-fields or evaluation fails with a `TypeMismatch`. `nodeExpr` may be:
+`keySpec` must be `prefix(prefixExpr)`, where `prefixExpr` is any `expr` that
+reduces to a string (it may itself be computed/dynamic — only the *operation*
+is restricted to prefixing, not the prefix value); every matched action's
+`key` becomes `prefixExpr <> originalKey`. `fnExpr` must evaluate to a
+closure of shape `{eventType, key, payload} -> {eventType, payload}` — it
+receives the action with `key` already prefixed (so it can read it, e.g. to
+derive a payload), but its result's `key` field, if any, is ignored: the
+prefixed key is always what's kept. `fnExpr` is applied to every action
+found, recursively through all children, and its result must have a string
+`eventType` field or evaluation fails with a `TypeMismatch`. `nodeExpr` may
+be:
 
 - a `VNode` (e.g. `$lib.rendered`) — remapped directly;
 - a `VEnv` (an `import`/`partial-import` result taken whole, not just
   `.rendered`) — remapped recursively through every value it holds, including
   nested sub-imports;
-- a suspended partial import — the function is *queued*, and applied once the
-  partial eventually completes, so a `remap-actions` wrapping can be attached
-  once (e.g. in a computation-block binding) before the value that completes
-  the partial is even in scope, such as inside a `map(...)` body. Multiple
-  `remap-actions` calls chain in application order, surviving currying.
+- a suspended partial import — the `(prefix, fn)` operation is *queued*, and
+  applied once the partial eventually completes, so a `remap-actions`
+  wrapping can be attached once (e.g. in a computation-block binding) before
+  the value that completes the partial is even in scope, such as inside a
+  `map(...)` body. Multiple `remap-actions` calls chain in application order
+  (each one's prefix stacking on the previous), surviving currying.
 
 A node with no actions anywhere is a no-op (the function is never called); a
 `JsonSource` library's plain-JSON `.rendered` is also a no-op, since there is
@@ -408,7 +420,9 @@ data Expr
   | ImportExpr String Expr                    -- import(name, params) -- name is a bare literal
   | PartialImportExpr String Expr             -- partial-import(name, params)
   | FieldAccess Expr (Array String)           -- expr.a.b, only after a call/special-form
-  | RemapActionsExpr Expr Expr                -- remap-actions(node, fn)
+  | RemapActionsExpr Expr KeySpec Expr        -- remap-actions(node, keySpec, fn)
+
+data KeySpec = KeyPrefix Expr                 -- prefix(prefixExpr)
 
 data StringPart = Lit String | Interp Expr
 
@@ -457,7 +471,7 @@ data Value
   | VNode Node                                -- a fully-evaluated document node
   | VEnv Env                                  -- import(...)'s { rendered, vals }
   | VPartial String Json                      -- a suspended partial-import: name, params-so-far
-  | VRemapPartial String Json (Array Value)   -- a VPartial with queued remap-actions fns
+  | VRemapPartial String Json (Array (Tuple String Value))  -- a VPartial with queued (prefix, fn) remap-actions ops
 ```
 
 `VEnv` is what `.rendered`/`.vals` field access (§3.8–3.9) walks. Anywhere a
@@ -631,19 +645,25 @@ has no DOM events at all. There used to be a fixed
 `supportedActionEventTypes = ["on-click"]` check in both `Tramaj.Eval`s; it
 is gone.
 
-**Divergence from `specs/position.md` §11.** That document describes the
-action *key* (not `eventType`) as "a semantic identifier" that "must be
-statically known" and "cannot be produced by an arbitrary runtime function."
-The shipped grammar does not enforce this either: `action`'s second argument
-(`keyExpr`) is an ordinary `expr`, exactly like `eventType` and `payload` — a
-computed key (`action("on-click", $ctx.actionName, {...})`) parses and
-evaluates today. Likewise, `remap-actions` (§3.11) — the shipped primitive for
-adapting a component's actions — applies an arbitrary closure to
-`{eventType, key, payload}` with no restriction to identity or static
-prefixing, unlike the `adapt-actions` described in `position.md` §12. Both are
-aspirational tightenings the implementation hasn't caught up to yet, not
-current behavior — don't build tooling that assumes action keys are
-inspectable without evaluation.
+**Divergence from `specs/position.md` §11 — partially narrowed.** That
+document describes the action *key* (not `eventType`) as "a semantic
+identifier" that "must be statically known" and "cannot be produced by an
+arbitrary runtime function." The shipped grammar still does not enforce this
+for `action(...)` itself: its second argument (`keyExpr`) remains an ordinary
+`expr`, exactly like `eventType` and `payload` — a computed key
+(`action("on-click", $ctx.actionName, {...})`) parses and evaluates today.
+That part of the divergence is still open.
+
+`remap-actions` (§3.11), however, has been narrowed to match `position.md`
+§12's `adapt-actions`: key rewriting is now restricted to `prefix(prefixExpr)`
+(a small closed set meant to grow, not arbitrary rewriting), and `fnExpr` can
+no longer touch `key` at all — only `eventType`/`payload`. The primitive
+kept the `remap-actions` name rather than being renamed to `adapt-actions`,
+and still takes a closure argument for `eventType`/`payload` (`position.md`
+§12's worked example has no closure at all, only the prefix), so this is a
+first step toward the position, not full parity — don't build tooling that
+assumes action *keys* are inspectable without evaluation, since `action(...)`
+itself is still unrestricted.
 
 The consequence is on the host: **a dispatcher must branch on `eventType`, not
 assume it.** `foldToHalogen` wires `HE.onClick` for every action `dispatch`
@@ -767,9 +787,12 @@ Ranked by how often they actually bite.
     failure (unknown library, cycle, a real bug) is a hard error immediately,
     not a suspension — don't expect `partial-import` to swallow arbitrary
     errors.
-14. **`remap-actions`'s function is unrestricted** — it can rewrite
-    `eventType`, `key`, and `payload` however it likes; there is no
-    prefix-only or identity-only restriction at the language level (contrast
-    with `specs/position.md` §12, which describes such a restriction as
-    aspirational — the shipped primitive is `remap-actions`, not a
-    statically-checked `adapt-actions`).
+14. **`remap-actions`'s `key` rewriting is prefix-only, but `action(...)`'s
+    key isn't statically checked.** `remap-actions(node, prefix(p), fn)`
+    restricts key rewriting to prepending `p`; `fn` can no longer touch `key`
+    at all, only `eventType`/`payload` — matching `specs/position.md` §12's
+    intent, though the primitive kept its `remap-actions` name rather than
+    becoming `adapt-actions`, and still takes a closure argument. What isn't
+    restricted yet is `action(...)` itself: its `keyExpr` argument is still
+    an arbitrary `expr`, not required to be a literal, so a key isn't
+    statically enumerable without evaluating a template.

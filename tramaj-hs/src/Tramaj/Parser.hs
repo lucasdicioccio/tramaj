@@ -294,9 +294,28 @@ specialFormExpr = do
       _ <- symbol "("
       nodeE <- expr
       _ <- symbol ","
+      keySpec <- keySpecShape
+      _ <- symbol ","
       fnE <- expr
       _ <- char ')'
-      pure (RemapActionsExpr nodeE fnE)
+      pure (RemapActionsExpr nodeE keySpec fnE)
+
+    -- | @remap-actions@'s second argument: the key-rewriting operation,
+    -- currently just @prefix(prefixExpr)@. Recognized by name the same way
+    -- 'specialFormExpr' recognizes @map@\/@import@\/etc -- no backtracking
+    -- once the name matches, so a malformed @prefix(...)@ is a hard parse
+    -- error rather than silently falling through to a bogus 'Call'.
+    keySpecShape :: P KeySpec
+    keySpecShape = do
+      name <- identifier
+      case name of
+        "prefix" -> do
+          _ <- symbol "("
+          prefixE <- expr
+          _ <- char ')'
+          skipSpaces
+          pure (KeyPrefix prefixE)
+        _ -> fail "remap-actions's second argument must be a key-rewriting operation, e.g. prefix(\"ns:\")"
 
 -- | @expr := bool-lit | lambda-expr | map\/filter\/scan-special-form | call
 -- | path | string-lit | number-lit | array-lit | object-lit@. Every

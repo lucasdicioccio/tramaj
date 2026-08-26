@@ -67,7 +67,7 @@ type LibraryTable = Map Text LibrarySource
 -- * 'VPartial' -- a suspended @partial-import@: the library name plus
 --   whatever params were given so far.
 -- * 'VRemapPartial' -- a 'VPartial' with one or more @remap-actions@
---   functions already queued up.
+--   @(prefix, fn)@ operations already queued up.
 --
 -- **No recursion**: 'evalBindings' inserts a binding's value only *after*
 -- evaluating its right-hand side.
@@ -77,7 +77,7 @@ data Value'
   | VNode Node
   | VEnv Env
   | VPartial Text Value
-  | VRemapPartial Text Value [Value']
+  | VRemapPartial Text Value [(Text, Value')]
 
 type Env = Map Text Value'
 
@@ -168,11 +168,11 @@ applyFunctionValue libs inProgress who (VPartial name given) argVals = case argV
     merged <- mergeParamObjects who given extraJson
     tryPartial libs inProgress name merged
   _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
-applyFunctionValue libs inProgress who (VRemapPartial name given fns) argVals = case argVals of
+applyFunctionValue libs inProgress who (VRemapPartial name given ops) argVals = case argVals of
   [VJson extraJson] -> do
     merged <- mergeParamObjects who given extraJson
     completed <- tryPartial libs inProgress name merged
-    applyRemapChain libs inProgress fns completed
+    applyRemapChain libs inProgress ops completed
   _ -> Left (TypeMismatch (who <> ": completing a partial import expects exactly 1 object argument"))
 applyFunctionValue _ _ who (VJson _) _ = Left (TypeMismatch (who <> " expects a function value (a lambda, or a name bound to one)"))
 applyFunctionValue _ _ who (VNode _) _ = Left (TypeMismatch (who <> " expects a function value, got a rendered node"))
@@ -262,15 +262,27 @@ evalExpr libs inProgress env (PartialImportExpr name paramsExpr) = do
 evalExpr libs inProgress env (FieldAccess baseExpr segs) = do
   v <- evalExpr libs inProgress env baseExpr
   walkFields segs v segs
-evalExpr libs inProgress env (RemapActionsExpr nodeExpr fnExpr) = do
+evalExpr libs inProgress env (RemapActionsExpr nodeExpr keySpec fnExpr) = do
   v <- evalExpr libs inProgress env nodeExpr
+  prefix <- evalKeySpec libs inProgress env keySpec
   fnVal <- evalExpr libs inProgress env fnExpr
   case v of
-    VNode _ -> remapActionsInValue libs inProgress fnVal v
-    VEnv _ -> remapActionsInValue libs inProgress fnVal v
-    VPartial _ _ -> remapActionsInValue libs inProgress fnVal v
-    VRemapPartial _ _ _ -> remapActionsInValue libs inProgress fnVal v
+    VNode _ -> remapActionsInValue libs inProgress prefix fnVal v
+    VEnv _ -> remapActionsInValue libs inProgress prefix fnVal v
+    VPartial _ _ -> remapActionsInValue libs inProgress prefix fnVal v
+    VRemapPartial _ _ _ -> remapActionsInValue libs inProgress prefix fnVal v
     _ -> Left (TypeMismatch "remap-actions expects a rendered node, an import/partial-import result, or a still-suspended partial-import, e.g. $lib, $lib.rendered, or $partial")
+
+-- | Evaluates @remap-actions@'s second argument to the prefix string it
+-- names -- @prefix(prefixExpr)@'s only current shape, kept as its own
+-- function so a future key-rewriting operation (e.g. @replace(...)@) has
+-- somewhere to slot in without touching 'RemapActionsExpr''s eval rule.
+evalKeySpec :: LibraryTable -> Set Text -> Env -> KeySpec -> Either EvalError Text
+evalKeySpec libs inProgress env (KeyPrefix prefixExpr) = do
+  j <- evalExprAsJson libs inProgress env prefixExpr
+  case j of
+    String s -> Right s
+    _ -> Left (TypeMismatch "remap-actions: prefix(...) must evaluate to a string")
 
 -- | Recursively remaps every rendered 'Node' reachable from @v@ -- a bare
 -- node remaps directly, and a 'VEnv' (an import\/partial-import result)
@@ -279,28 +291,28 @@ evalExpr libs inProgress env (RemapActionsExpr nodeExpr fnExpr) = do
 -- queued onto it and applied once completion actually produces a node\/env.
 -- Anything else (plain JSON, a closure) has no actions to remap and is
 -- passed through unchanged.
-remapActionsInValue :: LibraryTable -> Set Text -> Value' -> Value' -> Either EvalError Value'
-remapActionsInValue libs inProgress fnVal (VNode n) =
-  VNode <$> remapActionsInNode (applyRemapFn libs inProgress fnVal) n
-remapActionsInValue libs inProgress fnVal (VEnv e) =
-  VEnv <$> traverse (remapActionsInValue libs inProgress fnVal) e
-remapActionsInValue _ _ fnVal (VPartial name given) = Right (VRemapPartial name given [fnVal])
-remapActionsInValue _ _ fnVal (VRemapPartial name given fns) = Right (VRemapPartial name given (fns ++ [fnVal]))
-remapActionsInValue _ _ _ v = Right v
+remapActionsInValue :: LibraryTable -> Set Text -> Text -> Value' -> Value' -> Either EvalError Value'
+remapActionsInValue libs inProgress prefix fnVal (VNode n) =
+  VNode <$> remapActionsInNode (applyRemapOp libs inProgress prefix fnVal) n
+remapActionsInValue libs inProgress prefix fnVal (VEnv e) =
+  VEnv <$> traverse (remapActionsInValue libs inProgress prefix fnVal) e
+remapActionsInValue _ _ prefix fnVal (VPartial name given) = Right (VRemapPartial name given [(prefix, fnVal)])
+remapActionsInValue _ _ prefix fnVal (VRemapPartial name given ops) = Right (VRemapPartial name given (ops ++ [(prefix, fnVal)]))
+remapActionsInValue _ _ _ _ v = Right v
 
--- | Applies each queued @remap-actions@ function, in order, to a value a
--- 'VRemapPartial' just finished completing -- if completion is itself still
--- incomplete (another 'VPartial'), the remaining queue stays attached
--- rather than being lost.
-applyRemapChain :: LibraryTable -> Set Text -> [Value'] -> Value' -> Either EvalError Value'
-applyRemapChain libs inProgress fns v = foldl step (Right v) fns
+-- | Applies each queued @(prefix, fn)@ remap-actions operation, in order, to
+-- a value a 'VRemapPartial' just finished completing -- if completion is
+-- itself still incomplete (another 'VPartial'), the remaining queue stays
+-- attached rather than being lost.
+applyRemapChain :: LibraryTable -> Set Text -> [(Text, Value')] -> Value' -> Either EvalError Value'
+applyRemapChain libs inProgress ops v = foldl step (Right v) ops
   where
-    step acc fn = acc >>= remapActionsInValue libs inProgress fn
+    step acc (prefix, fnVal) = acc >>= remapActionsInValue libs inProgress prefix fnVal
 
 -- | Contramaps every @action(...)@ found anywhere in a rendered 'Node'
 -- (recursively through children, not just the node's own root) through
--- @fn@ -- a closure taking\/returning the @{eventType, key, payload}@ shape
--- 'actionPayloadToJson' produces.
+-- @f@ -- one @(prefix, fn)@ remap-actions operation, applied via
+-- 'applyRemapOp'.
 remapActionsInNode :: (ActionPayload -> Either EvalError ActionPayload) -> Node -> Either EvalError Node
 remapActionsInNode _ n@(NText _) = Right n
 remapActionsInNode f n@(NElement {neAction, neChildren}) = do
@@ -308,32 +320,36 @@ remapActionsInNode f n@(NElement {neAction, neChildren}) = do
   children' <- traverse (remapActionsInNode f) neChildren
   pure n {neAction = action', neChildren = children'}
 
--- | Applies a @remap-actions@ closure to one 'ActionPayload': out to JSON
--- (reusing 'actionPayloadToJson'), through the closure like any other
--- function value, then validated back into an 'ActionPayload' by
--- 'actionPayloadFromJson'.
-applyRemapFn :: LibraryTable -> Set Text -> Value' -> ActionPayload -> Either EvalError ActionPayload
-applyRemapFn libs inProgress fnVal action = do
-  resultVal <- applyFunctionValue libs inProgress "remap-actions" fnVal [VJson (actionPayloadToJson action)]
+-- | Applies one @remap-actions@ @(prefix, fn)@ operation to one
+-- 'ActionPayload': the key is rewritten first, by prepending @prefix@ --
+-- the operation @keySpec@ names, applied unconditionally rather than left
+-- to @fn@ -- then the prefixed action is handed to @fn@ (out to JSON via
+-- 'actionPayloadToJson', through the closure like any other function value)
+-- for @eventType@\/@payload@ only; @fn@'s result is validated by
+-- 'actionPatchFromJson', and its @key@ (if present) is ignored -- the
+-- already-prefixed key from this operation is always what's kept.
+applyRemapOp :: LibraryTable -> Set Text -> Text -> Value' -> ActionPayload -> Either EvalError ActionPayload
+applyRemapOp libs inProgress prefix fnVal action = do
+  let prefixedAction = action {apKey = prefix <> apKey action}
+  resultVal <- applyFunctionValue libs inProgress "remap-actions" fnVal [VJson (actionPayloadToJson prefixedAction)]
   resultJson <- requireJson resultVal
-  actionPayloadFromJson resultJson
+  patch <- actionPatchFromJson resultJson
+  pure ActionPayload {apEventType = patchEventType patch, apKey = apKey prefixedAction, apPayload = patchPayload patch}
 
--- | The inverse of 'Tramaj.Ast.actionPayloadToJson' -- what a
--- @remap-actions@ closure's return value must look like: an object with
--- string @eventType@\/@key@ fields and any @payload@ (absent defaults to
--- @null@).
-actionPayloadFromJson :: Value -> Either EvalError ActionPayload
-actionPayloadFromJson (Object obj) = do
-  eventType <- fieldAsString "eventType"
-  key <- fieldAsString "key"
+-- | What a @remap-actions@ closure's return value must look like now that
+-- key-rewriting has moved to @keySpec@\/'applyRemapOp': an object with a
+-- string @eventType@ field and any @payload@ (absent defaults to @null@). A
+-- @"key"@ field, if present, is simply not read -- see 'applyRemapOp'.
+data ActionPatch = ActionPatch {patchEventType :: Text, patchPayload :: Value}
+
+actionPatchFromJson :: Value -> Either EvalError ActionPatch
+actionPatchFromJson (Object obj) = do
+  eventType <- case KeyMap.lookup (Key.fromText "eventType") obj of
+    Just (String s) -> Right s
+    _ -> Left (TypeMismatch "remap-actions: the function's result is missing a string \"eventType\" field")
   let payload = maybe Null id (KeyMap.lookup (Key.fromText "payload") obj)
-  pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
-  where
-    fieldAsString :: Text -> Either EvalError Text
-    fieldAsString field = case KeyMap.lookup (Key.fromText field) obj of
-      Just (String s) -> Right s
-      _ -> Left (TypeMismatch ("remap-actions: the function's result is missing a string \"" <> field <> "\" field"))
-actionPayloadFromJson _ = Left (TypeMismatch "remap-actions: the function must return an object with eventType/key/payload fields")
+  pure ActionPatch {patchEventType = eventType, patchPayload = payload}
+actionPatchFromJson _ = Left (TypeMismatch "remap-actions: the function must return an object with an eventType field")
 
 -- | Evaluates a library by name against its own fresh @$ctx = paramsJson@,
 -- producing a 'VEnv' @{ rendered, vals: VEnv libEnv }@ -- the shared path

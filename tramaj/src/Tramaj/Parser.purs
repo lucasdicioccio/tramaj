@@ -34,7 +34,7 @@ import Parsing (ParseError, Parser, fail, runParser)
 import Parsing.Combinators (many, many1, optionMaybe, sepEndBy, try)
 import Parsing.String (char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, letter, skipSpaces)
-import Tramaj.Ast (Expr(..), JsonProgram, Program, StringPart(..), TAction(..), TemplateNode(..))
+import Tramaj.Ast (Expr(..), JsonProgram, KeySpec(..), Program, StringPart(..), TAction(..), TemplateNode(..))
 
 type P a = Parser String a
 
@@ -330,9 +330,28 @@ specialFormExpr = do
     _ <- symbol "("
     nodeE <- defer \_ -> expr
     _ <- symbol ","
+    keySpec <- keySpecShape
+    _ <- symbol ","
     fnE <- defer \_ -> expr
     _ <- char ')'
-    pure (RemapActionsExpr nodeE fnE)
+    pure (RemapActionsExpr nodeE keySpec fnE)
+
+  -- | `remap-actions`'s second argument: the key-rewriting operation,
+  -- | currently just `prefix(prefixExpr)`. Recognized by name the same way
+  -- | `specialFormExpr` recognizes `map`/`import`/etc — no `try`-backtrack
+  -- | once the name matches, so a malformed `prefix(...)` is a hard parse
+  -- | error rather than silently falling through to a bogus `Call`.
+  keySpecShape :: P KeySpec
+  keySpecShape = do
+    name <- identifier
+    case name of
+      "prefix" -> do
+        _ <- symbol "("
+        prefixE <- defer \_ -> expr
+        _ <- char ')'
+        skipSpaces
+        pure (KeyPrefix prefixE)
+      _ -> fail "remap-actions's second argument must be a key-rewriting operation, e.g. prefix(\"ns:\")"
 
   partialImportShape :: P Expr
   partialImportShape = do

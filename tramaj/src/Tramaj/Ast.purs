@@ -5,6 +5,7 @@
 -- grammar and design rationale.
 module Tramaj.Ast
   ( Expr(..)
+  , KeySpec(..)
   , StringPart(..)
   , TAction(..)
   , ActionPayload
@@ -86,16 +87,25 @@ import Foreign.Object as Object
 -- | then each segment walks it exactly like `Path`'s own field-walking
 -- | (see `Tramaj.Eval`'s `walkFields`, shared by both).
 -- |
--- | `RemapActionsExpr nodeExpr fnExpr` — `remap-actions(node, fn)` —
--- | contramaps every `action(...)` found anywhere in `nodeExpr`'s rendered
--- | `Node` (recursively through its children, not just its own root) through
--- | `fn`: a closure taking/returning the `{eventType, key, payload}` shape
--- | `actionPayloadToJson` produces, letting a template that imports a
--- | library rewrite (namespace a key, transform a payload) whatever
--- | actions that library's own template fires before they're visible to
--- | the host — the tramaj counterpart to remapping a child
--- | component's output actions before they bubble up to a parent. See
--- | `Tramaj.Eval`'s `remapActionsInNode`.
+-- | `RemapActionsExpr nodeExpr keySpec fnExpr` —
+-- | `remap-actions(node, prefix(prefixExpr), fn)` — contramaps every
+-- | `action(...)` found anywhere in `nodeExpr`'s rendered `Node`
+-- | (recursively through its children, not just its own root): the action's
+-- | `key` is rewritten by `keySpec` (currently only `prefix(prefixExpr)` —
+-- | prepends `prefixExpr`'s string value to the original key; `prefixExpr`
+-- | may itself be a computed/dynamic expr, just not the *operation*, which
+-- | is fixed to prefixing), and `eventType`/`payload` are passed through
+-- | `fn`: a closure taking the `{eventType, key, payload}` shape
+-- | `actionPayloadToJson` produces (with `key` already prefixed) and
+-- | returning `{eventType, payload}` — `fn` can no longer set `key` itself,
+-- | since `keySpec` is now the sole, statically-identifiable source of key
+-- | rewriting (`specs/position.md` §12; `prefix` is the first of what's
+-- | meant to grow into a small closed set of key operations, e.g. a future
+-- | `replace(...)`). Lets a template that imports a library rewrite
+-- | (namespace a key, transform a payload) whatever actions that library's
+-- | own template fires before they're visible to the host — the tramaj
+-- | counterpart to remapping a child component's output actions before
+-- | they bubble up to a parent. See `Tramaj.Eval`'s `remapActionsInNode`.
 data Expr
   = Path (Array String)
   | Call (Array String) (Array Expr)
@@ -112,7 +122,19 @@ data Expr
   | ImportExpr String Expr
   | PartialImportExpr String Expr
   | FieldAccess Expr (Array String)
-  | RemapActionsExpr Expr Expr
+  | RemapActionsExpr Expr KeySpec Expr
+
+-- | The key-rewriting operation a `remap-actions(...)` call's second
+-- | argument names — currently just `prefix(prefixExpr)`, deliberately a
+-- | small closed set (not an arbitrary closure) so a key rewrite stays a
+-- | statically-identifiable *operation* even though `prefixExpr` itself may
+-- | be dynamic. See the `RemapActionsExpr` note above.
+data KeySpec = KeyPrefix Expr
+
+derive instance eqKeySpec :: Eq KeySpec
+
+instance showKeySpec :: Show KeySpec where
+  show (KeyPrefix e) = "KeyPrefix (" <> show e <> ")"
 
 derive instance eqExpr :: Eq Expr
 
@@ -132,7 +154,7 @@ instance showExpr :: Show Expr where
   show (ImportExpr name paramsE) = "ImportExpr " <> show name <> " (" <> show paramsE <> ")"
   show (PartialImportExpr name paramsE) = "PartialImportExpr " <> show name <> " (" <> show paramsE <> ")"
   show (FieldAccess baseE segs) = "FieldAccess (" <> show baseE <> ") " <> show segs
-  show (RemapActionsExpr nodeE fnE) = "RemapActionsExpr (" <> show nodeE <> ") (" <> show fnE <> ")"
+  show (RemapActionsExpr nodeE keySpec fnE) = "RemapActionsExpr (" <> show nodeE <> ") (" <> show keySpec <> ") (" <> show fnE <> ")"
 
 -- | One piece of a double-quoted string literal: either literal text or a
 -- | backtick-delimited interpolation of an arbitrary `Expr` (not just a
@@ -354,7 +376,10 @@ importNamesInExpr (FoldExpr arr initE fn) = importNamesInExpr arr <> importNames
 importNamesInExpr (ImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
 importNamesInExpr (PartialImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
 importNamesInExpr (FieldAccess baseE _) = importNamesInExpr baseE
-importNamesInExpr (RemapActionsExpr nodeE fnE) = importNamesInExpr nodeE <> importNamesInExpr fnE
+importNamesInExpr (RemapActionsExpr nodeE keySpec fnE) = importNamesInExpr nodeE <> importNamesInKeySpec keySpec <> importNamesInExpr fnE
+
+importNamesInKeySpec :: KeySpec -> Set String
+importNamesInKeySpec (KeyPrefix e) = importNamesInExpr e
 
 importNamesInStringPart :: StringPart -> Set String
 importNamesInStringPart (Lit _) = Set.empty

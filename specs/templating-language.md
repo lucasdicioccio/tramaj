@@ -1032,3 +1032,72 @@ the note above and `specs/llm.md` §5.2.
 - `specs/llm.md` §3.9's divergence-from-`position.md` callout is gone
   (import names now match); the grammar (`§3`) and AST (`§4.1`) sections
   are updated to show `name` as a bare literal, not `nameExpr`.
+
+## `remap-actions` key rewriting narrowed to `prefix(...)`, implemented 2026-08-26
+
+First step of closing the second half of the gap the two notes above flag:
+**`remap-actions`'s key rewriting is now restricted to prefixing**, matching
+`specs/position.md` §12's `adapt-actions` in spirit (though the primitive
+keeps its `remap-actions` name and still takes a closure argument — see
+below for why this is a first step, not full parity). `action(...)`'s own
+`keyExpr` argument is unchanged — still an arbitrary `expr`, not required to
+be a literal — that's the remaining half, tracked in `./todo`.
+
+- **New syntax**: `remap-actions(nodeExpr, prefix(prefixExpr), fnExpr)` — a
+  third argument. The second, `prefix(prefixExpr)`, is a new `KeySpec` AST
+  node (`KeyPrefix Expr` — one constructor today, meant to grow a small
+  closed set of key operations, e.g. a future `replace(...)`, rather than
+  ever becoming an escape hatch to arbitrary rewriting). `prefixExpr` may
+  itself be a computed/dynamic expression — only the *operation* is fixed to
+  prefixing, not the prefix value, per `position.md` §12's own carve-out.
+- **`fnExpr` no longer controls `key`.** Before, `fnExpr` received and
+  returned the full `{eventType, key, payload}` shape, so it could rewrite
+  the key however it liked (rename, drop a namespace, anything). Now the key
+  is computed unconditionally by prepending `prefixExpr`'s string value to
+  the original key, and `fnExpr` receives that already-prefixed action (so
+  it can still read `key`, e.g. to derive a payload from it) but its return
+  value only needs an `eventType` field plus optional `payload` — a `"key"`
+  field in its result, if present, is simply not read.
+- Why keep a closure at all instead of narrowing straight to
+  `adapt-actions(node, prefix)` with no closure, as `todo`'s original plan
+  sketched: existing fixtures/templates use `remap-actions` to transform
+  `payload` as a function of the original key/payload (e.g.
+  `{"from": $a.key, "orig": $a.payload}`), which a closure-free primitive
+  can't express. Splitting the *key* operation out first (this change)
+  while leaving *payload*/`eventType` transformation to a closure is the
+  smaller, backward-compatible-in-shape step; folding the closure away
+  entirely (or replacing it with its own small set of payload operations)
+  is left for a later pass, if position.md's "no closure" reading of §12
+  turns out to matter in practice.
+- **`Tramaj.Eval` changes (both languages)**: `applyRemapFn`/
+  `actionPayloadFromJson` (PureScript/Haskell naming: `applyRemapFn`/
+  `actionPayloadFromJson`) split into `applyRemapOp` (prefixes the key, then
+  calls the closure for `eventType`/`payload`) and `actionPatchFromJson`
+  (validates the closure's now-narrower `{eventType, payload}` result).
+  `VRemapPartial`'s queued-fn array became a queued `(prefix, fn)` pair
+  array (`Array (Tuple String Value)` / `[(Text, Value')]`) so a
+  `remap-actions` wrapped around a still-suspended `partial-import` keeps
+  both halves of the operation queued, applied once the partial completes —
+  same queuing/currying/chaining behavior as before, just carrying a pair
+  instead of a bare function now.
+- **Parser**: `remapActionsShape` gained a `keySpecShape` production
+  between the node and function arguments, recognized by name the same way
+  `map`/`import`/etc. are (see the note on `specialFormExpr`'s `try` scope
+  from the import-names change above) — `prefix(...)` is a hard parse error
+  if malformed, not a fallback to a bogus `Call`.
+- Fixture fallout: every existing `remap-actions` fixture that only ever
+  prefixed the key (the common case) was rewritten as
+  `remap-actions(node, prefix("ns-"), (a) => {"eventType": ..., "payload":
+  ...})`; the one fixture that echoed the key back unchanged uses
+  `prefix("")`. The "malformed record" rejection fixture was repointed at a
+  missing `eventType` (the field that's still required) instead of a
+  missing `key` (no longer meaningful, since `fnExpr`'s result isn't asked
+  for one). All 29 `tramaj` fixtures + full import/remap-actions suite
+  (PureScript, via `spago test`) and all 76 Haskell fixtures (`cabal test
+  unit`) pass. The playground's default example and in-app language
+  reference text (`Playground.Main`) were updated to the new 3-arg syntax.
+- `specs/llm.md` updated: grammar (`§3`), `RemapActionsExpr`/new `KeySpec`
+  AST (`§4.1`), `VRemapPartial`'s payload type (`§4.1b`), `remap-actions`'s
+  full description (`§3.11`), the `position.md` §11/§12 divergence note and
+  gotcha list entry (`§5.2`/`§7`) — all rewritten to describe the narrowed
+  primitive rather than flag it as an aspirational gap.

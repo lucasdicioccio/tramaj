@@ -208,8 +208,8 @@ runImportTests = do
     libs
     jsonNull
     (NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NText "foo" ] } ] })
-  checkJsonOk "remap-actions(...) rewrites an action's key (string-interpolation prefix) and passes the payload through"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped"
+  checkJsonOk "remap-actions(...) rewrites an action's key via prefix(...) and passes the payload through"
+    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
     libs
     jsonNull
     (fromObject
@@ -222,8 +222,8 @@ runImportTests = do
             ]
         )
     )
-  checkJsonOk "remap-actions(...)'s function can rewrite the payload as a function of the original key and payload"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": $a.key, \"payload\": {\"from\": $a.key, \"orig\": $a.payload}})\n$remapped"
+  checkJsonOk "remap-actions(...)'s function can rewrite the payload as a function of the (already-prefixed) key and original payload"
+    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"\"), (a) => {\"eventType\": $a.eventType, \"payload\": {\"from\": $a.key, \"orig\": $a.payload}})\n$remapped"
     libs
     jsonNull
     (fromObject
@@ -237,7 +237,7 @@ runImportTests = do
         )
     )
   checkJsonOk "remap-actions(...) recurses through every action in the subtree, not just the root"
-    "@bar=import(\"two-actions\", {})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped"
+    "@bar=import(\"two-actions\", {})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
     libs
     jsonNull
     ( let
@@ -262,16 +262,16 @@ runImportTests = do
           )
     )
   checkJsonOk "remap-actions(...) is a no-op (and never calls the function) on a node with no action anywhere"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar.rendered, (a) => $nonexistent)\n$remapped"
+    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => $nonexistent)\n$remapped"
     libs
     jsonNull
     (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "hello World") ]) ]) ]))
   checkJsonEvalRejectedWith libs "remap-actions(...) on something that isn't a rendered node (a plain Json value) is a clear error"
-    "remap-actions(5, (a) => $a)"
-  checkJsonEvalRejectedWith libs "remap-actions(...)'s function returning a malformed record (missing key) is a clear error, not a silently-dropped action"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
+    "remap-actions(5, prefix(\"\"), (a) => $a)"
+  checkJsonEvalRejectedWith libs "remap-actions(...)'s function returning a malformed record (missing eventType) is a clear error, not a silently-dropped action"
+    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"payload\": $a.payload})\n$remapped"
   checkJsonOk "remap-actions(...) accepts an import(...) result directly (no .rendered projection needed), remapping in place and keeping .vals"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.rendered"
+    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.rendered"
     libs
     jsonNull
     (fromObject
@@ -285,7 +285,7 @@ runImportTests = do
         )
     )
   checkJsonOk "remap-actions(...) accepts a partial-import(...) result directly, once completed"
-    "@p=partial-import(\"btn\", {})\n@remapped=remap-actions($p({\"n\": 5}), (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.rendered"
+    "@p=partial-import(\"btn\", {})\n@remapped=remap-actions($p({\"n\": 5}), prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.rendered"
     libs
     jsonNull
     (fromObject
@@ -299,17 +299,17 @@ runImportTests = do
         )
     )
   checkJsonOk "remap-actions(...) on an import(...) result still surfaces .vals unchanged alongside the remapped .rendered"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar, (a) => $a)\n$remapped.vals.greeting"
+    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar, prefix(\"\"), (a) => $a)\n$remapped.vals.greeting"
     libs
     jsonNull
     (fromString "hello World")
   checkJsonOk "remap-actions(...) on a JSON-mode import's result (whose \"rendered\" is plain Json, not a node) is a no-op, not an error"
-    "@bar=import(\"json-lib\", {\"n\": 5})\n@remapped=remap-actions($bar, (a) => $a)\n$remapped.rendered"
+    "@bar=import(\"json-lib\", {\"n\": 5})\n@remapped=remap-actions($bar, prefix(\"\"), (a) => $a)\n$remapped.rendered"
     libs
     jsonNull
     (fromObject (Object.singleton "n" (fromNumber 5.0)))
   checkJsonOk "remap-actions(...) recurses into .vals too, reaching a sub-import's action even when it isn't spliced into the outer .rendered"
-    "@bar=import(\"wraps-btn-in-vals\", {})\n@remapped=remap-actions($bar, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$remapped.vals.sub.rendered"
+    "@bar=import(\"wraps-btn-in-vals\", {})\n@remapped=remap-actions($bar, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.vals.sub.rendered"
     libs
     jsonNull
     (fromObject
@@ -323,12 +323,12 @@ runImportTests = do
         )
     )
   checkTemplateOkWithLibs "remap-actions(...) works as a bare $-prefixed child directly in the template block, no @-binding needed"
-    "@btn=partial-import(\"one-arg\", {})\n.div(remap-actions($btn({\"arg0\": \"foo\"}).rendered, (a) => $a))"
+    "@btn=partial-import(\"one-arg\", {})\n.div(remap-actions($btn({\"arg0\": \"foo\"}).rendered, prefix(\"\"), (a) => $a))"
     libs
     jsonNull
     (NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NText "foo" ] } ] })
   checkJsonOk "remap-actions(...) can wrap a still-incomplete partial-import(...) before it's completed, and the remap still applies once it is"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n$p2({\"n\": 5}).rendered"
+    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$p2({\"n\": 5}).rendered"
     libs
     jsonNull
     (fromObject
@@ -342,7 +342,7 @@ runImportTests = do
         )
     )
   checkJsonOk "remap-actions(...) queued on a partial survives currying it one param at a time, applying once it's finally complete"
-    "@p=partial-import(\"two-arg-btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"ns-`$a.key`\", \"payload\": $a.payload})\n@p3=$p2({\"a\": 1})\n@p4=$p3({\"b\": 2})\n$p4.rendered"
+    "@p=partial-import(\"two-arg-btn\", {})\n@p2=remap-actions($p, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n@p3=$p2({\"a\": 1})\n@p4=$p3({\"b\": 2})\n$p4.rendered"
     libs
     jsonNull
     (fromObject
@@ -355,8 +355,8 @@ runImportTests = do
             ]
         )
     )
-  checkJsonOk "remap-actions(...) called twice on the same partial-import(...) queues both fns, applied in order once complete"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => {\"eventType\": $a.eventType, \"key\": \"inner-`$a.key`\", \"payload\": $a.payload})\n@p3=remap-actions($p2, (a) => {\"eventType\": $a.eventType, \"key\": \"outer-`$a.key`\", \"payload\": $a.payload})\n$p3({\"n\": 5}).rendered"
+  checkJsonOk "remap-actions(...) called twice on the same partial-import(...) queues both prefix/fn operations, applied in order once complete"
+    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"inner-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n@p3=remap-actions($p2, prefix(\"outer-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$p3({\"n\": 5}).rendered"
     libs
     jsonNull
     (fromObject
@@ -370,7 +370,7 @@ runImportTests = do
         )
     )
   checkJsonEvalRejectedWith libs "a remap-actions(...)-wrapped partial that's still incomplete can't be used where a Json value is required, same as a plain partial"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, (a) => $a)\n$p2"
+    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"\"), (a) => $a)\n$p2"
   log "All import/partial-import fixtures passed."
   where
   buildLibraryTable :: Effect LibraryTable

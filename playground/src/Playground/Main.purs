@@ -116,7 +116,7 @@ initialState =
 @fgreet=partial-import("greeting", {})
 @g=$fgreet({"name": "World"})
 @btn=partial-import("btn", {})
-@btn2=remap-actions($btn, (a) => {"eventType": $a.eventType, "key": "main-`$a.key`", "payload": $a.payload})
+@btn2=remap-actions($btn, prefix("main-"), (a) => {"eventType": $a.eventType, "payload": $a.payload})
 .div(
   "data-count": $item-count,
   $greeting.rendered,
@@ -550,34 +550,41 @@ IMPORTS — reusing another tab as a library
   off it can be written in one expression with no intermediate
   binding: `$partial({"more": "params"}).rendered`.
 
-  remap-actions(nodeExpr, fnExpr)
+  remap-actions(nodeExpr, prefix(prefixExpr), fnExpr)
   Contramaps every `action(...)` found anywhere in `nodeExpr`'s
   rendered `Node` (recursively through its children, not just its own
-  root) through `fn` — a closure taking and returning an object with
-  the same shape a node's own `action` field prints as:
-  `{"eventType": ..., "key": ..., "payload": ...}`. Lets a template
-  that imports a library rewrite what that library's own actions look
-  like before they reach the host's dispatcher — e.g. namespace a key
-  (plain string interpolation: `"ns-`$a.key`"`) or transform a payload
-  as a function of the original key/payload — without the library
-  itself knowing anything about who imported it. `nodeExpr` may be a
-  rendered node directly (e.g. `$lib.rendered`), an import/partial-import
-  result itself (`$lib`, or a just-completed `$partial({...})`), or a
-  still-*incomplete* `partial-import(...)` — in every case `remap-actions`
-  descends into *every* value reachable from it: a `.vals` binding can
-  itself be a sub-import with its own rendered node and actions (those get
-  remapped too, in case they're reached via `.vals...rendered` rather than
-  the outer `.rendered`), and wrapping a still-incomplete partial just
-  queues the remap to run once the partial is finally completed —
-  including across currying it one param at a time — rather than requiring
-  it. That means `remap-actions(...)` can be attached once, in the
-  computation block, directly to a `partial-import(...)` before the value
-  that completes it is even in scope (e.g. a per-item value only available
-  inside a `map(...)` body):
-  `@btn2=remap-actions($btn, fn)` ... `map($ctx.items, (item) =>
-  $btn2({"title": $item.title}).rendered)` — no inline
-  `remap-actions(...)` wrapping needed at every call site. `fn`'s result
-  must have string `eventType`/`key` fields, same as a literal
+  root): the action's `key` is rewritten by `prefix(prefixExpr)` —
+  prepends `prefixExpr`'s string value to the original key; `prefixExpr`
+  may itself be computed/dynamic, just not the *operation*, which is
+  fixed to prefixing (a small closed set of key-rewriting operations is
+  meant to grow here, e.g. a future `replace(...)`, rather than
+  arbitrary rewriting) — and `eventType`/`payload` are passed through
+  `fn`, a closure taking the `{"eventType": ..., "key": ..., "payload":
+  ...}` shape a node's own `action` field prints as (with `key` already
+  prefixed) and returning `{"eventType": ..., "payload": ...}`; `fn` can
+  no longer set `key` itself. Lets a template that imports a library
+  rewrite what that library's own actions look like before they reach
+  the host's dispatcher — namespace a key, or transform a payload as a
+  function of the (already-prefixed) key/original payload — without the
+  library itself knowing anything about who imported it. `nodeExpr` may
+  be a rendered node directly (e.g. `$lib.rendered`), an import/partial-
+  import result itself (`$lib`, or a just-completed `$partial({...})`),
+  or a still-*incomplete* `partial-import(...)` — in every case
+  `remap-actions` descends into *every* value reachable from it: a
+  `.vals` binding can itself be a sub-import with its own rendered node
+  and actions (those get remapped too, in case they're reached via
+  `.vals...rendered` rather than the outer `.rendered`), and wrapping a
+  still-incomplete partial just queues the `(prefix, fn)` operation to
+  run once the partial is finally completed — including across currying
+  it one param at a time — rather than requiring it. That means
+  `remap-actions(...)` can be attached once, in the computation block,
+  directly to a `partial-import(...)` before the value that completes it
+  is even in scope (e.g. a per-item value only available inside a
+  `map(...)` body):
+  `@btn2=remap-actions($btn, prefix("form:"), fn)` ...
+  `map($ctx.items, (item) => $btn2({"title": $item.title}).rendered)` —
+  no inline `remap-actions(...)` wrapping needed at every call site.
+  `fn`'s result must have a string `eventType` field, same as a literal
   `action(...)`; anything with no actions anywhere (a node, or an import
   result) is left unchanged (`fn` is never called).
 
