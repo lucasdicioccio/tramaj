@@ -1,4 +1,4 @@
--- | A standalone browser playground for the templating language: a set of
+-- | A standalone browser playground for the tramaj language: a set of
 -- | named tabs, each a freeform textarea holding either an element-rooted
 -- | template or an expression-rooted JSON-mode program, plus a shared JSON
 -- | context. The active tab is parsed/evaluated live and shown three ways
@@ -9,7 +9,7 @@
 -- | keyed by its tab name — see `buildLibraryTable`.
 -- |
 -- | It exists to exercise the whole pipeline end to end in one place:
--- | `Templating.Parser` -> `Templating.Eval` -> `Templating.Halogen`'s
+-- | `Tramaj.Parser` -> `Tramaj.Eval` -> `Tramaj.Halogen`'s
 -- | `validateAttrNames`/`foldToHalogen`. Everything runs in the browser;
 -- | there is no server side.
 -- |
@@ -38,10 +38,10 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
-import Templating.Ast (ActionPayload, Node, nodeToJson)
-import Templating.Eval (LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
-import Templating.Halogen (foldToHalogen, validateAttrNames)
-import Templating.Parser (parseJsonProgram, parseProgram)
+import Tramaj.Ast (ActionPayload, Node, nodeToJson)
+import Tramaj.Eval (LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
+import Tramaj.Halogen (foldToHalogen, validateAttrNames)
+import Tramaj.Parser (parseJsonProgram, parseProgram)
 
 main :: Effect Unit
 main = HA.runHalogenAff do
@@ -49,7 +49,7 @@ main = HA.runHalogenAff do
   runUI component unit body
 
 -- | Which of the two program roots (see `specs/llm.md` §5.1b) a tab is
--- | currently parsed as: an element (`Templating.Parser.parseProgram`,
+-- | currently parsed as: an element (`Tramaj.Parser.parseProgram`,
 -- | folded to Halogen HTML when active) or an expression
 -- | (`parseJsonProgram`, evaluated straight to `Json` — no Halogen fold
 -- | applies when active, since there's no `Node` to fold). Also which
@@ -211,9 +211,9 @@ activeTabOf state = fromMaybe { name: "", mode: TemplateMode, source: "" } (Arra
 render :: State -> H.ComponentHTML Action () Aff
 render state =
   HH.div [ HP.class_ (HH.ClassName "wrap") ]
-    [ HH.h1_ [ HH.text "Templating playground" ]
+    [ HH.h1_ [ HH.text "tramaj playground" ]
     , HH.p [ HP.class_ (HH.ClassName "hint") ]
-        [ HH.text "Renders a templating-language template against a JSON context, entirely in the browser. See specs/templating-language.md for the full grammar; the reference below is the short version." ]
+        [ HH.text "Renders a tramaj template against a JSON context, entirely in the browser. See specs/templating-language.md for the full grammar; the reference below is the short version." ]
     , HH.details [ HP.class_ (HH.ClassName "card") ]
         [ HH.summary_ [ HH.text "Language reference" ]
         , HH.pre [ HP.class_ (HH.ClassName "ref" ) ] [ HH.text referenceText ]
@@ -252,7 +252,7 @@ render state =
             [ HH.h2_ [ HH.text "AST" ]
             , HH.p [ HP.class_ (HH.ClassName "hint") ]
                 [ HH.text case activeTab.mode of
-                    TemplateMode -> "The evaluated Templating.Ast.Node tree — the same value foldToHalogen is folding on the right, shown as plain JSON before that fold happens."
+                    TemplateMode -> "The evaluated Tramaj.Ast.Node tree — the same value foldToHalogen is folding on the right, shown as plain JSON before that fold happens."
                     JsonMode -> "The evaluated JSON value, before it's pretty-printed on the right — for JSON mode this is the same value, just stringified with no indentation."
                 ]
             , renderAst state
@@ -408,7 +408,7 @@ renderAst state = case computeResult state of
 
 -- | The demo dispatcher: every `action(...)` click becomes a real
 -- | Halogen action appended to the log. A read-only host would pass
--- | `const Nothing` here instead — see 'Templating.Halogen'.
+-- | `const Nothing` here instead — see 'Tramaj.Halogen'.
 dispatchAction :: ActionPayload -> Maybe Action
 dispatchAction ap = Just (ActionFired ap.key ap.payload)
 

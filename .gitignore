@@ -10,8 +10,8 @@ generated-docs/
 .spago/
 node_modules/
 
-# templating-cli bundle output
-templating-cli/dist/
+# tramaj-cli bundle output
+tramaj-cli/dist/
 
 # Playground bundle output. Only the generated bundle — index.html and
 # style.css in the same directory are source and stay tracked.

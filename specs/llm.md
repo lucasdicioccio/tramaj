@@ -1,4 +1,4 @@
-# Templating language — reference
+# tramaj — reference
 
 This is the **current-state reference** for the language: what it is, how it
 parses, what it evaluates to, and how a host embeds it. It is written to be read
@@ -9,6 +9,13 @@ the order the decisions were made — see
 [`templating-language.md`](templating-language.md). Where the two disagree, this
 file is correct: the other one is a running log that preserves superseded
 intermediate designs on purpose.
+
+[`position.md`](position.md) is a *positioning* document: it states what the
+language is meant to be, including some restrictions (static import names,
+static action keys, action-adaptation limited to identity/prefix) that this
+implementation does not yet enforce. Where this file and `position.md`
+disagree on current behavior, this file is correct — see the divergence notes
+in §3.9 and §5.2.
 
 ---
 
@@ -52,7 +59,7 @@ language.
 
 Five properties are load-bearing; changes that break them are breaking changes.
 
-**Output is a generic AST, not markup.** `Templating.Eval` produces `Node`, which
+**Output is a generic AST, not markup.** `Tramaj.Eval` produces `Node`, which
 has no Halogen (or DOM, or HTML) dependency. The fold to a real UI lives in a
 separate package. This is what lets the same template be evaluated server-side,
 in a CLI, or in a browser.
@@ -78,11 +85,11 @@ evaluated before the builtin runs. The one exception is the *template-block*
 
 ### Two implementations
 
-`templating` (PureScript) and `templating-hs` (Haskell) are independent
+`tramaj` (PureScript) and `tramaj-hs` (Haskell) are independent
 implementations of one grammar, not a shared core behind an FFI. Same module
 names, same constructors, same `nodeToJson` output. They are kept in agreement
-by hand-ported fixtures (`templating/test/Test/Fixtures.purs` is the original;
-`templating-hs/test/unit/Templating/EvalSpec.hs` mirrors it).
+by hand-ported fixtures (`tramaj/test/Test/Fixtures.purs` is the original;
+`tramaj-hs/test/unit/Tramaj/EvalSpec.hs` mirrors it).
 
 **This agreement is not mechanically enforced** — there is no shared golden
 corpus and no cross-language conformance runner, so the suites can drift. If you
@@ -111,12 +118,16 @@ expr           := bool-lit | lambda | special-form | call | path
                 | string-lit | number-lit | array-lit | object-lit
 
 path           := "$" ident ("." ident)*
-call           := ["$"] ident "(" [expr ("," expr)* [","]] ")"
+call           := ["$"] ident "(" [expr ("," expr)* [","]] ")" field-access*
+field-access   := "." ident                      -- postfix, no whitespace; see §3.8
 lambda         := "(" [ident ("," ident)*] ")" "=>" expr
-special-form   := "map"    "(" expr "," expr ")"
+special-form   := ("map"    "(" expr "," expr ")"
                 | "filter" "(" expr "," expr ")"
                 | "scan"   "(" expr "," expr "," expr ")"
                 | "fold"   "(" expr "," expr "," expr ")"
+                | "import"         "(" expr "," expr ")"
+                | "partial-import" "(" expr "," expr ")"
+                | "remap-actions"  "(" expr "," expr ")") field-access*
 bool-lit       := "true" | "false"
 number-lit     := digit+ ["." digit+]
 string-lit     := '"' (char | "`" expr "`")* '"'
@@ -247,6 +258,131 @@ Arity mismatch is an eval-time error. A closure used where a plain value is
 expected (interpolated, stored in a literal, passed to a fixed builtin) is a
 `TypeMismatch` telling you to call it first.
 
+### 3.8 Postfix field access
+
+Any `call` or `special-form` result — anything ending in a closing `)` — may
+be followed by one or more `.field` segments, with no whitespace before the
+`.`:
+
+```
+make-component(...).rendered
+$btn({"title": "Save"}).rendered
+import("nav", {}).vals.greeting
+```
+
+This is purely additive to the prefix `path` production (`$ctx.items`, which
+only ever starts from a bound name). It does **not** relax the existing
+restriction that a dotted path can't itself be called — `$ctx.foo(...)` is
+still not something the language accepts; `field-access` only ever wraps the
+result of a `call`/`special-form`, never turns a `Path` into a callee. Eval
+walks fields the same way for both forms (`walkFields`); the target may be a
+plain JSON object, a `VNode`, or a `VEnv` (see §3.9–3.10). Field access into a
+closure, a node in isolation without wrapping context, or a partial import is
+a `TypeMismatch`.
+
+### 3.9 Imports and libraries
+
+**Divergence from `specs/position.md` §9.** That document describes the
+import name as "part of the program's static dependency information" — a
+statically identifiable name, alongside action keys and action-key prefixes.
+The shipped grammar does not enforce this: `nameExpr` in `import(nameExpr,
+paramsExpr)` is an ordinary `expr` (`importShape` in
+`Tramaj.Parser`), so `import($ctx.libname, {})` parses and evaluates
+today — nothing rejects a computed library name at parse time or restricts it
+to a string literal. Treat "import names are statically known" as an
+aspiration this implementation has not yet enforced, not a current guarantee;
+a tool that wants to inspect a template's static import set without
+evaluating it cannot rely on the grammar to guarantee every `import(...)`'s
+first argument is a literal.
+
+`import(nameExpr, paramsExpr)` runs another program — a **library** — by
+name, passing `paramsExpr` (an object) as *that library's own* `$ctx`,
+completely separate from the caller's `$ctx`:
+
+```
+@nav=import("nav", {"active": "home"})
+.div($nav.rendered)
+```
+
+A library is resolved by the host from a `LibraryTable :: Map String
+LibrarySource`, supplied alongside the input context — not from anything in
+the template itself. `LibrarySource` is either `ProgramSource` (element-
+rooted, like a normal template) or `JsonSource` (expression-rooted, §5.1b);
+which one a given library is is a host-loading detail, invisible to the
+importing template.
+
+The result of `import(...)` is a value with two fields, read via field access
+(§3.8):
+
+- `.rendered` — the library's evaluated root: a `Node` for a `ProgramSource`,
+  an arbitrary JSON value for a `JsonSource`.
+- `.vals` — every one of the library's own top-level `@`-bindings, exposed by
+  name, so a caller can pull out one bound value without needing the whole
+  rendered document (`import("nav", {}).vals.greeting`).
+
+**Import cycles are detected, not looped forever.** A set of in-progress
+library names is threaded through evaluation; importing a name already on the
+current call chain fails with `ImportCycle name` rather than recursing.
+Importing a name the host never supplied is `UnknownLibrary name`.
+
+### 3.10 Partial imports and reusable components
+
+`partial-import(nameExpr, paramsExpr)` is like `import`, but tolerant of an
+incomplete `paramsExpr`: if evaluating the library fails specifically because
+of a missing `$ctx.<field>` the library itself needed, evaluation doesn't
+error — it suspends into a callable value instead of failing:
+
+```
+@button=partial-import("button", {})
+$button({"title": "Save"})
+```
+
+Applying a suspended partial import to one JSON object argument shallow-merges
+that object into the params already given (new keys win on conflict) and
+retries: it either completes — producing exactly the `import(...)` result
+described in §3.9 — or suspends again, so params can be supplied across more
+than one application. Any failure that *isn't* a missing `$ctx` field
+(unknown library, an import cycle, a real bug in the library) still propagates
+as a hard error immediately; only a missing-context-field failure downgrades
+to suspension.
+
+**Known limitation.** If a library body itself does a nested `import`/
+`partial-import` with incomplete params of its own, the nested missing-field
+error is indistinguishable from the outer partial's own missing param — the
+outer partial may suspend waiting for a param it can never actually complete
+by supplying more of *its own* params. Not fixed; a library that itself
+performs an import is expected to keep that inner import fully applied.
+
+### 3.11 Action remapping
+
+`remap-actions(nodeExpr, fnExpr)` rewrites every `action(...)` found anywhere
+in a document tree, via an arbitrary closure — there is no restriction to
+prefixing or any other fixed shape:
+
+```
+@btn=import("button", {"title": "Save"})
+@wrapped=remap-actions($btn.rendered, (a) => {"eventType": $a.eventType, "key": concat("user:", $a.key), "payload": $a.payload})
+```
+
+`fnExpr` must evaluate to a closure of shape `{eventType, key, payload} ->
+{eventType, key, payload}`; it is applied to every action found, recursively
+through all children, and its result must have string `eventType`/`key`
+fields or evaluation fails with a `TypeMismatch`. `nodeExpr` may be:
+
+- a `VNode` (e.g. `$lib.rendered`) — remapped directly;
+- a `VEnv` (an `import`/`partial-import` result taken whole, not just
+  `.rendered`) — remapped recursively through every value it holds, including
+  nested sub-imports;
+- a suspended partial import — the function is *queued*, and applied once the
+  partial eventually completes, so a `remap-actions` wrapping can be attached
+  once (e.g. in a computation-block binding) before the value that completes
+  the partial is even in scope, such as inside a `map(...)` body. Multiple
+  `remap-actions` calls chain in application order, surviving currying.
+
+A node with no actions anywhere is a no-op (the function is never called); a
+`JsonSource` library's plain-JSON `.rendered` is also a no-op, since there is
+nothing to remap.
+
 ---
 
 ## 4. AST
@@ -272,6 +408,10 @@ data Expr
   | FilterExpr Expr Expr
   | ScanExpr Expr Expr Expr                   -- scan(arr, init, fn)
   | FoldExpr Expr Expr Expr                   -- fold(arr, init, fn)
+  | ImportExpr Expr Expr                      -- import(name, params)
+  | PartialImportExpr Expr Expr               -- partial-import(name, params)
+  | FieldAccess Expr (Array String)           -- expr.a.b, only after a call/special-form
+  | RemapActionsExpr Expr Expr                -- remap-actions(node, fn)
 
 data StringPart = Lit String | Interp Expr
 
@@ -305,6 +445,28 @@ type ActionPayload = { eventType :: String, key :: String, payload :: Json }
 Note `attrs` values are **strings** by the time evaluation finishes, while
 `action.payload` stays arbitrary `Json`. That asymmetry is intentional: an
 attribute becomes a DOM attribute (a string), a payload goes to program code.
+
+### 4.1b The internal `Value` type
+
+Evaluation no longer resolves every name straight to `Json`. The environment
+(`Env = Map String Value`) and every intermediate evaluation result are one of
+six cases — not part of the parser-facing AST, but necessary to understand
+what a binding or a field access can hold:
+
+```purescript
+data Value
+  = VJson Json                                -- an ordinary JSON value
+  | VClosure (Array String) Expr Env          -- a lambda + its captured env
+  | VNode Node                                -- a fully-evaluated document node
+  | VEnv Env                                  -- import(...)'s { rendered, vals }
+  | VPartial String Json                      -- a suspended partial-import: name, params-so-far
+  | VRemapPartial String Json (Array Value)   -- a VPartial with queued remap-actions fns
+```
+
+`VEnv` is what `.rendered`/`.vals` field access (§3.8–3.9) walks. Anywhere a
+plain `Json` is required (interpolation, a fixed builtin argument, JSON-mode
+output), a `VNode` reduces via `nodeToJson`; a `VClosure`, `VPartial`, or
+`VRemapPartial` used the same way is a `TypeMismatch`.
 
 ### 4.3 Display stringification
 
@@ -342,6 +504,8 @@ data EvalError
   | UnknownFunction String    -- a call to a name that's neither bound nor a builtin
   | PathNotFound (Array String)
   | TypeMismatch String       -- wrong shape, bad arity, closure misuse, bad event type
+  | UnknownLibrary String     -- import/partial-import of a name the host never supplied
+  | ImportCycle String        -- import/partial-import of a name already on the call chain
 ```
 
 Evaluation is all-or-nothing: there is no partial output on error.
@@ -370,7 +534,7 @@ flowchart LR
 
 Everything up to `Node` is host-agnostic and exists in **both** languages. The
 last two steps — `validateAttrNames` and `foldToHalogen` — are
-`templating-halogen`, PureScript and browser only. A host targeting something
+`tramaj-halogen`, PureScript and browser only. A host targeting something
 else writes its own fold over `Node`; nothing else needs reimplementing.
 
 **`validateAttrNames` is opt-in and you should call it.** The language allows
@@ -398,13 +562,13 @@ payload, not a document — can root a program at an expression instead of an
 element. Both implementations expose this as a second entry point:
 
 ```haskell
--- templating-hs
+-- tramaj-hs
 parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
 evalJsonProgram  :: Value -> JsonProgram -> Either EvalError Value
 ```
 
 ```purescript
--- templating (PureScript)
+-- tramaj (PureScript)
 parseJsonProgram :: String -> Either ParseError JsonProgram
 evalJsonProgram  :: Json -> JsonProgram -> Either EvalError Json
 ```
@@ -422,9 +586,9 @@ since `NElement`'s attributes are a string-to-string map.
 {"count": $n, "titles": map($posts, (p) => $p.title)}
 ```
 
-The PureScript fixtures for this mode live in `templating/test/Test/Main.purs`
+The PureScript fixtures for this mode live in `tramaj/test/Test/Main.purs`
 (not `Test/Fixtures.purs`, which only covers `Node`-rooted programs) and are not
-held to cross-language agreement with `templating-hs`'s own JSON-mode fixtures
+held to cross-language agreement with `tramaj-hs`'s own JSON-mode fixtures
 in `EvalSpec.hs` — both exercise the shared expression language (bindings,
 closures, builtins, `map`/`filter`/`scan`), so a divergence there would still
 surface in the ported `Node`-rooted fixtures either package holds.
@@ -467,8 +631,22 @@ to reduce to a string and passes that string through verbatim; it can be compute
 (`action($ctx.eventName, …)`), and a host is free to invent whatever event/hook
 names it wants — a DOM host knows `on-click`, an email or static-site renderer
 has no DOM events at all. There used to be a fixed
-`supportedActionEventTypes = ["on-click"]` check in both `Templating.Eval`s; it
+`supportedActionEventTypes = ["on-click"]` check in both `Tramaj.Eval`s; it
 is gone.
+
+**Divergence from `specs/position.md` §11.** That document describes the
+action *key* (not `eventType`) as "a semantic identifier" that "must be
+statically known" and "cannot be produced by an arbitrary runtime function."
+The shipped grammar does not enforce this either: `action`'s second argument
+(`keyExpr`) is an ordinary `expr`, exactly like `eventType` and `payload` — a
+computed key (`action("on-click", $ctx.actionName, {...})`) parses and
+evaluates today. Likewise, `remap-actions` (§3.11) — the shipped primitive for
+adapting a component's actions — applies an arbitrary closure to
+`{eventType, key, payload}` with no restriction to identity or static
+prefixing, unlike the `adapt-actions` described in `position.md` §12. Both are
+aspirational tightenings the implementation hasn't caught up to yet, not
+current behavior — don't build tooling that assumes action keys are
+inspectable without evaluation.
 
 The consequence is on the host: **a dispatcher must branch on `eventType`, not
 assume it.** `foldToHalogen` wires `HE.onClick` for every action `dispatch`
@@ -484,14 +662,14 @@ mono-repo.
 # spago.yaml
 workspace:
   extraPackages:
-    templating:
+    tramaj:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
       ref: v0.2.0
-      subdir: templating
-    templating-halogen:
+      subdir: tramaj
+    tramaj-halogen:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
       ref: v0.2.0
-      subdir: templating-halogen
+      subdir: tramaj-halogen
 ```
 
 ```
@@ -500,28 +678,42 @@ source-repository-package
   type: git
   location: https://github.com/lucasdicioccio/templating-lang.git
   tag: v0.2.0
-  subdir: templating-hs
+  subdir: tramaj-hs
 ```
 
-Depend on `templating` alone if you never fold to Halogen — that is what keeps
+Depend on `tramaj` alone if you never fold to Halogen — that is what keeps
 the core usable outside a browser.
 
 ---
 
 ## 6. Command line
 
-`templating-cli` evaluates a template against a context and prints
+`tramaj-cli` evaluates a template against a context and prints
 `nodeToJson`'s output — for shell scripts, CI checks, and eyeballing what a
 template actually produces.
 
 ```bash
-spago bundle -p templating-cli --platform node --outfile dist/templating-cli.js
-node templating-cli/dist/templating-cli.js <template-file> <context-json-file>
+spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js
+node tramaj-cli/dist/tramaj-cli.js <template-file> <context-json-file>
 ```
 
 ```
-usage: templating-cli <template-file> <context-json-file>
+usage: tramaj-cli [--lib name=path ...] <template-file> <context-json-file>
 ```
+
+`--lib name=path` is repeatable and supplies the `LibraryTable` (§3.9) that
+`import(name, ...)`/`partial-import(name, ...)` resolve against — `name` is
+the string a template imports by, `path` is a file on disk. Each library file
+is parsed once at startup; the CLI auto-detects element-mode vs JSON-mode by
+trying `parseProgram` first and falling back to `parseJsonProgram`. A bad
+`--lib` file is reported as `library "name" (path): …` on stderr, exit 1, same
+as any other load failure.
+
+There is no separate Haskell CLI — `tramaj-hs` ships as a library only.
+`tramaj-cli` (PureScript, depending on `tramaj`) is the one
+executable; `tramaj-hs` gained the same import/partial-import/
+field-access/remap-actions machinery in step, for parity, but has no host of
+its own here.
 
 - **stdout** — the evaluated AST as compact JSON, on success.
 - **stderr + exit 1** — on a bad context file, a parse error, or an eval error.
@@ -532,15 +724,15 @@ usage: templating-cli <template-file> <context-json-file>
 ```bash
 # validate every template in a directory, fail the build on the first bad one
 for t in templates/*.tmpl; do
-  node dist/templating-cli.js "$t" fixtures/ctx.json > /dev/null \
+  node dist/tramaj-cli.js "$t" fixtures/ctx.json > /dev/null \
     || { echo "bad template: $t" >&2; exit 1; }
 done
 
 # pull one value out of the rendered tree
-node dist/templating-cli.js page.tmpl ctx.json | jq -r '.children[0].text'
+node dist/tramaj-cli.js page.tmpl ctx.json | jq -r '.children[0].text'
 ```
 
-It depends on `templating` only, never `templating-halogen`, so it needs no DOM
+It depends on `tramaj` only, never `tramaj-halogen`, so it needs no DOM
 and no browser — just Node's `fs`.
 
 For an interactive equivalent, `playground/serve.sh` runs a browser playground
@@ -568,3 +760,19 @@ Ranked by how often they actually bite.
    check.
 10. **No escapes in a string literal** — a `"` or a `` ` `` cannot appear in one
     at all, and a backslash is just a backslash. See the TODO in §3.2.
+11. **Field access only follows a call or special form, never a bare path.**
+    `import("nav", {}).rendered` parses; `$ctx.foo(...)` still doesn't —
+    postfix `.field` (§3.8) doesn't relax that rejection.
+12. **`import`'s params are a fresh `$ctx`, not merged with the caller's.**
+    A library sees only what its `paramsExpr` supplies; it has no implicit
+    access to the importing template's context.
+13. **`partial-import` only suspends on a missing `$ctx` field.** Any other
+    failure (unknown library, cycle, a real bug) is a hard error immediately,
+    not a suspension — don't expect `partial-import` to swallow arbitrary
+    errors.
+14. **`remap-actions`'s function is unrestricted** — it can rewrite
+    `eventType`, `key`, and `payload` however it likes; there is no
+    prefix-only or identity-only restriction at the language level (contrast
+    with `specs/position.md` §12, which describes such a restriction as
+    aspirational — the shipped primitive is `remap-actions`, not a
+    statically-checked `adapt-actions`).

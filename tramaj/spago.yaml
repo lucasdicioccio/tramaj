@@ -1,0 +1,19 @@
+package:
+  name: tramaj
+  dependencies:
+    - prelude
+    - parsing
+    - argonaut-core
+    - ordered-collections
+    - arrays
+    - strings
+    - maybe
+    - either
+    - transformers
+    - tuples
+  test:
+    main: Test.Main
+    dependencies:
+      - effect
+      - console
+      - exceptions

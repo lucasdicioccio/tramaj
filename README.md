@@ -1,4 +1,4 @@
-# templating-lang
+# tramaj
 
 A small template language for turning a JSON value into a document tree.
 
@@ -40,22 +40,22 @@ disagree, `llm.md` is correct.
 
 | Package | Language | What it is |
 |---|---|---|
-| [`templating/`](templating) | PureScript | The core: `Templating.Ast`, `Templating.Parser`, `Templating.Eval`. No DOM, no Halogen — usable from any host. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
-| [`templating-halogen/`](templating-halogen) | PureScript | `Templating.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
-| [`templating-cli/`](templating-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
+| [`tramaj/`](tramaj) | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`. No DOM, no Halogen — usable from any host. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
+| [`tramaj-halogen/`](tramaj-halogen) | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
+| [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
-| [`templating-hs/`](templating-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
+| [`tramaj-hs/`](tramaj-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
 
-`templating-halogen` is a separate package precisely so that `templating` itself
-never pulls in Halogen; that is what lets `templating-cli` (and any other
+`tramaj-halogen` is a separate package precisely so that `tramaj` itself
+never pulls in Halogen; that is what lets `tramaj-cli` (and any other
 non-browser host) depend on the core alone.
 
 ## Two implementations, one grammar
 
-`templating-hs` is a hand-written port, not a shared core behind an FFI. The two
+`tramaj-hs` is a hand-written port, not a shared core behind an FFI. The two
 implementations are kept in agreement by test fixtures that were ported
-one-for-one: `templating/test/Test/Fixtures.purs` (25 fixtures) is the original,
-and `templating-hs/test/unit/Templating/EvalSpec.hs` mirrors it.
+one-for-one: `tramaj/test/Test/Fixtures.purs` (25 fixtures) is the original,
+and `tramaj-hs/test/unit/Tramaj/EvalSpec.hs` mirrors it.
 
 **Known gap:** that agreement is maintained by hand and is not mechanically
 enforced — there is no shared golden-file corpus and no cross-language
@@ -88,9 +88,9 @@ workspace rooted at this repository, so all commands run from the repo root:
 
 ```bash
 spago build                 # all three packages
-spago test -p templating    # the fixture suite
-spago run  -p templating-cli --args "template.txt context.json"
-spago run  -p templating-cli --args "--lib greeter=greeter.txt template.txt context.json"
+spago test -p tramaj        # the fixture suite
+spago run  -p tramaj-cli --args "template.txt context.json"
+spago run  -p tramaj-cli --args "--lib greeter=greeter.txt template.txt context.json"
 ```
 
 ### Playground
@@ -105,7 +105,7 @@ tree folded to real HTML, and a log of the `action(...)` clicks it dispatches):
 PORT=9000 ./playground/serve.sh  # serve elsewhere
 ```
 
-`--watch` also watches `templating/src` and `templating-halogen/src`, so it is a
+`--watch` also watches `tramaj/src` and `tramaj-halogen/src`, so it is a
 usable loop for working on the language itself, not just on templates.
 
 It is also the reference example of an *interactive* host: `Playground.Main`'s
@@ -116,14 +116,14 @@ To produce a standalone CLI bundle:
 
 ```bash
 # note: --outfile is resolved relative to the package directory
-spago bundle -p templating-cli --platform node --outfile dist/templating-cli.js
-node templating-cli/dist/templating-cli.js template.txt context.json
-node templating-cli/dist/templating-cli.js --lib greeter=greeter.txt template.txt context.json
+spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js
+node tramaj-cli/dist/tramaj-cli.js template.txt context.json
+node tramaj-cli/dist/tramaj-cli.js --lib greeter=greeter.txt template.txt context.json
 ```
 
 Repeat `--lib name=path` for as many libraries as a template's `import(...)`/
 `partial-import(...)` calls need; each file is auto-detected as a plain
-template or a JSON-mode library (see `Templating.Ast`'s `import`/
+template or a JSON-mode library (see `Tramaj.Ast`'s `import`/
 `partial-import` docs).
 
 ### Haskell
@@ -143,14 +143,14 @@ Spago, in your `spago.yaml` — note the `subdir`, since this is a mono-repo:
 ```yaml
 workspace:
   extraPackages:
-    templating:
+    tramaj:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
       ref: v0.1.0
-      subdir: templating
-    templating-halogen:
+      subdir: tramaj
+    tramaj-halogen:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
       ref: v0.1.0
-      subdir: templating-halogen
+      subdir: tramaj-halogen
 ```
 
 Cabal, in your `cabal.project`:
@@ -160,7 +160,7 @@ source-repository-package
   type: git
   location: https://github.com/lucasdicioccio/templating-lang.git
   tag: v0.1.0
-  subdir: templating-hs
+  subdir: tramaj-hs
 ```
 
 ## Roadmap to a v1

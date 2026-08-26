@@ -1,0 +1,15 @@
+package:
+  name: tramaj-halogen
+  # `tramaj` is the halogen-free parser/eval core this package folds
+  # into real Halogen output; it resolves as a workspace-local package
+  # (see the root spago.yaml). Split out of `tramaj` itself on
+  # 2026-07-20 so the core carries no halogen dependency and stays
+  # consumable by non-browser hosts such as `tramaj-cli`.
+  dependencies:
+    - prelude
+    - arrays
+    - ordered-collections
+    - maybe
+    - tuples
+    - halogen
+    - tramaj

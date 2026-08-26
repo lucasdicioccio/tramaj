@@ -1,11 +1,11 @@
 {
-  "name": "templating-lang",
+  "name": "tramaj",
   "private": true,
   "type": "module",
   "description": "Build-time JS tooling for this workspace. `spago bundle` shells out to esbuild and cannot supply it itself, so it is declared here rather than assumed to be installed globally.",
   "scripts": {
-    "bundle:playground": "spago bundle -p templating-playground",
-    "bundle:cli": "spago bundle -p templating-cli --platform node --outfile dist/templating-cli.js"
+    "bundle:playground": "spago bundle -p tramaj-playground",
+    "bundle:cli": "spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.0"

@@ -1,0 +1,16 @@
+package:
+  name: tramaj-cli
+  # Deliberately depends on `tramaj`, not `tramaj-halogen` — this
+  # CLI never folds to Halogen output, only to the generic `Node` AST via
+  # `Tramaj.Ast.nodeToJson`.
+  dependencies:
+    - prelude
+    - argonaut-core
+    - console
+    - effect
+    - node-fs
+    - node-process
+    - strings
+    - tramaj
+  run:
+    main: Main
