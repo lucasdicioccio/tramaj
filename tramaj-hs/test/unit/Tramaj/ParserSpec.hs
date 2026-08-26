@@ -34,5 +34,8 @@ spec = describe "Tramaj.Parser" $ do
   it "rejects partial-import(...) with a computed (non-literal) name" $
     parseProgram "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)" `shouldSatisfy` isLeft
 
+  it "rejects action(...) with a computed (non-literal) key" $
+    parseProgram ".button(action(\"on-click\", $ctx.key, {}))" `shouldSatisfy` isLeft
+
   it "does not misparse a '.' starting the next line's node as a field access after a closing call" $
     parseProgram "@x=cardinality($ctx.items)\n.div(\"`$x`\")" `shouldSatisfy` isRight

@@ -1101,3 +1101,52 @@ be a literal — that's the remaining half, tracked in `./todo`.
   full description (`§3.11`), the `position.md` §11/§12 divergence note and
   gotcha list entry (`§5.2`/`§7`) — all rewritten to describe the narrowed
   primitive rather than flag it as an aspirational gap.
+
+## Static action keys on `action(...)`, implemented 2026-08-26
+
+Closes the remaining half of the gap the two notes above flag:
+**`action(...)`'s key (2nd argument) is now a static literal**, same
+no-interpolation treatment as `import`/`partial-import`'s name, fully
+matching `specs/position.md` §11 — a template's whole set of action keys is
+now knowable without evaluating it.
+
+- `Tramaj.Ast.TAction`'s middle field changed from `Expr` to `String`/`Text`
+  (both languages): `data TAction = TAction Expr String Expr` — `eventType`
+  and `payload` stay ordinary `Expr`s (a host may still need a computed
+  `eventType`, per `action(...)'s eventType generalized to any expr` above);
+  only the key position is restricted.
+- `Tramaj.Parser.actionArg` (both languages): the key argument is parsed
+  with `quotedKey` (the same production `importShape`/object-literal keys
+  use) instead of `expr`, so `action("on-click", $ctx.key, {})` is now a
+  parse error, not something that parses and gets type-checked at eval
+  time.
+- `Tramaj.Eval.evalAction` (both languages): no longer evaluates or
+  type-checks the key — it's already a `String`/`Text`, just copied into
+  the resulting `ActionPayload` directly. The "key (2nd argument) must be a
+  string" `TypeMismatch` case is gone, since it's now structurally
+  impossible to construct a `TAction` with a non-string key.
+- Added `Tramaj.Ast.staticActionKeys :: Program -> Set String` (`Set Text`
+  in Haskell) — the payoff, mirroring `staticImportNames` exactly (same
+  bindings + template-root walk, same recursion through every `Expr`/
+  `TemplateNode`/`KeySpec` shape). This is what `specs/position.md` §12's
+  worked example (`adapt-actions(component, "user:")` on a component with
+  statically known keys `{save, delete}`) needs to eventually be checked
+  without evaluation, though `remap-actions`/`adapt-actions` itself doesn't
+  call it yet — that wiring is left for whenever the primitive is narrowed
+  further (see the closure-removal note in the section above).
+- New rejection fixtures on both sides (`action(...)`'s key must be a
+  string literal, not a computed expr`), plus a parser-only Haskell spec
+  case (`ParserSpec.hs`). Existing fixtures needed no changes — every
+  shipped `action(...)` fixture already used a literal key. Full existing
+  suites still pass: 29/29 PureScript fixtures + rejection checks
+  (`purs compile` + `node`, `spago` still not installed in this
+  environment) and 77/77 Haskell (`cabal test unit`).
+- Playground's in-app language reference text updated (`action(eventType,
+  key, payloadExpr)`, `key` documented as a required literal) — the default
+  example already used a literal key, so no behavior change there.
+- `specs/llm.md` updated: `TAction` AST (`§4.1`), the action-binding
+  section's diagram and prose (`§5.2`), the `position.md` §11 divergence
+  note (now resolved), and gotcha `§7#14`.
+
+This closes both halves of the `./todo` item that opened this run of
+changes (static import names + static action keys/narrowed remapping).

@@ -120,14 +120,15 @@ data Value
 
 type Env = Map String Value
 
--- | Both `eventType` and `key` must reduce to strings, and that is the
--- | whole check — an event type is handed to the host verbatim, whatever
--- | it says. `eventType` stopped being a parse-time keyword a while ago
--- | (see `Tramaj.Ast`'s `TAction`) and no longer has a fixed
--- | vocabulary at eval time either: the language isn't Halogen-only, so
--- | which event/hook names mean something is the host's concern. A DOM
--- | host knows `on-click`; an email or static-site renderer has no DOM
--- | events at all and may want names of its own, possibly computed
+-- | `eventType` must reduce to a string; `key` already is one (a bare
+-- | `String` in the AST, see `Tramaj.Ast`'s `TAction`, so there's nothing
+-- | to evaluate or type-check for it). An event type is handed to the
+-- | host verbatim, whatever it says — `eventType` stopped being a
+-- | parse-time keyword a while ago and has no fixed vocabulary at eval
+-- | time either: the language isn't Halogen-only, so which event/hook
+-- | names mean something is the host's concern. A DOM host knows
+-- | `on-click`; an email or static-site renderer has no DOM events at all
+-- | and may want names of its own, possibly computed
 -- | (`action($ctx.eventName, ...)`).
 -- |
 -- | Consequence for hosts: a dispatcher must branch on `eventType`, not
@@ -136,11 +137,9 @@ type Env = Map String Value
 -- | event type has to return `Nothing` from `dispatch` for the ones it
 -- | does not want wired to a click.
 evalAction :: LibraryTable -> Set String -> Env -> TAction -> Either EvalError ActionPayload
-evalAction libs inProgress env (TAction eventTypeExpr keyExpr payloadExpr) = do
+evalAction libs inProgress env (TAction eventTypeExpr key payloadExpr) = do
   eventTypeJson <- evalExprAsJson libs inProgress env eventTypeExpr
   eventType <- maybe (Left (TypeMismatch "action(...): the event type (1st argument) must be a string")) Right (toString eventTypeJson)
-  keyJson <- evalExprAsJson libs inProgress env keyExpr
-  key <- maybe (Left (TypeMismatch "action(...): the key (2nd argument) must be a string")) Right (toString keyJson)
   payload <- evalExprAsJson libs inProgress env payloadExpr
   pure { eventType, key, payload }
 

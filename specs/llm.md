@@ -13,9 +13,9 @@ intermediate designs on purpose.
 [`position.md`](position.md) is a *positioning* document: it states what the
 language is meant to be. Import names (§3.9) are now enforced statically,
 matching it; `remap-actions`'s key-rewriting is now limited to `prefix(...)`
-(§3.11), also matching it; static action *keys* on `action(...)` itself are
-not yet enforced — see the divergence note in §5.2. Where this file and
-`position.md` disagree on current behavior, this file is correct.
+(§3.11), also matching it; `action(...)`'s key (§5.2) is now enforced
+statically too. Where this file and `position.md` disagree on current
+behavior, this file is correct.
 
 ---
 
@@ -426,7 +426,7 @@ data KeySpec = KeyPrefix Expr                 -- prefix(prefixExpr)
 
 data StringPart = Lit String | Interp Expr
 
-data TAction = TAction Expr Expr Expr         -- eventType, key, payload
+data TAction = TAction Expr String Expr       -- eventType, key (bare literal), payload
 
 data TemplateNode
   = TElement String (Array (Tuple String Expr)) (Maybe TAction) (Array TemplateNode)
@@ -607,12 +607,15 @@ surface in the ported `Node`-rooted fixtures either package holds.
 ### 5.2 Action binding
 
 This is the whole interactivity story. The language carries an opaque triple;
-the host decides what it means.
+the host decides what it means. `key` is a bare string literal in the AST
+(`TAction Expr String Expr`), not an `Expr` — same static-literal treatment as
+`import`/`partial-import`'s name — so there is nothing to evaluate or
+type-check for it; `eventType`/`payload` are still ordinary `Expr`s.
 
 ```mermaid
 flowchart LR
-  A["action(&quot;on-click&quot;, &quot;select&quot;, {…})<br/>in the template"] --> B["TAction<br/>3 unevaluated Exprs"]
-  B --> C["eval: each → Json<br/>eventType/key must be strings"]
+  A["action(&quot;on-click&quot;, &quot;select&quot;, {…})<br/>in the template"] --> B["TAction<br/>eventType/payload Exprs, key a bare String"]
+  B --> C["eval: eventType → Json<br/>eventType must be a string"]
   C -->|"not a string"| X["TypeMismatch"]
   C --> P["ActionPayload<br/>{eventType, key, payload}"]
   P --> H["host dispatcher<br/>ActionPayload → Maybe action"]
@@ -645,25 +648,24 @@ has no DOM events at all. There used to be a fixed
 `supportedActionEventTypes = ["on-click"]` check in both `Tramaj.Eval`s; it
 is gone.
 
-**Divergence from `specs/position.md` §11 — partially narrowed.** That
-document describes the action *key* (not `eventType`) as "a semantic
-identifier" that "must be statically known" and "cannot be produced by an
-arbitrary runtime function." The shipped grammar still does not enforce this
-for `action(...)` itself: its second argument (`keyExpr`) remains an ordinary
-`expr`, exactly like `eventType` and `payload` — a computed key
-(`action("on-click", $ctx.actionName, {...})`) parses and evaluates today.
-That part of the divergence is still open.
+**Matches `specs/position.md` §11 now.** That document describes the action
+*key* (not `eventType`) as "a semantic identifier" that "must be statically
+known" and "cannot be produced by an arbitrary runtime function." `action(...)`
+enforces this at parse time: its second argument is a plain quoted string
+(same `quotedKey`, no-interpolation treatment as `import`/`partial-import`'s
+name), never an `expr` — `action("on-click", $ctx.actionName, {...})` is a
+parse error, not a runtime one. `Tramaj.Ast.staticActionKeys :: Program -> Set
+String` walks a parsed program without evaluating it and returns every action
+key referenced, mirroring `staticImportNames`.
 
-`remap-actions` (§3.11), however, has been narrowed to match `position.md`
+`remap-actions` (§3.11) has similarly been narrowed to match `position.md`
 §12's `adapt-actions`: key rewriting is now restricted to `prefix(prefixExpr)`
 (a small closed set meant to grow, not arbitrary rewriting), and `fnExpr` can
 no longer touch `key` at all — only `eventType`/`payload`. The primitive
 kept the `remap-actions` name rather than being renamed to `adapt-actions`,
 and still takes a closure argument for `eventType`/`payload` (`position.md`
-§12's worked example has no closure at all, only the prefix), so this is a
-first step toward the position, not full parity — don't build tooling that
-assumes action *keys* are inspectable without evaluation, since `action(...)`
-itself is still unrestricted.
+§12's worked example has no closure at all, only the prefix), so that part is
+still a first step toward the position, not full parity.
 
 The consequence is on the host: **a dispatcher must branch on `eventType`, not
 assume it.** `foldToHalogen` wires `HE.onClick` for every action `dispatch`
@@ -787,12 +789,11 @@ Ranked by how often they actually bite.
     failure (unknown library, cycle, a real bug) is a hard error immediately,
     not a suspension — don't expect `partial-import` to swallow arbitrary
     errors.
-14. **`remap-actions`'s `key` rewriting is prefix-only, but `action(...)`'s
-    key isn't statically checked.** `remap-actions(node, prefix(p), fn)`
-    restricts key rewriting to prepending `p`; `fn` can no longer touch `key`
-    at all, only `eventType`/`payload` — matching `specs/position.md` §12's
-    intent, though the primitive kept its `remap-actions` name rather than
-    becoming `adapt-actions`, and still takes a closure argument. What isn't
-    restricted yet is `action(...)` itself: its `keyExpr` argument is still
-    an arbitrary `expr`, not required to be a literal, so a key isn't
-    statically enumerable without evaluating a template.
+14. **`remap-actions`'s `key` rewriting is prefix-only, and `action(...)`'s
+    key is a static literal.** `remap-actions(node, prefix(p), fn)` restricts
+    key rewriting to prepending `p`; `fn` can no longer touch `key` at all,
+    only `eventType`/`payload` — matching `specs/position.md` §12's intent,
+    though the primitive kept its `remap-actions` name rather than becoming
+    `adapt-actions`, and still takes a closure argument. `action(...)`'s key
+    (2nd argument) must be a plain quoted string, same as `import`'s name —
+    `action("on-click", $ctx.key, {})` is a parse error.

@@ -20,6 +20,7 @@ module Tramaj.Ast
   , nodeToJson
   , actionPayloadToJson
   , staticImportNames
+  , staticActionKeys
   ) where
 
 import Data.Aeson (Value (..), object, (.=))
@@ -65,10 +66,12 @@ data StringPart
   | Interp Expr
   deriving stock (Eq, Show)
 
--- | @action(eventType, keyExpr, payloadExpr)@ -- see the PureScript
--- sibling's 'TAction' Haddock for why all three positions are ordinary
--- 'Expr's, not a fixed keyword.
-data TAction = TAction Expr Expr Expr
+-- | @action(eventType, key, payloadExpr)@ -- see the PureScript sibling's
+-- 'TAction' Haddock for why @eventType@\/@payload@ are ordinary 'Expr's
+-- (not a fixed keyword) while @key@ is a bare 'Text', not an 'Expr' --
+-- same static-literal treatment as 'ImportExpr'\/'PartialImportExpr'\'s
+-- name.
+data TAction = TAction Expr Text Expr
   deriving stock (Eq, Show)
 
 -- | The evaluated result of a 'TAction'. Structured, not an opaque string --
@@ -198,5 +201,52 @@ importNamesInNode (TBranch fallback pairs) =
     <> foldMap (\(predE, node) -> importNamesInExpr predE <> importNamesInNode node) pairs
 
 importNamesInTAction :: TAction -> Set Text
-importNamesInTAction (TAction eventTypeExpr keyExpr payloadExpr) =
-  importNamesInExpr eventTypeExpr <> importNamesInExpr keyExpr <> importNamesInExpr payloadExpr
+importNamesInTAction (TAction eventTypeExpr _key payloadExpr) =
+  importNamesInExpr eventTypeExpr <> importNamesInExpr payloadExpr
+
+-- | Every @action(...)@ key statically referenced anywhere in a parsed
+-- program. Mirrors the PureScript sibling's
+-- @Tramaj.Ast.staticActionKeys@ exactly.
+staticActionKeys :: Program -> Set Text
+staticActionKeys (Program {progBindings, progRoot}) =
+  foldMap (actionKeysInExpr . snd) progBindings <> actionKeysInNode progRoot
+
+actionKeysInExpr :: Expr -> Set Text
+actionKeysInExpr (Path _) = Set.empty
+actionKeysInExpr (Call _ args) = foldMap actionKeysInExpr args
+actionKeysInExpr (StringLit parts) = foldMap actionKeysInStringPart parts
+actionKeysInExpr (NumberLit _) = Set.empty
+actionKeysInExpr (BoolLit _) = Set.empty
+actionKeysInExpr (ArrayLit elems) = foldMap actionKeysInExpr elems
+actionKeysInExpr (ObjectLit entries) = foldMap (actionKeysInExpr . snd) entries
+actionKeysInExpr (LambdaExpr _ body) = actionKeysInExpr body
+actionKeysInExpr (MapExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
+actionKeysInExpr (FilterExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
+actionKeysInExpr (ScanExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
+actionKeysInExpr (FoldExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
+actionKeysInExpr (ImportExpr _name paramsE) = actionKeysInExpr paramsE
+actionKeysInExpr (PartialImportExpr _name paramsE) = actionKeysInExpr paramsE
+actionKeysInExpr (FieldAccess baseE _) = actionKeysInExpr baseE
+actionKeysInExpr (RemapActionsExpr nodeE keySpec fnE) = actionKeysInExpr nodeE <> actionKeysInKeySpec keySpec <> actionKeysInExpr fnE
+
+actionKeysInKeySpec :: KeySpec -> Set Text
+actionKeysInKeySpec (KeyPrefix e) = actionKeysInExpr e
+
+actionKeysInStringPart :: StringPart -> Set Text
+actionKeysInStringPart (Lit _) = Set.empty
+actionKeysInStringPart (Interp e) = actionKeysInExpr e
+
+actionKeysInNode :: TemplateNode -> Set Text
+actionKeysInNode (TElement _ attrs action children) =
+  foldMap (actionKeysInExpr . snd) attrs
+    <> foldMap actionKeysInTAction action
+    <> foldMap actionKeysInNode children
+actionKeysInNode (TValue e) = actionKeysInExpr e
+actionKeysInNode (TMap arr _ body) = actionKeysInExpr arr <> actionKeysInNode body
+actionKeysInNode (TBranch fallback pairs) =
+  actionKeysInNode fallback
+    <> foldMap (\(predE, node) -> actionKeysInExpr predE <> actionKeysInNode node) pairs
+
+actionKeysInTAction :: TAction -> Set Text
+actionKeysInTAction (TAction eventTypeExpr key payloadExpr) =
+  Set.insert key (actionKeysInExpr eventTypeExpr <> actionKeysInExpr payloadExpr)

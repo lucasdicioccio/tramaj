@@ -357,8 +357,10 @@ namedArg = try $ do
   v <- expr
   pure (name, v)
 
--- | @action(eventTypeExpr, keyExpr, payloadExpr)@ -- appears directly among
--- a node's arguments, not as @key: value@.
+-- | @action(eventTypeExpr, key, payloadExpr)@ -- appears directly among a
+-- node's arguments, not as @key: value@. @key@ must be a plain quoted
+-- string (same no-interpolation 'quotedKey' treatment as 'importShape'\'s
+-- name), not an arbitrary 'expr' -- see 'Tramaj.Ast.staticActionKeys'.
 actionArg :: P TAction
 actionArg = try $ do
   name <- identifier
@@ -368,11 +370,11 @@ actionArg = try $ do
       _ <- symbol "("
       eventTypeE <- expr
       _ <- symbol ","
-      keyE <- expr
+      key <- quotedKey
       _ <- symbol ","
       payloadE <- expr
       _ <- symbol ")"
-      pure (TAction eventTypeE keyE payloadE)
+      pure (TAction eventTypeE key payloadE)
 
 -- | Any @$@-prefixed child form that isn't @map(...)@\/@branch(...)@: a
 -- bare path (@$ctx.title@) or a call (@$foo("123")@).

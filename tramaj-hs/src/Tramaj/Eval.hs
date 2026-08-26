@@ -81,18 +81,17 @@ data Value'
 
 type Env = Map Text Value'
 
-{- | Both @eventType@ and @key@ must reduce to strings, and that is the whole
-check: an event type is passed through to the host verbatim, whatever it says.
-The language has no vocabulary of its own here -- a DOM host knows about
-@on-click@, an email or static-site renderer has no DOM events at all -- so
-deciding which event types mean something is the host's job, not evaluation's.
+{- | @eventType@ must reduce to a string; @key@ already is one (a bare 'Text'
+in the AST, nothing to evaluate or type-check). An event type is passed
+through to the host verbatim, whatever it says. The language has no
+vocabulary of its own here -- a DOM host knows about @on-click@, an email or
+static-site renderer has no DOM events at all -- so deciding which event
+types mean something is the host's job, not evaluation's.
 -}
 evalAction :: LibraryTable -> Set Text -> Env -> TAction -> Either EvalError ActionPayload
-evalAction libs inProgress env (TAction eventTypeExpr keyExpr payloadExpr) = do
+evalAction libs inProgress env (TAction eventTypeExpr key payloadExpr) = do
   eventTypeJson <- evalExprAsJson libs inProgress env eventTypeExpr
   eventType <- requireString "action(...): the event type (1st argument) must be a string" eventTypeJson
-  keyJson <- evalExprAsJson libs inProgress env keyExpr
-  key <- requireString "action(...): the key (2nd argument) must be a string" keyJson
   payload <- evalExprAsJson libs inProgress env payloadExpr
   pure ActionPayload {apEventType = eventType, apKey = key, apPayload = payload}
   where

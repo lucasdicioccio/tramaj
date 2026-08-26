@@ -16,6 +16,7 @@ module Tramaj.Ast
   , nodeToJson
   , actionPayloadToJson
   , staticImportNames
+  , staticActionKeys
   ) where
 
 import Prelude
@@ -171,29 +172,37 @@ instance showStringPart :: Show StringPart where
   show (Lit s) = "Lit " <> show s
   show (Interp e) = "Interp (" <> show e <> ")"
 
--- | `action(eventType, keyExpr, payloadExpr)` — appears directly among a
+-- | `action(eventType, key, payloadExpr)` — appears directly among a
 -- | node's arguments (`.button("Select", action("on-click", "select",
 -- | {"itemId": $itemId}))`), not nested under an `action:` attribute
--- | key the way the original opaque-string design worked. All three
--- | positions are ordinary `expr`s, each evaluated to a `Json` value at
--- | eval time (`eventType`/`key` are required to reduce to a string,
--- | `payload` can be anything) — see `ActionPayload`. `eventType` used to
--- | be a bare identifier from a fixed keyword set, but the tramaj
--- | language isn't Halogen-only (a future email/static-site renderer has
--- | no DOM events at all), so it needs to be able to name whatever
--- | event/hook concept a given host defines, possibly even computed
--- | (`$ctx.eventName`) rather than a static literal — a bare-identifier
--- | keyword can't express that. `Tramaj.Eval` does not validate it
--- | against a fixed set either: it requires a string and passes whatever
--- | that string says to the host untouched, so naming the vocabulary is
--- | entirely a host concern.
-data TAction = TAction Expr Expr Expr
+-- | key the way the original opaque-string design worked. `eventType`/
+-- | `payload` are ordinary `expr`s, each evaluated to a `Json` value at
+-- | eval time (`eventType` is required to reduce to a string, `payload`
+-- | can be anything) — see `ActionPayload`. `eventType` used to be a bare
+-- | identifier from a fixed keyword set, but the tramaj language isn't
+-- | Halogen-only (a future email/static-site renderer has no DOM events
+-- | at all), so it needs to be able to name whatever event/hook concept a
+-- | given host defines, possibly even computed (`$ctx.eventName`) rather
+-- | than a static literal — a bare-identifier keyword can't express that.
+-- | `Tramaj.Eval` does not validate it against a fixed set either: it
+-- | requires a string and passes whatever that string says to the host
+-- | untouched, so naming the vocabulary is entirely a host concern.
+-- |
+-- | `key`, unlike `eventType`, is a bare `String` in the AST, not an
+-- | `Expr` — same static-literal treatment as `ImportExpr`/
+-- | `PartialImportExpr`'s name (see `staticImportNames`). Action keys are
+-- | the semantic identifier `remap-actions`/`specs/position.md` §11/§12
+-- | reason about (a component's set of action keys needs to be knowable
+-- | without evaluating it), so a computed key — even one that always
+-- | reduces to the same constant — isn't allowed; the grammar only ever
+-- | accepts a plain quoted string in this position.
+data TAction = TAction Expr String Expr
 
 derive instance eqTAction :: Eq TAction
 
 instance showTAction :: Show TAction where
-  show (TAction eventTypeExpr keyExpr payloadExpr) =
-    "TAction (" <> show eventTypeExpr <> ") (" <> show keyExpr <> ") (" <> show payloadExpr <> ")"
+  show (TAction eventTypeExpr key payloadExpr) =
+    "TAction (" <> show eventTypeExpr <> ") " <> show key <> " (" <> show payloadExpr <> ")"
 
 -- | The evaluated result of a `TAction` — what a `Node`'s `action` field
 -- | holds, and what the host's dispatcher function
@@ -397,5 +406,57 @@ importNamesInNode (TBranch fallback pairs) =
     <> foldMap (\(Tuple predE node) -> importNamesInExpr predE <> importNamesInNode node) pairs
 
 importNamesInTAction :: TAction -> Set String
-importNamesInTAction (TAction eventTypeExpr keyExpr payloadExpr) =
-  importNamesInExpr eventTypeExpr <> importNamesInExpr keyExpr <> importNamesInExpr payloadExpr
+importNamesInTAction (TAction eventTypeExpr _key payloadExpr) =
+  importNamesInExpr eventTypeExpr <> importNamesInExpr payloadExpr
+
+-- | Every `action(...)` key statically referenced anywhere in a parsed
+-- | program, walked the same way as `staticImportNames` above. Exhaustive
+-- | because `TAction`'s key position is a bare `String` in the AST, never
+-- | a computed `Expr` — a component's whole set of action keys is
+-- | knowable up front, matching `specs/position.md` §11/§12 (e.g.
+-- | `adapt-actions`/`remap-actions` reasoning about a subtree's keys
+-- | without evaluating it).
+staticActionKeys :: Program -> Set String
+staticActionKeys program =
+  foldMap (actionKeysInExpr <<< snd) program.bindings
+    <> actionKeysInNode program.root
+
+actionKeysInExpr :: Expr -> Set String
+actionKeysInExpr (Path _) = Set.empty
+actionKeysInExpr (Call _ args) = foldMap actionKeysInExpr args
+actionKeysInExpr (StringLit parts) = foldMap actionKeysInStringPart parts
+actionKeysInExpr (NumberLit _) = Set.empty
+actionKeysInExpr (BoolLit _) = Set.empty
+actionKeysInExpr (ArrayLit elems) = foldMap actionKeysInExpr elems
+actionKeysInExpr (ObjectLit entries) = foldMap (actionKeysInExpr <<< snd) entries
+actionKeysInExpr (LambdaExpr _ body) = actionKeysInExpr body
+actionKeysInExpr (MapExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
+actionKeysInExpr (FilterExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
+actionKeysInExpr (ScanExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
+actionKeysInExpr (FoldExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
+actionKeysInExpr (ImportExpr _name paramsE) = actionKeysInExpr paramsE
+actionKeysInExpr (PartialImportExpr _name paramsE) = actionKeysInExpr paramsE
+actionKeysInExpr (FieldAccess baseE _) = actionKeysInExpr baseE
+actionKeysInExpr (RemapActionsExpr nodeE keySpec fnE) = actionKeysInExpr nodeE <> actionKeysInKeySpec keySpec <> actionKeysInExpr fnE
+
+actionKeysInKeySpec :: KeySpec -> Set String
+actionKeysInKeySpec (KeyPrefix e) = actionKeysInExpr e
+
+actionKeysInStringPart :: StringPart -> Set String
+actionKeysInStringPart (Lit _) = Set.empty
+actionKeysInStringPart (Interp e) = actionKeysInExpr e
+
+actionKeysInNode :: TemplateNode -> Set String
+actionKeysInNode (TElement _ attrs action children) =
+  foldMap (actionKeysInExpr <<< snd) attrs
+    <> foldMap actionKeysInTAction action
+    <> foldMap actionKeysInNode children
+actionKeysInNode (TValue e) = actionKeysInExpr e
+actionKeysInNode (TMap arr _ body) = actionKeysInExpr arr <> actionKeysInNode body
+actionKeysInNode (TBranch fallback pairs) =
+  actionKeysInNode fallback
+    <> foldMap (\(Tuple predE node) -> actionKeysInExpr predE <> actionKeysInNode node) pairs
+
+actionKeysInTAction :: TAction -> Set String
+actionKeysInTAction (TAction eventTypeExpr key payloadExpr) =
+  Set.insert key (actionKeysInExpr eventTypeExpr <> actionKeysInExpr payloadExpr)

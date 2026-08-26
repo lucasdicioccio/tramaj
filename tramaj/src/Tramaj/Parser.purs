@@ -412,18 +412,22 @@ namedArg = try do
   v <- expr
   pure (Tuple name v)
 
--- | `action(eventTypeExpr, keyExpr, payloadExpr)` — appears directly
--- | among a node's arguments, not as `key: value`. All three positions
--- | are ordinary `expr`s (`eventTypeExpr`/`keyExpr` are required to
--- | evaluate to a string, see `Tramaj.Eval`'s `evalAction`) — unlike
--- | the original bare-identifier `eventType`, this lets it be a plain
--- | string literal (`"on-click"`), a computed `$ctx.eventName`, or
--- | anything else an `expr` can produce, since a host other than the
--- | Halogen fold may have its own event/hook vocabulary that isn't known
--- | to this parser at all. Tried as a whole `identifier` (not a literal
--- | string match) for the leading `action` keyword itself, same
--- | reasoning as `specialFormExpr`/`templateSpecialForm` — a name other
--- | than exactly `"action"` backtracks to `namedArg`/`childArg`.
+-- | `action(eventTypeExpr, key, payloadExpr)` — appears directly among a
+-- | node's arguments, not as `key: value`. `eventTypeExpr`/`payloadExpr`
+-- | are ordinary `expr`s (`eventTypeExpr` is required to evaluate to a
+-- | string, see `Tramaj.Eval`'s `evalAction`) — unlike the original
+-- | bare-identifier `eventType`, this lets it be a plain string literal
+-- | (`"on-click"`), a computed `$ctx.eventName`, or anything else an
+-- | `expr` can produce, since a host other than the Halogen fold may have
+-- | its own event/hook vocabulary that isn't known to this parser at all.
+-- | `key`, by contrast, must be a plain quoted string — same
+-- | no-interpolation `quotedKey` treatment as `importShape`'s name, so a
+-- | computed key (`action("on-click", $ctx.key, {})`) is a parse error,
+-- | not an eval-time one; see `Tramaj.Ast.staticActionKeys`. Tried as a
+-- | whole `identifier` (not a literal string match) for the leading
+-- | `action` keyword itself, same reasoning as
+-- | `specialFormExpr`/`templateSpecialForm` — a name other than exactly
+-- | `"action"` backtracks to `namedArg`/`childArg`.
 actionArg :: P TAction
 actionArg = try do
   name <- identifier
@@ -432,11 +436,11 @@ actionArg = try do
     _ <- symbol "("
     eventTypeE <- defer \_ -> expr
     _ <- symbol ","
-    keyE <- defer \_ -> expr
+    key <- quotedKey
     _ <- symbol ","
     payloadE <- defer \_ -> expr
     _ <- symbol ")"
-    pure (TAction eventTypeE keyE payloadE)
+    pure (TAction eventTypeE key payloadE)
 
 -- | Any `$`-prefixed child form that isn't `map(...)`/`branch(...)`
 -- | (those are handled by `templateSpecialForm` below, tried first): a

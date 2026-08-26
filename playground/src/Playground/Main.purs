@@ -506,18 +506,21 @@ TEMPLATE BLOCK
                         conditionally instead). Only the chosen node is
                         ever evaluated — unlike expr-level branch, an
                         unreached node's own errors don't surface
-    action(eventTypeExpr, keyExpr, payloadExpr)
+    action(eventTypeExpr, key, payloadExpr)
                         wires a real DOM event to a host dispatcher —
                         see ACTIONS below. Counts as attr-like for
                         ordering (must come before children); a node
                         can have at most one.
 
 ACTIONS — dispatched to a real Halogen handler
-  action(eventTypeExpr, keyExpr, payloadExpr)
-  All three are ordinary exprs, not keywords — eventTypeExpr/keyExpr
-  are each any expr that evaluates to a string (a literal like
+  action(eventTypeExpr, key, payloadExpr)
+  eventTypeExpr/payloadExpr are ordinary exprs, not keywords —
+  eventTypeExpr is any expr that evaluates to a string (a literal like
   "on-click", or something computed like $ctx.eventName);
-  payloadExpr is any expr, typically an object literal. This host
+  payloadExpr is any expr, typically an object literal. key, unlike
+  the other two, must be a plain quoted string literal — no
+  interpolation, no computed value — so a template's set of action
+  keys is knowable without evaluating it. This host
   (the Halogen fold) currently only recognizes "on-click" as
   eventType (an unrecognized one is an eval-time error) — other hosts
   (e.g. a future email/static-site renderer) may recognize a

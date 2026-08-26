@@ -35,6 +35,8 @@ main = do
     "@bar=import($ctx.libname, {})\n.div($bar.rendered)"
   checkParseRejected "partial-import(...)'s name must be a string literal, not a computed expr"
     "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)"
+  checkParseRejected "action(...)'s key must be a string literal, not a computed expr"
+    ".button(action(\"on-click\", $ctx.key, {}))"
   -- an *unrecognized* event type is no longer a thing: only the "must be a
   -- string" shape is still checked, the vocabulary is the host's
   checkEvalRejected "action(...) rejects a non-string event type"
