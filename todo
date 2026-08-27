@@ -1,0 +1,243 @@
+# TODO — simplify imports and remap-actions to match specs/position.md
+#
+# [ALL DONE 2026-08-27 — closed by the v2 iteration]
+#
+# Items #1 and #2a/#2b were already done on 2026-08-26 (see below). The rest
+# of #2 closed on 2026-08-27, not on its own but as part of a much larger
+# pass: the v2 language iteration rewrote the semantic core across both
+# implementations. See specs/reference.md for the result and
+# specs/decisions.md for the design conflicts it resolved.
+#
+# What #2's remaining bullets got, and where v2 differed from what is
+# proposed below:
+#
+#   - `remap-actions` renamed to `adapt-actions`.                    [as proposed]
+#   - Key rewriting restricted to identity-or-prefix.                [as proposed]
+#   - `staticActionKeys` propagates the adaptation rather than only
+#     checking at eval time: adapt-actions(x, prefix("user:")) over
+#     {save, delete} statically yields {user:save, user:delete},
+#     applying the very same function the evaluator does.            [as proposed]
+#   - Queuing onto a still-suspended partial import preserved.       [as proposed]
+#   - Playground default example and CLI updated.                    [as proposed]
+#
+#   - The PREFIX is a static string literal, not a computed expr.    [STRICTER]
+#     The bullet below allows a dynamic prefix on the grounds that only the
+#     *operation* need be fixed. Making the prefix static too is what lets
+#     the analysis compute the actual key set rather than its shape, which
+#     is the payoff the same bullet asks for.
+#
+#   - The CLOSURE was KEPT, as an optional third argument restricted to
+#     eventType and payload.                                         [DECIDED AGAINST]
+#     The bullet below removes it entirely. It was kept because real uses
+#     transform a payload as a function of the original action, which a
+#     closure-free adaptation cannot express. A `key` the closure returns is
+#     ignored, so the vocabulary stays statically knowable either way. See
+#     specs/decisions.md #6.
+#
+#   - specs/llm.md and specs/templating-language.md were NOT updated. [NOT DONE]
+#     The last bullet of #2 asks for that. v2 instead supersedes both: they
+#     describe the v1 language and are now design history, with
+#     specs/reference.md as the reference and specs/decisions.md recording
+#     which reading of the drafts won. Editing them to describe v2 would
+#     have meant maintaining a third account of the language.
+#
+# Also closed incidentally, having been listed here as motivation rather
+# than as work: imports no longer need `partial-import` at all — an import
+# is partial exactly when a parameter is still `ctx(path)`, so partiality is
+# declared in the source instead of inferred by running a library and
+# catching a PathNotFound that happened to start with "ctx".
+
+Context: specs/llm.md §3.9/§5.2 and specs/templating-language.md's most recent
+dated section flag a real divergence between specs/position.md (the intended
+design) and what shipped. Two things need to change so the implementation
+actually earns the "statically identifiable" claims position.md makes:
+
+1. Import names are not static today.
+2. Action keys are not static today, and `remap-actions` allows arbitrary
+   rewriting instead of identity-or-prefix-only.
+
+Both need a real design + implementation pass across `templating`
+(PureScript) and `templating-hs` (Haskell) — not just a doc fix. Below is the
+concrete work, split so each half can land independently.
+
+## 1. Restrict import names to static literals [DONE 2026-08-26]
+
+Implemented on both sides; see `specs/templating-language.md`'s "Static
+import names, implemented 2026-08-26" section for the full account and
+`specs/llm.md` §3.9/§3/§4.1 for the updated reference. Summary:
+
+- `ImportExpr`/`PartialImportExpr`'s name field is `String`/`Text`, not
+  `Expr`; `importShape`/`partialImportShape` parse it with `quotedKey`
+  (no interpolation), so a computed name is a parse error.
+- Fixed a related parser bug found along the way: `specialFormExpr`'s
+  `try` used to wrap name-recognition *and* shape-parsing together, so a
+  malformed special form silently fell back to a meaningless `Call`
+  instead of failing to parse. Narrowed the `try` to name-recognition
+  only, for all seven special forms.
+- Added `Tramaj.Ast.staticImportNames :: Program -> Set String` (`Set
+  Text` in Haskell) — the actual payoff, walks a program without
+  evaluating it.
+- Removed the now-dead `expectLibName` runtime check on both sides.
+- New rejection fixtures added (element mode + JSON mode where
+  applicable) on both sides; full existing suites still pass: 76/76
+  Haskell (`cabal test unit`), 29 fixtures + all import/parse-rejection
+  checks PureScript (compiled/run directly via `purs compile` + `node`,
+  since `spago` isn't installed in this environment — worth a `spago
+  build`/`spago test` pass too before merging).
+- Playground's in-app language reference text updated to match
+  (`import(name, paramsExpr)`, no longer `nameExpr`).
+
+Not done: action keys and `remap-actions`'s arbitrary rewriting (item #2
+below) — that's the next step.
+
+
+
+- Change `import(nameExpr, paramsExpr)` / `partial-import(nameExpr,
+  paramsExpr)` so `nameExpr` must be a bare string literal (no
+  interpolation), not an arbitrary `expr`. Decide: enforce at *parse* time
+  (grammar only ever accepts a plain quoted string in that position — no
+  `ImportExpr`/`PartialImportExpr` carrying a computed name at all) rather
+  than at eval time, so the static name is knowable without evaluating.
+- `Templating.Parser.importShape`/`partialImportShape` (both `templating/`
+  and `templating-hs/`): replace `nameE <- expr` with a plain
+  `string-lit`-without-interpolation parse (reuse whatever `quoted-key`
+  already uses, since object-literal keys have the same "no interpolation"
+  rule).
+- `Templating.Ast`: `ImportExpr`/`PartialImportExpr`'s first field becomes
+  `String`, not `Expr` — ripples into `Eval.purs`/`Eval.hs` (no more
+  `evalExprAsJson` on the name, just look it up directly) and any pattern
+  match on these constructors elsewhere (nodeToJson doesn't touch them, but
+  double check).
+- Add a static-analysis entry point once this lands: something like
+  `staticImportNames :: Program -> Set String` (or over `Expr`/
+  `TemplateNode` recursively) that walks a parsed program without
+  evaluating it and returns every import name referenced — this is the
+  actual payoff (tooling / hosts can enumerate a template's dependencies
+  before running it, matching position.md §1/§9).
+- Fixture/test fallout: every existing `import("nav", ...)` fixture is
+  already a literal, so should keep passing unchanged; add a rejection
+  fixture for `import($ctx.libname, {})` (now a parse error) on both sides.
+- Update specs/llm.md §3.9 to drop the "divergence" callout (or flip it to
+  describe the enforced restriction) once this lands, and update
+  templating-language.md with a new dated section recording the change.
+
+## 2. Restrict action keys to static literals, and simplify remap-actions [DONE 2026-08-26]
+
+### 2a. `remap-actions` key rewriting narrowed to `prefix(...)` [DONE 2026-08-26]
+
+Implemented on both sides as a deliberate first step, not the full plan
+below — see `specs/templating-language.md`'s "`remap-actions` key rewriting
+narrowed to `prefix(...)`, implemented 2026-08-26" section for the full
+account and `specs/llm.md` §3.11/§4.1/§5.2/§7#14 for the updated reference.
+Summary:
+
+- New syntax: `remap-actions(nodeExpr, prefix(prefixExpr), fnExpr)` — a
+  third argument. `prefixExpr` may be computed/dynamic; only the *operation*
+  is fixed to prefixing (new `KeySpec = KeyPrefix Expr` AST node, one
+  constructor today, meant to grow — e.g. a future `replace(...)`).
+- `fnExpr` no longer controls `key` at all: the key is always
+  `prefixExpr <> originalKey`, computed unconditionally; `fnExpr` receives
+  the action with `key` already prefixed but its result only needs
+  `eventType` (+ optional `payload`) — a `"key"` field in the result, if
+  present, is ignored.
+- **Kept the closure**, unlike the plan below's "no closure argument at
+  all" — existing use cases transform `payload` as a function of the
+  original key/payload, which a closure-free `adapt-actions(node, prefix)`
+  can't express. Splitting out the key operation while leaving
+  payload/eventType to a closure is the smaller, still-useful step;
+  dropping the closure entirely (bullet below) is not done.
+- `VRemapPartial`'s queued array changed from bare functions to `(prefix,
+  fn)` pairs so a still-suspended `partial-import` keeps both halves
+  queued — same currying/chaining behavior as before.
+- Fixture fallout ported on both sides: 29/29 `tramaj` fixtures (`spago
+  test`) and 76/76 Haskell fixtures (`cabal test unit`) pass. Playground
+  default example + in-app reference text updated.
+
+Not done at the time (closed by 2b below): `action(...)`'s `keyExpr` is
+still an arbitrary `expr`, not a static literal; the primitive kept the
+`remap-actions` name rather than becoming `adapt-actions`; no
+`staticActionKeys` helper yet (blocked on action keys actually being
+static); the closure argument was not removed.
+
+### 2b. `action(...)`'s key restricted to a static literal [DONE 2026-08-26]
+
+Implemented on both sides; see `specs/templating-language.md`'s "Static
+action keys on `action(...)`, implemented 2026-08-26" section for the full
+account and `specs/llm.md` §4.1/§5.2/§7#14 for the updated reference.
+Summary:
+
+- `TAction`'s middle field is `String`/`Text`, not `Expr`; `actionArg`
+  parses it with `quotedKey` (no interpolation), so a computed key is a
+  parse error. `eventType`/`payload` are unchanged (still arbitrary
+  `expr`).
+- `evalAction` no longer evaluates/type-checks the key — it's already a
+  string, just copied through. The "key must be a string" `TypeMismatch`
+  is gone (structurally impossible now).
+- Added `Tramaj.Ast.staticActionKeys :: Program -> Set String` (`Set Text`
+  in Haskell), mirroring `staticImportNames` — not yet wired into
+  `remap-actions`/`adapt-actions` itself, just the walker.
+- New rejection fixtures on both sides; playground reference text updated.
+  Full suites still pass: 29/29 PureScript (`purs compile` + `node`,
+  `spago` not installed here) and 77/77 Haskell (`cabal test unit`).
+
+Not done (still open, no active plan): the primitive keeps the
+`remap-actions` name rather than `adapt-actions`; it still takes a closure
+for `eventType`/`payload` instead of position.md §12's closure-free shape;
+`remap-actions` doesn't call `staticActionKeys` to statically
+validate/propagate keys through a prefix operation.
+
+
+
+- Change `action(eventTypeExpr, keyExpr, payloadExpr)` so `keyExpr` is a
+  bare string literal, same treatment as the import name above.
+  `eventType` and `payload` stay arbitrary `expr` — only the *key* is the
+  semantic identifier position.md cares about (§11).
+- Replace `remap-actions(nodeExpr, fnExpr)` with a narrower
+  `adapt-actions(nodeExpr, prefixExpr)` (or keep the `remap-actions` name
+  but narrow its second argument — decide naming to match position.md §12,
+  which calls it `adapt-actions`):
+  - `prefixExpr` must reduce to a string (may still be computed/dynamic —
+    position.md doesn't require the *prefix* to be a literal, only that the
+    *operation* is limited to prefixing, not arbitrary rewriting).
+  - New behavior: every action's `key` gets `prefix <> key` prepended;
+    `eventType`/`payload` pass through unchanged. No closure argument at
+    all — this removes the `{eventType,key,payload} -> {eventType,key,
+    payload}` closure shape entirely, since arbitrary rewriting is exactly
+    what's being removed.
+  - Once action keys are static literals (previous bullet), a "static
+    action-key set" for a subtree becomes computable without evaluation:
+    `adapt-actions(component, "user:")` on a component with statically
+    known keys `{save, delete}` statically produces `{user:save,
+    user:delete}` — this is the actual payoff (position.md §12's worked
+    example). Consider adding a `staticActionKeys :: TemplateNode -> Set
+    String` helper alongside `staticImportNames` above, and have
+    `adapt-actions` validate/propagate through it rather than only
+    checking at eval time.
+  - `VRemapPartial`'s queuing behavior (apply-on-partial-completion) still
+    needs to exist for the narrowed primitive — keep that mechanism, just
+    swap what gets queued (a prefix string, not a closure).
+- Breaking change for both implementations and the playground (which wires
+  a `remap-actions` closure today — update its default example) and the
+  CLI (no closure to construct via `--lib`, unaffected otherwise).
+- Fixture fallout: existing `remap-actions` fixtures using a closure that
+  only ever prefixed the key can be rewritten as `adapt-actions` fixtures
+  directly; any fixture doing genuine arbitrary rewriting (renaming
+  `eventType`, transforming `payload`) has no equivalent anymore and should
+  be deleted, not ported.
+- Update specs/llm.md §3.11 (rename/rewrite) and §5.2, and add a new dated
+  section to templating-language.md recording the narrowing, once this
+  lands.
+
+This is independent of #1/#2 above — pure renaming, no behavior change —
+and is safe to do first or in parallel, but touches nearly every file in
+the repo, so land it as its own dedicated commit/PR rather than folding it
+into the import/remap-actions simplification work.
+
+## Suggested order
+
+Do #1 (import names) first — smaller, self-contained, no closure-shape removal
+involved. Then #2, since it's the more invasive breaking change (removes the
+closure argument shape, touches the playground and every existing remap-actions
+fixture). Port each to `templating-hs`/`tramaj-hs` in the same pass as the
+PureScript side, per the existing "if you change the language, change both"
+rule in specs/llm.md.

@@ -1,0 +1,31 @@
+# Limitations — both closed by the v2 iteration [DONE 2026-08-27]
+
+- string escape [DONE]
+  String literals now take `\n \t \r \\ \" \` \0` and `\u{...}`. The unicode
+  escape is braced rather than fixed at four hex digits, so an astral code
+  point needs no surrogate pair. Resolved by the parser into the literal it
+  denotes, so an escape leaves no trace in the core AST.
+
+  This is also where the port earned its keep: PureScript's `Char` is a
+  UTF-16 code unit, so `fromCharCode` rejected everything above U+FFFF and
+  every astral escape failed there while parsing fine in Haskell. Decoding to
+  a `CodePoint` fixed it. Neither implementation's own suite could have found
+  that.
+
+- node in the computation block [DONE]
+  Closed by the change the whole iteration turns on: documents are
+  expressions. v1 had two disjoint ASTs — `Expr` for the computation block,
+  `TemplateNode` for the template block — so a binding could not hold a
+  document at all. `Element` and `Fragment` are now ordinary `Expr`
+  constructors, and a binding holds one like any other value:
+
+      @header=.header(.h1("`$ctx.title`"))
+      @kids=.(.p("one"), .p("two"))
+      @panel=(title, children) => .section(.h2($title), $children)
+      .main($header, $panel("Deployment", $kids))
+
+  That is what makes the JSX-children pattern work without a separate
+  template-value category, and it deleted the entire template-phase AST along
+  with its duplicated map/branch forms.
+
+See specs/reference.md for the language as it now stands.
