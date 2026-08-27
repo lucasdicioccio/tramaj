@@ -24,3 +24,7 @@ dist-newstyle/
 *.o
 cabal.project.local
 cabal.project.local~
+
+# Stray trace output from an MCP agent server run in this directory — not
+# produced by anything in this repository.
+agents-logfile
