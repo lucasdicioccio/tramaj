@@ -29,7 +29,7 @@ module Tramaj.Eval
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
+import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
 import Data.Either (Either(..), note)
 import Data.Foldable (foldl)
@@ -37,8 +37,11 @@ import Data.Int as Int
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
+import Data.String (Pattern(..), stripSuffix)
+import Data.String.Common (joinWith)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
+import Foreign.Object (Object)
 import Foreign.Object as Object
 import Tramaj.Ast (ActionAdaptation, Attribute(..), Expr(..), ParamValue(..), Program, adaptKey, programRoot, unlets)
 import Tramaj.Node (Node(..), NodeAttribute(..), mapActions, noAnnotations)
@@ -707,18 +710,63 @@ evalBuiltin name args = case name of
   appendImpl arr item = (\xs -> VArray (Array.snoc xs item)) <$> asArray arr
 
 -- | How a value reads when it is rendered into a string by `str` (and so by
--- | string interpolation): a string is itself, a whole number drops its
--- | trailing `.0`, and anything structured falls back to compact JSON.
+-- | string interpolation): a string is itself, `null` is empty, and
+-- | anything structured is compact JSON.
+-- |
+-- | This is a normative rendering, not a debugging one, so it must agree
+-- | across implementations character for character — it is what a template
+-- | interpolates into its output. See `specs/reference.md`.
 displayString :: Json -> String
-displayString j = case toString j of
-  Just s -> s
-  Nothing -> case toNumber j of
-    Just n -> formatNumber n
-    Nothing -> case toBoolean j of
-      Just b -> if b then "true" else "false"
-      Nothing -> if j == jsonNull then "" else stringify j
+displayString j =
+  caseJson
+    (const "")
+    (\b -> if b then "true" else "false")
+    formatNumber
+    identity
+    compactArray
+    compactObject
+    j
 
+-- | Compact JSON, with object keys in sorted order and numbers formatted by
+-- | `formatNumber`.
+-- |
+-- | Deliberately not argonaut's own `stringify` for the whole value: that
+-- | would leave object keys in whatever order the underlying object happens
+-- | to hold them, and key order is not semantically significant — so it must
+-- | not be observable through `str` either.
+compactJson :: Json -> String
+compactJson j =
+  caseJson
+    (const "null")
+    (\b -> if b then "true" else "false")
+    formatNumber
+    quoteString
+    compactArray
+    compactObject
+    j
+
+compactArray :: Array Json -> String
+compactArray xs = "[" <> joinWith "," (map compactJson xs) <> "]"
+
+compactObject :: Object Json -> String
+compactObject o = "{" <> joinWith "," (map entry sorted) <> "}"
+  where
+  sorted = Array.sortWith fst (Object.toUnfoldable o :: Array (Tuple String Json))
+  entry (Tuple k v) = quoteString k <> ":" <> compactJson v
+
+-- | A JSON string literal, escaped by argonaut itself so this does not grow
+-- | a second, subtly different escaping table.
+quoteString :: String -> String
+quoteString = stringify <<< fromString
+
+-- | A number as ECMAScript's `Number::toString` renders it — which is what
+-- | PureScript's own `show` gives, except that `show` appends `.0` to a
+-- | value with no fractional part. Stripping that suffix undoes exactly
+-- | that: `Number::toString` never produces a trailing `.0` itself.
+-- |
+-- | v1 tested integrality with `Int.fromNumber`, which quietly failed above
+-- | 2^31 and rendered `100000000000` as `100000000000.0`.
 formatNumber :: Number -> String
-formatNumber n = case Int.fromNumber n of
-  Just i -> show i
-  Nothing -> show n
+formatNumber n = fromMaybe shown (stripSuffix (Pattern ".0") shown)
+  where
+  shown = show n

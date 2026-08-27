@@ -250,6 +250,46 @@ fixtures =
     , ctx: "{\"xs\": [true, false]}"
     , expected: "[false, true]"
     }
+  , { name: "str renders scalars, with numbers as ECMAScript renders them"
+    , kind: Expression
+    , template: "[str(\"hi\"), str(null), str(true), str(3), str(1.5), str(0.05), str(123456789)]"
+    , ctx: "null"
+    , expected: "[\"hi\", \"\", \"true\", \"3\", \"1.5\", \"0.05\", \"123456789\"]"
+    }
+  , { name: "str renders a large integer without a fractional part"
+    -- v1 rendered this "100000000000.0" here: its integrality test went
+    -- through a 32-bit Int.
+    , kind: Expression
+    , template: "str(100000000000)"
+    , ctx: "null"
+    , expected: "\"100000000000\""
+    }
+  , { name: "str switches to scientific notation where ECMAScript does"
+    , kind: Expression
+    , template: "[str(1000000000000000000000), str(0.0000001)]"
+    , ctx: "null"
+    , expected: "[\"1e+21\", \"1e-7\"]"
+    }
+  , { name: "str renders structures as compact JSON with sorted keys"
+    -- v1 rendered these through the host's own show on the Haskell side,
+    -- leaking "Array [Number 1.0,Number 2.0]" into template output.
+    , kind: Expression
+    , template: "[str([1, 2]), str({\"b\": 2, \"a\": [1, {\"c\": true}]})]"
+    , ctx: "null"
+    , expected: "[\"[1,2]\", \"{\\\"a\\\":[1,{\\\"c\\\":true}],\\\"b\\\":2}\"]"
+    }
+  , { name: "str escapes a nested string but leaves a bare one raw"
+    , kind: Expression
+    , template: "[str([\"a\\\"b\"]), str(\"a\\\"b\")]"
+    , ctx: "null"
+    , expected: "[\"[\\\"a\\\\\\\"b\\\"]\", \"a\\\"b\"]"
+    }
+  , { name: "interpolation uses str"
+    , kind: Expression
+    , template: "\"n=`$ctx.xs`\""
+    , ctx: "{\"xs\": [1, 2]}"
+    , expected: "\"n=[1,2]\""
+    }
   , { name: "branch selects a value by the first true predicate"
     , kind: Expression
     , template: "branch(\"unknown\", eq($ctx.s, \"ready\"), \"ready\", eq($ctx.s, \"err\"), \"error\")"

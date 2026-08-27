@@ -9,6 +9,7 @@ module Tramaj.EvalSpec (spec) where
 import Data.Aeson (Value (..), object, (.=))
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import Test.Hspec
 import Tramaj.Ast (Program)
@@ -20,6 +21,7 @@ spec :: Spec
 spec = do
   documentSpec
   scalarSpec
+  displayStringSpec
   fragmentSpec
   actionSpec
   bindingSpec
@@ -175,6 +177,53 @@ scalarSpec = describe "scalar children" $ do
 
   it "resolves escape sequences" $
     val "\"a\\tb\\nc\\u{1F600}\"" Null `shouldBe` Right (String "a\tb\nc\128512")
+
+-- | How @str@ -- and therefore string interpolation -- renders each kind of
+-- value. This is a normative rendering that both implementations must
+-- produce character for character, so every case here is pinned exactly
+-- rather than described loosely; the numbers follow ECMAScript's
+-- @Number::toString@, which is simply what a number's text is on the
+-- PureScript implementation's host.
+displayStringSpec :: Spec
+displayStringSpec = describe "str" $ do
+  let renders :: Text -> Text -> Spec
+      renders src expected =
+        it (T.unpack src <> " -> " <> show expected) $
+          val ("str(" <> src <> ")") Null `shouldBe` Right (String expected)
+
+  renders "\"hi\"" "hi"
+  renders "null" ""
+  renders "true" "true"
+  renders "false" "false"
+
+  renders "3" "3"
+  renders "1.5" "1.5"
+  renders "0.05" "0.05"
+  renders "123456789" "123456789"
+
+  -- v1 rendered this as "100000000000.0" on the PureScript side, whose
+  -- integrality test went through a 32-bit Int.
+  renders "100000000000" "100000000000"
+
+  -- The thresholds where ECMAScript switches to scientific notation.
+  renders "1000000000000000000000" "1e+21"
+  renders "0.0000001" "1e-7"
+
+  -- v1 rendered these through Haskell's own Show, leaking
+  -- "Array [Number 1.0,Number 2.0]" into template output.
+  renders "[1, 2]" "[1,2]"
+  renders "{\"a\": 1}" "{\"a\":1}"
+
+  -- Keys are sorted: object key order is not semantically significant, so
+  -- it must not be observable here either.
+  renders "{\"b\": 2, \"a\": [1, {\"c\": true}]}" "{\"a\":[1,{\"c\":true}],\"b\":2}"
+
+  it "renders a nested string with JSON escaping, but a bare one raw" $ do
+    val "str([\"a\\\"b\"])" Null `shouldBe` Right (String "[\"a\\\"b\"]")
+    val "str(\"a\\\"b\")" Null `shouldBe` Right (String "a\"b")
+
+  it "is what string interpolation uses" $
+    val "\"n=`$ctx.xs`\"" (object ["xs" .= ([1, 2] :: [Int])]) `shouldBe` Right (String "n=[1,2]")
 
 -- Fragments ---------------------------------------------------------------------
 

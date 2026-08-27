@@ -24,10 +24,11 @@ module Tramaj.Eval
   , builtinNames
   ) where
 
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), encode)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.List (foldl')
+import Data.Char (intToDigit)
+import Data.List (foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific, toRealFloat)
@@ -35,7 +36,10 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Vector as V
+import Numeric (floatToDigits)
 import Tramaj.Ast
 import Tramaj.Node
 
@@ -578,18 +582,79 @@ evalBuiltin name args = case name of
     appendImpl arr item = (\xs -> VArray (xs <> [item])) <$> asArray arr
 
 -- | How a value reads when it is rendered into a string by @str@ (and so by
--- string interpolation): a string is itself, a whole number drops its
--- trailing @.0@, and anything structured falls back to compact JSON.
+-- string interpolation): a string is itself, @null@ is empty, and anything
+-- structured is compact JSON.
+--
+-- This is a normative rendering, not a debugging one, so it must agree
+-- across implementations character for character -- it is what a template
+-- interpolates into its output. See @../specs/reference.md@.
 displayString :: Value -> Text
 displayString Null = ""
 displayString (Bool b) = if b then "true" else "false"
 displayString (Number n) = formatNumber n
 displayString (String s) = s
-displayString j@(Array _) = tshow j
-displayString j@(Object _) = tshow j
+displayString v = compactJson v
+
+-- | Compact JSON, with object keys in sorted order and numbers formatted by
+-- 'formatNumber'.
+--
+-- Deliberately not aeson's own 'encode': that writes every number through
+-- its 'Scientific' representation (@1.0@, @1.0e11@) where a JavaScript host
+-- writes @1@ and @100000000000@, so using it here would leave two
+-- conforming implementations rendering the same value differently. Keys are
+-- sorted for the same reason -- object key order is not semantically
+-- significant, so it must not be observable through @str@ either.
+compactJson :: Value -> Text
+compactJson Null = "null"
+compactJson (Bool b) = if b then "true" else "false"
+compactJson (Number n) = formatNumber n
+compactJson (String s) = quoteString s
+compactJson (Array xs) = "[" <> T.intercalate "," (map compactJson (V.toList xs)) <> "]"
+compactJson (Object o) =
+  "{" <> T.intercalate "," (map entry (sortOn fst (map (\(k, v) -> (Key.toText k, v)) (KeyMap.toList o)))) <> "}"
+  where
+    entry (k, v) = quoteString k <> ":" <> compactJson v
+
+-- | A JSON string literal, escaped by aeson itself so this does not grow a
+-- second, subtly different escaping table.
+quoteString :: Text -> Text
+quoteString = TL.toStrict . TLE.decodeUtf8 . encode . String
 
 formatNumber :: Scientific -> Text
-formatNumber n =
-  let d = toRealFloat n :: Double
-      rounded = round d :: Integer
-   in if fromIntegral rounded == d then tshow rounded else tshow d
+formatNumber = formatDouble . toRealFloat
+
+-- | Formats a double exactly as ECMAScript's @Number::toString@ does.
+--
+-- Matching that specific algorithm is the point: the PureScript
+-- implementation runs on a JavaScript host, where this is simply what a
+-- number's text /is/. Haskell's own 'show' picks different thresholds for
+-- scientific notation -- @0.05@ prints as @5.0e-2@, @1e11@ as @1.0e11@ --
+-- so leaving it to 'show' would make the two implementations disagree on
+-- something as ordinary as interpolating a price or a count.
+--
+-- NaN and infinities cannot reach here: JSON has no way to express them.
+formatDouble :: Double -> Text
+formatDouble d
+  | isNaN d = "NaN"
+  | isInfinite d = if d < 0 then "-Infinity" else "Infinity"
+  | d == 0 = "0"
+  | d < 0 = "-" <> formatPositive (negate d)
+  | otherwise = formatPositive d
+
+-- | The digit-placement rules of ECMA-262's @Number::toString@, given the
+-- shortest round-tripping digit sequence @ds@ and exponent @n@ for which
+-- the value is @0.ds * 10^n@ -- which is exactly what 'floatToDigits'
+-- returns.
+formatPositive :: Double -> Text
+formatPositive d
+  | n >= k && n <= 21 = digits <> T.replicate (n - k) "0"
+  | n > 0 && n <= 21 = T.take n digits <> "." <> T.drop n digits
+  | n > (-6) && n <= 0 = "0." <> T.replicate (negate n) "0" <> digits
+  | otherwise = mantissa <> "e" <> sign <> tshow (abs e)
+  where
+    (ds, n) = floatToDigits 10 d
+    k = length ds
+    digits = T.pack (map intToDigit ds)
+    e = n - 1
+    mantissa = if k == 1 then digits else T.take 1 digits <> "." <> T.drop 1 digits
+    sign = if e >= 0 then "+" else "-" :: Text
