@@ -5,9 +5,10 @@ are overlapping drafts that contradict each other in several places. This docume
 records which reading won for the v2 implementation, so the next reader does not
 re-derive them from four drafts.
 
-Where a draft disagrees with this file, **this file is the authority** for the
-implementation. `specs/merged2.md` is otherwise the fullest description of the
-language, and `specs/node-json.md` is normative for the output representation.
+This file records *why* each conflict was resolved the way it was.
+`specs/reference.md` records *what* the language actually is, and is the
+document to read first; `specs/node-json.md` is normative for the output
+representation.
 
 (`specs/constraints.md` is `merged2.md` with an older §17; `merged2.md` supersedes
 it entirely. `specs/llm.md`, `specs/templating-language.md`, `specs/position.md`,

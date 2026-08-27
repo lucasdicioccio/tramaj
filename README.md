@@ -49,11 +49,18 @@ having partiality inferred; action adaptation restricted to a static prefix;
 and three static analyses that answer what a program imports, what actions it
 can emit, and what context it still needs — without evaluating it.
 
-**Reference for v2**: [`specs/merged2.md`](specs/merged2.md) is the fullest
-description of the language, [`specs/core.md`](specs/core.md) the condensed core
-AST, [`specs/node-json.md`](specs/node-json.md) the normative output format, and
-[`specs/decisions.md`](specs/decisions.md) records which reading won wherever
-those drafts contradict each other — read that one first.
+**[`specs/reference.md`](specs/reference.md) is the reference** — the language
+as implemented: core AST, values, evaluation rules, surface syntax and its
+desugarings, imports, actions, builtins, and what is deliberately left
+implementation-defined. Start there.
+
+Alongside it: [`specs/node-json.md`](specs/node-json.md) is normative for the
+output wire format, and [`specs/decisions.md`](specs/decisions.md) records
+which reading won wherever the design drafts
+([`merged2.md`](specs/merged2.md), [`core.md`](specs/core.md),
+[`constraints.md`](specs/constraints.md), [`value.md`](specs/value.md))
+contradict each other. Those drafts are design history now; `reference.md`
+supersedes them.
 
 **v1 references**, describing the superseded language:
 [`specs/llm.md`](specs/llm.md), with
