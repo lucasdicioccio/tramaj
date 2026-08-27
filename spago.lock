@@ -170,13 +170,14 @@
         "path": "tramaj-halogen",
         "core": {
           "dependencies": [
+            "argonaut-core",
             "arrays",
             "halogen",
+            "integers",
             "maybe",
-            "ordered-collections",
             "prelude",
-            "tramaj",
-            "tuples"
+            "strings",
+            "tramaj"
           ],
           "build_plan": [
             "aff",
