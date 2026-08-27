@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               tramaj-hs
-version:            0.2.0.0
+version:            0.3.0.0
 synopsis:           Haskell parser/AST/evaluator for the tramaj language
 description:
   Parser, AST and evaluator for the tramaj language specified in
@@ -35,6 +35,7 @@ common defaults
   default-extensions:
     DeriveAnyClass
     DerivingStrategies
+    LambdaCase
     OverloadedStrings
   ghc-options:        -Wall -Wno-name-shadowing
 
@@ -42,8 +43,10 @@ library
   import:           defaults
   hs-source-dirs:   src
   exposed-modules:
+    -- Tramaj.Analysis (added in step 5)
     Tramaj.Ast
     Tramaj.Eval
+    Tramaj.Node
     Tramaj.Parser
   build-depends:
     , base            ^>=4.19
@@ -60,8 +63,10 @@ test-suite unit
   hs-source-dirs:   test/unit
   main-is:          Main.hs
   other-modules:
-    Tramaj.ParserSpec
+    -- Tramaj.AnalysisSpec (added in step 5)
     Tramaj.EvalSpec
+    Tramaj.NodeJsonSpec
+    Tramaj.ParserSpec
   build-depends:
     , base
     , aeson
