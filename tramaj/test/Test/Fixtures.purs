@@ -178,6 +178,12 @@ fixtures =
     , ctx: "null"
     , expected: el "div" [ el "p" [ text "\"fallback\"" ] ]
     }
+  , { name: "comments are stripped, and a `--` inside a string stays text"
+    , kind: Document
+    , template: "-- a heading\n@n=cardinality($ctx.items) -- how many\n.p(\"`$n` -- so far\")"
+    , ctx: "{\"items\": [\"a\", \"b\"]}"
+    , expected: el "p" [ text "\"2 -- so far\"" ]
+    }
   , { name: "escape sequences resolve, including a braced unicode escape"
     , kind: Expression
     , template: "\"a\\tb\\nc\\u{1F600}\""

@@ -13,6 +13,11 @@
 -- | productions (`node`, `nodeArg`, `childArg`, `templateSpecialForm`,
 -- | `pathOrCallChild`) are gone, because documents are expressions.
 -- |
+-- | A fourth character is lexical rather than grammatical: `--` begins a
+-- | comment that runs to the end of the line. It is discarded by
+-- | `skipSpaces` along with whitespace, so it never reaches the AST and
+-- | there is nothing to desugar.
+-- |
 -- | Two conventions are load-bearing and carried over deliberately:
 -- |
 -- | * A special form's `try` covers *name recognition only*. Once `import`
@@ -45,9 +50,10 @@ import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
 import Data.Tuple (Tuple(..))
 import Parsing (ParseError, Parser, fail, runParser)
-import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, try)
+import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, skipMany, try)
 import Parsing.String (anyChar, char, eof, satisfy, string)
-import Parsing.String.Basic (alphaNum, digit, hexDigit, letter, skipSpaces)
+import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
+import Parsing.String.Basic as Basic
 import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), lets)
 
 type P a = Parser String a
@@ -70,6 +76,24 @@ data StringPart
 
 -- Lexing --------------------------------------------------------------
 
+-- | Whitespace and comments — everything between two tokens that carries no
+-- | meaning. Run after every token by `lexeme`, and once before the first
+-- | one, so a comment is legal anywhere a space is.
+-- |
+-- | A comment is `--` to the end of the line. Single-line only: there is no
+-- | block form, so there is no nesting rule to get wrong and no way to leave
+-- | one unterminated. `--` inside a string literal is ordinary text, because
+-- | string bodies are read character by character and never come through
+-- | here.
+-- |
+-- | This is also why `rawIdent` refuses a trailing hyphen: it is what keeps
+-- | `$x-- note` from lexing as a name `x--` instead of `$x` and a comment.
+skipSpaces :: P Unit
+skipSpaces = Basic.skipSpaces *> skipMany (lineComment *> Basic.skipSpaces)
+  where
+  lineComment :: P Unit
+  lineComment = string "--" *> skipMany (satisfy (_ /= '\n'))
+
 lexeme :: forall a. P a -> P a
 lexeme p = p <* skipSpaces
 
@@ -89,11 +113,22 @@ many1Chars p = charsToString <<< NEA.toArray <$> (NEA.fromFoldable1 <$> many1 p)
 -- | following character is significant: inside dotted paths and after an
 -- | element's `.`. Internal hyphens are allowed (kebab-case), so `$my-var`
 -- | and `.my-tag` are one token each.
+-- |
+-- | *Internal* is enforced, not merely documented: a hyphen is part of the
+-- | name only when another name character follows it. Without that, a name
+-- | would swallow the `--` of a comment written directly after it, and
+-- | `$x-- note` would read as the name `x--`.
 rawIdent :: P String
 rawIdent = do
   c0 <- letter
-  cs <- manyChars (alphaNum <|> char '_' <|> char '-')
+  cs <- manyChars identRest
   pure (SCU.singleton c0 <> cs)
+  where
+  identRest :: P Char
+  identRest = identChar <|> try (char '-' <* lookAhead identChar)
+
+  identChar :: P Char
+  identChar = alphaNum <|> char '_'
 
 identifier :: P String
 identifier = lexeme rawIdent

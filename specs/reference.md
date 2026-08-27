@@ -181,6 +181,7 @@ one.
 | `{"k": v}`, `{k: v}`, `{foo}` | object literal; keys may be bare; `{foo}` is shorthand for `{"foo": $foo}` |
 | `(x, y) => expr` | lambda |
 | `(expr)` | grouping |
+| `-- text` | a comment, to the end of the line |
 | `a <> b` | concat — the only infix operator, left-associative, lowest precedence |
 | `.tag(...)` | element |
 | `.(...)` | fragment |
@@ -192,10 +193,26 @@ one.
 | `adapt-actions(node, prefix("ns:") \| identity [, fn])` | action adaptation |
 
 Names — bindings, path segments, tags, bare keys — start with a letter and
-may contain letters, digits, `_` and internal `-`. Whitespace is
-insignificant except as a separator, with one exception: a field-access `.`
-must directly follow the `)` it applies to, so `f()` on one line and
-`.div(...)` on the next are two separate things. There are no comments.
+may contain letters, digits, `_` and internal `-`. *Internal* is enforced,
+not merely advised: a hyphen belongs to the name only when another name
+character follows it, so a name never ends in one and `$x-- note` reads as
+`x` followed by a comment. Whitespace is insignificant except as a
+separator, with one exception: a field-access `.` must directly follow the
+`)` it applies to, so `f()` on one line and `.div(...)` on the next are two
+separate things.
+
+**Comments.** `--` begins a comment that runs to the end of the line. There
+is no block form and no nesting, so a comment cannot be left unterminated
+and a second `--` inside one is simply more comment. A comment is legal
+wherever a space is — above the bindings, trailing one, between an element's
+arguments, after the root — and is discarded together with the whitespace
+around it, so it reaches neither the core AST nor §9's analyses. Inside a
+string literal `--` is ordinary text: a string body is read character by
+character and never passes through this rule.
+
+Being whitespace, a comment does not join the lines it sits between:
+`f() -- note` followed by `.div(...)` on the next line is two separate
+things, exactly as the uncommented version is.
 
 **Attribute position before children.** Attributes, `action(...)` and
 `value(...)` must all precede any child; a child first is a parse error.

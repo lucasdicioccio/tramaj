@@ -396,8 +396,8 @@ renderLogEntry entry =
 -- | enough to be useful without opening that file.
 -- | The in-app language reference. Kept in step with `specs/reference.md`,
 -- | condensed to what fits in a panel — same facts, same order, including
--- | the ones a reader is most likely to trip over (no comments, no
--- | arithmetic, no negative literals).
+-- | the ones a reader is most likely to trip over (no arithmetic, no
+-- | negative literals).
 referenceText :: String
 referenceText =
   """THREE LEADER CHARACTERS
@@ -438,8 +438,13 @@ PRIMITIVES
                      lowest precedence
   (p1, ...) => expr  a lambda
   (expr)             grouping
+  -- comment         a comment, from "--" to the end of the line. Single-line
+                     only; legal wherever a space is; "--" inside a string
+                     literal is ordinary text
   Names start with a letter and may contain digits, "_" and internal "-".
-  Whitespace is insignificant except as a separator. There are NO comments.
+  INTERNAL is enforced: a name never ends in "-", so $x-- note reads as $x
+  followed by a comment.
+  Whitespace is insignificant except as a separator.
 
 LAMBDAS — bindable, not just inline
   Write one inline as an argument (map(arr, (x) => ...)) or bind it —

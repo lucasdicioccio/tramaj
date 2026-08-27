@@ -148,6 +148,14 @@ documentSpec = describe "documents" $ do
     doc "@row=(x) => .li($x)\n.ul($row(\"a\"), $row(\"b\"))" Null
       `shouldBe` Right (el "ul" [el "li" [textJ (String "a")], el "li" [textJ (String "b")]])
 
+  -- End to end, because the grammar checks in 'Tramaj.ParserSpec' cannot say
+  -- that a stripped comment leaves the *output* alone -- and that a `--`
+  -- inside a string reaches it intact.
+  it "strips comments and keeps a `--` inside a string as text" $
+    doc "-- a heading\n@n=cardinality($ctx.items) -- how many\n.p(\"`$n` -- so far\")"
+      (object ["items" .= arr [String "a", String "b"]])
+      `shouldBe` Right (el "p" [textJ (String "2 -- so far")])
+
 -- Scalars ------------------------------------------------------------------------
 
 -- | The decision that scalars survive evaluation: v1 stringified every child.

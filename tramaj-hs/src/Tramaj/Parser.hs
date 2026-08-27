@@ -13,6 +13,11 @@
 -- productions (@node@, @nodeArg@, @childArg@, @templateSpecialForm@,
 -- @pathOrCallChild@) are gone, because documents are expressions.
 --
+-- A fourth character is lexical rather than grammatical: @--@ begins a
+-- comment that runs to the end of the line. It is discarded by 'skipSpaces'
+-- along with whitespace, so it never reaches the AST and there is nothing to
+-- desugar.
+--
 -- Two conventions are load-bearing and carried over deliberately:
 --
 -- * A special form's 'try' covers /name recognition only/. Once @import@ or
@@ -34,6 +39,7 @@ import Data.Void (Void)
 import Numeric (readHex)
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 import Tramaj.Ast
 
 type P = Parsec Void Text
@@ -56,8 +62,19 @@ data StringPart
 
 -- Lexing --------------------------------------------------------------
 
+-- | Whitespace and comments -- everything between two tokens that carries no
+-- meaning. Run after every token by 'lexeme', and once before the first one,
+-- so a comment is legal anywhere a space is.
+--
+-- A comment is @--@ to the end of the line. Single-line only: there is no
+-- block form, so there is no nesting rule to get wrong and no way to leave one
+-- unterminated. @--@ inside a string literal is ordinary text, because string
+-- bodies are read character by character and never come through here.
+--
+-- This is also why 'rawIdent' refuses a trailing hyphen: it is what keeps
+-- @$x-- note@ from lexing as a name @x--@ instead of @$x@ and a comment.
 skipSpaces :: P ()
-skipSpaces = space
+skipSpaces = L.space space1 (L.skipLineComment "--") empty
 
 lexeme :: P a -> P a
 lexeme p = p <* skipSpaces
@@ -69,11 +86,22 @@ symbol s = lexeme (string s)
 -- following character is significant: inside dotted paths and after an
 -- element's @.@. Internal hyphens are allowed (kebab-case), so @$my-var@ and
 -- @.my-tag@ are one token each.
+--
+-- /Internal/ is enforced, not merely documented: a hyphen is part of the name
+-- only when another name character follows it. Without that, a name would
+-- swallow the @--@ of a comment written directly after it, and @$x-- note@
+-- would read as the name @x--@.
 rawIdent :: P Text
 rawIdent = do
   c0 <- satisfy isLetter
-  cs <- takeWhileP Nothing (\c -> isAlphaNum c || c == '_' || c == '-')
-  pure (T.cons c0 cs)
+  cs <- many identRest
+  pure (T.pack (c0 : cs))
+  where
+    identRest :: P Char
+    identRest = identChar <|> try (char '-' <* lookAhead identChar)
+
+    identChar :: P Char
+    identChar = satisfy (\c -> isAlphaNum c || c == '_')
 
 identifier :: P Text
 identifier = lexeme rawIdent

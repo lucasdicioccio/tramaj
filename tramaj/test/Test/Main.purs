@@ -38,6 +38,7 @@ main :: Effect Unit
 main = do
   runFixtures
   runParserChecks
+  runCommentChecks
   runLibraryChecks
   runAnalysisChecks
   runNodeJsonChecks
@@ -134,6 +135,89 @@ runParserChecks = do
   accepts label src = case parseProgram src of
     Left err -> throw ("expected " <> label <> " to parse, got: " <> show err)
     Right _ -> pure unit
+
+  desugarsTo :: String -> Expr -> Effect Unit
+  desugarsTo src expected = case parseExpr src of
+    Left err -> throw ("expected " <> src <> " to parse, got: " <> show err)
+    Right e ->
+      if e == expected then pure unit
+      else throw (src <> " desugared to\n  " <> show e <> "\nexpected\n  " <> show expected)
+
+-- Comments --------------------------------------------------------------
+
+-- | Comments: `--` to the end of the line, single-line only.
+-- |
+-- | The load-bearing check is `leavesNoTrace` — a commented program and the
+-- | same program with the comments deleted must parse to the *same* AST.
+-- | Anything weaker would pass while comments quietly became a node, or
+-- | shifted what the parser saw around them.
+-- |
+-- | Mirrors `commentSpec` in the Haskell `ParserSpec`.
+runCommentChecks :: Effect Unit
+runCommentChecks = do
+  traverse_ (uncurry accepts)
+    [ Tuple "a whole-line comment above the bindings" "-- a heading\n@n=1\n.p($n)"
+    , Tuple "a comment trailing a binding" "@n=1 -- how many\n.p($n)"
+    , Tuple "a comment inside an element's arguments"
+        ".div(\n  class: \"a\", -- the class\n  .p(\"hi\")\n)"
+    , Tuple "a comment between two children" ".div(\n  .p(\"a\"),\n  -- and then\n  .p(\"b\")\n)"
+    , Tuple "a comment as the last line, with no newline after it" ".p(\"hi\")\n-- done"
+    , Tuple "a comment directly after the root, on the same line" ".p(\"hi\") -- done"
+    , Tuple "a file that is comments and one expression" "-- one\n-- two\n1"
+    , Tuple "an empty comment" ".p(\"hi\") --"
+    , Tuple "a second -- inside a comment, which does not nest or close it" "1 -- a -- b"
+    ]
+  -- A hyphen is a name character only between two others, which is what
+  -- leaves `--` free to start a comment right after a name.
+  traverse_ (uncurry rejects)
+    [ Tuple "a binding name ending in a hyphen" "@a-=1\n$a"
+    , Tuple "a tag ending in a hyphen" ".div-()"
+    ]
+  traverse_ leavesNoTrace
+    [ { label: "a comment on its own line, and one trailing a binding"
+      , commented: "-- the count\n@n=cardinality($ctx.items) -- how many\n.p(\"`$n`\")"
+      , plain: "@n=cardinality($ctx.items)\n.p(\"`$n`\")"
+      }
+    , { label: "comments interleaved with an element's arguments"
+      , commented: ".div(class: \"a\", -- attrs first\n  .p(\"hi\") -- then children\n)"
+      , plain: ".div(class: \"a\", .p(\"hi\"))"
+      }
+    -- A comment is whitespace, and whitespace before a `.` is exactly what
+    -- separates a new element from a field access on the call that just
+    -- closed. So the v1 regression stays fixed with a comment in between.
+    , { label: "a comment between a closing ')' and a '.' beginning the next line"
+      , commented: "@x=cardinality($ctx.items) -- a count\n.div(\"`$x`\")"
+      , plain: "@x=cardinality($ctx.items)\n.div(\"`$x`\")"
+      }
+    ]
+  traverse_ (uncurry desugarsTo)
+    -- A string is read character by character and never passes through the
+    -- whitespace lexer, so `--` inside one is ordinary text.
+    [ Tuple "\"a -- b\"" (StringLit "a -- b")
+    , Tuple "adapt-actions($x, prefix(\"a--b:\"))"
+        (AdaptActions (Path "x" []) (Prefix "a--b:") Nothing)
+    -- The name stops at the hyphen pair rather than swallowing it, so this
+    -- is a read of `x` followed by a comment — not a read of a name `x--`.
+    , Tuple "$x-- note" (Path "x" [])
+    , Tuple "$my-var-2" (Path "my-var-2" [])
+    ]
+  log "ok - comments"
+  where
+  accepts label src = case parseProgram src of
+    Left err -> throw ("expected " <> label <> " to parse, got: " <> show err)
+    Right _ -> pure unit
+
+  rejects label src = case parseProgram src of
+    Left _ -> pure unit
+    Right p -> throw ("expected a parse error for " <> label <> ", got: " <> show p)
+
+  leavesNoTrace :: { label :: String, commented :: String, plain :: String } -> Effect Unit
+  leavesNoTrace c = case parseProgram c.commented, parseProgram c.plain of
+    Right a, Right b ->
+      if a == b then pure unit
+      else throw (c.label <> ": the comments changed the AST\n  " <> show a <> "\nexpected\n  " <> show b)
+    Left err, _ -> throw (c.label <> ": the commented program failed to parse: " <> show err)
+    _, Left err -> throw (c.label <> ": the plain program failed to parse: " <> show err)
 
   desugarsTo :: String -> Expr -> Effect Unit
   desugarsTo src expected = case parseExpr src of

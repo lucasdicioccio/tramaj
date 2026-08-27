@@ -18,6 +18,7 @@ spec :: Spec
 spec = do
   acceptanceSpec
   rejectionSpec
+  commentSpec
   desugaringSpec
   programKindSpec
 
@@ -83,6 +84,67 @@ rejectionSpec = describe "rejects" $ do
   rejects "an unknown escape sequence" "\"a\\qb\""
   rejects "an unterminated string" "\"abc"
   rejects "trailing input after the root" ".div() .span()"
+
+  -- A hyphen is a name character only between two others, which is what
+  -- leaves @--@ free to start a comment right after a name.
+  rejects "a binding name ending in a hyphen" "@a-=1\n$a"
+  rejects "a tag ending in a hyphen" ".div-()"
+
+-- | Comments: @--@ to the end of the line, single-line only.
+--
+-- The load-bearing assertion is 'leavesNoTrace' -- a commented program and
+-- the same program with the comments deleted must parse to the /same/ AST.
+-- Anything weaker would pass while comments quietly became a node, or shifted
+-- what the parser saw around them.
+commentSpec :: Spec
+commentSpec = describe "comments" $ do
+  accepts "a whole-line comment above the bindings" "-- a heading\n@n=1\n.p($n)"
+  accepts "a comment trailing a binding" "@n=1 -- how many\n.p($n)"
+  accepts "a comment inside an element's arguments" ".div(\n  class: \"a\", -- the class\n  .p(\"hi\")\n)"
+  accepts "a comment between two children" ".div(\n  .p(\"a\"),\n  -- and then\n  .p(\"b\")\n)"
+  accepts "a comment as the last line, with no newline after it" ".p(\"hi\")\n-- done"
+  accepts "a comment directly after the root, on the same line" ".p(\"hi\") -- done"
+  accepts "a file that is comments and one expression" "-- one\n-- two\n1"
+  accepts "an empty comment" ".p(\"hi\") --"
+  accepts "a second -- inside a comment, which does not nest or close it" "1 -- a -- b"
+
+  leavesNoTrace
+    "a comment on its own line, and one trailing a binding"
+    "-- the count\n@n=cardinality($ctx.items) -- how many\n.p(\"`$n`\")"
+    "@n=cardinality($ctx.items)\n.p(\"`$n`\")"
+
+  leavesNoTrace
+    "comments interleaved with an element's arguments"
+    ".div(class: \"a\", -- attrs first\n  .p(\"hi\") -- then children\n)"
+    ".div(class: \"a\", .p(\"hi\"))"
+
+  -- A comment is whitespace, and whitespace before a '.' is exactly what
+  -- separates a new element from a field access on the call that just
+  -- closed. So the v1 regression stays fixed with a comment in between.
+  leavesNoTrace
+    "a comment between a closing ')' and a '.' beginning the next line"
+    "@x=cardinality($ctx.items) -- a count\n.div(\"`$x`\")"
+    "@x=cardinality($ctx.items)\n.div(\"`$x`\")"
+
+  it "leaves `--` inside a string literal as ordinary text" $
+    parseExpr "\"a -- b\"" `shouldBe` Right (StringLit "a -- b")
+
+  it "leaves `--` inside a static string as ordinary text" $
+    parseExpr "adapt-actions($x, prefix(\"a--b:\"))"
+      `shouldBe` Right (AdaptActions (Path "x" []) (Prefix "a--b:") Nothing)
+
+  -- The name stops at the hyphen pair rather than swallowing it, so this is
+  -- a read of `x` followed by a comment -- not a read of a name `x--`.
+  it "ends a name at a comment written directly against it" $
+    parseExpr "$x-- note" `shouldBe` Right (Path "x" [])
+
+  it "still takes a hyphen between two name characters" $
+    parseExpr "$my-var-2" `shouldBe` Right (Path "my-var-2" [])
+  where
+    leavesNoTrace :: String -> Text -> Text -> Spec
+    leavesNoTrace name commented plain =
+      it ("leave no trace in the AST: " <> name) $
+        parseProgram commented `shouldBe` parseProgram plain
 
 -- | Each case states the desugaring in full: surface on the left, core AST on
 -- the right, with nothing in between.

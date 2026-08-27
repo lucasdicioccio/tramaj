@@ -44,7 +44,8 @@ the JSX-children pattern work without a separate template-value category.
 Also new in v2: a normative JSON interchange format for the evaluated document
 ([`specs/node-json.md`](specs/node-json.md)) in which scalars stay scalars and
 an element may carry many actions; `a <> b` concatenation over strings, arrays
-and objects; imports that declare their own holes with `ctx(path)` rather than
+and objects; `--` comments to the end of the line, which v1 refused outright;
+imports that declare their own holes with `ctx(path)` rather than
 having partiality inferred; action adaptation restricted to a static prefix;
 and three static analyses that answer what a program imports, what actions it
 can emit, and what context it still needs — without evaluating it.

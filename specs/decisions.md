@@ -108,3 +108,30 @@ it is pure desugaring and can land later without touching the core AST).
 - **Builtins are values in the initial environment.** merged2 §23 allows either a
   dedicated constructor or ordinary calls; making them values keeps `Call`
   uniform and lets a builtin be passed by reference, e.g. `map($xs, $not)`.
+
+## 9. Comments are `--` to the end of the line
+
+This reverses a v1 decision rather than resolving a conflict between drafts:
+`archive/llm.md` §"no comments" states that nothing is stripped and that `--`
+is a parse error. It was a defensible v1 position — a template written by a
+generator has no author to leave notes for — but v2's programs carry
+bindings, lambdas and imports, and the drafts' own examples annotate them
+with `--` because there is nothing else to reach for.
+
+`--` and not `#`, `//` or `;`: the drafts, the reference and this repository's
+README were already writing `--` in every commented example, so the syntax
+was chosen years before it was implemented. It also costs nothing in the
+grammar — no expression begins with a hyphen, because there is no arithmetic
+and no negative literal (§11, §14 of the reference).
+
+Single-line only, and deliberately so. A block form buys little in a language
+whose programs are this short, and costs a nesting rule, an
+unterminated-comment failure mode, and a second place where `--` inside a
+string has to be reasoned about.
+
+The one thing it did cost: names now refuse a *trailing* hyphen. Both
+implementations previously read a name as a letter followed by any run of
+name characters including `-`, so `$x-- note` lexed as a name `x--`, silently,
+even though the reference has always said hyphens are *internal*. Enforcing
+what the reference said is what keeps a comment written hard against a name
+from being swallowed by it.
