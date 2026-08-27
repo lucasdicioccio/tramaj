@@ -4,7 +4,7 @@ version:            0.3.0.0
 synopsis:           Haskell parser/AST/evaluator for the tramaj language
 description:
   Parser, AST and evaluator for the tramaj language specified in
-  @specs\/templating-language.md@ at the root of this repository -- a small
+  @specs\/reference.md@ at the root of this repository -- a small
   HAML-like template language with a bindings prelude, closures, and
   @map@\/@filter@\/@scan@, designed to be written by humans and LLMs and
   rendered against a JSON context.

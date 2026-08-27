@@ -54,18 +54,17 @@ as implemented: core AST, values, evaluation rules, surface syntax and its
 desugarings, imports, actions, builtins, and what is deliberately left
 implementation-defined. Start there.
 
-Alongside it: [`specs/node-json.md`](specs/node-json.md) is normative for the
-output wire format, and [`specs/decisions.md`](specs/decisions.md) records
-which reading won wherever the design drafts
-([`merged2.md`](specs/merged2.md), [`core.md`](specs/core.md),
-[`constraints.md`](specs/constraints.md), [`value.md`](specs/value.md))
-contradict each other. Those drafts are design history now; `reference.md`
-supersedes them.
+Alongside it, three more current documents: [`specs/node-json.md`](specs/node-json.md)
+is normative for the output wire format, [`specs/laws.md`](specs/laws.md) states
+the properties the language is held to, and
+[`specs/decisions.md`](specs/decisions.md) records which reading won wherever
+the design drafts contradicted each other.
 
-**v1 references**, describing the superseded language:
-[`specs/llm.md`](specs/llm.md), with
-[`specs/templating-language.md`](specs/templating-language.md) as the historical
-design record. Both are now historical; nothing in the repository implements v1.
+Everything else lives in [`specs/archive/`](specs/archive) — the v2 design
+drafts and the whole v1 reference and design record. It is kept for the
+reasoning in it, not because any of it is current; see
+[that directory's README](specs/archive/README.md) for what each file was and
+what replaced it.
 
 ## Packages
 
@@ -219,7 +218,7 @@ Still open:
 
 - revisit the naming and combinators of the primitives;
 - destructuring in `let` and lambda parameters — planned as pure desugaring
-  (merged2 §19), so it needs no change to the core AST;
+  (`specs/reference.md` §8), so it needs no change to the core AST;
 - a shared cross-implementation conformance corpus (see the known gap above);
 - more regression and compatibility tests before anything is called stable.
 
@@ -227,7 +226,7 @@ Then: simple but effective typing. The AST is built to accept it — node
 annotations are the place derived type/domain information goes, and the
 semantics deliberately avoid equating "unknown" with `null`, so a
 constraint-aware evaluator can reuse the same AST rather than forking the
-language (`specs/merged2.md` §22).
+language (`specs/reference.md` §14).
 
 
 ## Publishing

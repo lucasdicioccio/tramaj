@@ -1,4 +1,4 @@
-# TODO — simplify imports and remap-actions to match specs/position.md
+# TODO — simplify imports and remap-actions to match specs/archive/position.md
 #
 # [ALL DONE 2026-08-27 — closed by the v2 iteration]
 #
@@ -34,7 +34,7 @@
 #     ignored, so the vocabulary stays statically knowable either way. See
 #     specs/decisions.md #6.
 #
-#   - specs/llm.md and specs/templating-language.md were NOT updated. [NOT DONE]
+#   - specs/archive/llm.md and specs/archive/templating-language.md were NOT updated. [NOT DONE]
 #     The last bullet of #2 asks for that. v2 instead supersedes both: they
 #     describe the v1 language and are now design history, with
 #     specs/reference.md as the reference and specs/decisions.md recording
@@ -47,8 +47,8 @@
 # declared in the source instead of inferred by running a library and
 # catching a PathNotFound that happened to start with "ctx".
 
-Context: specs/llm.md §3.9/§5.2 and specs/templating-language.md's most recent
-dated section flag a real divergence between specs/position.md (the intended
+Context: specs/archive/llm.md §3.9/§5.2 and specs/archive/templating-language.md's most recent
+dated section flag a real divergence between specs/archive/position.md (the intended
 design) and what shipped. Two things need to change so the implementation
 actually earns the "statically identifiable" claims position.md makes:
 
@@ -62,9 +62,9 @@ concrete work, split so each half can land independently.
 
 ## 1. Restrict import names to static literals [DONE 2026-08-26]
 
-Implemented on both sides; see `specs/templating-language.md`'s "Static
+Implemented on both sides; see `specs/archive/templating-language.md`'s "Static
 import names, implemented 2026-08-26" section for the full account and
-`specs/llm.md` §3.9/§3/§4.1 for the updated reference. Summary:
+`specs/archive/llm.md` §3.9/§3/§4.1 for the updated reference. Summary:
 
 - `ImportExpr`/`PartialImportExpr`'s name field is `String`/`Text`, not
   `Expr`; `importShape`/`partialImportShape` parse it with `quotedKey`
@@ -117,18 +117,18 @@ below) — that's the next step.
 - Fixture/test fallout: every existing `import("nav", ...)` fixture is
   already a literal, so should keep passing unchanged; add a rejection
   fixture for `import($ctx.libname, {})` (now a parse error) on both sides.
-- Update specs/llm.md §3.9 to drop the "divergence" callout (or flip it to
+- Update specs/archive/llm.md §3.9 to drop the "divergence" callout (or flip it to
   describe the enforced restriction) once this lands, and update
-  templating-language.md with a new dated section recording the change.
+  specs/archive/templating-language.md with a new dated section recording the change.
 
 ## 2. Restrict action keys to static literals, and simplify remap-actions [DONE 2026-08-26]
 
 ### 2a. `remap-actions` key rewriting narrowed to `prefix(...)` [DONE 2026-08-26]
 
 Implemented on both sides as a deliberate first step, not the full plan
-below — see `specs/templating-language.md`'s "`remap-actions` key rewriting
+below — see `specs/archive/templating-language.md`'s "`remap-actions` key rewriting
 narrowed to `prefix(...)`, implemented 2026-08-26" section for the full
-account and `specs/llm.md` §3.11/§4.1/§5.2/§7#14 for the updated reference.
+account and `specs/archive/llm.md` §3.11/§4.1/§5.2/§7#14 for the updated reference.
 Summary:
 
 - New syntax: `remap-actions(nodeExpr, prefix(prefixExpr), fnExpr)` — a
@@ -161,9 +161,9 @@ static); the closure argument was not removed.
 
 ### 2b. `action(...)`'s key restricted to a static literal [DONE 2026-08-26]
 
-Implemented on both sides; see `specs/templating-language.md`'s "Static
+Implemented on both sides; see `specs/archive/templating-language.md`'s "Static
 action keys on `action(...)`, implemented 2026-08-26" section for the full
-account and `specs/llm.md` §4.1/§5.2/§7#14 for the updated reference.
+account and `specs/archive/llm.md` §4.1/§5.2/§7#14 for the updated reference.
 Summary:
 
 - `TAction`'s middle field is `String`/`Text`, not `Expr`; `actionArg`
@@ -224,8 +224,8 @@ validate/propagate keys through a prefix operation.
   directly; any fixture doing genuine arbitrary rewriting (renaming
   `eventType`, transforming `payload`) has no equivalent anymore and should
   be deleted, not ported.
-- Update specs/llm.md §3.11 (rename/rewrite) and §5.2, and add a new dated
-  section to templating-language.md recording the narrowing, once this
+- Update specs/archive/llm.md §3.11 (rename/rewrite) and §5.2, and add a new dated
+  section to specs/archive/templating-language.md recording the narrowing, once this
   lands.
 
 This is independent of #1/#2 above — pure renaming, no behavior change —
@@ -240,4 +240,4 @@ involved. Then #2, since it's the more invasive breaking change (removes the
 closure argument shape, touches the playground and every existing remap-actions
 fixture). Port each to `templating-hs`/`tramaj-hs` in the same pass as the
 PureScript side, per the existing "if you change the language, change both"
-rule in specs/llm.md.
+rule in specs/archive/llm.md.

@@ -195,7 +195,7 @@ render state =
   HH.div [ HP.class_ (HH.ClassName "wrap") ]
     [ HH.h1_ [ HH.text "tramaj playground" ]
     , HH.p [ HP.class_ (HH.ClassName "hint") ]
-        [ HH.text "Renders a tramaj template against a JSON context, entirely in the browser. See specs/templating-language.md for the full grammar; the reference below is the short version." ]
+        [ HH.text "Renders a tramaj template against a JSON context, entirely in the browser. See specs/reference.md for the full language; the reference below is the short version." ]
     , HH.details [ HP.class_ (HH.ClassName "card") ]
         [ HH.summary_ [ HH.text "Language reference" ]
         , HH.pre [ HP.class_ (HH.ClassName "ref" ) ] [ HH.text referenceText ]
@@ -392,7 +392,7 @@ renderLogEntry entry =
     ]
 
 -- | Static short-form language reference, mirroring
--- | `specs/templating-language.md`'s grammar/builtin summary closely
+-- | `specs/reference.md`'s structure closely
 -- | enough to be useful without opening that file.
 -- | The in-app language reference. Kept in step with `specs/reference.md`,
 -- | condensed to what fits in a panel — same facts, same order, including

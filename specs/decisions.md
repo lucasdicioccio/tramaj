@@ -1,7 +1,8 @@
 # Tramaj — resolved spec conflicts (v2 iteration, 2026-08-27)
 
-`specs/core.md`, `specs/merged2.md`, `specs/constraints.md` and `specs/value.md`
-are overlapping drafts that contradict each other in several places. This document
+`specs/archive/core.md`, `specs/archive/merged2.md`,
+`specs/archive/constraints.md` and `specs/archive/value.md` are overlapping
+drafts that contradict each other in several places. This document
 records which reading won for the v2 implementation, so the next reader does not
 re-derive them from four drafts.
 
@@ -10,9 +11,10 @@ This file records *why* each conflict was resolved the way it was.
 document to read first; `specs/node-json.md` is normative for the output
 representation.
 
-(`specs/constraints.md` is `merged2.md` with an older §17; `merged2.md` supersedes
-it entirely. `specs/llm.md`, `specs/templating-language.md`, `specs/position.md`,
-`specs/v2.md` and `specs/merged.md` describe the v1 language and are historical.)
+(All of these now live in `specs/archive/`, with a README of their own.
+`constraints.md` is `merged2.md` with an older §17; `merged2.md` supersedes it
+entirely. `llm.md`, `templating-language.md` and `position.md` describe the v1
+language; `v2.md` and `merged.md` are earlier v2 sketches.)
 
 ## 1. Documents are expressions
 

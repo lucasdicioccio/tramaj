@@ -19,9 +19,9 @@
 -- guarantees (see "Tramaj.Analysis") depend on them being knowable without
 -- evaluating anything.
 --
--- See @../specs/core.md@ and @../specs/merged2.md@ for the language, and
--- @../specs/decisions.md@ for which reading of those drafts won where they
--- disagree.
+-- See @../specs/reference.md@ for the language, and @../specs/decisions.md@
+-- for which reading of the (now archived) design drafts won where they
+-- disagreed.
 module Tramaj.Ast
   ( Program (..)
   , Expr (..)

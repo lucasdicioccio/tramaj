@@ -21,9 +21,9 @@
 -- | static-analysis guarantees (see `Tramaj.Analysis`) depend on them
 -- | being knowable without evaluating anything.
 -- |
--- | See `specs/merged2.md` for the language and `specs/decisions.md` for
--- | which reading of the drafts won where they disagree. Kept in lockstep
--- | with `../tramaj-hs/src/Tramaj/Ast.hs`.
+-- | See `specs/reference.md` for the language and `specs/decisions.md` for
+-- | which reading of the (now archived) design drafts won where they
+-- | disagreed. Kept in lockstep with `../tramaj-hs/src/Tramaj/Ast.hs`.
 module Tramaj.Ast
   ( Program(..)
   , Expr(..)

@@ -1,10 +1,10 @@
 # Tramaj — Language Reference
 
 This is the reference for the language **as implemented**. Where the earlier
-drafts (`core.md`, `merged2.md`, `constraints.md`, `value.md`) disagree with
-each other or with this document, this document wins; `decisions.md` records
-which reading of those drafts was taken and why. `node-json.md` is normative
-for the output wire format and is not repeated in full here.
+drafts disagree with each other or with this document, this document wins;
+`decisions.md` records which reading of those drafts was taken and why, and
+the drafts themselves are in [`archive/`](archive). `node-json.md` is
+normative for the output wire format and is not repeated in full here.
 
 Two implementations are held to this document: `tramaj/` (PureScript) and
 `tramaj-hs/` (Haskell). Anything below marked *implementation-defined* is
