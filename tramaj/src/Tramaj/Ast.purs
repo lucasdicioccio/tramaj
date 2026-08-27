@@ -1,462 +1,282 @@
--- | Core types for the tramaj language: unevaluated computation-phase
--- expressions (`Expr`), unevaluated template-phase nodes (`TemplateNode`),
--- and the evaluated output AST (`Node`) that `Tramaj.Halogen` folds
--- into real Halogen HTML. See `specs/templating-language.md` for the
--- grammar and design rationale.
+-- | The core semantic AST: what a Tramaj program means, after the parser
+-- | has desugared everything the surface syntax offers on top of it.
+-- |
+-- | This is a *semantic* representation, not a parser representation: no
+-- | source locations, no comments, no formatting, no recovery nodes.
+-- | Surface conveniences — string interpolation, object shorthand,
+-- | `@name=expr` binding lines, the multi-armed `branch(...)` form — have
+-- | no constructors here; `Tramaj.Parser` lowers them into the
+-- | constructors below.
+-- |
+-- | The defining change from v1: **documents are expressions**. `Element`
+-- | and `Fragment` are ordinary `Expr` constructors, so a document node is
+-- | a value that can be bound, passed to a lambda, returned from one, or
+-- | stored in an array like any other. v1's separate template-phase AST —
+-- | and with it the duplicated template-phase `map`/`branch`/value forms —
+-- | is gone.
+-- |
+-- | Where an invalid program can be made unrepresentable, it is: an import
+-- | name, an action's event and key, and an action adaptation's prefix are
+-- | all `String` rather than `Expr`, because the language's
+-- | static-analysis guarantees (see `Tramaj.Analysis`) depend on them
+-- | being knowable without evaluating anything.
+-- |
+-- | See `specs/merged2.md` for the language and `specs/decisions.md` for
+-- | which reading of the drafts won where they disagree. Kept in lockstep
+-- | with `../tramaj-hs/src/Tramaj/Ast.hs`.
 module Tramaj.Ast
-  ( Expr(..)
-  , KeySpec(..)
-  , StringPart(..)
-  , TAction(..)
-  , ActionPayload
-  , TemplateNode(..)
-  , Node(..)
-  , Program
-  , JsonProgram
-  , nodeToJson
-  , actionPayloadToJson
-  , staticImportNames
-  , staticActionKeys
+  ( Program(..)
+  , Expr(..)
+  , Attribute(..)
+  , ParamValue(..)
+  , ActionAdaptation(..)
+  , programRoot
+  , lets
+  , unlets
+  , adaptKey
+  , subExprs
+  , attributeExprs
   ) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
-import Data.Foldable (foldMap)
-import Data.Map (Map)
-import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
-import Data.Set (Set)
-import Data.Set as Set
+import Data.Array as Array
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..), snd)
-import Foreign.Object as Object
 
--- | A dotted path, e.g. `$ctx.items` is `Path [ "ctx", "items" ]` and a
--- | bound computation name `$count` is `Path [ "count" ]`. `$` always
--- | means "look up a name in the environment" (bound computation names
--- | unioned with `$ctx`); `Call` is that same lookup immediately applied
--- | — `$cardinality($ctx.items)` is `Call [ "cardinality" ] [ Path [
--- | "ctx", "items" ] ]`. A `Call`'s callee resolves against the
--- | environment first (a name bound to a `LambdaExpr`-produced closure —
--- | see below — is called directly) and only falls back to the fixed
--- | builtin table if the name isn't bound to anything (see
--- | `Tramaj.Eval`).
+-- | A whole program, distinguished by what its root produces rather than
+-- | by what it may contain — both halves share one expression language.
 -- |
--- | `LambdaExpr params body` — `(p1, p2, ...) => body` — is a genuine
--- | first-class value: it can be written inline as a call argument
--- | (`map(arr, (item) => ...)`) *or* bound via `@name=(p1, ...) =>
--- | body` and called later via `$name(...)`, passed to another
--- | function, or passed to `map`/`filter`/`scan` by reference. Evaluating
--- | a `LambdaExpr` captures the environment at that point (lexical
--- | scoping/closures) — see `Tramaj.Eval`'s `Value`/`VClosure`.
--- | **No recursion**: a closure's captured environment is snapshotted
--- | *before* its own binding is inserted, so a lambda can't call itself
--- | by name from within its own body.
+-- | A `DocumentProgram` evaluates to a `Tramaj.Node` document; an
+-- | `ExpressionProgram` evaluates to an ordinary JSON value, for hosts
+-- | that want the data half of the language on its own. The parser tells
+-- | them apart syntactically: a root beginning with `.` is a document.
+data Program
+  = DocumentProgram Expr
+  | ExpressionProgram Expr
+
+derive instance eqProgram :: Eq Program
+
+instance showProgram :: Show Program where
+  show (DocumentProgram e) = "DocumentProgram (" <> show e <> ")"
+  show (ExpressionProgram e) = "ExpressionProgram (" <> show e <> ")"
+
+programRoot :: Program -> Expr
+programRoot (DocumentProgram e) = e
+programRoot (ExpressionProgram e) = e
+
+-- | `Path root fields` — a name in the environment plus static field
+-- | segments: `$ctx.user.name` is `Path "ctx" [ "user", "name" ]`. Dynamic
+-- | access goes through the `lookup` builtin instead.
 -- |
--- | `MapExpr`/`FilterExpr`/`ScanExpr`/`FoldExpr` are the functional-style
--- | array primitives: `map(arr, fn)`, `filter(arr, fn)`, `scan(arr, init,
--- | fn)`, `fold(arr, init, fn)`, where `fn` is any `expr` that evaluates
--- | to a closure — an inline `LambdaExpr` or a `Path` to a previously
--- | bound one. These aren't ordinary `Call`s: `arr`'s elements need
--- | binding into `fn`'s closure environment fresh per element (and, for
--- | `scan`/`fold`, per accumulator step too), which the uniform
--- | "evaluate every argument to a `Json` value up front" `Call` dispatch
--- | can't express (see `Tramaj.Eval`). `fold` shares `scan`'s
--- | `(acc, item)` step signature and `scanl` iteration order, but returns
--- | only the final accumulator instead of every intermediate step.
+-- | `FieldAccess` is field access on an arbitrary expression, which `Path`
+-- | cannot express because its root must be a name:
+-- | `import("x", {}).vals.button`.
 -- |
--- | `ImportExpr name paramsExpr` — `import(name, params)` — evaluates a
--- | library (a `Program` looked up by name in a host-supplied table, not
--- | anything reachable from `$ctx`) with `params` as that library's own
--- | `$ctx`, producing a value exposing `.rendered` (its evaluated template,
--- | a document `Node`) and `.vals` (its top-level bindings). `PartialImportExpr`
--- | is the same but tolerates an incomplete `params`: see
--- | `Tramaj.Eval`'s `tryPartial`/`VPartial`.
+-- | `Call`'s function is an `Expr`, not a name, because builtins are
+-- | ordinary values in the initial environment — so `cardinality($xs)`,
+-- | `$f($x)` and `map($xs, $not)` all travel the same path.
 -- |
--- | `name` is a bare `String`, not an `Expr` — the parser only ever accepts
--- | a plain quoted literal (no `` `interp` ``) in this position, so a
--- | template's import names are knowable by walking the parsed AST, without
--- | evaluating it (see `staticImportNames` below). This matches
--- | `specs/position.md`'s "imports are statically identifiable" claim.
+-- | `Lambda` closes over the environment where it is evaluated. Multiple
+-- | parameters, since `fold`/`scan` need `(acc, item)` and the language
+-- | has no currying. **No recursion**: a binding's value is not in scope
+-- | while that value is being evaluated.
 -- |
--- | `FieldAccess baseExpr segs` — `<expr>.field1.field2...` — the postfix
--- | counterpart to `Path`'s prefix dotted chain: `Path` only ever starts
--- | from a bound name (`$name.field`), so it can't express field access on
--- | the *result* of a call, e.g. completing a `partial-import` and reading
--- | `.rendered` off it in one expression — `$btn({"title": $x}).rendered`
--- | — without an intermediate `@`-binding. `baseExpr` is evaluated first,
--- | then each segment walks it exactly like `Path`'s own field-walking
--- | (see `Tramaj.Eval`'s `walkFields`, shared by both).
+-- | `Let` is one lexical binding. The surface `@name=expr` block lowers to
+-- | nested `Let`s, which is why a binding may reference earlier ones but
+-- | not later ones.
 -- |
--- | `RemapActionsExpr nodeExpr keySpec fnExpr` —
--- | `remap-actions(node, prefix(prefixExpr), fn)` — contramaps every
--- | `action(...)` found anywhere in `nodeExpr`'s rendered `Node`
--- | (recursively through its children, not just its own root): the action's
--- | `key` is rewritten by `keySpec` (currently only `prefix(prefixExpr)` —
--- | prepends `prefixExpr`'s string value to the original key; `prefixExpr`
--- | may itself be a computed/dynamic expr, just not the *operation*, which
--- | is fixed to prefixing), and `eventType`/`payload` are passed through
--- | `fn`: a closure taking the `{eventType, key, payload}` shape
--- | `actionPayloadToJson` produces (with `key` already prefixed) and
--- | returning `{eventType, payload}` — `fn` can no longer set `key` itself,
--- | since `keySpec` is now the sole, statically-identifiable source of key
--- | rewriting (`specs/position.md` §12; `prefix` is the first of what's
--- | meant to grow into a small closed set of key operations, e.g. a future
--- | `replace(...)`). Lets a template that imports a library rewrite
--- | (namespace a key, transform a payload) whatever actions that library's
--- | own template fires before they're visible to the host — the tramaj
--- | counterpart to remapping a child component's output actions before
--- | they bubble up to a parent. See `Tramaj.Eval`'s `remapActionsInNode`.
+-- | `Element tag attributes value children` — the value slot is `NullLit`
+-- | unless the template sets one; see `Tramaj.Node` for what it is for.
+-- | `Fragment` is sibling nodes with no wrapper element — the
+-- | JSX-children case, expressible as an ordinary value because documents
+-- | are expressions.
+-- |
+-- | `Branch` evaluates its condition, then *only* the arm it selects. This
+-- | is the one place the language departs from evaluating arguments
+-- | eagerly, and it is why `Branch` is a constructor rather than a
+-- | builtin: errors in an unreached arm must not surface. The surface's
+-- | multi-armed `branch(fallback, p1, v1, ...)` lowers to nested `Branch`.
+-- |
+-- | `Concat` is the monoid operation `a <> b` over `String`, `Array` or
+-- | `Object` — same type on both sides, right-biased on object key
+-- | collisions.
+-- |
+-- | `Import name parameters` is a statically named dependency and the
+-- | parameters supplied to it. An import is *partial* exactly when some
+-- | parameter is still a `PFromContext` — there is deliberately no
+-- | separate partial-import constructor, so partiality is declared in the
+-- | source rather than discovered by evaluating and watching what fails.
+-- |
+-- | `AdaptActions target adaptation fn` prefixes every action key in a
+-- | document subtree, with an optional closure for the event type and
+-- | payload. The prefix is static so the action vocabulary stays
+-- | enumerable without evaluation.
 data Expr
-  = Path (Array String)
-  | Call (Array String) (Array Expr)
-  | StringLit (Array StringPart)
+  = Path String (Array String)
+  | FieldAccess Expr (Array String)
+  | Call Expr (Array Expr)
+  | Lambda (Array String) Expr
+  | Let String Expr Expr
+  | StringLit String
   | NumberLit Number
   | BoolLit Boolean
+  | NullLit
   | ArrayLit (Array Expr)
   | ObjectLit (Array (Tuple String Expr))
-  | LambdaExpr (Array String) Expr
-  | MapExpr Expr Expr
-  | FilterExpr Expr Expr
-  | ScanExpr Expr Expr Expr
-  | FoldExpr Expr Expr Expr
-  | ImportExpr String Expr
-  | PartialImportExpr String Expr
-  | FieldAccess Expr (Array String)
-  | RemapActionsExpr Expr KeySpec Expr
-
--- | The key-rewriting operation a `remap-actions(...)` call's second
--- | argument names — currently just `prefix(prefixExpr)`, deliberately a
--- | small closed set (not an arbitrary closure) so a key rewrite stays a
--- | statically-identifiable *operation* even though `prefixExpr` itself may
--- | be dynamic. See the `RemapActionsExpr` note above.
-data KeySpec = KeyPrefix Expr
-
-derive instance eqKeySpec :: Eq KeySpec
-
-instance showKeySpec :: Show KeySpec where
-  show (KeyPrefix e) = "KeyPrefix (" <> show e <> ")"
+  | Element String (Array Attribute) Expr (Array Expr)
+  | Fragment (Array Expr)
+  | Branch Expr Expr Expr
+  | Map Expr Expr
+  | Filter Expr Expr
+  | Scan Expr Expr Expr
+  | Fold Expr Expr Expr
+  | Concat Expr Expr
+  | Import String (Array (Tuple String ParamValue))
+  | AdaptActions Expr ActionAdaptation (Maybe Expr)
 
 derive instance eqExpr :: Eq Expr
 
 instance showExpr :: Show Expr where
-  show (Path segs) = "Path " <> show segs
-  show (Call segs args) = "Call " <> show segs <> " " <> show args
-  show (StringLit parts) = "StringLit " <> show parts
+  show (Path root fields) = "Path " <> show root <> " " <> show fields
+  show (FieldAccess target fields) = "FieldAccess (" <> show target <> ") " <> show fields
+  show (Call fn args) = "Call (" <> show fn <> ") " <> show args
+  show (Lambda params body) = "Lambda " <> show params <> " (" <> show body <> ")"
+  show (Let name value body) = "Let " <> show name <> " (" <> show value <> ") (" <> show body <> ")"
+  show (StringLit s) = "StringLit " <> show s
   show (NumberLit n) = "NumberLit " <> show n
   show (BoolLit b) = "BoolLit " <> show b
+  show NullLit = "NullLit"
   show (ArrayLit elems) = "ArrayLit " <> show elems
   show (ObjectLit entries) = "ObjectLit " <> show entries
-  show (LambdaExpr params body) = "LambdaExpr " <> show params <> " (" <> show body <> ")"
-  show (MapExpr arr fn) = "MapExpr (" <> show arr <> ") (" <> show fn <> ")"
-  show (FilterExpr arr fn) = "FilterExpr (" <> show arr <> ") (" <> show fn <> ")"
-  show (ScanExpr arr initE fn) = "ScanExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
-  show (FoldExpr arr initE fn) = "FoldExpr (" <> show arr <> ") (" <> show initE <> ") (" <> show fn <> ")"
-  show (ImportExpr name paramsE) = "ImportExpr " <> show name <> " (" <> show paramsE <> ")"
-  show (PartialImportExpr name paramsE) = "PartialImportExpr " <> show name <> " (" <> show paramsE <> ")"
-  show (FieldAccess baseE segs) = "FieldAccess (" <> show baseE <> ") " <> show segs
-  show (RemapActionsExpr nodeE keySpec fnE) = "RemapActionsExpr (" <> show nodeE <> ") (" <> show keySpec <> ") (" <> show fnE <> ")"
+  show (Element tag attrs value children) =
+    "Element " <> show tag <> " " <> show attrs <> " (" <> show value <> ") " <> show children
+  show (Fragment children) = "Fragment " <> show children
+  show (Branch c t e) = "Branch (" <> show c <> ") (" <> show t <> ") (" <> show e <> ")"
+  show (Map coll fn) = "Map (" <> show coll <> ") (" <> show fn <> ")"
+  show (Filter coll fn) = "Filter (" <> show coll <> ") (" <> show fn <> ")"
+  show (Scan coll initial fn) = "Scan (" <> show coll <> ") (" <> show initial <> ") (" <> show fn <> ")"
+  show (Fold coll initial fn) = "Fold (" <> show coll <> ") (" <> show initial <> ") (" <> show fn <> ")"
+  show (Concat l r) = "Concat (" <> show l <> ") (" <> show r <> ")"
+  show (Import name params) = "Import " <> show name <> " " <> show params
+  show (AdaptActions target adaptation fn) =
+    "AdaptActions (" <> show target <> ") (" <> show adaptation <> ") " <> show fn
 
--- | One piece of a double-quoted string literal: either literal text or a
--- | backtick-delimited interpolation of an arbitrary `Expr` (not just a
--- | bare path — `` `$cardinality($nums)` `` is a valid interpolation),
--- | e.g. `"there are `$count` item(s)"` parses to `[ Lit "there are ",
--- | Interp (Path [ "count" ]), Lit " item(s)" ]`.
-data StringPart
-  = Lit String
-  | Interp Expr
-
-derive instance eqStringPart :: Eq StringPart
-
-instance showStringPart :: Show StringPart where
-  show (Lit s) = "Lit " <> show s
-  show (Interp e) = "Interp (" <> show e <> ")"
-
--- | `action(eventType, key, payloadExpr)` — appears directly among a
--- | node's arguments (`.button("Select", action("on-click", "select",
--- | {"itemId": $itemId}))`), not nested under an `action:` attribute
--- | key the way the original opaque-string design worked. `eventType`/
--- | `payload` are ordinary `expr`s, each evaluated to a `Json` value at
--- | eval time (`eventType` is required to reduce to a string, `payload`
--- | can be anything) — see `ActionPayload`. `eventType` used to be a bare
--- | identifier from a fixed keyword set, but the tramaj language isn't
--- | Halogen-only (a future email/static-site renderer has no DOM events
--- | at all), so it needs to be able to name whatever event/hook concept a
--- | given host defines, possibly even computed (`$ctx.eventName`) rather
--- | than a static literal — a bare-identifier keyword can't express that.
--- | `Tramaj.Eval` does not validate it against a fixed set either: it
--- | requires a string and passes whatever that string says to the host
--- | untouched, so naming the vocabulary is entirely a host concern.
+-- | How one import parameter gets its value.
 -- |
--- | `key`, unlike `eventType`, is a bare `String` in the AST, not an
--- | `Expr` — same static-literal treatment as `ImportExpr`/
--- | `PartialImportExpr`'s name (see `staticImportNames`). Action keys are
--- | the semantic identifier `remap-actions`/`specs/position.md` §11/§12
--- | reason about (a component's set of action keys needs to be knowable
--- | without evaluating it), so a computed key — even one that always
--- | reduces to the same constant — isn't allowed; the grammar only ever
--- | accepts a plain quoted string in this position.
-data TAction = TAction Expr String Expr
+-- | `PFromContext` is provenance, not absence: `ctx(spec.replicas)` states
+-- | that this parameter comes from the context supplied when the import is
+-- | completed, so a reader (and `Tramaj.Analysis`) knows where a hole is
+-- | filled from without inspecting the imported program at all. It is
+-- | deliberately distinct from `$ctx.spec.replicas`, which reads from the
+-- | *current* context now.
+data ParamValue
+  = PExpr Expr
+  | PFromContext (Array String)
 
-derive instance eqTAction :: Eq TAction
+derive instance eqParamValue :: Eq ParamValue
 
-instance showTAction :: Show TAction where
-  show (TAction eventTypeExpr key payloadExpr) =
-    "TAction (" <> show eventTypeExpr <> ") " <> show key <> " (" <> show payloadExpr <> ")"
+instance showParamValue :: Show ParamValue where
+  show (PExpr e) = "PExpr (" <> show e <> ")"
+  show (PFromContext path) = "PFromContext " <> show path
 
--- | The evaluated result of a `TAction` — what a `Node`'s `action` field
--- | holds, and what the host's dispatcher function
--- | (`Tramaj.Halogen.foldToHalogen`) receives. Structured, not an
--- | opaque string: the host can pattern-match `key` and use `payload`
--- | directly, no string-parsing required on its side.
-type ActionPayload =
-  { eventType :: String
-  , key :: String
-  , payload :: Json
-  }
+-- | Both attribute-position constructs. An action's event and key are
+-- | `String`, not `Expr`: the payload stays fully dynamic, but the
+-- | identifying half is static, which is what makes the set of actions a
+-- | program can emit computable ahead of time.
+data Attribute
+  = Attr String Expr
+  | ActionAttr String String Expr
 
--- | Unevaluated template-phase AST — still holds `Expr`/paths, not
--- | resolved values.
+derive instance eqAttribute :: Eq Attribute
+
+instance showAttribute :: Show Attribute where
+  show (Attr name e) = "Attr " <> show name <> " (" <> show e <> ")"
+  show (ActionAttr event key payload) =
+    "ActionAttr " <> show event <> " " <> show key <> " (" <> show payload <> ")"
+
+-- | Restricted on purpose to two forms rather than an arbitrary
+-- | key-rewriting function. Adaptations compose the obvious way: prefixing
+-- | `a:` and then `b:` gives `b:a:key`, needing no "already adapted"
+-- | state.
+data ActionAdaptation
+  = Identity
+  | Prefix String
+
+derive instance eqActionAdaptation :: Eq ActionAdaptation
+
+instance showActionAdaptation :: Show ActionAdaptation where
+  show Identity = "Identity"
+  show (Prefix p) = "Prefix " <> show p
+
+-- | Nests a sequence of bindings around a body, innermost last — the
+-- | lowering the surface `@name=expr` block uses.
+lets :: Array (Tuple String Expr) -> Expr -> Expr
+lets bindings body = Array.foldr (\(Tuple name value) acc -> Let name value acc) body bindings
+
+-- | Peels the outermost `Let` chain back off, inverting `lets`.
 -- |
--- | A node's parenthesized argument list is heterogeneous in the surface
--- | syntax (`.button("Select", action("on-click", "select", {...}))`
--- | mixes a positional value and an `action(...)` form in one list) but
--- | splits cleanly into three roles: named `key: value` args become HTML
--- | attributes (`attrs`, a plain `Tuple String Expr` — one constructor's
--- | worth of ceremony wasn't worth a dedicated sum type once positional
--- | args turned out to be children, not attrs); at most one
--- | `action(...)` becomes `TElement`'s `Maybe TAction`; everything else
--- | in the list — a bare value (`TValue`), a nested node, `map(...)`, or
--- | `branch(...)` — becomes a child, in argument order.
+-- | Nothing but a program's surface binding block can put a `Let`
+-- | outermost, so this recovers exactly the top-level bindings that block
+-- | declared — which is what an import exposes as `.vals`. Keeping
+-- | bindings as ordinary nested `Let`s in the AST, and recovering the
+-- | block when it is needed, avoids a second binding construct whose
+-- | scoping would have to be specified separately.
+unlets :: Expr -> { bindings :: Array (Tuple String Expr), root :: Expr }
+unlets (Let name value body) =
+  let
+    rest = unlets body
+  in
+    { bindings: Array.cons (Tuple name value) rest.bindings, root: rest.root }
+unlets e = { bindings: [], root: e }
+
+-- | How an adaptation rewrites one action key. Shared by evaluation and by
+-- | static analysis, which is the point of restricting adaptation to these
+-- | two forms: the analysis can apply the very same function the evaluator
+-- | will, without evaluating anything.
+adaptKey :: ActionAdaptation -> String -> String
+adaptKey Identity key = key
+adaptKey (Prefix p) key = p <> key
+
+-- | The immediately-contained expressions of an expression, in source
+-- | order.
 -- |
--- | `TMap`'s array is a general `Expr` (not just a static path) — the
--- | functional `map(arrExpr, (item) => body)` surface syntax makes this
--- | natural: `arrExpr` can be any expression that evaluates to a `Json`
--- | array (a nested `filter(...)`, a `lookup(...)` call, a plain path,
--- | ...), not only a bare `$ctx.items`-style path like the older
--- | `$ctx.items.map(...)` OOP-style syntax required.
--- |
--- | `TBranch fallback pairs` mirrors the expr-level `branch` builtin
--- | (`specs/templating-language.md`) but selects a whole *node*, not a
--- | value — `branch(fallbackNode, pred1, node1, pred2, node2, ...)`.
--- | Unlike the expr-level `branch` (whose arguments are all eagerly
--- | evaluated `Json` values before dispatch, so every branch must be
--- | error-free regardless of which one wins), only the *chosen*
--- | `TemplateNode` is ever evaluated here — the others are plain
--- | unevaluated AST until `pickBranch` decides, so an unreachable
--- | branch's own errors never surface.
-data TemplateNode
-  = TElement String (Array (Tuple String Expr)) (Maybe TAction) (Array TemplateNode)
-  | TValue Expr
-  | TMap Expr String TemplateNode
-  | TBranch TemplateNode (Array (Tuple Expr TemplateNode))
+-- | Written once here so that the analyses in `Tramaj.Analysis` are a few
+-- | lines each rather than a 20-case fold apiece — and, more importantly,
+-- | so that adding a constructor to `Expr` has exactly one place to be
+-- | taught about instead of one per traversal.
+subExprs :: Expr -> Array Expr
+subExprs (Path _ _) = []
+subExprs (FieldAccess target _) = [ target ]
+subExprs (Call fn args) = Array.cons fn args
+subExprs (Lambda _ body) = [ body ]
+subExprs (Let _ value body) = [ value, body ]
+subExprs (StringLit _) = []
+subExprs (NumberLit _) = []
+subExprs (BoolLit _) = []
+subExprs NullLit = []
+subExprs (ArrayLit elems) = elems
+subExprs (ObjectLit entries) = map snd entries
+subExprs (Element _ attrs value children) = attributeExprs attrs <> Array.cons value children
+subExprs (Fragment children) = children
+subExprs (Branch c t e) = [ c, t, e ]
+subExprs (Map coll fn) = [ coll, fn ]
+subExprs (Filter coll fn) = [ coll, fn ]
+subExprs (Scan coll initial fn) = [ coll, initial, fn ]
+subExprs (Fold coll initial fn) = [ coll, initial, fn ]
+subExprs (Concat l r) = [ l, r ]
+subExprs (Import _ params) = Array.mapMaybe paramExpr params
+  where
+  paramExpr (Tuple _ (PExpr e)) = Just e
+  paramExpr _ = Nothing
+subExprs (AdaptActions target _ fn) = case fn of
+  Nothing -> [ target ]
+  Just f -> [ target, f ]
 
-derive instance eqTemplateNode :: Eq TemplateNode
-
-instance showTemplateNode :: Show TemplateNode where
-  show (TElement tag attrs action children) =
-    "TElement " <> show tag <> " " <> show attrs <> " " <> show action <> " " <> show children
-  show (TValue e) = "TValue " <> show e
-  show (TMap arr binding body) =
-    "TMap (" <> show arr <> ") " <> show binding <> " (" <> show body <> ")"
-  show (TBranch fallback pairs) =
-    "TBranch (" <> show fallback <> ") " <> show pairs
-
--- | Evaluated output — no `Expr`/paths left, and no Halogen dependency.
--- | `NElement`'s `action`, when present, is the structured
--- | `ActionPayload` the host's dispatcher (`ActionPayload -> Maybe
--- | action`) interprets — `Tramaj.Eval`/`Tramaj.Parser` never
--- | interpret its `eventType`/`key`/`payload` contents themselves, only
--- | require that the first two reduce to strings.
-data Node
-  = NElement
-      { tag :: String
-      , attrs :: Map String String
-      , action :: Maybe ActionPayload
-      , children :: Array Node
-      }
-  | NText String
-
-derive instance eqNode :: Eq Node
-
-instance showNode :: Show Node where
-  show (NElement r) =
-    "NElement { tag: " <> show r.tag
-      <> ", attrs: "
-      <> show r.attrs
-      <> ", action: "
-      <> showAction r.action
-      <> ", children: "
-      <> show r.children
-      <> " }"
-  show (NText s) = "NText " <> show s
-
--- | `Json` has no `Show` instance (`argonaut-core` only derives `Eq`),
--- | so `ActionPayload`'s `payload` field can't ride along on a derived
--- | `Show` — `stringify` it explicitly instead.
-showAction :: Maybe ActionPayload -> String
-showAction Nothing = "Nothing"
-showAction (Just a) =
-  "Just { eventType: " <> show a.eventType
-    <> ", key: "
-    <> show a.key
-    <> ", payload: "
-    <> stringify a.payload
-    <> " }"
-
--- | A parsed program: computation-block bindings evaluated once in
--- | declaration order (each may reference earlier ones, not later ones),
--- | plus the single template-block root node.
-type Program =
-  { bindings :: Array (Tuple String Expr)
-  , root :: TemplateNode
-  }
-
--- | A parsed program whose root is an ordinary `Expr` rather than a
--- | `TemplateNode` -- same computation block, same expression language, but
--- | it evaluates to a `Json` value instead of a document tree (see
--- | `Tramaj.Eval.evalJsonProgram`). For a host that wants the data half
--- | of the language on its own: generating a JSON payload, not a document.
--- | Ported from the Haskell-only `Tramaj.Ast.JsonProgram`.
-type JsonProgram =
-  { bindings :: Array (Tuple String Expr)
-  , root :: Expr
-  }
-
--- | Renders the evaluated `Node` tree as plain `Json` — a debugging/
--- | inspection aid (`tramaj-cli` prints exactly this, and a host can
--- | show it next to the rendered output), not a wire format this package
--- | reads back in anywhere. The Haskell port's `Tramaj.Ast.nodeToJson`
--- | emits the same shape.
-nodeToJson :: Node -> Json
-nodeToJson (NText s) =
-  fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString s) ])
-nodeToJson (NElement r) =
-  fromObject
-    ( Object.fromFoldable
-        [ Tuple "type" (fromString "element")
-        , Tuple "tag" (fromString r.tag)
-        , Tuple "attrs" (fromObject (Object.fromFoldable (map (\(Tuple k v) -> Tuple k (fromString v)) (Map.toUnfoldable r.attrs :: Array (Tuple String String)))))
-        , Tuple "action" (maybe jsonNull actionPayloadToJson r.action)
-        , Tuple "children" (fromArray (map nodeToJson r.children))
-        ]
-    )
-
--- | The `{eventType, key, payload}` shape an `ActionPayload` takes as
--- | `Json` — used both by `nodeToJson` above (debug/inspection output) and
--- | by `Tramaj.Eval`'s `remap-actions` (where a template-level closure
--- | receives/returns exactly this shape to rewrite an imported node's
--- | actions before they bubble up). One definition, so both stay in sync.
-actionPayloadToJson :: ActionPayload -> Json
-actionPayloadToJson a =
-  fromObject
-    ( Object.fromFoldable
-        [ Tuple "eventType" (fromString a.eventType)
-        , Tuple "key" (fromString a.key)
-        , Tuple "payload" a.payload
-        ]
-    )
-
--- | Every `import`/`partial-import` name statically referenced anywhere in
--- | a parsed program — the computation-block bindings and the
--- | template-block root, recursively through every nested `Expr`/
--- | `TemplateNode` — without evaluating anything. Exhaustive because the
--- | name position of `ImportExpr`/`PartialImportExpr` is a bare `String` in
--- | the AST, never a computed `Expr`: a template's whole set of library
--- | dependencies is knowable up front, matching `specs/position.md` §1/§9.
-staticImportNames :: Program -> Set String
-staticImportNames program =
-  foldMap (importNamesInExpr <<< snd) program.bindings
-    <> importNamesInNode program.root
-
-importNamesInExpr :: Expr -> Set String
-importNamesInExpr (Path _) = Set.empty
-importNamesInExpr (Call _ args) = foldMap importNamesInExpr args
-importNamesInExpr (StringLit parts) = foldMap importNamesInStringPart parts
-importNamesInExpr (NumberLit _) = Set.empty
-importNamesInExpr (BoolLit _) = Set.empty
-importNamesInExpr (ArrayLit elems) = foldMap importNamesInExpr elems
-importNamesInExpr (ObjectLit entries) = foldMap (importNamesInExpr <<< snd) entries
-importNamesInExpr (LambdaExpr _ body) = importNamesInExpr body
-importNamesInExpr (MapExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
-importNamesInExpr (FilterExpr arr fn) = importNamesInExpr arr <> importNamesInExpr fn
-importNamesInExpr (ScanExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
-importNamesInExpr (FoldExpr arr initE fn) = importNamesInExpr arr <> importNamesInExpr initE <> importNamesInExpr fn
-importNamesInExpr (ImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
-importNamesInExpr (PartialImportExpr name paramsE) = Set.insert name (importNamesInExpr paramsE)
-importNamesInExpr (FieldAccess baseE _) = importNamesInExpr baseE
-importNamesInExpr (RemapActionsExpr nodeE keySpec fnE) = importNamesInExpr nodeE <> importNamesInKeySpec keySpec <> importNamesInExpr fnE
-
-importNamesInKeySpec :: KeySpec -> Set String
-importNamesInKeySpec (KeyPrefix e) = importNamesInExpr e
-
-importNamesInStringPart :: StringPart -> Set String
-importNamesInStringPart (Lit _) = Set.empty
-importNamesInStringPart (Interp e) = importNamesInExpr e
-
-importNamesInNode :: TemplateNode -> Set String
-importNamesInNode (TElement _ attrs action children) =
-  foldMap (importNamesInExpr <<< snd) attrs
-    <> foldMap importNamesInTAction action
-    <> foldMap importNamesInNode children
-importNamesInNode (TValue e) = importNamesInExpr e
-importNamesInNode (TMap arr _ body) = importNamesInExpr arr <> importNamesInNode body
-importNamesInNode (TBranch fallback pairs) =
-  importNamesInNode fallback
-    <> foldMap (\(Tuple predE node) -> importNamesInExpr predE <> importNamesInNode node) pairs
-
-importNamesInTAction :: TAction -> Set String
-importNamesInTAction (TAction eventTypeExpr _key payloadExpr) =
-  importNamesInExpr eventTypeExpr <> importNamesInExpr payloadExpr
-
--- | Every `action(...)` key statically referenced anywhere in a parsed
--- | program, walked the same way as `staticImportNames` above. Exhaustive
--- | because `TAction`'s key position is a bare `String` in the AST, never
--- | a computed `Expr` — a component's whole set of action keys is
--- | knowable up front, matching `specs/position.md` §11/§12 (e.g.
--- | `adapt-actions`/`remap-actions` reasoning about a subtree's keys
--- | without evaluating it).
-staticActionKeys :: Program -> Set String
-staticActionKeys program =
-  foldMap (actionKeysInExpr <<< snd) program.bindings
-    <> actionKeysInNode program.root
-
-actionKeysInExpr :: Expr -> Set String
-actionKeysInExpr (Path _) = Set.empty
-actionKeysInExpr (Call _ args) = foldMap actionKeysInExpr args
-actionKeysInExpr (StringLit parts) = foldMap actionKeysInStringPart parts
-actionKeysInExpr (NumberLit _) = Set.empty
-actionKeysInExpr (BoolLit _) = Set.empty
-actionKeysInExpr (ArrayLit elems) = foldMap actionKeysInExpr elems
-actionKeysInExpr (ObjectLit entries) = foldMap (actionKeysInExpr <<< snd) entries
-actionKeysInExpr (LambdaExpr _ body) = actionKeysInExpr body
-actionKeysInExpr (MapExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
-actionKeysInExpr (FilterExpr arr fn) = actionKeysInExpr arr <> actionKeysInExpr fn
-actionKeysInExpr (ScanExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
-actionKeysInExpr (FoldExpr arr initE fn) = actionKeysInExpr arr <> actionKeysInExpr initE <> actionKeysInExpr fn
-actionKeysInExpr (ImportExpr _name paramsE) = actionKeysInExpr paramsE
-actionKeysInExpr (PartialImportExpr _name paramsE) = actionKeysInExpr paramsE
-actionKeysInExpr (FieldAccess baseE _) = actionKeysInExpr baseE
-actionKeysInExpr (RemapActionsExpr nodeE keySpec fnE) = actionKeysInExpr nodeE <> actionKeysInKeySpec keySpec <> actionKeysInExpr fnE
-
-actionKeysInKeySpec :: KeySpec -> Set String
-actionKeysInKeySpec (KeyPrefix e) = actionKeysInExpr e
-
-actionKeysInStringPart :: StringPart -> Set String
-actionKeysInStringPart (Lit _) = Set.empty
-actionKeysInStringPart (Interp e) = actionKeysInExpr e
-
-actionKeysInNode :: TemplateNode -> Set String
-actionKeysInNode (TElement _ attrs action children) =
-  foldMap (actionKeysInExpr <<< snd) attrs
-    <> foldMap actionKeysInTAction action
-    <> foldMap actionKeysInNode children
-actionKeysInNode (TValue e) = actionKeysInExpr e
-actionKeysInNode (TMap arr _ body) = actionKeysInExpr arr <> actionKeysInNode body
-actionKeysInNode (TBranch fallback pairs) =
-  actionKeysInNode fallback
-    <> foldMap (\(Tuple predE node) -> actionKeysInExpr predE <> actionKeysInNode node) pairs
-
-actionKeysInTAction :: TAction -> Set String
-actionKeysInTAction (TAction eventTypeExpr key payloadExpr) =
-  Set.insert key (actionKeysInExpr eventTypeExpr <> actionKeysInExpr payloadExpr)
+-- | The computed expressions in a list of attributes — an ordinary
+-- | attribute's value or an action's payload. An action's event and key
+-- | are static text, so they are not expressions to walk into.
+attributeExprs :: Array Attribute -> Array Expr
+attributeExprs = map case _ of
+  Attr _ e -> e
+  ActionAttr _ _ e -> e

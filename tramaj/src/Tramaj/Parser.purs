@@ -1,23 +1,33 @@
--- | Parser combinators (built on `purescript-parsing`) for the grammar in
--- | `specs/templating-language.md` (main repo): a computation block of
--- | `@name=expr` bindings, followed by one HAML-like template-block node.
--- | Whitespace (including newlines) is insignificant everywhere except as
--- | a token separator — the "blank line" between blocks in the original
--- | sketch is not load-bearing here, since bindings and the template root
--- | are unambiguous by their leading token (`@` vs `.`).
+-- | Surface syntax to core AST. Everything the surface offers beyond
+-- | `Tramaj.Ast`'s constructors is desugared here rather than represented:
 -- |
--- | Three leader characters, one job each: `.` starts an HTML-ish element
--- | (`.tag(...)`), `$` reads a bound name/`$ctx`-path (a "getter"), `@`
--- | defines one in the computation block (a "setter" — `@foo=$bar`). A
--- | bare `name(args)` (no sigil) is the one narrow exception: it's always
--- | a call to one of the fixed builtins, never a binding reference — `$`
--- | is also accepted there (`$name(args)`) since a trailing `(` already
--- | disambiguates a call from a plain value reference either way.
+-- | * `@name=expr` binding lines become nested `Let`s;
+-- | * string interpolation becomes `Concat` over the `str` builtin;
+-- | * `branch(fallback, p1, v1, ...)` becomes nested `Branch`;
+-- | * object shorthand `{foo}` becomes `{"foo": $foo}`;
+-- | * escape sequences are resolved into the `StringLit` they denote.
+-- |
+-- | The grammar keeps three leader characters from v1: `.` introduces a
+-- | document, `$` reads a binding, `@` defines one. What changed is that
+-- | there is now a single expression grammar — v1's separate template-phase
+-- | productions (`node`, `nodeArg`, `childArg`, `templateSpecialForm`,
+-- | `pathOrCallChild`) are gone, because documents are expressions.
+-- |
+-- | Two conventions are load-bearing and carried over deliberately:
+-- |
+-- | * A special form's `try` covers *name recognition only*. Once `import`
+-- |   or `map` has matched, its shape is parsed without backtracking, so a
+-- |   malformed one is a hard parse error instead of silently falling
+-- |   through to a meaningless `Call` that would only fail much later at
+-- |   eval time.
+-- | * A field-access suffix is parsed with no whitespace skipped before it,
+-- |   so `f().rendered` is a field access while `f()` followed by a newline
+-- |   and `.div(...)` is two separate things.
+-- |
+-- | Kept in lockstep with `../tramaj-hs/src/Tramaj/Parser.hs`.
 module Tramaj.Parser
   ( parseProgram
-  , parseJsonProgram
   , parseExpr
-  , parseTemplateNode
   ) where
 
 import Prelude
@@ -25,26 +35,38 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Lazy (defer)
 import Data.Array as Array
+import Data.Array.NonEmpty as NEA
+import Data.Enum (toEnum)
 import Data.Either (Either)
+import Data.Int as Int
 import Data.Maybe (Maybe(..))
 import Data.Number as Number
+import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..))
 import Parsing (ParseError, Parser, fail, runParser)
-import Parsing.Combinators (many, many1, optionMaybe, sepEndBy, try)
-import Parsing.String (char, eof, satisfy, string)
-import Parsing.String.Basic (alphaNum, digit, letter, skipSpaces)
-import Tramaj.Ast (Expr(..), JsonProgram, KeySpec(..), Program, StringPart(..), TAction(..), TemplateNode(..))
+import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, try)
+import Parsing.String (anyChar, char, eof, satisfy, string)
+import Parsing.String.Basic (alphaNum, digit, hexDigit, letter, skipSpaces)
+import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), lets)
 
 type P a = Parser String a
 
--- | One parsed node-arg, before it's bucketed into `TElement`'s attrs/
--- | action/children (see `Tramaj.Ast`'s note on why the surface
--- | syntax is heterogeneous but the AST splits it in three).
-data NodeArg
-  = NArgNamed (Tuple String Expr)
-  | NArgAction TAction
-  | NArgChild TemplateNode
+-- | One argument of an element, before the arguments are bucketed into
+-- | attributes, the value slot, and children — and before the
+-- | attributes-before-children rule is checked, which needs to see them in
+-- | source order.
+data ElementArg
+  = EArgAttr Attribute
+  | EArgValue Expr
+  | EArgChild Expr
+
+-- | One piece of a double-quoted string, before `desugarString` folds the
+-- | pieces into core constructors. Not part of the AST: core.md is explicit
+-- | that interpolation needs no node of its own.
+data StringPart
+  = SLit String
+  | SInterp Expr
 
 -- Lexing --------------------------------------------------------------
 
@@ -61,16 +83,12 @@ manyChars :: P Char -> P String
 manyChars p = charsToString <<< Array.fromFoldable <$> many p
 
 many1Chars :: P Char -> P String
-many1Chars p = charsToString <<< Array.fromFoldable <$> many1 p
+many1Chars p = charsToString <<< NEA.toArray <$> (NEA.fromFoldable1 <$> many1 p)
 
--- | Identifier with no trailing whitespace consumed — used inside paths
--- | (`ctx.items`, no space around `.`) and node tags (`.tr`, no space
--- | after `.`). Allows internal hyphens (kebab-case, e.g. `my-var`,
--- | `attr-kebab-case`) as well as the usual alphanumeric/underscore run,
--- | as long as the first character is a letter — never a hyphen or digit,
--- | so there's no ambiguity with a future signed-number literal.
--- | `identifier` below is the lexeme-wrapped version for standalone
--- | tokens (binding names, function names, attr keys).
+-- | An identifier with no trailing whitespace consumed — used where the
+-- | following character is significant: inside dotted paths and after an
+-- | element's `.`. Internal hyphens are allowed (kebab-case), so `$my-var`
+-- | and `.my-tag` are one token each.
 rawIdent :: P String
 rawIdent = do
   c0 <- letter
@@ -80,117 +98,147 @@ rawIdent = do
 identifier :: P String
 identifier = lexeme rawIdent
 
-pathTail :: P (Array String)
+pathTail :: P { root :: String, fields :: Array String }
 pathTail = do
-  first <- rawIdent
+  root <- rawIdent
   rest <- many (char '.' *> rawIdent)
-  pure (Array.cons first (Array.fromFoldable rest))
+  pure { root, fields: Array.fromFoldable rest }
 
--- | Zero or more `.field` segments trailing a call's closing `)` — the
--- | postfix counterpart to `pathTail`'s prefix dotted chain, letting a
--- | call's result (most commonly a completed `partial-import`'s
--- | `.rendered`/`.vals`) be field-accessed directly, without a separate
--- | `@`-binding first. Same no-whitespace-around-`.` convention as
--- | `pathTail`. Shared by `call`, `specialFormExpr`, and
--- | `pathOrCallChild` below via `applyFieldAccess`.
+-- | Zero or more `.field` segments directly after a closing `)`.
+-- | Deliberately runs before any whitespace is skipped — see the module
+-- | header.
 fieldAccessSuffix :: P (Array String)
-fieldAccessSuffix = Array.fromFoldable <$> many (char '.' *> rawIdent)
+fieldAccessSuffix = Array.fromFoldable <$> many (try (char '.' *> rawIdent))
 
 applyFieldAccess :: Expr -> Array String -> Expr
 applyFieldAccess base segs = if Array.null segs then base else FieldAccess base segs
 
--- | A double-quoted key with no interpolation (unlike `stringLit` below,
--- | which allows backtick interpolation for values) — used for attribute
--- | keys that aren't valid bare identifiers (e.g. `"attr-kebab-case"`,
--- | though `rawIdent` already accepts plain kebab-case; quoting is for
--- | keys with characters `rawIdent` can't represent at all, like spaces)
--- | and for JSON-object-literal keys, which are conventionally quoted.
-quotedKey :: P String
-quotedKey = lexeme (char '"' *> manyChars (satisfy (\c -> c /= '"')) <* char '"')
+-- | A double-quoted string with no interpolation: every
+-- | statically-required position uses this, so what the source says is what
+-- | the analysis sees. Import names, action events and keys, adaptation
+-- | prefixes and object keys are all parsed with it.
+-- |
+-- | A backtick here is an error rather than a literal backtick. Someone
+-- | writing ``import("lib-`$x`")`` means interpolation, and silently
+-- | handing them a library named ``lib-`$x` `` would answer a question they
+-- | did not ask — the whole point of the position being static is that it
+-- | cannot be computed.
+staticString :: P String
+staticString = lexeme do
+  _ <- char '"'
+  s <- manyChars (satisfy (\c -> c /= '"' && c /= '`'))
+  _ <- char '"' <|> interpolationRefused
+  pure s
+  where
+  interpolationRefused =
+    fail "this position must be a literal string, so it cannot contain an interpolation"
 
--- | An attribute key: a bare identifier or a quoted string — see
--- | `quotedKey` above for why both are accepted.
-attrKey :: P String
-attrKey = identifier <|> quotedKey
+-- Strings ---------------------------------------------------------------
 
--- Computation-phase expressions ----------------------------------------
+-- | A string literal: escape sequences plus backtick interpolation of an
+-- | arbitrary expression.
+stringLit :: P Expr
+stringLit = lexeme do
+  _ <- char '"'
+  parts <- many (defer \_ -> stringPart)
+  _ <- char '"'
+  pure (desugarString (Array.fromFoldable parts))
+  where
+  stringPart :: P StringPart
+  stringPart = interpPart <|> (SLit <$> litChunk)
 
-pathExpr :: P Expr
-pathExpr = lexeme (Path <$> (char '$' *> pathTail))
+  interpPart :: P StringPart
+  interpPart = SInterp <$> (char '`' *> defer (\_ -> expr) <* char '`')
+
+  -- | A run of ordinary characters, with escape sequences resolved as they
+  -- | are read. Stops at a closing quote or an interpolation's backtick;
+  -- | either can still be written escaped.
+  litChunk :: P String
+  litChunk = Array.fold <<< Array.fromFoldable <$> many1 (escapeSeq <|> plainRun)
+
+  plainRun :: P String
+  plainRun = many1Chars (satisfy (\c -> c /= '"' && c /= '`' && c /= '\\'))
+
+escapeSeq :: P String
+escapeSeq = char '\\' *> (unicodeEscape <|> simpleEscape)
+  where
+  simpleEscape :: P String
+  simpleEscape = do
+    c <- anyChar
+    case c of
+      'n' -> pure "\n"
+      't' -> pure "\t"
+      'r' -> pure "\r"
+      '\\' -> pure "\\"
+      '"' -> pure "\""
+      '`' -> pure "`"
+      '0' -> pure "\x0"
+      _ -> fail ("unknown escape sequence: \\" <> SCU.singleton c)
+
+  -- | `\u{1F600}` — braced so it is not limited to four hex digits and does
+  -- | not need surrogate pairs.
+  -- |
+  -- | Decoded to a `CodePoint`, not a `Char`: PureScript's `Char` is a
+  -- | UTF-16 code unit, so `fromCharCode` rejects everything above U+FFFF
+  -- | and every astral escape — emoji included — would fail to parse here
+  -- | while parsing fine in the Haskell sibling.
+  unicodeEscape :: P String
+  unicodeEscape = do
+    _ <- char 'u'
+    _ <- char '{'
+    digits <- many1Chars hexDigit
+    _ <- char '}'
+    case Int.fromStringAs Int.hexadecimal digits >>= toEnum of
+      Just cp -> pure (SCP.singleton cp)
+      Nothing -> fail ("invalid unicode escape: \\u{" <> digits <> "}")
+
+-- | Folds string pieces into core constructors. A string with no
+-- | interpolation is a plain `StringLit`; otherwise each interpolated
+-- | expression is rendered through the `str` builtin and the pieces are
+-- | joined with `Concat`, which is exactly what ``"a `$x` b"`` means.
+desugarString :: Array StringPart -> Expr
+desugarString parts = case Array.uncons (map partExpr (coalesce parts)) of
+  Nothing -> StringLit ""
+  Just { head, tail } -> Array.foldl Concat head tail
+  where
+  partExpr (SLit t) = StringLit t
+  partExpr (SInterp e) = Call (Path "str" []) [ e ]
+
+  -- | Adjacent literal chunks (an escape sequence splits one in two) are
+  -- | merged, so an escape does not leave a stray `Concat` in the AST.
+  coalesce :: Array StringPart -> Array StringPart
+  coalesce ps = case Array.uncons ps of
+    Nothing -> []
+    Just { head: SLit a, tail } -> case Array.uncons tail of
+      Just { head: SLit b, tail: rest } -> coalesce (Array.cons (SLit (a <> b)) rest)
+      _ -> Array.cons (SLit a) (coalesce tail)
+    Just { head, tail } -> Array.cons head (coalesce tail)
+
+-- Literals ---------------------------------------------------------------
 
 numberLit :: P Expr
-numberLit = lexeme do
+numberLit = lexeme $ try do
   intPart <- many1Chars digit
-  fracPart <- optionMaybe (Tuple <$> char '.' <*> many1Chars digit)
+  fracPart <- optionMaybe (try (char '.' *> many1Chars digit))
   let
     fullStr = case fracPart of
       Nothing -> intPart
-      Just (Tuple _ frac) -> intPart <> "." <> frac
+      Just frac -> intPart <> "." <> frac
   case Number.fromString fullStr of
     Just n -> pure (NumberLit n)
     Nothing -> fail ("invalid number literal: " <> fullStr)
 
--- | `true`/`false` as whole identifiers — parsed as a full `identifier`
--- | (not just the literal text `"true"`/`"false"`) so a longer name that
--- | merely starts with one, like `truest`, isn't chopped into a bogus
--- | bool-literal-plus-leftover; `try` backtracks cleanly to `call` (the
--- | next alternative in `expr`) for every other identifier.
-boolLit :: P Expr
-boolLit = try do
+-- | `true`/`false`/`null` matched as whole identifiers, so a longer name
+-- | merely starting with one (`truest`, `nullable`) is not chopped into a
+-- | literal plus leftovers.
+keywordLit :: P Expr
+keywordLit = try do
   name <- identifier
   case name of
     "true" -> pure (BoolLit true)
     "false" -> pure (BoolLit false)
-    _ -> fail "not a boolean literal"
-
--- | A backtick-delimited interpolation holds an arbitrary `expr` — not
--- | just a bare path, so `` `$cardinality($nums)` `` works — which makes
--- | `stringLit` (via `interpPart`) and `expr` (which has `stringLit` as
--- | an alternative) mutually recursive CAFs; both directions need a
--- | `defer`-guard, same lesson as `expr`/`call` above.
--- |
--- | TODO: no escape sequences — `litPart` stops at `"` and at a backtick, so
--- | neither character can appear in a string at all. See the TODO in
--- | `specs/llm.md` §3.2; a fix has to land in both parsers at once.
-stringLit :: P Expr
-stringLit = lexeme do
-  _ <- char '"'
-  parts <- many stringPart
-  _ <- char '"'
-  pure (StringLit (Array.fromFoldable parts))
-  where
-  stringPart :: P StringPart
-  stringPart = interpPart <|> litPart
-
-  interpPart :: P StringPart
-  interpPart = try do
-    _ <- char '`'
-    e <- defer \_ -> expr
-    _ <- char '`'
-    pure (Interp e)
-
-  litPart :: P StringPart
-  litPart = Lit <$> many1Chars (satisfy (\c -> c /= '"' && c /= '`'))
-
--- | A function call — `name(args)` or `$name(args)`. Both spellings mean
--- | the same thing: look up `name` in the environment (bound computation
--- | names unioned with the fixed builtins — there's no user-bindable
--- | *function* value yet, only `Json` ones, so only a builtin name
--- | actually resolves to something callable) and apply it. The leading
--- | `$` is accepted-but-optional here specifically because a call is
--- | already unambiguous once its trailing `(` is seen, unlike a bare
--- | value reference (which needs the `$` to not be mistaken for, say, a
--- | tag name).
-call :: P Expr
-call = try do
-  _ <- optionMaybe (char '$')
-  name <- identifier
-  _ <- symbol "("
-  args <- sepEndBy (defer \_ -> expr) (symbol ",")
-  _ <- char ')'
-  segs <- fieldAccessSuffix
-  skipSpaces
-  pure (applyFieldAccess (Call [ name ] (Array.fromFoldable args)) segs)
+    "null" -> pure NullLit
+    _ -> fail "not a literal keyword"
 
 arrayLit :: P Expr
 arrayLit = lexeme do
@@ -199,6 +247,9 @@ arrayLit = lexeme do
   _ <- symbol "]"
   pure (ArrayLit (Array.fromFoldable elems))
 
+-- | Object keys may be quoted or bare, and a bare key on its own is
+-- | shorthand for reading the binding of the same name:
+-- | `{foo, bar: $baz}`.
 objectLit :: P Expr
 objectLit = lexeme do
   _ <- symbol "{"
@@ -207,429 +258,389 @@ objectLit = lexeme do
   pure (ObjectLit (Array.fromFoldable entries))
   where
   objEntry :: P (Tuple String Expr)
-  objEntry = do
-    k <- quotedKey
+  objEntry = try explicitEntry <|> shorthandEntry
+
+  explicitEntry :: P (Tuple String Expr)
+  explicitEntry = do
+    k <- objectKey
     _ <- symbol ":"
     v <- defer \_ -> expr
     pure (Tuple k v)
 
--- | `(p1, p2, ...) => body` — a lambda *value*, not tied to any
--- | particular call site. Zero or more comma-separated parameter names,
--- | then `=>`, then the body `expr`. Nothing else in `expr` starts with a
--- | bare `(`, so no ambiguity/`try` is needed to pick this alternative —
--- | though the body itself can of course fail to parse, same as any
--- | other `expr`.
+  shorthandEntry :: P (Tuple String Expr)
+  shorthandEntry = do
+    k <- identifier
+    pure (Tuple k (Path k []))
+
+objectKey :: P String
+objectKey = staticString <|> identifier
+
+-- Expressions ------------------------------------------------------------
+
+pathExpr :: P Expr
+pathExpr = lexeme do
+  _ <- char '$'
+  p <- pathTail
+  pure (Path p.root p.fields)
+
+-- | `name(args)` or `$name(args)` — the two spellings mean the same thing.
+-- | The callee may be a dotted path, so a function reached through an
+-- | import's values (`$lib.vals.fn(1)`) or a partial import awaiting
+-- | completion (`$deployment({...})`) is callable directly.
+call :: P Expr
+call = try do
+  _ <- optionMaybe (char '$')
+  p <- pathTail
+  _ <- symbol "("
+  args <- sepEndBy (defer \_ -> expr) (symbol ",")
+  _ <- char ')'
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Call (Path p.root p.fields) (Array.fromFoldable args)) segs)
+
 lambdaExpr :: P Expr
-lambdaExpr = do
+lambdaExpr = try do
   _ <- symbol "("
   params <- sepEndBy identifier (symbol ",")
   _ <- symbol ")"
   _ <- symbol "=>"
   body <- defer \_ -> expr
-  pure (LambdaExpr (Array.fromFoldable params) body)
+  pure (Lambda (Array.fromFoldable params) body)
 
--- | The functional array primitives — `map(arr, fn)`, `filter(arr, fn)`,
--- | `scan(arr, init, fn)`, `fold(arr, init, fn)`, where `fn` is any `expr`
--- | expected to evaluate
--- | to a closure at eval time (an inline `lambdaExpr`, or a `$name`
--- | referencing a previously bound one — both are just `expr`, so no
--- | special-casing is needed here beyond parsing `fn` as one). Parsed as
--- | their own dedicated shapes (not through the generic `call`
--- | production) because `arr`'s elements need binding into `fn`'s
--- | closure environment fresh per element, which the uniform
--- | eagerly-evaluate-every-argument `Call` dispatch can't express — see
--- | `Tramaj.Ast`'s note on `MapExpr`/`FilterExpr`/`ScanExpr`. Tried
--- | as a whole name (`identifier`, not a literal string match) so e.g.
--- | `mapper(...)` isn't chopped into a bogus `map` plus leftover
--- | `per(...)` — any name other than the recognized ones backtracks (via
--- | the inner `try`, scoped to name recognition only) to `call`. Once a
--- | name is recognized, though, its shape is parsed *without* further
--- | backtracking: a malformed `import(...)`/`partial-import(...)` (e.g. a
--- | computed, non-literal name) is a hard parse error rather than quietly
--- | falling through to `call` and producing a meaningless `Call
--- | ["import"] [...]` that would only fail later, at eval time, as
--- | `UnknownFunction "import"` — see `importShape`/`partialImportShape`.
-specialFormExpr :: P Expr
-specialFormExpr = do
+-- | Grouping, for readability where `Concat` chains get long. Not a
+-- | semantic construct: the parse tree it produces is the same as the inner
+-- | expression's.
+parenExpr :: P Expr
+parenExpr = try do
+  _ <- symbol "("
+  e <- defer \_ -> expr
+  _ <- symbol ")"
+  pure e
+
+-- | The forms whose evaluation the language defines itself, rather than
+-- | leaving to a builtin: the array primitives (whose function argument
+-- | needs a fresh binding per element), `Branch` (which must not evaluate
+-- | the arm it does not select), imports, and action adaptation.
+-- |
+-- | The `try` covers name recognition only — see the module header.
+specialForm :: P Expr
+specialForm = do
   name <- try do
     _ <- optionMaybe (char '$')
     n <- identifier
-    case n of
-      "map" -> pure n
-      "filter" -> pure n
-      "scan" -> pure n
-      "fold" -> pure n
-      "import" -> pure n
-      "partial-import" -> pure n
-      "remap-actions" -> pure n
-      _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
+    if Array.elem n [ "map", "filter", "scan", "fold", "branch", "import", "adapt-actions" ] then pure n
+    else fail "not a special form"
   base <- case name of
-    "map" -> mapShape
-    "filter" -> filterShape
-    "scan" -> scanShape
-    "fold" -> foldShape
+    "map" -> binaryShape Map
+    "filter" -> binaryShape Filter
+    "scan" -> ternaryShape Scan
+    "fold" -> ternaryShape Fold
+    "branch" -> branchShape
     "import" -> importShape
-    "partial-import" -> partialImportShape
-    "remap-actions" -> remapActionsShape
-    _ -> fail "unreachable: name already checked against the recognized special-form set"
+    _ -> adaptActionsShape
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess base segs)
   where
-  mapShape :: P Expr
-  mapShape = do
+  binaryShape :: (Expr -> Expr -> Expr) -> P Expr
+  binaryShape ctor = do
     _ <- symbol "("
-    arr <- defer \_ -> expr
+    a <- defer \_ -> expr
     _ <- symbol ","
-    fn <- defer \_ -> expr
+    b <- defer \_ -> expr
     _ <- char ')'
-    pure (MapExpr arr fn)
+    pure (ctor a b)
 
-  filterShape :: P Expr
-  filterShape = do
+  ternaryShape :: (Expr -> Expr -> Expr -> Expr) -> P Expr
+  ternaryShape ctor = do
     _ <- symbol "("
-    arr <- defer \_ -> expr
+    a <- defer \_ -> expr
     _ <- symbol ","
-    fn <- defer \_ -> expr
+    b <- defer \_ -> expr
+    _ <- symbol ","
+    c <- defer \_ -> expr
     _ <- char ')'
-    pure (FilterExpr arr fn)
+    pure (ctor a b c)
 
-  scanShape :: P Expr
-  scanShape = do
+  -- | `branch(fallback, p1, v1, p2, v2, ...)` reads "if p1 then v1, else if
+  -- | p2 then v2, ..., else fallback" and lowers to nested `Branch`, so the
+  -- | laziness is the core constructor's rather than a rule of its own.
+  branchShape :: P Expr
+  branchShape = do
     _ <- symbol "("
-    arr <- defer \_ -> expr
-    _ <- symbol ","
-    initE <- defer \_ -> expr
-    _ <- symbol ","
-    fn <- defer \_ -> expr
+    fallback <- defer \_ -> expr
+    arms <- many (try (symbol "," *> arm))
+    _ <- optionMaybe (symbol ",")
     _ <- char ')'
-    pure (ScanExpr arr initE fn)
+    pure (Array.foldr (\(Tuple p v) acc -> Branch p v acc) fallback (Array.fromFoldable arms))
 
-  foldShape :: P Expr
-  foldShape = do
-    _ <- symbol "("
-    arr <- defer \_ -> expr
+  arm :: P (Tuple Expr Expr)
+  arm = do
+    p <- defer \_ -> expr
     _ <- symbol ","
-    initE <- defer \_ -> expr
-    _ <- symbol ","
-    fn <- defer \_ -> expr
-    _ <- char ')'
-    pure (FoldExpr arr initE fn)
+    v <- defer \_ -> expr
+    pure (Tuple p v)
 
+  -- | `import("name", {param: expr, other: ctx(path)})`. The name is a
+  -- | static literal, and the parameters are a dedicated production rather
+  -- | than an ordinary object expression, because `ctx(...)` means
+  -- | something only here.
   importShape :: P Expr
   importShape = do
     _ <- symbol "("
-    name <- quotedKey
+    name <- staticString
     _ <- symbol ","
-    paramsE <- defer \_ -> expr
+    params <- importParams
     _ <- char ')'
-    pure (ImportExpr name paramsE)
+    pure (Import name params)
 
-  remapActionsShape :: P Expr
-  remapActionsShape = do
+  importParams :: P (Array (Tuple String ParamValue))
+  importParams = do
+    _ <- symbol "{"
+    entries <- sepEndBy (defer \_ -> paramEntry) (symbol ",")
+    _ <- symbol "}"
+    pure (Array.fromFoldable entries)
+
+  paramEntry :: P (Tuple String ParamValue)
+  paramEntry = try explicitParam <|> shorthandParam
+
+  explicitParam :: P (Tuple String ParamValue)
+  explicitParam = do
+    k <- objectKey
+    _ <- symbol ":"
+    v <- paramValue
+    pure (Tuple k v)
+
+  shorthandParam :: P (Tuple String ParamValue)
+  shorthandParam = do
+    k <- identifier
+    pure (Tuple k (PExpr (Path k [])))
+
+  -- | `ctx(spec.replicas)` declares that this parameter comes from the
+  -- | context supplied when the import is completed — deliberately distinct
+  -- | from `$ctx.spec.replicas`, which reads the *current* context now.
+  paramValue :: P ParamValue
+  paramValue = fromContext <|> (PExpr <$> defer \_ -> expr)
+
+  fromContext :: P ParamValue
+  fromContext = do
+    _ <- try do
+      n <- identifier
+      _ <- lookAhead (char '(')
+      if n == "ctx" then pure n else fail "not a ctx(...) parameter"
     _ <- symbol "("
-    nodeE <- defer \_ -> expr
-    _ <- symbol ","
-    keySpec <- keySpecShape
-    _ <- symbol ","
-    fnE <- defer \_ -> expr
+    p <- pathTail
+    skipSpaces
     _ <- char ')'
-    pure (RemapActionsExpr nodeE keySpec fnE)
+    skipSpaces
+    pure (PFromContext (Array.cons p.root p.fields))
 
-  -- | `remap-actions`'s second argument: the key-rewriting operation,
-  -- | currently just `prefix(prefixExpr)`. Recognized by name the same way
-  -- | `specialFormExpr` recognizes `map`/`import`/etc — no `try`-backtrack
-  -- | once the name matches, so a malformed `prefix(...)` is a hard parse
-  -- | error rather than silently falling through to a bogus `Call`.
-  keySpecShape :: P KeySpec
-  keySpecShape = do
+  -- | `adapt-actions(node, prefix("ns:"))`, optionally with a closure for
+  -- | the event type and payload.
+  adaptActionsShape :: P Expr
+  adaptActionsShape = do
+    _ <- symbol "("
+    target <- defer \_ -> expr
+    _ <- symbol ","
+    adaptation <- adaptationShape
+    fn <- optionMaybe (try (symbol "," *> defer \_ -> expr))
+    _ <- optionMaybe (symbol ",")
+    _ <- char ')'
+    pure (AdaptActions target adaptation fn)
+
+  -- | Two forms only, never an arbitrary rewriting function: this is what
+  -- | keeps the set of action keys a program can emit enumerable without
+  -- | evaluating it.
+  adaptationShape :: P ActionAdaptation
+  adaptationShape = do
     name <- identifier
     case name of
+      "identity" -> pure Identity
       "prefix" -> do
         _ <- symbol "("
-        prefixE <- defer \_ -> expr
+        p <- staticString
         _ <- char ')'
         skipSpaces
-        pure (KeyPrefix prefixE)
-      _ -> fail "remap-actions's second argument must be a key-rewriting operation, e.g. prefix(\"ns:\")"
+        pure (Prefix p)
+      _ -> fail "an action adaptation must be identity or prefix(\"...\")"
 
-  partialImportShape :: P Expr
-  partialImportShape = do
+-- Documents ---------------------------------------------------------------
+
+-- | `.tag(...)` is an element; `.(...)` is a fragment — a tagless element,
+-- | introducing siblings with no wrapper.
+documentExpr :: P Expr
+documentExpr = try do
+  _ <- char '.'
+  fragmentShape <|> elementShape
+  where
+  fragmentShape :: P Expr
+  fragmentShape = do
     _ <- symbol "("
-    name <- quotedKey
-    _ <- symbol ","
-    paramsE <- defer \_ -> expr
-    _ <- char ')'
-    pure (PartialImportExpr name paramsE)
+    children <- sepEndBy (defer \_ -> expr) (symbol ",")
+    _ <- symbol ")"
+    pure (Fragment (Array.fromFoldable children))
 
--- | `expr := bool-lit | lambda-expr | map/filter/scan-special-form |
--- | call | path | string-lit | number-lit | array-lit | object-lit`.
--- | `boolLit` and `specialFormExpr` are tried before `call` since all
--- | three start with a bare identifier — each backtracks cleanly (via
--- | its own internal `try`) for any name/shape it doesn't recognize,
--- | letting the next alternative have a turn. `lambdaExpr` starts with a
--- | bare `(`, unique among these alternatives, so no backtracking
--- | concern there. `lambdaExpr`/`call`/`arrayLit`/`objectLit`/
--- | `specialFormExpr` are mutually recursive CAFs with `expr` (their
--- | contents are made of `expr`s; `expr` has them as alternatives) —
--- | PureScript is strict, so every cross-reference in that cycle needs a
--- | `defer`-guard (from `Control.Lazy`, which `Parser` has an instance
--- | for), not just one direction; see `Tramaj.Parser` git
--- | history/`node`'s own such cycle below for the same lesson learned
--- | earlier.
+  elementShape :: P Expr
+  elementShape = do
+    tag <- rawIdent
+    skipSpaces
+    _ <- symbol "("
+    args <- sepEndBy (defer \_ -> elementArg) (symbol ",")
+    _ <- symbol ")"
+    buildElement tag (Array.fromFoldable args)
+
+-- | Buckets an element's arguments and enforces the one ordering rule:
+-- | everything in attribute position comes before any child.
+buildElement :: String -> Array ElementArg -> P Expr
+buildElement tag args = do
+  ensureAttrsBeforeChildren
+  value <- singleValueSlot
+  pure (Element tag (Array.mapMaybe attrOf args) value (Array.mapMaybe childOf args))
+  where
+  attrOf (EArgAttr a) = Just a
+  attrOf _ = Nothing
+
+  childOf (EArgChild c) = Just c
+  childOf _ = Nothing
+
+  valueOf (EArgValue v) = Just v
+  valueOf _ = Nothing
+
+  ensureAttrsBeforeChildren :: P Unit
+  ensureAttrsBeforeChildren =
+    if _.ok (Array.foldl step { ok: true, seenChild: false } args) then pure unit
+    else fail "attributes, action(...) and value(...) must all come before an element's children"
+    where
+    step acc (EArgChild _) = acc { seenChild = true }
+    step acc _ = acc { ok = acc.ok && not acc.seenChild }
+
+  singleValueSlot :: P Expr
+  singleValueSlot = case Array.mapMaybe valueOf args of
+    [] -> pure NullLit
+    [ v ] -> pure v
+    _ -> fail "an element can have at most one value(...)"
+
+-- | `defer` here is not decoration: `elementArg` and everything it can
+-- | reach form one mutually recursive binding group, and PureScript is
+-- | strict, so without it the group's values reference each other before
+-- | any of them exists.
+elementArg :: P ElementArg
+elementArg = defer \_ ->
+  attributePositionArg
+    <|> (EArgAttr <$> try namedArg)
+    <|> (EArgChild <$> expr)
+
+-- | `action(...)` and `value(...)`, the two forms that mean something only
+-- | in an element's argument list.
+-- |
+-- | As with `specialForm`, the `try` covers name recognition only: once
+-- | `action` has been seen applied to arguments, a malformed one is a parse
+-- | error. Letting it backtrack would leave
+-- | `action("on-click", $computed, {})` parsing happily as a call to an
+-- | unbound function named `action`, and the static-key restriction would
+-- | be enforced by nothing at all.
+-- |
+-- | Recognition needs the following `(`, so `action` and `value` remain
+-- | usable as ordinary attribute names: `value: 1` is an attribute,
+-- | `value(1)` is the value slot.
+attributePositionArg :: P ElementArg
+attributePositionArg = do
+  name <- try do
+    n <- identifier
+    _ <- lookAhead (char '(')
+    if n == "action" || n == "value" then pure n
+    else fail "not an action(...) or value(...) form"
+  if name == "action" then EArgAttr <$> actionShape
+  else EArgValue <$> valueShape
+
+-- | `action("on-click", "save", payloadExpr)`. Both the event and the key
+-- | are static literals; only the payload is computed. The host still owns
+-- | the event vocabulary — what is fixed is the position, not the words
+-- | allowed in it.
+actionShape :: P Attribute
+actionShape = do
+  _ <- symbol "("
+  event <- staticString
+  _ <- symbol ","
+  key <- staticString
+  _ <- symbol ","
+  payload <- defer \_ -> expr
+  _ <- symbol ")"
+  pure (ActionAttr event key payload)
+
+-- | `value(expr)` fills the element's value slot — see `Tramaj.Node` for
+-- | what a host does with it.
+valueShape :: P Expr
+valueShape = do
+  _ <- symbol "("
+  v <- defer \_ -> expr
+  _ <- symbol ")"
+  pure v
+
+namedArg :: P Attribute
+namedArg = do
+  name <- objectKey
+  _ <- symbol ":"
+  Attr name <$> defer \_ -> expr
+
+-- Precedence ---------------------------------------------------------------
+
+-- | `a <> b`, left-associative and the lowest precedence in the language —
+-- | the only infix operator there is.
 expr :: P Expr
-expr = boolLit
-  <|> defer (\_ -> lambdaExpr)
-  <|> defer (\_ -> specialFormExpr)
-  <|> try (defer \_ -> call)
-  <|> pathExpr
-  <|> defer (\_ -> stringLit)
-  <|> numberLit
-  <|> defer (\_ -> arrayLit)
-  <|> defer (\_ -> objectLit)
+expr = do
+  first <- defer \_ -> operand
+  rest <- many (try (symbol "<>" *> defer \_ -> operand))
+  pure (Array.foldl Concat first (Array.fromFoldable rest))
 
--- | `@` leads a binding *definition* (a setter — `@foo=$bar` defines
--- | `foo`), symmetric with `$` leading a binding *read* (a getter). No
--- | whitespace is allowed between `@` and the name, same convention as
--- | `$name`.
+-- | Alternatives are ordered so that a longer form is tried before a prefix
+-- | of it: keyword literals before paths and calls, special forms before
+-- | ordinary calls, lambdas before parenthesized expressions.
+operand :: P Expr
+operand = defer \_ ->
+  keywordLit
+    <|> lambdaExpr
+    <|> parenExpr
+    <|> specialForm
+    <|> call
+    <|> pathExpr
+    <|> documentExpr
+    <|> stringLit
+    <|> numberLit
+    <|> arrayLit
+    <|> objectLit
+
+-- Programs -----------------------------------------------------------------
+
+-- | `@name=expr`, one per line. `@` leads a binding definition, mirroring
+-- | `$` leading a binding read.
 binding :: P (Tuple String Expr)
 binding = try do
   _ <- char '@'
   name <- identifier
   _ <- symbol "="
-  e <- expr
+  e <- defer \_ -> expr
   pure (Tuple name e)
 
-compBlock :: P (Array (Tuple String Expr))
-compBlock = Array.fromFoldable <$> many (try binding)
-
--- Template-phase nodes ---------------------------------------------------
-
-namedArg :: P (Tuple String Expr)
-namedArg = try do
-  name <- attrKey
-  _ <- symbol ":"
-  v <- expr
-  pure (Tuple name v)
-
--- | `action(eventTypeExpr, key, payloadExpr)` — appears directly among a
--- | node's arguments, not as `key: value`. `eventTypeExpr`/`payloadExpr`
--- | are ordinary `expr`s (`eventTypeExpr` is required to evaluate to a
--- | string, see `Tramaj.Eval`'s `evalAction`) — unlike the original
--- | bare-identifier `eventType`, this lets it be a plain string literal
--- | (`"on-click"`), a computed `$ctx.eventName`, or anything else an
--- | `expr` can produce, since a host other than the Halogen fold may have
--- | its own event/hook vocabulary that isn't known to this parser at all.
--- | `key`, by contrast, must be a plain quoted string — same
--- | no-interpolation `quotedKey` treatment as `importShape`'s name, so a
--- | computed key (`action("on-click", $ctx.key, {})`) is a parse error,
--- | not an eval-time one; see `Tramaj.Ast.staticActionKeys`. Tried as a
--- | whole `identifier` (not a literal string match) for the leading
--- | `action` keyword itself, same reasoning as
--- | `specialFormExpr`/`templateSpecialForm` — a name other than exactly
--- | `"action"` backtracks to `namedArg`/`childArg`.
-actionArg :: P TAction
-actionArg = try do
-  name <- identifier
-  if name /= "action" then fail "not an action(...) form"
-  else do
-    _ <- symbol "("
-    eventTypeE <- defer \_ -> expr
-    _ <- symbol ","
-    key <- quotedKey
-    _ <- symbol ","
-    payloadE <- defer \_ -> expr
-    _ <- symbol ")"
-    pure (TAction eventTypeE key payloadE)
-
--- | Any `$`-prefixed child form that isn't `map(...)`/`branch(...)`
--- | (those are handled by `templateSpecialForm` below, tried first): a
--- | bare path (`$ctx.title`) or a call (`$foo("123")`) — `$`, a dotted
--- | path, then an optional parenthesized call-args suffix. No trailing
--- | `(` at all means a bare path; a trailing `(` means a generic call,
--- | with the whole dotted path as the callee (in practice always a
--- | single segment in today's fixed builtin set, same restriction as
--- | `call` above).
-pathOrCallChild :: P TemplateNode
-pathOrCallChild = lexeme do
-  segs <- char '$' *> pathTail
-  hasParen <- optionMaybe (symbol "(")
-  case hasParen of
-    Nothing -> pure (TValue (Path segs))
-    Just _ -> do
-      args <- sepEndBy (defer \_ -> expr) (symbol ",")
-      _ <- char ')'
-      fieldSegs <- fieldAccessSuffix
-      pure (TValue (applyFieldAccess (Call segs (Array.fromFoldable args)) fieldSegs))
-
--- | The template-block counterparts of `specialFormExpr` above:
--- | `map(arrExpr, (item) => node)` produces a `TMap` child (repeats
--- | `node` once per array element, `item` bound fresh each time — this
--- | is the *functional* replacement for the older `$ctx.items.map((item)
--- | => ...)` OOP-suffix syntax, which no longer parses at all: the array
--- | being mapped is now the call's first argument, not a path a `.map`
--- | is suffixed onto, so it can be any `expr`, not only a bare path).
--- | `branch(fallbackNode, pred1, node1, pred2, node2, ...)` produces a
--- | `TBranch` child, selecting exactly one node — see `Tramaj.Ast`'s
--- | note on why only the chosen node is ever evaluated, unlike the
--- | expr-level `branch` builtin. Tried as a whole `identifier` (not a
--- | literal string), same reasoning as `specialFormExpr`.
-templateSpecialForm :: P TemplateNode
-templateSpecialForm = try do
-  _ <- optionMaybe (char '$')
-  name <- identifier
-  case name of
-    "map" -> mapNodeShape
-    "branch" -> branchNodeShape
-    _ -> fail "not a map/branch special form"
-  where
-  mapNodeShape :: P TemplateNode
-  mapNodeShape = do
-    _ <- symbol "("
-    arr <- defer \_ -> expr
-    _ <- symbol ","
-    _ <- symbol "("
-    itemName <- identifier
-    _ <- symbol ")"
-    _ <- symbol "=>"
-    body <- defer \_ -> node
-    _ <- symbol ")"
-    pure (TMap arr itemName body)
-
-  branchNodeShape :: P TemplateNode
-  branchNodeShape = do
-    _ <- symbol "("
-    fallback <- defer \_ -> node
-    pairs <- many (try (symbol "," *> pairP))
-    _ <- optionMaybe (symbol ",")
-    _ <- symbol ")"
-    pure (TBranch fallback (Array.fromFoldable pairs))
-
-  pairP :: P (Tuple Expr TemplateNode)
-  pairP = do
-    p <- defer \_ -> expr
-    _ <- symbol ","
-    n <- defer \_ -> node
-    pure (Tuple p n)
-
--- | `node`, `childArg`, `nodeArg` and (via the lambda/branch bodies
--- | above) even `templateSpecialForm` form one mutually recursive family
--- | (`.td(.a(...))` nests a node in a node; `map(..., (item) =>
--- | .tr(...))`/`branch(...)`'s node arguments nest one too). Purs's cycle
--- | checker flags the whole binding group if *any* cross-reference within
--- | it is unguarded, regardless of how deep the offending reference is
--- | nested — so every edge in the family gets a `defer`, not just the
--- | first one found.
--- | `templateSpecialForm` only handles `map`/`branch` — the two forms that
--- | need *structural* handling (they expand to zero-or-more/one-of-several
--- | `TemplateNode`s, not a single evaluated value). Every other special
--- | form (`scan`/`fold`/`import`/`partial-import`/`remap-actions`, ...)
--- | still needs to be reachable as a bare `$`-prefixed child, not just via
--- | an `@`-binding referenced by name — e.g. completing a `partial-import`
--- | and `remap-actions`-wrapping it with a per-item value from an
--- | enclosing `map(...)` can only be written inline, since there's no
--- | `@`-binding scope inside a `map(...)` body. `specialFormExpr` already
--- | backtracks cleanly (via its own `try`) for any name it doesn't
--- | recognize, so trying it here just before `pathOrCallChild` (which
--- | handles a bare path/call for every other name) costs nothing when it
--- | doesn't apply.
-childArg :: P TemplateNode
-childArg = defer (\_ -> node)
-  <|> defer (\_ -> templateSpecialForm)
-  <|> (TValue <$> defer (\_ -> specialFormExpr))
-  <|> defer (\_ -> pathOrCallChild)
-  <|> (TValue <$> stringLit)
-
-nodeArg :: P NodeArg
-nodeArg = (NArgAction <$> try actionArg) <|> (NArgNamed <$> try namedArg) <|> (NArgChild <$> defer (\_ -> childArg))
-
-node :: P TemplateNode
-node = lexeme do
-  _ <- char '.'
-  tag <- rawIdent
-  skipSpaces
-  _ <- symbol "("
-  args <- sepEndBy (defer \_ -> nodeArg) (symbol ",")
-  _ <- symbol ")"
-  let argsArr = Array.fromFoldable args
-  ensureAttrsBeforeChildren argsArr
-  action <- extractSingleAction argsArr
-  let
-    attrs = Array.mapMaybe asNamed argsArr
-    children = Array.mapMaybe asChild argsArr
-  pure (TElement tag attrs action children)
-  where
-  asNamed :: NodeArg -> Maybe (Tuple String Expr)
-  asNamed (NArgNamed t) = Just t
-  asNamed _ = Nothing
-
-  asAction :: NodeArg -> Maybe TAction
-  asAction (NArgAction a) = Just a
-  asAction _ = Nothing
-
-  asChild :: NodeArg -> Maybe TemplateNode
-  asChild (NArgChild c) = Just c
-  asChild _ = Nothing
-
-  -- | Hard-enforces "all attributes/action before sibling nodes": once a
-  -- | `child-arg` has been seen in the list, a further `named-arg` or
-  -- | `action(...)` is a parse error rather than silently
-  -- | accepted-but-reordered. Folding over the already-parsed list
-  -- | (rather than shaping the grammar production itself as
-  -- | `(named-arg | action)* child-arg*`) keeps the single
-  -- | comma-separated `nodeArg` parse above unchanged and just rejects
-  -- | the invalid orderings after the fact.
-  ensureAttrsBeforeChildren :: Array NodeArg -> P Unit
-  ensureAttrsBeforeChildren argsArr =
-    if fst (Array.foldl step (Tuple true false) argsArr) then pure unit
-    else fail "attributes and action(...) must all come before sibling child nodes in a node's argument list"
-    where
-    step (Tuple ok seenChild) arg = case arg of
-      NArgNamed _ -> Tuple (ok && not seenChild) seenChild
-      NArgAction _ -> Tuple (ok && not seenChild) seenChild
-      NArgChild _ -> Tuple ok true
-
-  -- | A node may have at most one `action(...)` — more than one is a
-  -- | parse error (which action would even wire up if there were two?).
-  extractSingleAction :: Array NodeArg -> P (Maybe TAction)
-  extractSingleAction argsArr = case Array.mapMaybe asAction argsArr of
-    [] -> pure Nothing
-    [ a ] -> pure (Just a)
-    _ -> fail "a node can have at most one action(...)"
-
--- Program ----------------------------------------------------------------
-
-program :: P Program
-program = do
-  skipSpaces
-  bindings <- compBlock
-  root <- node
-  skipSpaces
-  eof
-  pure { bindings, root }
-
+-- | A program is a sequence of bindings and a root expression. Which kind
+-- | of program it is follows from the root's own form — a document root is
+-- | exactly one written as a document — so there is no mode to declare and
+-- | no separate entry point to pick.
 parseProgram :: String -> Either ParseError Program
 parseProgram input = runParser input program
-
--- | Same computation block as `program`, but the root is an `expr` rather
--- | than a `node` -- the parser half of the JSON-producing mode (see
--- | `Tramaj.Eval.evalJsonProgram`). The two roots can never be
--- | confused: an element root always starts with `.`, which no expression
--- | form does.
-jsonProgram :: P JsonProgram
-jsonProgram = do
-  skipSpaces
-  bindings <- compBlock
-  root <- expr
-  skipSpaces
-  eof
-  pure { bindings, root }
-
-parseJsonProgram :: String -> Either ParseError JsonProgram
-parseJsonProgram input = runParser input jsonProgram
+  where
+  program :: P Program
+  program = do
+    skipSpaces
+    bindings <- many binding
+    root <- expr
+    skipSpaces
+    eof
+    let body = lets (Array.fromFoldable bindings) root
+    pure case root of
+      Element _ _ _ _ -> DocumentProgram body
+      Fragment _ -> DocumentProgram body
+      _ -> ExpressionProgram body
 
 parseExpr :: String -> Either ParseError Expr
 parseExpr input = runParser input (skipSpaces *> expr <* eof)
-
-parseTemplateNode :: String -> Either ParseError TemplateNode
-parseTemplateNode input = runParser input (skipSpaces *> node <* eof)

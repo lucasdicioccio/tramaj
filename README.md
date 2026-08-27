@@ -27,10 +27,7 @@ opaque, structured action to an element — the language recognises the syntax
 but assigns it no meaning, leaving the host to map the key onto a real event
 handler.
 
-## v2 is landing, one implementation at a time
-
-`tramaj-hs` implements **v2** of the language; the PureScript packages still
-implement v1, and the two do not currently agree. The port is the next step.
+## v2
 
 v2 is expression-oriented: documents *are* values, so an element or fragment
 can be bound, passed to a lambda, and returned from one — which is what makes
@@ -58,20 +55,20 @@ AST, [`specs/node-json.md`](specs/node-json.md) the normative output format, and
 [`specs/decisions.md`](specs/decisions.md) records which reading won wherever
 those drafts contradict each other — read that one first.
 
-**Reference for v1** (what the PureScript packages still implement):
+**v1 references**, describing the superseded language:
 [`specs/llm.md`](specs/llm.md), with
 [`specs/templating-language.md`](specs/templating-language.md) as the historical
-design record.
+design record. Both are now historical; nothing in the repository implements v1.
 
 ## Packages
 
 | Package | Language | What it is |
 |---|---|---|
-| [`tramaj/`](tramaj) | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`. No DOM, no Halogen — usable from any host. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
-| [`tramaj-halogen/`](tramaj-halogen) | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
+| [`tramaj/`](tramaj) | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`. No DOM, no Halogen — usable from any host. |
+| [`tramaj-halogen/`](tramaj-halogen) | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring each `action(...)` to the host's own `Action` type. Returns an *array*, since a fragment is several siblings with no wrapper. |
 | [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
-| [`tramaj-hs/`](tramaj-hs) | Haskell | **v2 reference implementation.** `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, plus `Tramaj.Node` (the normative interchange format) and `Tramaj.Analysis` (the static analyses). megaparsec + aeson, no browser runtime. |
+| [`tramaj-hs/`](tramaj-hs) | Haskell | The same five modules on megaparsec + aeson, for evaluating server-side. No browser runtime. |
 
 `tramaj-halogen` is a separate package precisely so that `tramaj` itself
 never pulls in Halogen; that is what lets `tramaj-cli` (and any other
@@ -82,16 +79,22 @@ non-browser host) depend on the core alone.
 `tramaj-hs` is a hand-written port, not a shared core behind an FFI, and the
 two implementations are kept in agreement by hand-ported test fixtures.
 
-**They are out of agreement right now**, deliberately: `tramaj-hs` has moved to
-v2 and the PureScript side has not yet followed.
+**Known gap:** that agreement is still not mechanically enforced — there is no
+shared corpus and no cross-language conformance runner, so the two suites can
+drift silently.
 
-**Known gap:** that agreement was never mechanically enforced — there is no
-shared golden-file corpus and no cross-language conformance runner, so the two
-suites can drift silently. v2 gives that harness something solid to stand on:
-[`specs/node-json.md`](specs/node-json.md) is a normative format both sides must
-encode *and* decode, so a shared corpus of template/context/expected-JSON
-triples would check them against the specification rather than against each
-other. Contributions welcome.
+v2 narrows the gap without closing it. Both suites now assert against the same
+normative representation ([`specs/node-json.md`](specs/node-json.md)) rather
+than against their own internal types, and both fixture tables are written as
+template / context / expected-JSON triples — so a fixture and its counterpart
+can be compared by reading them. The remaining step is a single corpus file
+both runners read, checking each implementation against the specification
+rather than against the other. Contributions welcome.
+
+The port already earned its keep: it caught a divergence that neither side's
+own suite could have. PureScript's `Char` is a UTF-16 code unit, so
+`\u{1F600}` and every other astral escape failed to parse there while parsing
+fine in Haskell.
 
 ## Building
 
@@ -117,7 +120,7 @@ The four PureScript packages form a single [Spago](https://github.com/purescript
 workspace rooted at this repository, so all commands run from the repo root:
 
 ```bash
-spago build                 # all three packages
+spago build                 # all four packages
 spago test -p tramaj        # the fixture suite
 spago run  -p tramaj-cli --args "template.txt context.json"
 spago run  -p tramaj-cli --args "--lib greeter=greeter.txt template.txt context.json"
@@ -151,10 +154,9 @@ node tramaj-cli/dist/tramaj-cli.js template.txt context.json
 node tramaj-cli/dist/tramaj-cli.js --lib greeter=greeter.txt template.txt context.json
 ```
 
-Repeat `--lib name=path` for as many libraries as a template's `import(...)`/
-`partial-import(...)` calls need; each file is auto-detected as a plain
-template or a JSON-mode library (see `Tramaj.Ast`'s `import`/
-`partial-import` docs).
+Repeat `--lib name=path` for as many libraries as a template's `import(...)`
+calls need. There is no mode to detect: a library is just a program, and what
+its root produces decides whether the CLI prints a document or a plain value.
 
 ### Haskell
 
@@ -193,16 +195,32 @@ source-repository-package
   subdir: tramaj-hs
 ```
 
-## Roadmap to a v1
+## Roadmap to a stable release
 
-Assume anything could change until we get to a v1.
+"v2" above names the second iteration of the *language*; no package here has
+had a stable release yet. Assume anything can still change.
 
-- Some more syntax for combining/constructing records.
-- Stabilize feature set.
-- Revisit syntax/naming/combinators of primitives.
-- Add plenty of regression and compatibility tests.
+Done in the second iteration:
 
-Then for a v2 we'll likely want to add some simple but effective typing.
+- syntax for combining and constructing records — `a <> b` over strings,
+  arrays and objects, plus object shorthand and bare keys;
+- the restrictions that make imports, action keys and adaptation statically
+  analysable, and the analyses that read them;
+- a normative output format both implementations must encode and decode.
+
+Still open:
+
+- revisit the naming and combinators of the primitives;
+- destructuring in `let` and lambda parameters — planned as pure desugaring
+  (merged2 §19), so it needs no change to the core AST;
+- a shared cross-implementation conformance corpus (see the known gap above);
+- more regression and compatibility tests before anything is called stable.
+
+Then: simple but effective typing. The AST is built to accept it — node
+annotations are the place derived type/domain information goes, and the
+semantics deliberately avoid equating "unknown" with `null`, so a
+constraint-aware evaluator can reuse the same AST rather than forking the
+language (`specs/merged2.md` §22).
 
 
 ## Publishing

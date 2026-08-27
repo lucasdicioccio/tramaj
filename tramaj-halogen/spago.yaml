@@ -7,9 +7,10 @@ package:
   # consumable by non-browser hosts such as `tramaj-cli`.
   dependencies:
     - prelude
+    - argonaut-core
     - arrays
-    - ordered-collections
+    - integers
     - maybe
-    - tuples
+    - strings
     - halogen
     - tramaj

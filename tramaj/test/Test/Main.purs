@@ -1,450 +1,338 @@
--- | Parses and evaluates each fixture in `Test.Fixtures`, comparing
--- | against the expected `Node` via its derived `Eq`, and `throw`s loudly
--- | on the first mismatch/parse/eval failure — a bare-`Effect` convention
--- | rather than pulling in a spec-runner dependency.
+-- | Runs the `Test.Fixtures` corpus end to end — parse, evaluate,
+-- | serialize — and checks the result against the normative
+-- | `specs/node-json.md` representation, plus the parser, analysis and
+-- | round-trip checks the fixture shape cannot express.
+-- |
+-- | A bare-`Effect` runner that `throw`s on the first failure, rather than
+-- | a spec-runner dependency: the same convention v1 used.
+-- |
+-- | This mirrors the Haskell suites (`ParserSpec`, `EvalSpec`,
+-- | `AnalysisSpec`, `NodeJsonSpec`). Because both sides now assert against
+-- | the same normative JSON, a fixture here and its Haskell counterpart can
+-- | be compared by reading them — the natural next step being a single
+-- | shared corpus both runners read, which is the "no cross-language
+-- | conformance runner" gap the README has carried since v1.
 module Test.Main where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify)
+import Data.Argonaut.Core (Json, jsonNull, stringify)
+import Data.Argonaut.Parser (jsonParser)
+import Data.Array as Array
 import Data.Either (Either(..))
-import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.Set as Set
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
-import Foreign.Object as Object
-import Tramaj.Ast (JsonProgram, Node(..), Program)
-import Tramaj.Eval (EvalError, LibrarySource(..), LibraryTable, evalJsonProgram, evalProgram)
-import Tramaj.Parser (parseJsonProgram, parseProgram)
-import Test.Fixtures (Fixture, fixtures)
+import Test.Fixtures (Fixture, Kind(..), fixtures)
+import Tramaj.Analysis (contextHoles, deepActionKeys, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames)
+import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program)
+import Tramaj.Eval (LibraryTable, Output(..), evalProgram)
+import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
+import Tramaj.Parser (parseExpr, parseProgram)
 
 main :: Effect Unit
 main = do
-  traverseFixtures fixtures
-  log ("All " <> show (arrayLength fixtures) <> " tramaj fixtures passed.")
-  runJsonFixtures
-  runImportTests
-  checkParseRejected "attrs-after-child is rejected at parse time"
-    ".foo(.p(\"hi\"), \"bar\": \"baz\")"
-  checkParseRejected "a node can have at most one action(...)"
-    ".button(action(\"on-click\", \"a\", {}), action(\"on-click\", \"b\", {}))"
-  checkParseRejected "import(...)'s name must be a string literal, not a computed expr"
-    "@bar=import($ctx.libname, {})\n.div($bar.rendered)"
-  checkParseRejected "partial-import(...)'s name must be a string literal, not a computed expr"
-    "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)"
-  checkParseRejected "action(...)'s key must be a string literal, not a computed expr"
-    ".button(action(\"on-click\", $ctx.key, {}))"
-  -- an *unrecognized* event type is no longer a thing: only the "must be a
-  -- string" shape is still checked, the vocabulary is the host's
-  checkEvalRejected "action(...) rejects a non-string event type"
-    ".button(action(42, \"a\", {}))"
-  checkEvalRejected "closure arity mismatch is rejected at eval time"
-    "@f=(x) => $x\n.p(\"`$f(1,2)`\")"
-  checkEvalRejected "a closure can't call itself by name (no recursion)"
-    "@fact=(n) => $fact($n)\n.p(\"`$fact(1)`\")"
-  checkEvalRejected "a bound closure used as a bare value (not called) is rejected"
-    "@f=(x) => $x\n.p(\"`$f`\")"
-  where
-  arrayLength = foldl (\acc _ -> acc + 1) 0
+  runFixtures
+  runParserChecks
+  runLibraryChecks
+  runAnalysisChecks
+  runNodeJsonChecks
+  log "All tramaj checks passed."
 
-  traverseFixtures :: Array Fixture -> Effect Unit
-  traverseFixtures = foldl (\acc f -> acc *> runFixture f) (pure unit)
+-- Fixtures --------------------------------------------------------------
 
--- | For cases that must fail to *parse* at all (ordering, at-most-one
--- | `action(...)`) — a `Fixture` only covers the success path, so these
--- | are checked separately.
-checkParseRejected :: String -> String -> Effect Unit
-checkParseRejected label template = case parseProgram template of
-  Left _ -> log ("ok - " <> label)
-  Right _ -> throw (label <> ": expected a parse error, got a successful parse")
-
--- | For cases that must parse fine but fail at *eval* time (closures'
--- | error cases — arity, no self-recursion, used-without-calling) — a
--- | `Fixture` only covers the success path, so these are checked
--- | separately, same as `checkOrderingRejected` above.
-checkEvalRejected :: String -> String -> Effect Unit
-checkEvalRejected label template = case parseProgram template of
-  Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
-  Right program -> case evalProgram Map.empty jsonNull program of
-    Left _ -> log ("ok - " <> label)
-    Right _ -> throw (label <> ": expected an eval error, got a successful eval")
+runFixtures :: Effect Unit
+runFixtures = do
+  traverse_ runFixture fixtures
+  log ("ok - " <> show (Array.length fixtures) <> " fixtures")
 
 runFixture :: Fixture -> Effect Unit
-runFixture f = case parseProgram f.template of
-  Left err -> throw (f.name <> ": parse failed: " <> show err)
-  Right program -> case evalProgram Map.empty f.ctx program of
+runFixture f = do
+  ctx <- mustParseJson (f.name <> " (ctx)") f.ctx
+  expected <- mustParseJson (f.name <> " (expected)") f.expected
+  program <- mustParse f.name f.template
+  case evalProgram Map.empty ctx program of
     Left err -> throw (f.name <> ": eval failed: " <> show err)
-    Right node ->
-      if node == f.expected then log ("ok - " <> f.name)
+    Right output -> do
+      actual <- case output, f.kind of
+        ONode n, Document -> pure (nodeToJson n)
+        OValue v, Expression -> pure v
+        ONode _, Expression -> throw (f.name <> ": expected a value, got a document")
+        OValue v, Document -> throw (f.name <> ": expected a document, got the value " <> stringify v)
+      if actual == expected then pure unit
       else
         throw
-          ( f.name
-              <> ": mismatch\n  expected: "
-              <> show f.expected
+          ( f.name <> ": mismatch\n  expected: " <> stringify expected
               <> "\n  actual:   "
-              <> show node
+              <> stringify actual
           )
 
--- | Expression-rooted programs (JSON mode, ported from
--- | `tramaj-hs`'s `Tramaj.EvalSpec.jsonSpec`). Everything these
--- | exercise below the root (bindings, closures, builtins, map/filter) is
--- | the shared expression language, already covered by `fixtures` above --
--- | these are here to pin down the JSON-mode root itself: an object/array
--- | literal, `map(...)`, a bound lambda passed to `filter`, an
--- | interpolated string, an eval-time error, and that an element root is
--- | rejected at parse time (JSON mode is not template mode).
-runJsonFixtures :: Effect Unit
-runJsonFixtures = do
-  checkJsonOk "an object literal root keeps numbers as numbers, not display strings"
-    "@n=cardinality($ctx.items)\n{\"count\": $n, \"first\": $ctx.items}"
-    (fromObject (Object.singleton "items" (fromArray (fromString <$> [ "a", "b" ]))))
-    (fromObject (Object.fromFoldable [ Tuple "count" (fromNumber 2.0), Tuple "first" (fromArray (fromString <$> [ "a", "b" ])) ]))
-  checkJsonOk "an array literal root, with a nested object preserved structurally"
-    "[$ctx.who, {\"nested\": {\"deep\": true}}]"
-    (fromObject (Object.singleton "who" (fromString "me")))
-    (fromArray [ fromString "me", fromObject (Object.singleton "nested" (fromObject (Object.singleton "deep" (fromBoolean true)))) ])
-  checkJsonOk "map(...) as the root produces an array of objects"
-    "map($ctx.items, (i) => {\"title\": $i.title})"
-    (fromObject (Object.singleton "items" (fromArray [ itemTitled "Alpha", itemTitled "Beta" ])))
-    (fromArray [ itemTitled "Alpha", itemTitled "Beta" ])
-  checkJsonOk "filter(...) and a bound lambda work the same as in template mode"
-    "@is-big=(n) => $gt($n, 10)\nfilter($ctx.ns, $is-big)"
-    (fromObject (Object.singleton "ns" (fromArray (fromNumber <$> [ 3.0, 20.0, 7.0, 40.0 ]))))
-    (fromArray (fromNumber <$> [ 20.0, 40.0 ]))
-  checkJsonOk "a plain interpolated string root evaluates to a JSON string"
-    "\"there are `cardinality($ctx.items)` item(s)\""
-    (fromObject (Object.singleton "items" (fromArray (fromNumber <$> [ 1.0, 2.0, 3.0 ]))))
-    (fromString "there are 3 item(s)")
-  checkJsonEvalRejected "an unbound name in the root is an eval error, not a parse error"
-    "{\"x\": $nope}"
-  checkJsonParseRejected "an element root is rejected -- that is template mode, not JSON mode"
-    ".div(\"hi\")"
-  checkJsonParseRejected "import(...)'s name must be a string literal, not a computed expr"
-    "import($ctx.libname, {})"
+-- Parser ---------------------------------------------------------------
+
+runParserChecks :: Effect Unit
+runParserChecks = do
+  traverse_ (uncurry rejects)
+    [ Tuple "an attribute after a child" ".div(.p(\"hi\"), class: \"a\")"
+    , Tuple "an action after a child" ".div(.p(\"hi\"), action(\"on-click\", \"a\", {}))"
+    , Tuple "a value slot after a child" ".div(.p(\"hi\"), value(1))"
+    , Tuple "more than one value slot" ".div(value(1), value(2))"
+    , Tuple "a computed import name" "@l=import($ctx.name, {})\n.div($l.rendered)"
+    , Tuple "an interpolated import name" "@l=import(\"a`$x`\", {})\n.div($l.rendered)"
+    , Tuple "a computed action key" ".b(action(\"on-click\", $ctx.key, {}))"
+    , Tuple "a computed action event" ".b(action($ctx.evt, \"save\", {}))"
+    , Tuple "a computed adaptation prefix" "adapt-actions($x, prefix($ctx.ns))"
+    , Tuple "an arbitrary function as an adaptation" "adapt-actions($x, (a) => $a)"
+    , Tuple "an unknown adaptation" "adapt-actions($x, replace(\"a\", \"b\"))"
+    , Tuple "a malformed import" "import(\"lib\")"
+    , Tuple "a malformed map" "map($xs)"
+    , Tuple "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
+    , Tuple "an unknown escape sequence" "\"a\\qb\""
+    , Tuple "trailing input after the root" ".div() .span()"
+    ]
+  traverse_ (uncurry accepts)
+    [ Tuple "an empty fragment" ".()"
+    , Tuple "an element with no arguments" ".hr()"
+    , Tuple "a call on a dotted path" "$lib.vals.fn(1)"
+    , Tuple "a lambda with no parameters" "() => 1"
+    , Tuple "a trailing comma in element arguments" ".div(\"a\", \"b\",)"
+    , Tuple "a '.' starting the next line, not a field access" "@x=1\n.div(\"`$x`\")"
+    ]
+  -- The desugarings, stated as source-to-AST equalities: surface on the
+  -- left, core constructors on the right, nothing in between. Compared
+  -- structurally rather than by `show`, since `Data.Tuple`'s Show does not
+  -- parenthesise its second field and the expectations would encode that
+  -- quirk instead of the desugaring.
+  traverse_ (uncurry desugarsTo)
+    [ Tuple "\"hello\"" (StringLit "hello")
+    , Tuple "\"n: `$x`!\""
+        (Concat (Concat (StringLit "n: ") (Call (Path "str" []) [ Path "x" [] ])) (StringLit "!"))
+    , Tuple "{foo, bar: 1}"
+        (ObjectLit [ Tuple "foo" (Path "foo" []), Tuple "bar" (NumberLit 1.0) ])
+    , Tuple "branch(0, $a, 1)" (Branch (Path "a" []) (NumberLit 1.0) (NumberLit 0.0))
+    , Tuple "$a <> $b <> $c" (Concat (Concat (Path "a" []) (Path "b" [])) (Path "c" []))
+    , Tuple "$a.b.c" (Path "a" [ "b", "c" ])
+    , Tuple ".div()" (Element "div" [] NullLit [])
+    , Tuple "import(\"dep\", {\"n\": \"w\", \"r\": ctx(spec.replicas)})"
+        ( Import "dep"
+            [ Tuple "n" (PExpr (StringLit "w"))
+            , Tuple "r" (PFromContext [ "spec", "replicas" ])
+            ]
+        )
+    , Tuple "adapt-actions($x, prefix(\"ns:\"))"
+        (AdaptActions (Path "x" []) (Prefix "ns:") Nothing)
+    ]
+  log "ok - parser acceptance, rejection and desugaring"
   where
-  itemTitled :: String -> Json
-  itemTitled title = fromObject (Object.singleton "title" (fromString title))
+  rejects label src = case parseProgram src of
+    Left _ -> pure unit
+    Right p -> throw ("expected a parse error for " <> label <> ", got: " <> show p)
 
-  checkJsonOk :: String -> String -> Json -> Json -> Effect Unit
-  checkJsonOk label template ctx expected = case parseJsonProgram template of
-    Left err -> throw (label <> ": parse failed: " <> show err)
-    Right program -> case evalJsonProgram Map.empty ctx program of
-      Left err -> throw (label <> ": eval failed: " <> show err)
-      Right actual ->
-        if actual == expected then log ("ok - " <> label)
-        else
-          throw
-            ( label
-                <> ": mismatch\n  expected: "
-                <> stringify expected
-                <> "\n  actual:   "
-                <> stringify actual
-            )
+  accepts label src = case parseProgram src of
+    Left err -> throw ("expected " <> label <> " to parse, got: " <> show err)
+    Right _ -> pure unit
 
-  checkJsonEvalRejected :: String -> String -> Effect Unit
-  checkJsonEvalRejected label template = case parseJsonProgram template of
-    Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
-    Right program -> case evalJsonProgram Map.empty jsonNull program of
-      Left (_ :: EvalError) -> log ("ok - " <> label)
-      Right _ -> throw (label <> ": expected an eval error, got a successful eval")
+  desugarsTo :: String -> Expr -> Effect Unit
+  desugarsTo src expected = case parseExpr src of
+    Left err -> throw ("expected " <> src <> " to parse, got: " <> show err)
+    Right e ->
+      if e == expected then pure unit
+      else throw (src <> " desugared to\n  " <> show e <> "\nexpected\n  " <> show expected)
 
-  checkJsonParseRejected :: String -> String -> Effect Unit
-  checkJsonParseRejected label template = case parseJsonProgram template of
-    Left _ -> log ("ok - " <> label)
-    Right _ -> throw (label <> ": expected a parse error, got a successful parse")
+-- Libraries -------------------------------------------------------------
 
--- | `import`/`partial-import` fixtures. Uses a small hand-built
--- | `LibraryTable` (parsed once, below) rather than `Test.Fixtures`'
--- | `Fixture` shape, since these need a library store alongside the usual
--- | template/ctx that `Fixture` doesn't carry.
-runImportTests :: Effect Unit
-runImportTests = do
-  libs <- buildLibraryTable
-  checkJsonOk "import(...): .rendered is the library's evaluated template, spliced via nodeToJson"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.rendered"
-    libs
-    jsonNull
-    (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "hello World") ]) ]) ]))
-  checkJsonOk "import(...): .vals exposes the library's own bindings"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar.vals.greeting"
-    libs
-    jsonNull
-    (fromString "hello World")
-  checkJsonEvalRejectedWith libs "import(...) with an unknown library name is an eval error"
-    "import(\"nope\", {})"
-  checkJsonEvalRejectedWith libs "import(...) with an unknown library name is an eval error (via bound name)"
-    "@bar=import(\"nope\", {})\n$bar.rendered"
-  checkJsonEvalRejectedWith libs "a self-importing library fails as an import cycle, not a stack overflow"
-    "@bar=import(\"cyclic\", {})\n$bar.rendered"
-  checkJsonEvalRejectedWith libs "a whole import result (VEnv) can't be used where a Json value is required"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n$bar"
-  checkJsonOk "partial-import(...) with already-complete params matches import(...) with the same params"
-    "@a=import(\"one-arg\", {\"arg0\": \"foo\"})\n@b=partial-import(\"one-arg\", {\"arg0\": \"foo\"})\n[$a.rendered, $b.rendered]"
-    libs
-    jsonNull
-    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]) in fromArray [ node, node ])
-  checkJsonEvalRejectedWith libs "an incomplete partial-import(...) can't be used where a Json value is required"
-    "@p=partial-import(\"one-arg\", {})\n$p"
-  checkJsonOk "completing a partial-import(...) by calling it matches a direct import(...) with the merged params"
-    "@direct=import(\"one-arg\", {\"arg0\": \"foo\"})\n@p=partial-import(\"one-arg\", {})\n@done=$p({\"arg0\": \"foo\"})\n[$direct.rendered, $done.rendered]"
-    libs
-    jsonNull
-    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]) in fromArray [ node, node ])
-  checkJsonOk "partial-import(...) currying two missing params one at a time matches supplying both up front"
-    "@direct=import(\"two-arg\", {\"a\": \"x\", \"b\": \"y\"})\n@p=partial-import(\"two-arg\", {})\n@p2=$p({\"a\": \"x\"})\n@done=$p2({\"b\": \"y\"})\n[$direct.rendered, $done.rendered]"
-    libs
-    jsonNull
-    (let node = fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "x-y") ]) ]) ]) in fromArray [ node, node ])
-  checkJsonEvalRejectedWith libs "partial-import(...) still hard-errors for a reason unrelated to missing ctx params"
-    "partial-import(\"nope\", {})"
-  checkJsonOk "completing a partial-import(...) and chaining .rendered directly, no intermediate binding"
-    "@p=partial-import(\"one-arg\", {})\n$p({\"arg0\": \"foo\"}).rendered"
-    libs
-    jsonNull
-    (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "foo") ]) ]) ]))
-  checkTemplateOkWithLibs "completing a partial-import(...) and chaining .rendered as a bare child, in the template block"
-    "@p=partial-import(\"one-arg\", {})\n.div($p({\"arg0\": \"foo\"}).rendered)"
-    libs
-    jsonNull
-    (NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NText "foo" ] } ] })
-  checkJsonOk "remap-actions(...) rewrites an action's key via prefix(...) and passes the payload through"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 5.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...)'s function can rewrite the payload as a function of the (already-prefixed) key and original payload"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"\"), (a) => {\"eventType\": $a.eventType, \"payload\": {\"from\": $a.key, \"orig\": $a.payload}})\n$remapped"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "foo"), Tuple "payload" (fromObject (Object.fromFoldable [ Tuple "from" (fromString "foo"), Tuple "orig" (fromObject (Object.singleton "n" (fromNumber 5.0))) ])) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...) recurses through every action in the subtree, not just the root"
-    "@bar=import(\"two-actions\", {})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped"
-    libs
-    jsonNull
-    ( let
-        button k v label = fromObject
-          ( Object.fromFoldable
-              [ Tuple "type" (fromString "element")
-              , Tuple "tag" (fromString "button")
-              , Tuple "attrs" (fromObject Object.empty)
-              , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString k), Tuple "payload" (fromObject (Object.singleton "v" (fromNumber v))) ]))
-              , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString label) ]) ])
-              ]
-          )
-      in
-        fromObject
-          ( Object.fromFoldable
-              [ Tuple "type" (fromString "element")
-              , Tuple "tag" (fromString "div")
-              , Tuple "attrs" (fromObject Object.empty)
-              , Tuple "action" jsonNull
-              , Tuple "children" (fromArray [ button "ns-a" 1.0 "A", button "ns-b" 2.0 "B" ])
-              ]
-          )
-    )
-  checkJsonOk "remap-actions(...) is a no-op (and never calls the function) on a node with no action anywhere"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => $nonexistent)\n$remapped"
-    libs
-    jsonNull
-    (fromObject (Object.fromFoldable [ Tuple "type" (fromString "element"), Tuple "tag" (fromString "div"), Tuple "attrs" (fromObject Object.empty), Tuple "action" jsonNull, Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "hello World") ]) ]) ]))
-  checkJsonEvalRejectedWith libs "remap-actions(...) on something that isn't a rendered node (a plain Json value) is a clear error"
-    "remap-actions(5, prefix(\"\"), (a) => $a)"
-  checkJsonEvalRejectedWith libs "remap-actions(...)'s function returning a malformed record (missing eventType) is a clear error, not a silently-dropped action"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar.rendered, prefix(\"ns-\"), (a) => {\"payload\": $a.payload})\n$remapped"
-  checkJsonOk "remap-actions(...) accepts an import(...) result directly (no .rendered projection needed), remapping in place and keeping .vals"
-    "@bar=import(\"btn\", {\"n\": 5})\n@remapped=remap-actions($bar, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 5.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...) accepts a partial-import(...) result directly, once completed"
-    "@p=partial-import(\"btn\", {})\n@remapped=remap-actions($p({\"n\": 5}), prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 5.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...) on an import(...) result still surfaces .vals unchanged alongside the remapped .rendered"
-    "@bar=import(\"greeter\", {\"name\": \"World\"})\n@remapped=remap-actions($bar, prefix(\"\"), (a) => $a)\n$remapped.vals.greeting"
-    libs
-    jsonNull
-    (fromString "hello World")
-  checkJsonOk "remap-actions(...) on a JSON-mode import's result (whose \"rendered\" is plain Json, not a node) is a no-op, not an error"
-    "@bar=import(\"json-lib\", {\"n\": 5})\n@remapped=remap-actions($bar, prefix(\"\"), (a) => $a)\n$remapped.rendered"
-    libs
-    jsonNull
-    (fromObject (Object.singleton "n" (fromNumber 5.0)))
-  checkJsonOk "remap-actions(...) recurses into .vals too, reaching a sub-import's action even when it isn't spliced into the outer .rendered"
-    "@bar=import(\"wraps-btn-in-vals\", {})\n@remapped=remap-actions($bar, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$remapped.vals.sub.rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 9.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkTemplateOkWithLibs "remap-actions(...) works as a bare $-prefixed child directly in the template block, no @-binding needed"
-    "@btn=partial-import(\"one-arg\", {})\n.div(remap-actions($btn({\"arg0\": \"foo\"}).rendered, prefix(\"\"), (a) => $a))"
-    libs
-    jsonNull
-    (NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NElement { tag: "div", attrs: Map.empty, action: Nothing, children: [ NText "foo" ] } ] })
-  checkJsonOk "remap-actions(...) can wrap a still-incomplete partial-import(...) before it's completed, and the remap still applies once it is"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$p2({\"n\": 5}).rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 5.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...) queued on a partial survives currying it one param at a time, applying once it's finally complete"
-    "@p=partial-import(\"two-arg-btn\", {})\n@p2=remap-actions($p, prefix(\"ns-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n@p3=$p2({\"a\": 1})\n@p4=$p3({\"b\": 2})\n$p4.rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "ns-foo"), Tuple "payload" (fromObject (Object.fromFoldable [ Tuple "a" (fromNumber 1.0), Tuple "b" (fromNumber 2.0) ])) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonOk "remap-actions(...) called twice on the same partial-import(...) queues both prefix/fn operations, applied in order once complete"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"inner-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n@p3=remap-actions($p2, prefix(\"outer-\"), (a) => {\"eventType\": $a.eventType, \"payload\": $a.payload})\n$p3({\"n\": 5}).rendered"
-    libs
-    jsonNull
-    (fromObject
-        ( Object.fromFoldable
-            [ Tuple "type" (fromString "element")
-            , Tuple "tag" (fromString "button")
-            , Tuple "attrs" (fromObject Object.empty)
-            , Tuple "action" (fromObject (Object.fromFoldable [ Tuple "eventType" (fromString "on-click"), Tuple "key" (fromString "outer-inner-foo"), Tuple "payload" (fromObject (Object.singleton "n" (fromNumber 5.0))) ]))
-            , Tuple "children" (fromArray [ fromObject (Object.fromFoldable [ Tuple "type" (fromString "text"), Tuple "text" (fromString "click") ]) ])
-            ]
-        )
-    )
-  checkJsonEvalRejectedWith libs "a remap-actions(...)-wrapped partial that's still incomplete can't be used where a Json value is required, same as a plain partial"
-    "@p=partial-import(\"btn\", {})\n@p2=remap-actions($p, prefix(\"\"), (a) => $a)\n$p2"
-  log "All import/partial-import fixtures passed."
+libs :: LibraryTable
+libs = Map.fromFoldable (map (\(Tuple n src) -> Tuple n (unsafeParse src)) sources)
   where
-  buildLibraryTable :: Effect LibraryTable
-  buildLibraryTable = do
-    greeter <- mustParseProgram "@greeting=\"hello `$ctx.name`\"\n.div(\"`$greeting`\")"
-    cyclic <- mustParseProgram "@self=import(\"cyclic\", {})\n.div(\"x\")"
-    oneArg <- mustParseProgram ".div(\"`$ctx.arg0`\")"
-    twoArg <- mustParseProgram ".div(\"`$ctx.a`-`$ctx.b`\")"
-    btn <- mustParseProgram ".button(action(\"on-click\", \"foo\", {\"n\": $ctx.n}), \"click\")"
-    twoActions <- mustParseProgram ".div(.button(action(\"on-click\", \"a\", {\"v\": 1}), \"A\"), .button(action(\"on-click\", \"b\", {\"v\": 2}), \"B\"))"
-    jsonLib <- mustParseJsonProgram "{\"n\": $ctx.n}"
-    wrapsBtnInVals <- mustParseProgram "@sub=import(\"btn\", {\"n\": 9})\n.div(\"just text\")"
-    twoArgBtn <- mustParseProgram ".button(action(\"on-click\", \"foo\", {\"a\": $ctx.a, \"b\": $ctx.b}), \"click\")"
-    pure
-      ( Map.fromFoldable
-          [ Tuple "greeter" (ProgramSource greeter)
-          , Tuple "cyclic" (ProgramSource cyclic)
-          , Tuple "one-arg" (ProgramSource oneArg)
-          , Tuple "two-arg" (ProgramSource twoArg)
-          , Tuple "btn" (ProgramSource btn)
-          , Tuple "two-actions" (ProgramSource twoActions)
-          , Tuple "json-lib" (JsonSource jsonLib)
-          , Tuple "wraps-btn-in-vals" (ProgramSource wrapsBtnInVals)
-          , Tuple "two-arg-btn" (ProgramSource twoArgBtn)
-          ]
-      )
+  sources =
+    [ Tuple "button" "@label=\"go: `$ctx.name`\"\n.button(action(\"on-click\", \"deploy\", {\"n\": $ctx.name}), $label)"
+    , Tuple "panel" "@n=$ctx.replicas\n.section(.h2($ctx.name), .p($n))"
+    , Tuple "two-actions" ".div(.b(action(\"on-click\", \"save\", {})), .b(action(\"on-click\", \"delete\", {})))"
+    , Tuple "data" "@a=1\n{\"a\": $a, \"b\": $ctx.b}"
+    , Tuple "wrapper" ".div(import(\"button\", {\"name\": \"inner\"}).rendered)"
+    , Tuple "loopy" ".div(import(\"loopy\", {}).rendered)"
+    , Tuple "needs" "@p=import(\"button\", {name: ctx(inner.name)})\n$p({})"
+    , Tuple "row" ".tr(action(\"on-click\", \"select\", {}), import(\"button\", {}).rendered)"
+    ]
 
-  mustParseProgram :: String -> Effect Program
-  mustParseProgram src = case parseProgram src of
-    Left err -> throw ("library fixture failed to parse: " <> show err)
-    Right program -> pure program
+-- | A fixture that does not parse is a bug in the fixture, not a test
+-- | outcome, so this is allowed to be partial — `runLibraryChecks` would
+-- | fail loudly on the resulting nonsense anyway.
+unsafeParse :: String -> Program
+unsafeParse src = case parseProgram src of
+  Right p -> p
+  Left _ -> unsafeParse "null"
 
-  mustParseJsonProgram :: String -> Effect JsonProgram
-  mustParseJsonProgram src = case parseJsonProgram src of
-    Left err -> throw ("library fixture failed to parse: " <> show err)
-    Right program -> pure program
+runLibraryChecks :: Effect Unit
+runLibraryChecks = do
+  traverse_ okWithLibs
+    [ { label: "a complete import renders"
+      , template: "import(\"panel\", {\"name\": \"web\", \"replicas\": 3}).rendered"
+      , expected: "{\"type\":\"element\",\"tag\":\"section\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"h2\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":\"web\",\"annotations\":{}}],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":3,\"annotations\":{}}],\"annotations\":{}}],\"annotations\":{}}"
+      }
+    , { label: "an expression-rooted library's .vals"
+      , template: "import(\"data\", {\"b\": 2}).vals.a"
+      , expected: "1"
+      }
+    , { label: "a deferred parameter completed from the supplied context"
+      , template: "@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n@half=$p({\"n\": \"web\"})\n$half({\"r\": 2}).rendered"
+      , expected: "{\"type\":\"element\",\"tag\":\"section\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"h2\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":\"web\",\"annotations\":{}}],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":2,\"annotations\":{}}],\"annotations\":{}}],\"annotations\":{}}"
+      }
+    , { label: "adapt-actions prefixes every key in the subtree"
+      , template: "adapt-actions(import(\"two-actions\", {}).rendered, prefix(\"user:\"))"
+      , expected: "{\"type\":\"element\",\"tag\":\"div\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"user:save\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"user:delete\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}}],\"annotations\":{}}"
+      }
+    , { label: "adaptations compose as b:a:key"
+      , template: "adapt-actions(adapt-actions(import(\"two-actions\", {}).rendered, prefix(\"a:\")), prefix(\"b:\"))"
+      , expected: "{\"type\":\"element\",\"tag\":\"div\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"b:a:save\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"b:a:delete\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}}],\"annotations\":{}}"
+      }
+    ]
+  traverse_ (uncurry rejectsWithLibs)
+    [ Tuple "an import still waiting on a parameter"
+        "@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n$p({\"n\": \"web\"})"
+    , Tuple "a genuinely missing parameter, rather than suspending"
+        "import(\"panel\", {\"name\": \"web\"}).rendered"
+    , Tuple "an import cycle" "import(\"loopy\", {}).rendered"
+    , Tuple "an unknown library" "import(\"nope\", {}).rendered"
+    ]
+  log "ok - imports and action adaptation"
+  where
+  rejectsWithLibs label template = do
+    program <- mustParse label template
+    case evalProgram libs jsonNull program of
+      Left _ -> pure unit
+      Right _ -> throw ("expected an eval error for " <> label)
 
-  checkJsonOk :: String -> String -> LibraryTable -> Json -> Json -> Effect Unit
-  checkJsonOk label template libs ctx expected = case parseJsonProgram template of
-    Left err -> throw (label <> ": parse failed: " <> show err)
-    Right program -> case evalJsonProgram libs ctx program of
-      Left err -> throw (label <> ": eval failed: " <> show err)
-      Right actual ->
-        if actual == expected then log ("ok - " <> label)
-        else
-          throw
-            ( label
-                <> ": mismatch\n  expected: "
-                <> stringify expected
-                <> "\n  actual:   "
-                <> stringify actual
-            )
+runAnalysisChecks :: Effect Unit
+runAnalysisChecks = do
+  check "direct import names"
+    (Set.toUnfoldable (staticImportNames (unsafeParse "@a=import(\"x\", {})\n.div(import(\"y\", {}).rendered)")))
+    [ "x", "y" ]
+  check "transitive import names"
+    (Set.toUnfoldable (transitiveImportNames libs (unsafeParse ".div(import(\"row\", {}).rendered)")))
+    [ "button", "row" ]
+  check "a cycle terminates"
+    (Set.toUnfoldable (transitiveImportNames libs (unsafeParse ".div(import(\"loopy\", {}).rendered)")))
+    [ "loopy" ]
+  check "action keys an element declares"
+    (Set.toUnfoldable (staticActionKeys (unsafeParse ".div(.b(action(\"on-click\", \"save\", {})), .b(action(\"on-key\", \"delete\", {})))")))
+    [ "delete", "save" ]
+  check "a prefix adaptation is applied, not ignored"
+    (Set.toUnfoldable (staticActionKeys (unsafeParse "adapt-actions(.b(action(\"on-click\", \"save\", {})), prefix(\"user:\"))")))
+    [ "user:save" ]
+  check "nested adaptations compose"
+    (Set.toUnfoldable (staticActionKeys (unsafeParse "adapt-actions(adapt-actions(.b(action(\"on-click\", \"k\", {})), prefix(\"a:\")), prefix(\"b:\"))")))
+    [ "b:a:k" ]
+  check "a library's keys are not reached without the table"
+    (Set.toUnfoldable (staticActionKeys (unsafeParse ".div(import(\"button\", {}).rendered)")))
+    ([] :: Array String)
+  check "a library's keys are reached with the table"
+    (Set.toUnfoldable (deepActionKeys libs (unsafeParse ".div(import(\"button\", {}).rendered)")))
+    [ "deploy" ]
+  check "keys from a library are adapted too"
+    (Set.toUnfoldable (deepActionKeys libs (unsafeParse "adapt-actions(import(\"button\", {}).rendered, prefix(\"deployment:\"))")))
+    [ "deployment:deploy" ]
+  check "context holes are the paths a deferred parameter reads"
+    (Set.toUnfoldable (contextHoles (unsafeParse "@p=import(\"dep\", {\"r\": ctx(spec.replicas)})\n$p({})")))
+    [ [ "spec", "replicas" ] ]
+  check "a supplied parameter is not a hole"
+    (Set.toUnfoldable (contextHoles (unsafeParse "import(\"dep\", {\"r\": $ctx.spec.replicas}).rendered")))
+    ([] :: Array (Array String))
+  check "holes bubble up from imported libraries"
+    (Set.toUnfoldable (deepContextHoles libs (unsafeParse ".div(import(\"needs\", {}).rendered)")))
+    [ [ "inner", "name" ] ]
+  log "ok - static analyses"
+  where
+  check :: forall a. Eq a => Show a => String -> a -> a -> Effect Unit
+  check label actual expected =
+    if actual == expected then pure unit
+    else throw (label <> ": expected " <> show expected <> ", got " <> show actual)
 
-  checkJsonEvalRejectedWith :: LibraryTable -> String -> String -> Effect Unit
-  checkJsonEvalRejectedWith libs label template = case parseJsonProgram template of
-    Left err -> throw (label <> ": expected this to parse (and fail at eval instead), but parsing itself failed: " <> show err)
-    Right program -> case evalJsonProgram libs jsonNull program of
-      Left (_ :: EvalError) -> log ("ok - " <> label)
-      Right _ -> throw (label <> ": expected an eval error, got a successful eval")
+-- Node JSON --------------------------------------------------------------
 
-  checkTemplateOkWithLibs :: String -> String -> LibraryTable -> Json -> Node -> Effect Unit
-  checkTemplateOkWithLibs label template libs ctx expected = case parseProgram template of
-    Left err -> throw (label <> ": parse failed: " <> show err)
-    Right program -> case evalProgram libs ctx program of
-      Left err -> throw (label <> ": eval failed: " <> show err)
-      Right actual ->
-        if actual == expected then log ("ok - " <> label)
-        else
-          throw
-            ( label
-                <> ": mismatch\n  expected: "
-                <> show expected
-                <> "\n  actual:   "
-                <> show actual
-            )
+runNodeJsonChecks :: Effect Unit
+runNodeJsonChecks = do
+  traverse_ roundTrips
+    [ NText (unsafeJson "3") noAnnotations
+    , NText (unsafeJson "\"hello\"") noAnnotations
+    , NText (unsafeJson "null") noAnnotations
+    , NElement "div" [] (unsafeJson "null") [] noAnnotations
+    , NElement "b"
+        [ NAttr "class" (unsafeJson "\"c\"")
+        , NAction "on-click" "save" (unsafeJson "{\"id\":1}")
+        , NAction "on-key" "open" (unsafeJson "null")
+        ]
+        (unsafeJson "2")
+        [ NText (unsafeJson "\"Save\"") noAnnotations ]
+        (Map.singleton "type" (unsafeJson "\"Button\""))
+    , NFragment [ NText (unsafeJson "\"a\"") noAnnotations ] noAnnotations
+    , NFragment [] noAnnotations
+    ]
+  traverse_ rejectsDecoding
+    [ "{\"value\": 1, \"annotations\": {}}"
+    , "{\"type\": \"comment\", \"annotations\": {}}"
+    , "{\"type\": \"text\", \"annotations\": {}}"
+    , "{\"type\": \"text\", \"value\": 1}"
+    , "{\"type\": \"element\", \"tag\": \"p\", \"attributes\": [], \"children\": [], \"annotations\": {}}"
+    , "{\"type\": \"fragment\", \"children\": [{\"type\": \"text\"}], \"annotations\": {}}"
+    , "42"
+    ]
+  log "ok - node JSON round-trip and strict decoding"
+  where
+  roundTrips n = case nodeFromJson (nodeToJson n) of
+    Right n' | n' == n -> pure unit
+    Right n' -> throw ("round-trip changed the node:\n  before " <> show n <> "\n  after  " <> show n')
+    Left err -> throw ("round-trip failed to decode: " <> err)
+
+  rejectsDecoding src = do
+    j <- mustParseJson "malformed node" src
+    case nodeFromJson j of
+      Left _ -> pure unit
+      Right n -> throw ("expected " <> src <> " to be rejected, decoded to " <> show n)
+
+-- Helpers ------------------------------------------------------------------
+
+mustParse :: String -> String -> Effect Program
+mustParse label src = case parseProgram src of
+  Left err -> throw (label <> ": parse failed: " <> show err)
+  Right p -> pure p
+
+mustParseJson :: String -> String -> Effect Json
+mustParseJson label src = case jsonParser src of
+  Left err -> throw (label <> ": fixture is not valid JSON: " <> err)
+  Right j -> pure j
+
+-- | Only ever applied to literals written here, so a failure is a typo in
+-- | this file rather than a runtime condition.
+unsafeJson :: String -> Json
+unsafeJson src = case jsonParser src of
+  Right j -> j
+  Left _ -> jsonNull
+
+okWithLibs :: { label :: String, template :: String, expected :: String } -> Effect Unit
+okWithLibs f = do
+  expected <- mustParseJson (f.label <> " (expected)") f.expected
+  program <- mustParse f.label f.template
+  case evalProgram libs jsonNull program of
+    Left err -> throw (f.label <> ": eval failed: " <> show err)
+    Right output -> do
+      let
+        actual = case output of
+          ONode n -> nodeToJson n
+          OValue v -> v
+      if actual == expected then pure unit
+      else
+        throw
+          ( f.label <> ": mismatch\n  expected: " <> stringify expected
+              <> "\n  actual:   "
+              <> stringify actual
+          )
+
+traverse_ :: forall a. (a -> Effect Unit) -> Array a -> Effect Unit
+traverse_ f = Array.foldl (\acc x -> acc *> f x) (pure unit)
+
+uncurry :: forall a b c. (a -> b -> c) -> Tuple a b -> c
+uncurry f (Tuple a b) = f a b
