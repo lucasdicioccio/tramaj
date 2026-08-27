@@ -17,7 +17,8 @@ WATCH=0
 # esbuild" if it isn't on PATH. It's a devDependency of the workspace root
 # rather than an assumed global, so install it on first run and put the
 # local .bin ahead of PATH. (purs and spago themselves are still expected
-# to be installed already — see the README.)
+# to be installed already — see the README.) They are npm devDependencies
+# here too, so the same PATH line covers all three.
 ROOT="$(cd .. && pwd)"
 [ -d "$ROOT/node_modules" ] || (cd "$ROOT" && npm install)
 export PATH="$ROOT/node_modules/.bin:$PATH"
@@ -27,7 +28,7 @@ export PATH="$ROOT/node_modules/.bin:$PATH"
 # needed because the workspace root has several packages.
 bundle() {
   echo "==> bundling ($(date +%H:%M:%S))..."
-  if spago bundle -p templating-playground; then
+  if spago bundle -p tramaj-playground; then
     echo "==> ok"
   else
     echo "==> BUILD FAILED, keeping previous dist/app.js" >&2
@@ -44,7 +45,7 @@ if [ "$WATCH" = 1 ]; then
   (
     while true; do
       sleep 1
-      if [ -n "$(find src ../templating/src ../templating-halogen/src \
+      if [ -n "$(find src ../tramaj/src ../tramaj-halogen/src \
                    -name '*.purs' -newer dist/app.js 2>/dev/null)" ]; then
         bundle
       fi

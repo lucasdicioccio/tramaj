@@ -394,165 +394,186 @@ renderLogEntry entry =
 -- | Static short-form language reference, mirroring
 -- | `specs/templating-language.md`'s grammar/builtin summary closely
 -- | enough to be useful without opening that file.
+-- | The in-app language reference. Kept in step with `specs/reference.md`,
+-- | condensed to what fits in a panel — same facts, same order, including
+-- | the ones a reader is most likely to trip over (no comments, no
+-- | arithmetic, no negative literals).
 referenceText :: String
 referenceText =
   """THREE LEADER CHARACTERS
   .    builds a document: .tag(...) an element, .(...) a fragment
-  $    reads a bound name or a path into one
+  $    reads a bound name, or a path into one
   @    defines a binding (one per line, above the root): @name=expr
 
 DOCUMENTS ARE VALUES
-  There is one expression language. An element or a fragment is an
-  ordinary value: bind it, pass it to a lambda, return one from a
-  lambda, put it in an array. Nothing is a "template" as opposed to an
-  "expression", and a program's kind follows from its root — write a
-  document and you get a document, write anything else and you get a
-  plain JSON value.
+  One expression language, and a document is an ordinary value: bind it,
+  pass it to a lambda, return one from a lambda, put it in an array. A
+  program's kind follows from its root — write a document and you get a
+  document, write anything else and you get a plain JSON value.
 
     @kids=.(.p("one"), .p("two"))
     @panel=(title, children) => .section(.h2($title), $children)
     .main($panel("Deployment", $kids))
 
 PRIMITIVES
-  $name              a bound name, or a $ctx-rooted JSON field path
-  $name.field.field2 dotted path — object field access, one per "."
-  "literal text"     a string literal. Escapes: \n \t \r \\ \" \` \0
-                     and \u{1F600}. Interpolate any expr with backticks:
+  $name              a bound name, or a $ctx-rooted field path
+  $name.field.field2 dotted path — no spaces around the "."
+  "literal text"     a string. Escapes: \n \t \r \\ \" \` \0 \u{1F600}
+                     Interpolate any expr with backticks:
                      "count: `$n`", "n: `$cardinality($xs)`"
-  123 / 123.45       a number literal
-  true / false       a boolean literal
+  123 / 123.45       a number. NO leading "-" and NO exponent: -1 and 1e5
+                     are parse errors, and with no arithmetic in the
+                     language such a value has to come from $ctx
+  true / false       a boolean
   null               the null literal
-  fn(arg, ...)       a call — $fn(...) is the same thing, since $ always
-  $fn(arg, ...)      means "look this up" and a builtin resolves the same
-                     way. The callee may be a path: $lib.vals.fn(1)
-  [expr, ...]        an array literal
-  {"key": expr, ...} an object literal. Keys may be bare (count: $n), and
-  {foo, bar}         a bare key alone is shorthand for {"foo": $foo, ...}
-  a <> b             concat: string+string, array+array, or object+object
-                     (right-biased on key collisions). Mixed types are an
-                     error, never a coercion
-  (p1, ...) => expr  a lambda value — see LAMBDAS
-  Names (bindings, path segments, tags, bare keys) may contain internal
-  hyphens: my-var, foo-bar.
+  fn(arg, ...)       a call — $fn(...) means the same thing. The callee may
+  $fn(arg, ...)      be a path: $lib.vals.fn(1)
+  f(x).rendered      field access on a call's result. NOTE the reverse is
+                     not available: f(x)(y) is a parse error, so bind an
+                     import or adapt-actions result before calling it
+  [expr, ...]        an array
+  {"key": expr, ...} an object. Keys may be bare (count: $n), and a bare
+  {foo, bar}         key alone is shorthand for {"foo": $foo, "bar": $bar}
+  a <> b             concat — the only infix operator, left-associative,
+                     lowest precedence
+  (p1, ...) => expr  a lambda
+  (expr)             grouping
+  Names start with a letter and may contain digits, "_" and internal "-".
+  Whitespace is insignificant except as a separator. There are NO comments.
 
 LAMBDAS — bindable, not just inline
   Write one inline as an argument (map(arr, (x) => ...)) or bind it —
-  @is-big=(x) => gt($x, 10) — and call it later by name: $is-big(5). A
-  bound lambda can be passed by reference: map($ctx.items, $is-big). So
-  can a builtin: map($ctx.flags, $not). Closures capture the environment
-  where they were written, so a body sees outer bindings, and a closure
-  can be passed to another function: @apply=(f, x) => $f($x).
-  Two hard limits: no recursion (a binding's value is not in scope while
+  @is-big=(x) => gt($x, 10) — and call it later: $is-big(5). A bound
+  lambda can be passed by reference: map($ctx.items, $is-big). So can a
+  builtin: map($ctx.flags, $not). Closures capture the environment where
+  they were written, so a body sees outer bindings, and a closure can be
+  passed on: @apply=(f, x) => $f($x).
+  Two hard limits: NO RECURSION (a binding's value is not in scope while
   that value is being evaluated, so a lambda cannot call itself by name),
-  and a closure used where a plain value is expected is an error — call
-  it first.
+  and a closure used where a plain value is expected is an error — call it
+  first.
 
 BINDINGS
   @name=expr, one per line, above the root. Evaluated in order; each may
   reference $ctx and any earlier binding, never a later one. They are
-  ordinary nested lexical bindings, and an imported program exposes its
-  own as .vals.
+  ordinary nested lexical bindings, and an imported program exposes its own
+  as .vals.
 
 ELEMENTS
   .tag(arg, arg, ...)
-  Everything in attribute position must come before any child; a child
-  first is a parse error. Each comma-separated arg is one of:
-    key: value          an attribute — key bare or quoted, value any
-    "key": value        expr. The value stays a value: count: 3 is the
-                        number 3, not the string "3"
+  Everything in attribute position comes before any child; a child first is
+  a parse error. Each arg is one of:
+    key: value          an attribute — key bare or quoted, value any expr.
+    "key": value        The value stays a value: count: 3 is the number 3
     action("event", "key", payloadExpr)
-                        an action — see ACTIONS. An element may carry as
-                        many as it likes
-    value(expr)         fills the element's value slot, for targets that
-                        attach a body value to a tagged node. Defaults to
-                        null; at most one per element
+                        an action — see ACTIONS. Any number per element
+    value(expr)         the element's value slot, for targets that attach a
+                        body value to a tagged node. Defaults to null; at
+                        most one per element
     anything else       a child: "text", $path, 3, a nested .tag(...), a
                         fragment, a map(...), a branch(...), a call
-  A scalar child keeps its type — .td($ctx.count) yields the number 3,
-  and it is the host that decides how to render it.
-  An array child contributes each of its elements as a sibling, which is
-  how map(...) produces repeated children.
+  CHILD RULES. A scalar child keeps its type — .td($ctx.count) yields the
+  number 3, and the host decides how to render it. An ARRAY child
+  contributes each element as a sibling, which is how map(...) repeats
+  children — so an array wanted as data belongs in an attribute or the
+  value slot, not in child position.
 
 FRAGMENTS
   .(child, child, ...)
-  Sibling nodes with no wrapper element. A real node in the output, not
-  a parser trick — bind one, pass it as a component's children, return
-  one from a lambda.
+  Sibling nodes with no wrapper element. A real node in the output — bind
+  one, pass it as a component's children, return one from a lambda.
 
 BRANCH
   branch(fallback, pred1, val1, pred2, val2, ...)
   "if pred1 then val1, else if pred2 then val2, ..., else fallback."
-  Only the selected arm is ever evaluated, in every position — so an
+  ONLY the selected arm is ever evaluated, in every position — so an
   unreached arm's errors never surface. One form, whether it picks a
-  document or a plain value.
+  document or a plain value. The condition must be a boolean.
 
 IMPORTS
   import("name", {param: expr, other: ctx(path)})
-  Reuses another program by name. The name is a literal, never computed.
-  Each parameter is either a value supplied now, or ctx(path) — which
-  declares that this parameter comes from the context supplied when the
-  import is completed. Note the difference:
-    $ctx.spec.replicas   read spec.replicas from the current context now
-    ctx(spec.replicas)   take it from the completion context, later
-  An import with no unresolved ctx(...) is complete and can be used
-  directly; one with some is a partial, completed by calling it with a
-  context — progressively, if you like:
+  The name is a literal, never computed. Each parameter is either supplied
+  now, or ctx(path) — which declares that it comes from the context given
+  when the import is completed. Note the difference:
+    $ctx.spec.replicas   read spec.replicas from the CURRENT context now
+    ctx(spec.replicas)   take it from the COMPLETION context, later
+  An import with no unresolved ctx(...) runs immediately; one with any is a
+  partial, completed by calling it with a context — progressively, if you
+  like:
     @p=import("panel", {name: ctx(n), replicas: ctx(r)})
     @half=$p({"n": "web"})
     $half({"r": 2}).rendered
-  A completed import exposes .rendered (whatever its root evaluated to)
-  and .vals (its top-level bindings).
+  A completed import exposes .rendered (whatever its root evaluated to) and
+  .vals (its top-level bindings). Because partiality is DECLARED, a
+  parameter that is simply missing is a hard error, not a partial.
 
 ACTIONS
   action("event-type", "key", payloadExpr)
-  Attaches a structured action to an element. The event type and the key
-  are literals; only the payload is computed. The language assigns no
-  meaning to either — this playground's dispatcher turns every action
-  into a log entry, while a read-only host would ignore them all.
-  The key is a literal so that the set of actions a program can emit is
-  knowable without running it.
+  The event type and key are literals; only the payload is computed. The
+  language assigns meaning to neither — the event vocabulary is the host's.
+  The key is a literal so the set of actions a program can emit is knowable
+  without running it. This playground logs every action; a read-only host
+  would ignore them all.
 
   adapt-actions(node, prefix("ns:"))
   adapt-actions(node, identity)
   adapt-actions(node, prefix("ns:"), fn)
-  Prefixes every action key in a subtree — including actions inside
-  imported programs and supplied fragments. Adaptations compose: prefix
-  "a:" then "b:" gives b:a:key. The prefix is a literal, and the
-  operation is only ever identity-or-prefix, never an arbitrary
-  rewriting function. The optional fn sees each already-prefixed action
-  and may change its eventType and payload only; a key it returns is
-  ignored.
-  Applied to a partial import, the adaptation is queued and runs when
-  the import is completed.
+  Prefixes every action key in a subtree, reaching through imported
+  programs and supplied fragments. Adaptations compose: "a:" then "b:"
+  gives b:a:key. The operation is only ever identity-or-prefix, never an
+  arbitrary rewriting function. The optional fn sees each already-prefixed
+  action and may change its eventType and payload only; a key it returns is
+  ignored. Applied to a partial import, it is queued until completion.
 
-FUNCTIONS (the fixed builtin set)
+STRINGS AND str
+  Interpolation lowers to concat over str(...), so str decides what lands
+  in the output:
+    string   itself, raw
+    null     ""
+    boolean  true / false
+    number   as JavaScript renders it: 3, 1.5, 0.05, 100000000000,
+             1e+21, 1e-7
+    array /  compact JSON with SORTED keys — key order is not
+    object   semantically significant, so it is not observable here either
+
+CONCAT
+  a <> b, over three types, with no coercion:
+    string <> string    array <> array    object <> object (right-biased)
+  Mixed types are an error. Identities: "" [] {}
+
+FUNCTIONS (the fixed builtin set — NO arithmetic: a template compares and
+selects, it does not compute)
   cardinality(x) / count(x)   number of elements in an array/object
-  str(x)                      a value as a string — what interpolation
-                              uses
+  str(x)                      as above
   not(b)                      negation
-  and(a, b, ...)              conjunction over any number of arguments
-  or(a, b, ...)               disjunction over any number of arguments
-  eq(a, b)                    deep equality between two values
-  lt(a, b) / lte(a, b)        numeric comparison (both must be numbers)
+  and(a, b, ...)              conjunction, any number of args (and() = true)
+  or(a, b, ...)               disjunction, any number of args (or() = false)
+  eq(a, b)                    deep equality, no coercion: eq(1, "1") is false
+  lt(a, b) / lte(a, b)        numeric comparison — numbers only
   gt(a, b) / gte(a, b)
-  has(container, key)         presence/absence — never errors; a missing
-                              field, out-of-range index, or wrong-shaped
-                              container just answers false
-  lookup(container, key,      dynamic access by a computed key/index —
-         fallback)            the counterpart to a static path. The 3rd
-                              argument is a mandatory fallback, so this
-                              never errors either
+  has(container, key)         tolerant: a missing field, out-of-range index
+                              or wrong-shaped container answers false
+  lookup(container, key,      dynamic access by a computed key/index. The
+         fallback)            fallback is mandatory, so this never errors
   map(arr, fn)                a new array, fn applied to each element
   filter(arr, fn)             keeps the elements where fn is true
   scan(arr, init, fn)         [init, f(init,x1), f(f(init,x1),x2), ...] —
-                              always one longer than arr. fn is
-                              (acc, item) => ...
-  fold(arr, init, fn)         same step and order as scan, but only the
-                              final accumulator
-  concat(a, b, ...)           joins any number of arrays into one; each
-                              argument must itself be an array
-  append(arr, item)           a new array with item added at the end —
-                              an array item is added as one element, not
-                              spliced (use concat for that)
-  branch is not here: it has to leave an arm unevaluated, which no
-  builtin can do, so it is part of the language itself."""
+                              always one longer than arr. fn is (acc, item)
+  fold(arr, init, fn)         same step and order, only the final accumulator
+  concat(a, b, ...)           joins arrays; every argument must be an array
+  append(arr, item)           adds one element at the end — an array item is
+                              added whole, not spliced (use concat for that)
+  branch is not here: it must leave an arm unevaluated, which no builtin
+  can do, so it is part of the language itself.
+
+ERRORS you may see
+  UnboundName      a name that is not bound and not a builtin
+  PathNotFound     a field the value does not have; shows the path as written
+  TypeMismatch     wrong type or arity, a non-callable callee, or a value
+                   that cannot cross a JSON boundary (a document used as an
+                   attribute value, a closure used as a value)
+  ConcatMismatch   <> over two different types
+  UnknownLibrary   an import name with no tab of that name
+  ImportCycle      a tab importing itself, directly or through another
+
+Full reference: specs/reference.md. Output format: specs/node-json.md."""
