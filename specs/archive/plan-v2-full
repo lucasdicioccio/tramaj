@@ -1,0 +1,1157 @@
+
+# Tramaj V2 — Symbolic Values, Types and Constraints
+
+## Phase 0 — Freeze the V1 baseline
+
+Before changing semantics:
+
+* [ ] Make sure both existing implementations pass the current `reference.md`
+  and `node-json.md`.
+* [ ] Add a small cross-implementation corpus for:
+
+  * bindings;
+  * arrays/objects;
+  * Nodes as values;
+  * fragments;
+  * imports;
+  * `map`;
+  * `adapt-actions`;
+  * `<>`;
+  * annotations.
+* [ ] Treat the current core AST as the V1 compatibility baseline.
+* [ ] Do **not** modify existing Node JSON semantics yet.
+
+The current reference explicitly identifies types/domains/constraints as open
+work and says the AST was intentionally designed so this can be added without
+forking the language. 
+
+---
+
+# Phase 1 — Introduce typed unknown values
+
+### 1.1 Core value representation
+
+Extend:
+
+```text
+Value
+  = Null
+  | Boolean
+  | Number
+  | String
+  | Array List<Value>
+  | Object Map<String, Value>
+  | Node
+  | Closure
+  | Builtin
+  | ImportResult
+  | Import
+```
+
+with:
+
+```text
+  | Unknown UnknownValue
+```
+
+and:
+
+```text
+UnknownValue
+  type: Type
+  identity: ...
+```
+
+The implementation should decide whether the binding name itself is sufficient
+as identity or whether an internal symbolic ID is preferable.
+
+**Recommendation:** use an internal identity rather than relying exclusively
+on the string name. Names are lexical; symbolic identity should remain stable
+even if values are moved through arrays, lambdas, or imports.
+
+---
+
+### 1.2 Add `?` to the parser
+
+Add:
+
+```text
+?
+```
+
+as an expression producing an unknown.
+
+Then add the type annotation syntax:
+
+```text
+@replicas : Int = ?
+```
+
+This means the parser/desugarer needs to extend the binding syntax.
+
+The existing parser currently lowers all bindings into nested `Let`s. 
+
+I'd therefore **not introduce a new `Binding` core constructor** merely for
+this feature.
+
+Instead, extend `Let`:
+
+```text
+Let
+  name: String
+  type: Optional<Type>
+  value: Expr
+  body: Expr
+```
+
+So:
+
+```tramaj
+@x : Int = ?
+```
+
+desugars approximately to:
+
+```text
+Let("x", Some(Int), Unknown, body)
+```
+
+This keeps the core AST expression-oriented.
+
+---
+
+### 1.3 Type AST
+
+Start small:
+
+```text
+Type
+  = NamedType(TypePath)
+  | ArrayType(Type)
+```
+
+Don't implement the full future type system yet.
+
+In particular, **do not implement structural anonymous object types**.
+
+We want nominal types with product/sum declarations.
+
+---
+
+# Phase 2 — Type declarations
+
+### 2.1 Decide where declarations live
+
+I would introduce them at the `Program` level rather than inventing a runtime
+`type(...)` expression.
+
+Conceptually:
+
+```text
+Program
+  declarations: List<Declaration>
+  expression: Expr
+```
+
+with:
+
+```text
+Declaration
+  = TypeDecl(...)
+  | ...
+```
+
+However, if you want to preserve the existing `Program = DocumentProgram Expr |
+ExpressionProgram Expr` shape as much as possible, another good implementation
+strategy is to have a **pre-expression declaration section** that desugars into
+an enriched program structure.
+
+I would not encode type declarations as runtime `Let`s.
+
+---
+
+### 2.2 Product types
+
+Implement:
+
+```text
+type Card = {
+  title: String
+  author: Author
+}
+```
+
+as:
+
+```text
+TypeDecl
+  name: Card
+  definition:
+    Product [
+      ("title", String)
+      ("author", Author)
+    ]
+```
+
+Important:
+
+* [ ] Type identity is nominal.
+* [ ] Product field names are part of the type definition.
+* [ ] Product fields have declared types.
+* [ ] Duplicate fields are rejected.
+* [ ] Unknown type references are rejected by the type analyzer, not the parser.
+
+---
+
+### 2.3 Discriminated sums
+
+Implement something like:
+
+```text
+type Result =
+  | Ok {
+      value: String
+    }
+  | Error {
+      message: String
+      code: Int
+    }
+```
+
+as:
+
+```text
+Sum [
+  Variant("Ok", [...])
+  Variant("Error", [...])
+]
+```
+
+Do **not** generalize this into arbitrary unions yet.
+
+The discriminator should be explicit and nominal.
+
+---
+
+# Phase 3 — Imported type namespaces
+
+This is particularly important given the current import model.
+
+Today an import exposes:
+
+```text
+.rendered
+.vals
+```
+
+and imports can remain unsaturated until `.rendered` or `.vals` is accessed. 
+
+Add:
+
+```text
+.types
+```
+
+as static module information.
+
+Example:
+
+```tramaj
+@foo = import("foo", {})
+
+@x : $foo.types.Card = ?
+```
+
+### TODO
+
+* [ ] Add a type namespace to the module/library representation.
+* [ ] Make imported types available without executing the import.
+* [ ] Ensure partial/unsaturated imports can expose `types`.
+* [ ] Define type-reference AST for:
+
+  * local type;
+  * imported type.
+* [ ] Ensure `$a.types.Card` is **not runtime field lookup**.
+* [ ] Preserve nominal identity:
+  `$a.types.Card != $b.types.Card` unless explicitly related.
+* [ ] Add tests for two libraries defining identically-shaped `Card` types.
+
+This is also a good place to make a clean distinction:
+
+```text
+$foo.vals.Card
+```
+
+is a value lookup.
+
+```text
+$foo.types.Card
+```
+
+is a type lookup.
+
+---
+
+# Phase 4 — Typing judgments
+
+Add:
+
+```tramaj
+require($ctx.title : String)
+```
+
+and:
+
+```tramaj
+require($ctx : $foo.types.Card)
+```
+
+### AST
+
+Something along the lines of:
+
+```text
+TypingJudgment
+  value: TypedRef
+  type: Type
+```
+
+where `TypedRef` is intentionally narrower than arbitrary `Expr`.
+
+Initially support:
+
+```text
+$ctx
+$ctx.foo
+$foo.bar
+```
+
+and similar statically identifiable paths.
+
+### TODO
+
+* [ ] Parser support for `require(expr : type)`.
+* [ ] Desugar/AST representation.
+* [ ] Validate that the left side is a supported typing reference.
+* [ ] Resolve local type names.
+* [ ] Resolve `$foo.types.X`.
+* [ ] Add type-checking of field projections.
+* [ ] Add errors for unknown types.
+* [ ] Add errors for invalid typing targets.
+* [ ] Keep typing judgments separate from constraints.
+
+I would **not make `require` a runtime builtin**.
+
+It is analyzer/type-system information.
+
+---
+
+# Phase 5 — First-class constraints
+
+Add:
+
+```text
+constraint("gt", $x, 10)
+```
+
+as an ordinary expression.
+
+Extend:
+
+```text
+Value
+```
+
+with:
+
+```text
+Constraint
+```
+
+and define:
+
+```text
+Constraint
+  name: String
+  arguments: List<ConstraintExpr>
+```
+
+This is the most important semantic decision because it means you don't need
+special semantics for constraints in `map`, `filter`, bindings, etc.
+
+The current language is expression-oriented and documents are already ordinary
+values; this extension follows that same philosophy. 
+
+---
+
+# Phase 6 — Constraint expression normalization
+
+Do **not** reuse arbitrary `Expr` as the stored representation of a
+constraint argument.
+
+Introduce:
+
+```text
+ConstraintExpr
+  = Ref
+      path: Path
+
+  | Literal
+      value: JSON
+
+  | Array
+      elements: List<ConstraintExpr>
+
+  | Object
+      fields: List<(String, ConstraintExpr)>
+
+  | Field
+      target: ConstraintExpr
+      name: String
+```
+
+The evaluator converts the ordinary expression supplied to `constraint(...)`
+into this restricted representation.
+
+For example:
+
+```tramaj
+constraint(
+  "gt",
+  $my-unknown,
+  $ctx.threshold
+)
+```
+
+becomes conceptually:
+
+```text
+Constraint(
+  "gt",
+  [
+    Ref(["my-unknown"]),
+    Ref(["ctx", "threshold"])
+  ]
+)
+```
+
+### Validity rules
+
+Initially allow:
+
+* [ ] references;
+* [ ] static field access;
+* [ ] `null`;
+* [ ] booleans;
+* [ ] numbers;
+* [ ] strings;
+* [ ] arrays;
+* [ ] objects.
+
+Reject:
+
+* [ ] arbitrary function calls;
+* [ ] lambdas;
+* [ ] imports;
+* [ ] `lookup`;
+* [ ] document values;
+* [ ] actions;
+* [ ] `map` nested inside a constraint argument.
+
+The important distinction is:
+
+```tramaj
+map($items, (x) => constraint(...))
+```
+
+**is valid**.
+
+But:
+
+```tramaj
+constraint("foo", map(...))
+```
+
+is not necessarily valid.
+
+The former creates constraints as ordinary values. The latter attempts to put
+an arbitrary computation *inside the declarative constraint representation*.
+
+---
+
+# Phase 7 — Context values inside constraints
+
+Explicitly test:
+
+```tramaj
+@x : Int = ?
+
+constraint("gt", $x, $ctx.threshold)
+```
+
+and:
+
+```tramaj
+constraint(
+  "equal",
+  $x.foo,
+  $ctx.configuration.foo
+)
+```
+
+The important implementation point is:
+
+> A constraint argument reference is not necessarily symbolic.
+
+It may resolve to:
+
+```text
+Unknown
+```
+
+or:
+
+```text
+Number
+String
+Boolean
+Object
+Array
+...
+```
+
+The constraint retains the reference rather than eagerly requiring it to be
+symbolic.
+
+This gives you the desired concrete/symbolic mixture.
+
+---
+
+# Phase 8 — Make `map` constraint-aware automatically
+
+This should hopefully require **almost no evaluator change**.
+
+Given:
+
+```tramaj
+map(
+  $items,
+  (x) => constraint("gt", $x, 0)
+)
+```
+
+the existing `Map` evaluator should simply obtain:
+
+```text
+Array<Value>
+```
+
+where each `Value` happens to be a `Constraint`.
+
+So:
+
+* [ ] Add `Constraint` to the value type.
+* [ ] Verify existing `map` implementation is polymorphic over result values.
+* [ ] Add tests for `map` returning constraints.
+* [ ] Add tests where mapped items are concrete.
+* [ ] Add tests where mapped items are symbolic.
+* [ ] Add tests with mixed concrete/symbolic items.
+
+Ideally there should be **zero `if result is Constraint` logic inside `map`**.
+
+That is a good architectural test.
+
+---
+
+# Phase 9 — Constraint collection
+
+Don't make constraint construction a side effect.
+
+For example:
+
+```tramaj
+@constraints =
+  map(
+    $items,
+    (x) => constraint("valid", $x)
+  )
+```
+
+simply produces an array.
+
+Then define an analyzer-side operation:
+
+```text
+collectConstraints(Value) -> List<Constraint>
+```
+
+which recursively traverses:
+
+```text
+Array
+Object
+```
+
+and perhaps whatever program-level roots you decide are relevant.
+
+### Important design question
+
+Before implementing this, settle:
+
+> **Where does an analyzer look for constraints?**
+
+I would initially support explicit collection from values/bindings rather than
+magically treating every constraint anywhere in the program as a global side
+effect.
+
+For example:
+
+```tramaj
+@constraints = [...]
+```
+
+is much easier to reason about than:
+
+```text
+every Constraint encountered during evaluation mutates global analyzer state
+```
+
+The latter would fight Tramaj's existing value semantics.
+
+---
+
+# Phase 10 — Symbolic field access
+
+This is the first genuinely interesting evaluator change.
+
+Suppose:
+
+```tramaj
+@item : $foo.types.Item = ?
+```
+
+and later:
+
+```tramaj
+$item.title
+```
+
+The evaluator cannot actually read `title` from a concrete object.
+
+It needs to produce a symbolic projection.
+
+I would therefore **not make `Unknown` contain a mutable object/domain**.
+
+Instead introduce something like:
+
+```text
+Unknown
+  identity: SymbolId
+  type: Type
+
+SymbolicPath
+  root: SymbolId
+  path: List<String>
+```
+
+or make symbolic values themselves path expressions.
+
+For example:
+
+```text
+$item.title
+```
+
+could become:
+
+```text
+Unknown(
+  identity = item,
+  type = $foo.types.Item.title
+)
+```
+
+But I'd prefer a representation closer to:
+
+```text
+SymbolicValue
+  origin: SymbolId
+  path: List<String>
+  type: Type
+```
+
+because it will become very useful to the constraint analyzer.
+
+Then:
+
+```tramaj
+constraint("gt", $item.price, 0)
+```
+
+doesn't require evaluating `$item.price`.
+
+It produces a reference to the symbolic projection.
+
+**This is the piece I would prototype before committing the final V2 AST.**
+
+---
+
+# Phase 11 — Symbolic values crossing Node boundaries
+
+The current Node JSON spec says Node values are ordinary JSON values and explicitly
+makes JSON the interchange boundary for attributes, element values and action
+payloads. 
+
+So don't quietly serialize:
+
+```json
+{"type": "unknown", ...}
+```
+
+as if that were already V2-compatible Node JSON.
+
+First decide one of these two designs:
+
+### A. Symbolic Node is a V2 extension of Node JSON
+
+Extend the normative value JSON representation with a discriminator:
+
+```json
+{
+  "type": "unknown",
+  "id": "...",
+  "valueType": "..."
+}
+```
+
+### B. Keep Node JSON strictly concrete
+
+Require a symbolic/constraint-aware host to consume a richer **V2 Value/Node
+wire format**, while V1 Node JSON continues to mean concrete JSON.
+
+I currently prefer **B**.
+
+The current Node JSON document deliberately says `Value` is ordinary JSON and
+that Nodes don't nest through attribute/value/action boundaries. 
+
+Don't destabilize that boundary until we've designed symbolic serialization
+properly.
+
+---
+
+# Phase 12 — Annotations
+
+The existing annotations mechanism is already exactly the right escape hatch:
+
+```text
+Annotations = Map<String, JSON>
+```
+
+and the spec explicitly reserves it for types, domains, provenance and host
+metadata. 
+
+For V2:
+
+* [ ] Preserve annotation semantics unchanged.
+* [ ] Don't make core evaluation interpret arbitrary annotations.
+* [ ] Define an analyzer namespace/key convention only if needed.
+* [ ] Ensure all Node transformations preserve annotations.
+* [ ] Add tests around `adapt-actions`.
+* [ ] Don't use annotations as a replacement for the semantic `Unknown` value.
+
+Annotations should carry **derived metadata**, not be the fundamental
+representation of symbolic values.
+
+---
+
+# Phase 13 — Type checking of ordinary expressions
+
+Once types exist, implement the minimum type inference needed by the analyzer:
+
+```text
+$x : T
+$x.field : T.field
+```
+
+For products:
+
+```text
+Card.title : String
+Card.author : Author
+```
+
+For arrays:
+
+```text
+Array<T>[...] : T
+```
+
+For known literals:
+
+```text
+3       : Int
+"foo"   : String
+true    : Bool
+```
+
+The precise built-in type names (`Int`, `String`, `Bool`, etc.) should be
+settled before this stage.
+
+Don't implement general type inference yet.
+
+---
+
+# Phase 14 — Constraint dictionary
+
+Introduce an analyzer API along the lines of:
+
+```text
+ConstraintDefinition {
+  name
+  validate(arguments, typingEnvironment)
+  analyze(arguments, state)
+}
+```
+
+The Tramaj core should only know:
+
+```text
+Constraint(name, arguments)
+```
+
+The analyzer owns the meaning.
+
+Start with tiny examples:
+
+```text
+gt
+gte
+lt
+lte
+eq
+```
+
+but don't hard-code them into the language evaluator.
+
+This is particularly important because the existing language intentionally
+keeps builtin vocabulary fixed while host-specific semantic vocabularies can
+remain outside the core. 
+
+---
+
+# Phase 15 — First domain propagation
+
+Once constraints exist as data, implement **one deliberately small solver**.
+
+For example:
+
+```tramaj
+@x : Int = ?
+
+constraint("gte", $x, 1)
+constraint("lte", $x, 10)
+```
+
+should produce:
+
+```text
+x : Int
+domain: 1..10
+```
+
+Start with:
+
+```text
+Int
+ └── interval domain
+```
+
+only.
+
+Support:
+
+* [ ] lower bound;
+* [ ] upper bound;
+* [ ] intersection;
+* [ ] contradiction;
+* [ ] exact singleton.
+
+Don't implement arithmetic expressions yet. The current language explicitly
+has no arithmetic operators or arithmetic builtins. 
+
+---
+
+# Phase 16 — Concrete propagation
+
+Then test:
+
+```tramaj
+@x : Int = ?
+
+constraint("gt", $x, $ctx.threshold)
+```
+
+where:
+
+```text
+ctx.threshold = 10
+```
+
+should produce:
+
+```text
+x : Int
+domain: 11..∞
+```
+
+And:
+
+```tramaj
+constraint("gt", $x, 10)
+constraint("lt", $x, 5)
+```
+
+should report a contradiction.
+
+This is where the distinction between:
+
+```text
+symbolic reference
+```
+
+and:
+
+```text
+concrete value
+```
+
+pays off.
+
+---
+
+# Phase 17 — Constraint propagation through `map`
+
+Finally test the use case that motivated first-class constraints:
+
+```tramaj
+@constraints =
+  map(
+    $ctx.items,
+    (item) => constraint(
+      "gt",
+      $item.replicas,
+      $ctx.minimumReplicas
+    )
+  )
+```
+
+The analyzer should recursively collect the resulting constraints and
+propagate them.
+
+If the items are themselves symbolic:
+
+```text
+item[0].replicas : Int
+item[1].replicas : Int
+...
+```
+
+you should get independent symbolic variables/projections.
+
+This is a very good integration test for the whole architecture.
+
+---
+
+# Phase 18 — Import/type integration
+
+Test:
+
+```tramaj
+@lib = import("deployment", {})
+
+@deployment : $lib.types.Deployment = ?
+```
+
+Then:
+
+```tramaj
+constraint(
+  "valid-replicas",
+  $deployment.replicas,
+  $ctx.maxReplicas
+)
+```
+
+The analyzer needs to resolve:
+
+```text
+$lib.types.Deployment
+        │
+        ▼
+nominal type
+        │
+        ▼
+Deployment.replicas
+        │
+        ▼
+Int
+```
+
+No library evaluation should be required merely to resolve its types.
+
+This should also work through nested imports.
+
+---
+
+# Phase 19 — Static analysis extensions
+
+The current static-analysis layer already has:
+
+* `staticImportNames`;
+* `staticActionKeys`;
+* `contextHoles`;
+* `contextReads`;
+* `unsuppliedParams`. 
+
+Add V2 counterparts:
+
+```text
+typeDeclarations
+typeReferences
+typingRequirements
+constraintKinds
+```
+
+Potentially:
+
+```text
+deepTypeDeclarations
+deepTypeReferences
+deepTypingRequirements
+deepConstraintKinds
+```
+
+The deep versions should follow the existing import traversal/cycle-cutting
+model rather than inventing a second module traversal mechanism.
+
+---
+
+# Phase 20 — Serialization/conformance
+
+Before calling V2 stable:
+
+* [ ] Define JSON serialization for:
+
+  * `TypeDecl`;
+  * `Type`;
+  * `Unknown`;
+  * `Constraint`;
+  * `ConstraintExpr`;
+  * typing judgments.
+* [ ] Add encode/decode round-trip tests.
+* [ ] Add cross-implementation fixtures.
+* [ ] Add symbolic evaluation fixtures.
+* [ ] Add constraint-analysis fixtures.
+* [ ] Add contradiction fixtures.
+* [ ] Add imported-type fixtures.
+* [ ] Add `map → constraints` fixtures.
+
+The existing Node JSON round-trip invariant is a good model to follow:
+`decode(encode(n))` must preserve the semantic Node. 
+
+---
+
+# Suggested implementation order
+
+If I were actually implementing this in the repo, I'd do it in these commits:
+
+```text
+1.  V2 type model
+2.  `?` + typed Let
+3.  nominal type declarations
+4.  product types
+5.  discriminated sums
+6.  imported `.types`
+7.  typing judgments
+8.  Unknown values in evaluator
+9.  symbolic field projections
+10. Constraint value
+11. ConstraintExpr normalization
+12. `constraint(...)` parser/evaluator
+13. constraints through map/filter/fold/etc.
+14. constraint collection
+15. analyzer constraint dictionary
+16. first interval-domain solver
+17. concrete context values in constraints
+18. imported types + constraints
+19. symbolic Node boundary decision/implementation
+20. V2 JSON + conformance corpus
+```
+
+## The three things I'd prototype first
+
+There are three pieces I'd specifically prototype **before writing the full
+spec**:
+
+### 1. Symbolic projections
+
+Make sure this feels right:
+
+```text
+@x : $foo.types.Card = ?
+
+$x.title
+$x.author.name
+$x.items
+```
+
+and determine whether the semantic representation should be:
+
+```text
+Unknown(id, type)
+```
+
+plus a separate symbolic path, or:
+
+```text
+Unknown(id, projectedType, path)
+```
+
+I strongly suspect the latter will make the constraint engine cleaner.
+
+### 2. Constraint normalization
+
+Make sure:
+
+```tramaj
+constraint(
+  "gt",
+  $x.price,
+  $ctx.limits.price
+)
+```
+
+can become a completely self-contained, JSON-serializable value without
+evaluating `$x.price`.
+
+That is probably the most important V2 invariant.
+
+### 3. The import/type boundary
+
+Make sure this can be resolved without executing `foo`:
+
+```tramaj
+@foo = import("foo", {})
+@x : $foo.types.Card = ?
+```
+
+If those three work cleanly, I think the rest of V2 is mostly straightforward
+engineering.
+
+**One architectural recommendation above all:** keep the current evaluator
+value-oriented. Don't create a parallel "symbolic evaluator" and don't make
+`map`, `concat`, `branch`, imports, etc. know about constraints individually.
+Have them manipulate `Value`s; add `Unknown` and `Constraint` as values; then
+put typing/domain/constraint propagation in an analyzer over the resulting
+value/AST. That fits the architecture you've now got rather unusually well. 
+

@@ -17,6 +17,8 @@ For the language as implemented, read [`../reference.md`](../reference.md).
 | `constraints.md` | `merged2.md` with an older §17; otherwise identical | `merged2.md`, then `../reference.md` |
 | `v2.md` | an early v2 sketch | `../reference.md` |
 | `value.md` | the dedicated Node-AST draft, with six constructors | `../node-json.md`, `../reference.md` §4 |
+| `plan-v2-full` | a 20-phase implementation plan for symbols, types and constraints, written before the design settled | `../v3-symbols.md`, `../v4-types.md` |
+| `proposal-v2.md` | the design proposal those two specs were argued out in — four revisions, including the rejected parameter-keyed symbol identity | `../v3-symbols.md`, `../v4-types.md` |
 
 ## Two things to know before reading them
 

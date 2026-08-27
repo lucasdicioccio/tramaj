@@ -544,4 +544,7 @@ Programs must not depend on any of these.
 - Types, domains and constraints. The AST is built to accept them: node
   annotations are where derived type/domain information goes, and the
   semantics avoid equating "unknown" with `null`, so a constraint-aware
-  evaluator can reuse this AST rather than forking the language.
+  evaluator can reuse this AST rather than forking the language. The symbolic
+  and constraint half of that is now specified in [`v3-symbols.md`](v3-symbols.md),
+  frozen as a design and not yet implemented; nominal types are drafted in
+  [`v4-types.md`](v4-types.md).

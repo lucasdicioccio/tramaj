@@ -1,0 +1,409 @@
+# Roadmap to v4
+
+One plan covering both halves of the extension: **v3** (symbols and
+constraints, frozen) and **v4** (types, still a draft).
+
+Normative sources, and the only documents this plan defers to:
+
+* [`specs/reference.md`](specs/reference.md) — the language as implemented
+* [`specs/node-json.md`](specs/node-json.md) — the wire format
+* [`specs/laws.md`](specs/laws.md) — the properties that constrain both
+* [`specs/decisions.md`](specs/decisions.md) — why the language reads as it does
+* [`specs/v3-symbols.md`](specs/v3-symbols.md) — frozen; §-references below are to it
+* [`specs/v4-types.md`](specs/v4-types.md) — draft; §-references in Part III are to it
+
+This file is working material. Where it and a spec disagree, the spec wins,
+and this file is what gets corrected.
+
+---
+
+## 0. Strategy: one bump at a time, v3 first
+
+**Ship v3 completely — both implementations, both front ends, docs — before
+any v4 code exists.**
+
+1. **v4 is a draft with six open questions** (§11). Writing code against it
+   freezes it by accident. A design is stabilised by use, not by a plan.
+2. **v3 is strictly upstream.** v4's erasure targets the `"$type"` key v3
+   reserves (§5.3), `has-type` rides v3's constraint list, and v4's envelope is
+   v3's envelope plus two fields. No v4 work sits on anything but shipped v3.
+3. **v3 is non-breaking; v4 may not be.** See §1 — `Let` is an ordinary `Expr`
+   constructor, so v3's `Emit` needs no change to `Program` and every existing
+   host keeps compiling. Coupling a non-breaking release to a possibly-breaking
+   one throws that away.
+4. **v3 is independently useful.** Symbolic output with no types is already the
+   thing the design exists for: a hole a solver fills, a form renders, or a
+   host refuses up front via `deepConstraintKinds`.
+
+Release shape: **v3 is a minor bump** — new forms, no removals, two newly
+reserved key names. **v4 is major only if it keeps the `Program` change**, and
+Phase 15's gate 3 exists because it may not have to.
+
+---
+
+## 1. Ground truth in the tree today
+
+Facts the plan leans on, each verified rather than assumed.
+
+| fact | where | why it matters |
+|---|---|---|
+| The two implementations are module-for-module symmetric (`Ast`, `Parser`, `Eval`, `Analysis`, `Node`) | `tramaj-hs/src/Tramaj/`, `tramaj/src/Tramaj/` | every phase below is two edits in the same shape, not two designs |
+| `Let` is an `Expr` constructor; the surface binding block lowers to nested `Let`s | `Ast.hs:77` | `Emit` slots into the same chain; `Program` untouched |
+| `unlets` peels the chain and **stops at the first non-`Let`** | `Ast.hs:210-212` | adding `Emit` to the chain silently truncates `.vals` — see Phase 3 |
+| `ParamValue = PExpr \| PFromContext` — import params already have two channels | `Ast.hs:131-134` | v4's type channel is a third constructor, not a new mechanism |
+| `toJson` is the single JSON boundary, refusing non-values one constructor at a time | `Eval.hs:442-455` | the one place `Constraint` must be refused |
+| `objectKey = staticString <|> identifier` | `Parser.hs:269` | object keys are always static, so reserving `$sym`/`$type` is a parse-time rule |
+| Fixtures exist **twice**, hand-maintained in each host language | `tramaj/test/Test/Fixtures.purs`, `tramaj-hs/test/unit/` | the reason Phase 0 exists |
+| The CLI has no mode flag | `tramaj-cli/src/Main.purs:39` | Phase 6 |
+
+---
+
+# Part I — v3
+
+## Phase 0 — a shared conformance corpus
+
+**Before any v3 code.**
+
+Two hand-maintained corpora were tolerable while every expectation was a
+document: a drift showed up as a visibly different tree. v3 ends that. Its
+correctness is largely **byte-equality of strings produced independently by two
+implementations** — symbol ids, canonical keys, deduplication order, emission
+order. Parallel corpora cannot demonstrate agreement there; they can only fail
+to notice its absence.
+
+Tasks:
+
+* Move cases to a language-neutral directory: per case a template, an optional
+  context JSON, optional library sources, a mode, and an expected output.
+* Reduce both suites to thin runners over it.
+* Keep the expectation in the `node-json.md` representation, which both suites
+  already assert against.
+
+Exit: every existing test passes from the shared corpus in both
+implementations, and neither suite carries a case the other lacks.
+
+Payoff is immediate and independent of v3 — the corpus starts *proving*
+agreement instead of asserting it twice.
+
+## Phase 1 — core-profile groundwork
+
+No new forms. Both items are obligations v3 places on an implementation even
+if it never grows a symbol (§5.5), so they belong before the extension rather
+than inside it.
+
+* **Prescribed evaluation order** (§4): call arguments, array elements, object
+  fields and special-form arguments evaluate in source order. `reference.md`
+  §13 currently leaves this free; v3 removes the freedom because the emission
+  list becomes part of the result and `laws.md` requires the result to be
+  deterministic. No conforming program can depend on the freedom being there,
+  so nothing observable changes except error selection.
+* **Reserved keys** `"$sym"` and `"$type"` (§5.3): a parse error in a program,
+  a decoder rejection in a context, in **both** modes — so a program's legality
+  never depends on how a host runs it.
+
+Testing: before emission exists, order is observable only through *which of two
+errors surfaces first*. Write those fixtures anyway — they are the only thing
+that will catch a divergence here once emission makes order matter for real.
+
+Exit: shippable alone. The sole user-visible change is two key names that were
+previously ordinary object keys.
+
+## Phase 2 — modes and the envelope skeleton
+
+Mode is a **host parameter, not a program property** (§5).
+
+* Both entry points take a mode.
+* Concrete mode is byte-for-byte `reference.md` §1 — pin this with fixtures,
+  because it is the promise that a v3 implementation is still a v2 one.
+* Symbolic mode emits `{"format": "tramaj/symbolic/1", "kind", "root",
+  "symbols": [], "constraints": []}`.
+* `SymbolsUnavailable` exists; nothing raises it yet.
+
+**Why the envelope precedes constraints:** in concrete mode `!` is evaluated
+and its constraints *discarded* (§5.1). Until an envelope exists there is
+nowhere for a constraint to be observed, so building constraints first means
+building them blind.
+
+Exit: a program with no new syntax round-trips through both modes, and the
+concrete-mode bytes are unchanged from Phase 1.
+
+## Phase 3 — constraints over concrete values
+
+A real deliverable on its own: a document plus a list of checkable facts about
+it, with no holes anywhere.
+
+* `constraint(...)` as a **special form**, not a builtin: static string name,
+  ordinary expressions after it, **unbounded arity** (§2.1). Argument order is
+  significant and preserved.
+* `Constraint` as a `Value` that MUST NOT cross a JSON boundary.
+* `!` as a statement leader lowering to `Emit`, in the same chain as `Let`.
+* Emission threaded **monoidally** through evaluation. Not global mutable
+  state, which would not survive `branch`'s laziness in every position.
+* Array flattening by the children coercion table (`reference.md` §6);
+  `!branch(...)` collects only from the selected arm.
+* Deduplication, first position kept — which is what makes it unobservable
+  whether an implementation ran a library once or twice.
+* `constraintKinds` / `deepConstraintKinds`.
+
+**The trap in this phase.** `unlets` (`Ast.hs:210-212`) stops at the first
+non-`Let`. Once `Emit` lives in that chain, a program like
+
+```
+@a = 1
+!constraint("k", $a)
+@b = 2
+.p("x")
+```
+
+exposes only `a` through `.vals`, silently. `unlets` must skip `Emit` nodes
+while collecting bindings, and there must be a fixture for exactly this shape —
+an import whose `.vals` is read across an intervening `!`.
+
+Also watch: `toJson` (`Eval.hs:442`) is the one place a `Constraint` gets
+refused, and `map`/`filter` stay polymorphic. If either needs a special case,
+the design has drifted from §2.1.
+
+Exit: constraints appear in the symbolic envelope, are absent from concrete
+output, and `deepConstraintKinds` answers before anything runs.
+
+## Phase 4 — symbols
+
+The largest phase, and the one that benefits most from arriving last.
+
+* `?(key)` and `?ctx.path`; **parser-assigned site indices in source order**.
+* `canon` — compact JSON, sorted keys, **strings quoted at the top level**.
+  Deliberately *not* `str`: `str(3)` and `str("3")` are the same characters,
+  and colliding ids would silently merge two distinct variables.
+* Identity: `#<site>:<canon key>` for an allocation, `#ctx.a.b` for an
+  unsupplied demand (§1.4).
+* `AllocationInLibrary` as a **lexical, load-time** check on a library's own
+  source — not per-expression — so a closure written in the root and applied
+  inside a library still allocates in the root.
+* Projection (§1.6): extends the path, never fails, never appears in the symbol
+  table.
+* `NotConcrete` across the builtin table (§1.5): `branch`, `map`, `filter`,
+  `scan`, `fold`, the comparisons, `str`, `cardinality`, `has`, `lookup`, `<>`.
+  `has` and `lookup` are the subtle two — both are tolerant today and neither
+  may answer about a symbol.
+* Symbol table in the envelope; seeding (§5.4).
+
+**The risk here is agreement, not code.** Two implementations must assign the
+same site index to the same syntactic position. Fixture that directly — a
+program with allocations inside lambdas, array literals and both arms of a
+`branch`, asserting the **ids**, not only the document.
+
+Exit: the §8 fixture families pass in both implementations, byte-identical.
+
+## Phase 5 — the rest of static analysis
+
+`symbolSites`, `symbolDemands` / `deepSymbolDemands`, following imports with
+the cycle cutting `Analysis.hs` already uses for its deep variants.
+
+Kept separate on purpose: analysis is the surface hosts integrate against, and
+it reviews better when it is not competing with evaluator changes.
+
+## Phase 6 — tooling
+
+* `tramaj-cli` grows a mode flag; its usage line is currently mode-free.
+* `tramaj-halogen` and `playground`: at minimum unbroken; ideally rendering the
+  symbol list, since a form over the holes is the demonstration the design has
+  been arguing for since §0.
+
+## Phase 7 — documentation
+
+* `reference.md` §14 loses "not yet implemented" for the symbolic half.
+* `decisions.md` gains entries for the three calls made at freeze time:
+  prescribed evaluation order, deduplication, and `canon` ≠ `str`.
+* Each implementation states the profile it claims (§5.5).
+
+## v3 exit criteria
+
+1. Both implementations pass the shared corpus, including id- and
+   order-asserting cases, byte-identical.
+2. A concrete-mode program produces the same bytes it produced before Phase 1.
+3. A library written against `?ctx.path` runs unchanged in both modes.
+4. A core-profile-only build rejects `?` and `!` at parse time rather than
+   ignoring them.
+
+---
+
+# Part II — the gate before v4
+
+Three conditions. The second is the real one.
+
+1. **v3 shipped and used.** Not merely merged.
+2. **A host that is actually hurt by the string.** §0 of the type spec concedes
+   that `!constraint("has-type", $d, "Deployment")` already works in v3 with a
+   plain string argument. Everything v4 adds — resolution, parameterisation,
+   the algebra, identity — earns its keep only when something concrete breaks
+   on that string: two libraries both exporting `Card`, a library that cannot
+   name the type it is generic over, a host that needs the definition and not
+   just the name. The six items in §11 should be closed by that host's needs
+   rather than by argument.
+3. **Settle whether `Program` must change** — see Phase 15's note, which Phase
+   3 will already have made answerable.
+
+---
+
+# Part III — v4
+
+Ordering follows the pipeline: **parse → resolve → parameterise → erase → emit
+→ output → analyse.** Every phase is independently testable, and everything
+before Phase 11 is invisible to the evaluator.
+
+## Phase 8 — type expressions and declarations, parse only
+
+* `TypeExpr`: `Prim`, `Array`, `Record`, `Union`, `Ref`, `Var` (§1). Six
+  constructors, closed.
+* Surface: `type X = ...`, records `{ a : T }`, unions `| A T | B`, arrays
+  `[T]`, variables `%ctx.path`. Nullary union arms are first-class, not arms
+  with an empty payload — the enum is the common case.
+* Primitives are exactly the value domain's shapes: `string`, `number`,
+  `bool`, `null`, `document`. No `Int`.
+* Declarations are **nominal**, which is what makes `type UserId = string`
+  newtyping for free.
+
+Decide here, not later: **where declarations live.** Either a declaration block
+on `Program`, or `TypeDecl` in the `Let` chain the way `Emit` sits there. The
+second leaves `Program` untouched and makes v4 non-breaking; its catch is that
+the chain is lexical and non-recursive by construction while
+`type Tree = | Leaf | Node { l : Tree, r : Tree }` needs its own name in scope
+inside its body. That is resolvable — declarations are *resolved*, not
+evaluated, so a static pass can gather every `TypeDecl` in the chain first and
+resolve afterwards, using the chain purely as carriage. Prototype both against
+a recursive declaration before choosing.
+
+Exit: declarations parse, round-trip, and mean nothing to anything yet.
+
+## Phase 9 — resolution, normalisation, canonical ids
+
+The heart of v4, and the second place two implementations must agree on
+strings.
+
+* Resolve every name to a primitive or a declaration; `UnresolvedType`
+  otherwise. Once names resolve, an unresolvable name must be an error —
+  otherwise a typo is silently a distinct nominal type.
+* `$lib.types.X` is resolved **statically**: `lib` must be bound directly to an
+  `import(...)` in the enclosing chain, else `NotStaticallyResolvable`.
+  Resolution follows the library table and **evaluates no library** — the table
+  holds parsed programs, so this is an AST walk.
+* Normal form: resolve refs to `(library, name)`, recurse into arguments, sort
+  record fields, union arms and argument maps by name, and **stop at
+  declaration boundaries** — a `Ref` renders as its name and arguments, never
+  as its expansion. That last clause is what makes recursive declarations
+  terminate.
+* Canonical id per the §3 grammar. It **must be injective**; sorting is total
+  and the grammar unambiguous, for the same reason `canon` is not `str`.
+* `TypeCycle` for cycling *arguments*; a recursive body is not a cycle.
+
+Test with the same discipline as Phase 4: assert the id strings, in both
+implementations, for nested applications and for a self-recursive declaration.
+
+## Phase 10 — type parameters through imports
+
+Where the load-bearing bet gets tested: **type parameters are import
+parameters** (§2).
+
+* `ParamValue` gains a third constructor for a `%`-marked type argument —
+  which is why this is cheap: the record already distinguishes an expression
+  param from a `ctx(path)` hole.
+* `typeParams` — the `%ctx.*` paths a library's declarations mention — is what
+  splits the one syntactic record into two semantic channels.
+* `TypeParamCollision` when a key is read both as `$ctx.k` and as `%ctx.k`.
+* `unsuppliedTypeParams`, the type half of `unsuppliedParams`. Note the
+  existing function attributes a read to a parameter by its **first segment**;
+  the type side needs the same rule and the same stopping condition.
+* Partial types, and `PartialType` at the root — the analogue of an import that
+  must be saturated before it runs.
+* Forwarding: `import("inner", {payload: %ctx.payload})` substitutes one
+  variable for another and stays a hole.
+
+Exit: a parameterised library exports a partial type; saturating the import
+saturates the type; leaving it partial at the root is a static error.
+
+## Phase 11 — annotations and erasure
+
+* `@x : T = e` desugars to the binding plus
+  `!constraint("has-type", $x, {"$type": "<canonical id>"})`.
+* An **erasure pass** after resolution: no type survives into evaluation, only
+  the inert tagged object.
+* Consequently `Value` gains no constructor and the whole §1.5 `NotConcrete`
+  table of v3 is untouched.
+
+The invariant to fixture, because it is the honest meaning of erasure:
+**a concrete-mode run of a typed program is byte-identical to the same program
+with its annotations deleted.**
+
+## Phase 12 — `!type-constraint`
+
+* `!type-constraint(name, args...)`: static string name, **unbounded arity**,
+  each argument a `%`-marked type expression or a literal scalar. Order
+  significant.
+* Core AST `TypeEmit`, a sibling of `Emit` that the evaluator's statement fold
+  **skips** — it is resolved by the analyser, not evaluated.
+* Instantiation follows substitution: a constraint on `%ctx.payload` becomes a
+  constraint on the supplied type.
+* Deduplication by canonical rendering, as in v3 §4.
+
+## Phase 13 — output
+
+* `"types"`: the **transitive closure** of referenced types — a record's field
+  types, a union's payloads, and theirs. Cycles cut by ids, since a `Ref` is
+  never expanded.
+* `"type-constraints"`.
+* Both `[]` when unused, so a v3 consumer reading a v4 envelope sees nothing
+  new and the format version does not change. Fixture that explicitly.
+* Placement rule to honour: **a constraint goes in the list of its subject's
+  realm** — `has-type` is about a value, `has-default` is about a type.
+
+## Phase 14 — static analysis
+
+`typeDeclarations`, `typeReferences` / `deepTypeReferences`, `typeConstraints`
+/ `deepTypeConstraints`. Unresolvable references are **reported**, on the same
+footing as an import name the table does not resolve.
+
+## Phase 15 — tooling, docs, and the version decision
+
+* CLI and front ends surface `"types"` and `"type-constraints"`.
+* `reference.md` §14 updated; `decisions.md` gains the v4 entries.
+* **Decide the bump.** If Phase 8 put declarations in the `Let` chain,
+  `DocumentProgram | ExpressionProgram` survived and v4 is minor. If it needed
+  a declaration block, v4 is major and every host that pattern-matches
+  `Program` is affected.
+
+## v4 exit criteria
+
+1. Both implementations produce byte-identical canonical ids for the corpus,
+   including recursive and nested-application cases.
+2. A typed program's concrete-mode output equals the untyped program's, byte
+   for byte.
+3. A partial type at the root is a static error; a saturated one is not.
+4. A v3 consumer reads a v4 envelope without changes.
+
+---
+
+## Working rules across both parts
+
+* **No phase ends with the two implementations out of sync.** Lead with either
+  one inside a phase; never carry drift across a boundary. The Phase 0 corpus
+  is what makes this cheap rather than aspirational.
+* **Every phase leaves the tree green and the core profile intact.** Concrete
+  mode must produce identical bytes at the end of every phase.
+* **Fixtures assert strings, not just trees.** The entire class of bug this
+  work introduces is two implementations agreeing on the document and
+  disagreeing on the identifiers beside it.
+* **Nothing is added to the evaluator that the spec does not require.** If
+  `map` needs an `if value is Symbol` branch, or `toJson` needs a type case,
+  the implementation has drifted from the design and the design should win.
+
+## Risk register
+
+| risk | phase | mitigation |
+|---|---|---|
+| `unlets` truncating `.vals` at the first `Emit` | 3 | named above; fixture reading `.vals` across a `!` |
+| Site indices diverging between implementations | 4 | id-asserting fixtures over lambdas, arrays, both branch arms |
+| `canon` colliding two keys | 4 | injectivity test: `?("3")` and `?(3)` at the same site are distinct |
+| Emission via mutable state surviving `branch` laziness | 3 | monoidal threading, plus a fixture with constraints in an unselected arm |
+| Canonical type ids diverging | 9 | same discipline as Phase 4, applied to recursive declarations |
+| `unsuppliedTypeParams` disagreeing with `unsuppliedParams` on attribution | 10 | share the first-segment rule and the stopping condition |
+| v4 freezing prematurely | Part II | the gate: a host that is hurt by the plain string, not an argument |

@@ -1,0 +1,23 @@
+❯ ok, it's a good writeup however i think at this point the typesystem seem too weak and
+  lacks syntax; and we need some support for type-parameters; i do not mind if we do not
+  have higher kinded types checked because tramaj is about constructing values; but we
+  shall have some possibility to give parameters to types via the context. a bit like
+  ML/Ocaml modules;  that is while importing/partial importing a type; we can pass
+  arguments to type definitions; for instance `type message = { to : string, payload :
+  %ctx.payload-type } of some form; like we used ?(path) for denoting a symbolic value
+  instantiated outside the template, we shall have similar for types, possibly using % as
+  leader or some other nice char, we probably could re-use the constraint language on
+  symbolic values for symbolic types as well; we can leave as research idea to unify
+  symbolic constrained values and types but for now assume we have a separate realm.
+  wouldn't be powerful for a template to say "here's a type i do not define, however i do
+  constrain it to support something i rely on via a host builtin, like the type to have
+  some associated default value" as long as this constraint is static we should not hit
+  any big hurdle because tramaj merely collects and offer a simple algebra on types; we
+  shall probably have an algebra for building product/sum types, named records, record unions, newtyping
+
+  ultimately what we want is that templates can bubble-up some types, the main program merely collects the various types (note: they could be partial and it should be an error to have some partial type remaining)
+  unlike symbols, we may not need allocating type arguments because List[Int] should be the same as another List[Int] provided List and Int denote the same import-path/step: we need not complicated tests for giving a notion of egality between types or even some incomplete partial-order if two types have the same path and 3 partially-applied argument  for one and 2 for the other one
+
+where it's difficult is that we shall not impose too much on the semantics of constraints but it's powerful to think in terms of allowing formal checkers to run after the AST is concrete (i.e., we a-priori accept the program but can reject it)
+
+one new think to discuss is how a user would assert or force a type variable so that the type is 'replaced' rather than symbolically equated (a bit like the ctx(arg) mechanism for import saturations)
