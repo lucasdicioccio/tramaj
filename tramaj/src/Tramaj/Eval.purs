@@ -31,6 +31,7 @@ import Prelude
 
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Foldable (foldl)
 import Data.Int as Int
@@ -54,6 +55,13 @@ data EvalError
   | ImportCycle String
   -- | `a <> b` where the two sides are not the same concatenable type.
   | ConcatMismatch String String
+  -- | Whatever went wrong inside an imported library, tagged with which
+  -- | library it was. Nests, so a failure three imports deep reads as the
+  -- | chain that reached it. This matters most for the parameter a library
+  -- | needs and the import never supplied: that surfaces as this library's
+  -- | own `PathNotFound ["ctx", ...]`, and without the tag there would be
+  -- | nothing on it to say whose context was short.
+  | InLibrary String EvalError
 
 derive instance eqEvalError :: Eq EvalError
 
@@ -64,6 +72,7 @@ instance showEvalError :: Show EvalError where
   show (UnknownLibrary name) = "UnknownLibrary " <> show name
   show (ImportCycle name) = "ImportCycle " <> show name
   show (ConcatMismatch l r) = "ConcatMismatch " <> show l <> " " <> show r
+  show (InLibrary name err) = "InLibrary " <> show name <> " (" <> show err <> ")"
 
 -- | What a program produced. Which one it is follows from the value the
 -- | root actually evaluated to, not from how the root was written: a
@@ -88,8 +97,8 @@ type LibraryTable = Map String Program
 -- |
 -- | `VArray`/`VObject` hold `Value`, not JSON, so a document node can
 -- | travel inside a structure like any other value. `VEnv` is an import's
--- | `{rendered, vals}` result. `VPartial` is an import still waiting on
--- | context.
+-- | `{rendered, vals}` result. `VImport` is an import that has been wired
+-- | up but not run — reading a field off it is what runs it.
 -- |
 -- | There is no recursion: `Let` inserts a binding only after evaluating
 -- | its right-hand side, so a closure cannot see its own name.
@@ -104,21 +113,25 @@ data Value
   | VClosure (Array String) Expr Env
   | VBuiltin String
   | VEnv Env
-  | VPartial PartialImport
+  | VImport PendingImport
 
 type Env = Map String Value
 
--- | An import whose parameters are not all supplied yet.
+-- | An import that has been named and wired up, and has not run.
 -- |
--- | `deferred` holds the parameters still wired to a completion context,
--- | with the path each reads from — declared in the source by `ctx(path)`,
--- | never inferred. `queued` holds adaptations applied to the partial
--- | before it was completed; they run once completion actually produces
--- | something with actions in it.
-newtype PartialImport = PartialImport
+-- | `params` is everything supplied so far, however it arrived: an
+-- | expression, a `ctx(path)` read out of the importing program's own
+-- | context at the wiring site, or a later call adding more. Nothing here
+-- | records what is still *missing*, because nothing here knows: the
+-- | library decides that when it runs and reads its `$ctx`. That is the
+-- | whole point of the design — an omitted parameter is what defers an
+-- | import, so partiality needs no declaration and no bookkeeping.
+-- |
+-- | `queued` holds adaptations applied before the import ran; they run on
+-- | the result, once there are actions for them to reach.
+newtype PendingImport = PendingImport
   { name :: String
-  , resolved :: Array (Tuple String Value)
-  , deferred :: Array (Tuple String (Array String))
+  , params :: Map String Value
   , queued :: Array (Tuple ActionAdaptation (Maybe Value))
   }
 
@@ -174,11 +187,11 @@ evalExpr :: LibraryTable -> InProgress -> Env -> Expr -> Either EvalError Value
 evalExpr libs inProgress env = case _ of
   Path root fields -> case Map.lookup root env of
     Nothing -> Left (UnboundName root)
-    Just v -> walkFields (Array.cons root fields) v fields
+    Just v -> walkFields libs inProgress (Array.cons root fields) v fields
 
   FieldAccess target fields -> do
     v <- evalExpr libs inProgress env target
-    walkFields fields v fields
+    walkFields libs inProgress fields v fields
 
   Call fnExpr argExprs -> do
     fnVal <- evalExpr libs inProgress env fnExpr
@@ -247,41 +260,37 @@ evalExpr libs inProgress env = case _ of
     r <- evalExpr libs inProgress env rightExpr
     concatValues l r
 
+  -- Wiring up an import evaluates its parameters and stops there. The
+  -- library itself runs later, when a field is read off the result, so
+  -- parameters can keep arriving in between.
   Import name params -> do
-    resolved <- traverse (resolveParam libs inProgress env) params
-    let
-      deferred = Array.mapMaybe deferredParam params
-    completeOrSuspend libs inProgress
-      ( PartialImport
-          { name
-          , resolved: Array.mapMaybe suppliedParam resolved
-          , deferred
-          , queued: []
-          }
-      )
+    supplied <- traverse (resolveParam libs inProgress env) params
+    pure (VImport (PendingImport { name, params: Map.fromFoldable supplied, queued: [] }))
 
   AdaptActions targetExpr adaptation fnExpr -> do
     target <- evalExpr libs inProgress env targetExpr
     fnVal <- traverse (evalExpr libs inProgress env) fnExpr
     adaptValue libs inProgress adaptation fnVal target
 
+-- | One parameter, resolved where the import is written.
+-- |
+-- | `ctx(path)` is substituted here, from the *importing* program's own
+-- | context — exactly what `$ctx.path` would read, including the same
+-- | `PathNotFound` when it is absent, which is why it evaluates as that
+-- | very expression. It is a distinct AST node purely so
+-- | `Tramaj.Analysis` can read every hole off the source without
+-- | evaluating anything; the evaluator gains nothing from the
+-- | distinction and deliberately makes no other use of it.
 resolveParam
   :: LibraryTable
   -> InProgress
   -> Env
   -> Tuple String ParamValue
-  -> Either EvalError (Tuple String (Maybe Value))
+  -> Either EvalError (Tuple String Value)
 resolveParam libs inProgress env (Tuple k (PExpr e)) =
-  Tuple k <<< Just <$> evalExpr libs inProgress env e
-resolveParam _ _ _ (Tuple k (PFromContext _)) = Right (Tuple k Nothing)
-
-suppliedParam :: Tuple String (Maybe Value) -> Maybe (Tuple String Value)
-suppliedParam (Tuple k (Just v)) = Just (Tuple k v)
-suppliedParam _ = Nothing
-
-deferredParam :: Tuple String ParamValue -> Maybe (Tuple String (Array String))
-deferredParam (Tuple k (PFromContext path)) = Just (Tuple k path)
-deferredParam _ = Nothing
+  Tuple k <$> evalExpr libs inProgress env e
+resolveParam libs inProgress env (Tuple k (PFromContext path)) =
+  Tuple k <$> evalExpr libs inProgress env (Path "ctx" path)
 
 -- | Only for error messages: what the source called, as written.
 describeCallee :: Expr -> String
@@ -332,22 +341,25 @@ applyValue libs inProgress who fnVal args = case fnVal of
 
   VBuiltin name -> evalBuiltin name args
 
-  -- Completing an import: each still-deferred parameter reads its declared
-  -- path out of the supplied context. Ones the context does not carry stay
-  -- deferred, so a partial can be completed progressively rather than all
-  -- at once.
-  VPartial (PartialImport p) -> case args of
-    [ ctxVal ] ->
-      let
-        split = resolveDeferred ctxVal p.deferred
-      in
-        completeOrSuspend libs inProgress
-          (PartialImport (p { resolved = p.resolved <> split.resolved, deferred = split.deferred }))
+  -- Saturating an import: the argument is more parameters, merged over
+  -- what it already has. Right-biased, like `<>` on objects, so a later
+  -- call overrides an earlier value for the same name — which is what
+  -- makes one wired-up import reusable across a `map`, each iteration
+  -- supplying its own.
+  VImport (PendingImport p) -> case args of
+    [ VObject more ] -> Right (VImport (PendingImport (p { params = Map.union more p.params })))
+    [ other ] ->
+      Left
+        ( TypeMismatch
+            ( who <> ": the import of " <> show p.name
+                <> " takes an object of parameters, got " <> describeValue other
+            )
+        )
     _ ->
       Left
         ( TypeMismatch
-            ( who <> ": completing the partial import of " <> show p.name
-                <> " expects exactly 1 argument, the completion context"
+            ( who <> ": the import of " <> show p.name
+                <> " expects exactly 1 argument, the parameters to add"
             )
         )
 
@@ -389,40 +401,19 @@ concatValues l r = Left (ConcatMismatch (describeValue l) (describeValue r))
 
 -- Imports --------------------------------------------------------------------------
 
--- | Runs an import if every parameter is supplied, and suspends it if any
--- | is still wired to a completion context.
+-- | Runs the library behind an import, against the parameters it has
+-- | accumulated, and applies whatever adaptations were queued on it.
 -- |
--- | Partiality is decided here, by looking at the parameter list — never by
--- | running the library and interpreting a failure, which is how v1 decided
--- | it.
-completeOrSuspend :: LibraryTable -> InProgress -> PartialImport -> Either EvalError Value
-completeOrSuspend libs inProgress partial@(PartialImport p) =
-  if not (Array.null p.deferred) then Right (VPartial partial)
-  else do
-    result <- runLibrary libs inProgress p.name (VObject (Map.fromFoldable p.resolved))
-    applyQueued libs inProgress p.queued result
-
--- | Reads each deferred parameter's declared path out of a completion
--- | context, keeping the ones that context does not carry deferred.
-resolveDeferred
-  :: Value
-  -> Array (Tuple String (Array String))
-  -> { resolved :: Array (Tuple String Value), deferred :: Array (Tuple String (Array String)) }
-resolveDeferred ctxVal = foldl step { resolved: [], deferred: [] }
-  where
-  step acc (Tuple name path) = case lookupPath ctxVal path of
-    Just v -> acc { resolved = Array.snoc acc.resolved (Tuple name v) }
-    Nothing -> acc { deferred = Array.snoc acc.deferred (Tuple name path) }
-
--- | A total path lookup: absence is an answer here, not an error, because a
--- | context that lacks a path just leaves that parameter deferred.
-lookupPath :: Value -> Array String -> Maybe Value
-lookupPath v path = case Array.uncons path of
-  Nothing -> Just v
-  Just { head, tail } -> case v of
-    VObject o -> Map.lookup head o >>= \v' -> lookupPath v' tail
-    VEnv e -> Map.lookup head e >>= \v' -> lookupPath v' tail
-    _ -> Nothing
+-- | This is the only place a library runs, and `walkFields` is the only
+-- | caller: an import runs when a field is read off it, never where it is
+-- | written. Nothing checks first whether the parameters are enough —
+-- | there is no list of what "enough" would be. A library that reads a
+-- | `$ctx` path nobody supplied fails with its own `PathNotFound`, tagged
+-- | by `runLibrary` with the library's name.
+forceImport :: LibraryTable -> InProgress -> PendingImport -> Either EvalError Value
+forceImport libs inProgress (PendingImport p) = do
+  result <- runLibrary libs inProgress p.name (VObject p.params)
+  applyQueued libs inProgress p.queued result
 
 -- | Evaluates a library against its own fresh `$ctx` — the parameters it
 -- | was given — and exposes `{rendered, vals}`. `inProgress` carries the
@@ -433,14 +424,15 @@ runLibrary libs inProgress name ctxVal =
   if isJust (Map.lookup name inProgress) then Left (ImportCycle name)
   else do
     prog <- note (UnknownLibrary name) (Map.lookup name libs)
-    let
-      inProgress' = Map.insert name unit inProgress
-      peeled = unlets (programRoot prog)
-    libEnv <- foldM (bindStep inProgress') (initialEnv ctxVal) peeled.bindings
-    rendered <- evalExpr libs inProgress' libEnv peeled.root
-    let
-      vals = Array.mapMaybe (\(Tuple n _) -> Tuple n <$> Map.lookup n libEnv) peeled.bindings
-    pure (VEnv (Map.fromFoldable [ Tuple "rendered" rendered, Tuple "vals" (VEnv (Map.fromFoldable vals)) ]))
+    lmap (InLibrary name) do
+      let
+        inProgress' = Map.insert name unit inProgress
+        peeled = unlets (programRoot prog)
+      libEnv <- foldM (bindStep inProgress') (initialEnv ctxVal) peeled.bindings
+      rendered <- evalExpr libs inProgress' libEnv peeled.root
+      let
+        vals = Array.mapMaybe (\(Tuple n _) -> Tuple n <$> Map.lookup n libEnv) peeled.bindings
+      pure (VEnv (Map.fromFoldable [ Tuple "rendered" rendered, Tuple "vals" (VEnv (Map.fromFoldable vals)) ]))
   where
   bindStep inProgress' env (Tuple n e) = do
     v <- evalExpr libs inProgress' env e
@@ -458,9 +450,9 @@ foldM f acc xs = case Array.uncons xs of
 
 -- | Applies an adaptation everywhere it can reach: through a node's whole
 -- | tree, through every value of an import result (not just `rendered`),
--- | and through arrays. A partial import has no actions yet, so the
--- | adaptation is queued and runs when the import is completed. Anything
--- | else has no actions and passes through untouched.
+-- | and through arrays. An import that has not run has no actions yet, so
+-- | the adaptation is queued and runs on its result. Anything else has no
+-- | actions and passes through untouched.
 adaptValue :: LibraryTable -> InProgress -> ActionAdaptation -> Maybe Value -> Value -> Either EvalError Value
 adaptValue libs inProgress adaptation fnVal = go
   where
@@ -468,8 +460,8 @@ adaptValue libs inProgress adaptation fnVal = go
   go (VEnv e) = VEnv <$> traverse go e
   go (VArray xs) = VArray <$> traverse go xs
   go (VObject o) = VObject <$> traverse go o
-  go (VPartial (PartialImport p)) =
-    Right (VPartial (PartialImport (p { queued = Array.snoc p.queued (Tuple adaptation fnVal) })))
+  go (VImport (PendingImport p)) =
+    Right (VImport (PendingImport (p { queued = Array.snoc p.queued (Tuple adaptation fnVal) })))
   go v = Right v
 
 applyQueued
@@ -525,16 +517,22 @@ adaptAction libs inProgress adaptation fnVal event key payload = case fnVal of
 
 -- | Walks named segments into a value. `context` is the full path as
 -- | written, for error messages only.
-walkFields :: Array String -> Value -> Array String -> Either EvalError Value
-walkFields context v fields = case Array.uncons fields of
+walkFields :: LibraryTable -> InProgress -> Array String -> Value -> Array String -> Either EvalError Value
+walkFields libs inProgress context v fields = case Array.uncons fields of
   Nothing -> Right v
   Just { head, tail } -> case v of
     VObject o -> case Map.lookup head o of
       Nothing -> Left (PathNotFound context)
-      Just v' -> walkFields context v' tail
+      Just v' -> walkFields libs inProgress context v' tail
     VEnv e -> case Map.lookup head e of
       Nothing -> Left (PathNotFound context)
-      Just v' -> walkFields context v' tail
+      Just v' -> walkFields libs inProgress context v' tail
+    -- Reading a field off an import is what runs it — `.rendered` and
+    -- `.vals` are fields of the result, so the same segment is then walked
+    -- into that result rather than consumed here.
+    VImport pending -> do
+      result <- forceImport libs inProgress pending
+      walkFields libs inProgress context result fields
     other ->
       Left
         ( TypeMismatch
@@ -569,12 +567,11 @@ toJson (VBuiltin name) =
   Left (TypeMismatch ("expected a value, got the builtin " <> show name <> " -- call it first"))
 toJson (VEnv _) =
   Left (TypeMismatch "expected a value, got an import result -- read .rendered, .vals, or a binding name from it first")
-toJson (VPartial (PartialImport p)) =
+toJson (VImport (PendingImport p)) =
   Left
     ( TypeMismatch
-        ( "expected a value, got the import of " <> show p.name <> " still waiting on "
-            <> show (map fst p.deferred)
-            <> " -- complete it first"
+        ( "expected a value, got the import of " <> show p.name
+            <> " -- read .rendered or .vals from it to run it first"
         )
     )
 
@@ -603,7 +600,7 @@ describeValue (VNode _) = "a document node"
 describeValue (VClosure _ _ _) = "a function"
 describeValue (VBuiltin name) = "the builtin " <> show name
 describeValue (VEnv _) = "an import result"
-describeValue (VPartial (PartialImport p)) = "an incomplete import of " <> show p.name
+describeValue (VImport (PendingImport p)) = "the not-yet-run import of " <> show p.name
 
 requireBool :: String -> Value -> Either EvalError Boolean
 requireBool _ (VBool b) = Right b

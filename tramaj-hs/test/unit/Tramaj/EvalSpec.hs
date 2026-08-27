@@ -408,27 +408,51 @@ importSpec = describe "imports" $ do
   it "exposes the library's top-level bindings as .vals" $
     val "import(\"data\", {\"b\": 2}).vals.a" Null `shouldBe` Right (Number 1)
 
-  -- decisions.md #2: partiality is declared by ctx(...), not discovered.
-  it "completes a deferred parameter from the supplied context" $
-    doc "@p=import(\"panel\", {\"name\": \"web\", \"replicas\": ctx(spec.replicas)})\n$p({\"spec\": {\"replicas\": 3}}).rendered" Null
+  -- decisions.md #10: ctx(path) reads the importing program's own context,
+  -- where the import is written -- the same value @$ctx.path@ would give.
+  it "substitutes a ctx(path) parameter from the importing context" $
+    doc
+      "import(\"panel\", {name: ctx(n), replicas: ctx(spec.replicas)}).rendered"
+      (object ["n" .= ("web" :: Text), "spec" .= object ["replicas" .= (3 :: Int)]])
       `shouldBe` Right (el "section" [el "h2" [textJ (String "web")], el "p" [textJ (Number 3)]])
 
-  it "completes progressively, one parameter at a time" $
-    doc "@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n@half=$p({\"n\": \"web\"})\n$half({\"r\": 2}).rendered" Null
+  -- ... and omission, not ctx(...), is what leaves a parameter for later.
+  it "saturates an omitted parameter by calling the import" $
+    doc "@p=import(\"panel\", {\"name\": \"web\"})\n$p({\"replicas\": 3}).rendered" Null
+      `shouldBe` Right (el "section" [el "h2" [textJ (String "web")], el "p" [textJ (Number 3)]])
+
+  it "accumulates parameters across calls, one at a time" $
+    doc "@p=import(\"panel\", {})\n@half=$p({\"name\": \"web\"})\n$half({\"replicas\": 2}).rendered" Null
       `shouldBe` Right (el "section" [el "h2" [textJ (String "web")], el "p" [textJ (Number 2)]])
 
-  it "refuses to use an import that is still waiting on a parameter" $
-    ("@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n$p({\"n\": \"web\"})" `failsWithN` \case TypeMismatch _ -> True; _ -> False)
+  it "lets a later call override an earlier parameter" $
+    doc "@p=import(\"panel\", {name: ctx(n), \"replicas\": 3})\n$p({\"name\": \"web\"}).rendered" (object ["n" .= ("stale" :: Text)])
+      `shouldBe` Right (el "section" [el "h2" [textJ (String "web")], el "p" [textJ (Number 3)]])
+
+  -- The point of running a library on field access rather than where the
+  -- import is written: one wired-up import, reused per iteration.
+  it "reuses one import with different parameters" $
+    val "@p=import(\"data\", {})\nmap([1, 2], (b) => $p({\"b\": $b}).rendered.b)" Null
+      `shouldBe` Right (Array (V.fromList [Number 1, Number 2]))
+
+  it "reports a parameter nobody supplied as the library's own missing path" $
+    run "import(\"panel\", {\"name\": \"web\"}).rendered" Null
+      `shouldBe` Left (show (InLibrary "panel" (PathNotFound ["ctx", "replicas"])))
+
+  it "reports a ctx(path) the importing context lacks, at the import" $
+    run "import(\"panel\", {name: ctx(nope), \"replicas\": 3}).rendered" (object ["name" .= ("web" :: Text)])
+      `shouldBe` Left (show (PathNotFound ["ctx", "nope"]))
+
+  it "refuses to use an import that has not been run" $
+    (".div(\"data-x\": import(\"data\", {\"b\": 1}))" `failsWithN` \case TypeMismatch _ -> True; _ -> False)
       `shouldBe` True
 
-  -- v1 read a missing parameter as "this import must be partial"; now it is
-  -- the error it always was.
-  it "reports a genuinely missing parameter rather than suspending" $
-    ("import(\"panel\", {\"name\": \"web\"}).rendered" `failsWithN` \case PathNotFound _ -> True; _ -> False)
+  it "refuses to saturate an import with anything but an object" $
+    ("@p=import(\"panel\", {})\n$p(3).rendered" `failsWithN` \case TypeMismatch _ -> True; _ -> False)
       `shouldBe` True
 
   it "detects an import cycle instead of looping" $
-    ("import(\"loopy\", {}).rendered" `failsWithN` \case ImportCycle _ -> True; _ -> False) `shouldBe` True
+    ("import(\"loopy\", {}).rendered" `failsWithN` \case InLibrary _ (ImportCycle _) -> True; _ -> False) `shouldBe` True
 
   it "reports an unknown library" $
     ("import(\"nope\", {}).rendered" `failsWithN` \case UnknownLibrary _ -> True; _ -> False) `shouldBe` True
@@ -501,8 +525,8 @@ adaptSpec = describe "adapt-actions" $ do
             ]
         )
 
-  it "queues on a partial import and applies once it is completed" $
-    doc "@p=import(\"button\", {\"name\": ctx(who)})\n@a=adapt-actions($p, prefix(\"q:\"))\n$a({\"who\": \"w\"}).rendered" Null
+  it "queues on an import that has not run and applies to its result" $
+    doc "@p=import(\"button\", {})\n@a=adapt-actions($p, prefix(\"q:\"))\n$a({\"name\": \"w\"}).rendered" Null
       `shouldBe` Right
         ( elemJ
             "button"

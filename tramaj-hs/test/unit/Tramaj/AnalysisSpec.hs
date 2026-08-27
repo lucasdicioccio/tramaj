@@ -30,7 +30,8 @@ libs =
   Map.fromList
     [ ("button", prog ".button(action(\"on-click\", \"deploy\", {}))")
     , ("row", prog ".tr(action(\"on-click\", \"select\", {}), import(\"button\", {}).rendered)")
-    , ("needs", prog "@p=import(\"button\", {name: ctx(inner.name)})\n$p({})")
+    , ("needs", prog "@p=import(\"button\", {name: ctx(inner.name)})\n$p({}).rendered")
+    , ("panel", prog "@n=$ctx.replicas\n.section(.h2($ctx.name), .p($n))")
     , ("loopy", prog ".div(import(\"loopy\", {}).rendered)")
     ]
 
@@ -98,15 +99,18 @@ actionSpec = describe "action keys" $ do
 
 holeSpec :: Spec
 holeSpec = describe "context holes" $ do
-  it "finds the paths a deferred parameter reads" $
-    contextHoles (prog "@p=import(\"dep\", {\"name\": \"web\", \"replicas\": ctx(spec.replicas)})\n$p({})")
+  it "finds the paths written as ctx(...)" $
+    contextHoles (prog "@p=import(\"dep\", {\"name\": \"web\", \"replicas\": ctx(spec.replicas)})\n$p({}).rendered")
       `shouldBe` Set.fromList [["spec", "replicas"]]
 
   it "finds several holes across several imports" $
     contextHoles (prog "@a=import(\"x\", {n: ctx(one)})\n@b=import(\"y\", {m: ctx(two.deep)})\n.div($a({}).rendered, $b({}).rendered)")
       `shouldBe` Set.fromList [["one"], ["two", "deep"]]
 
-  it "does not mistake a supplied parameter for a hole" $
+  -- The same read, spelled as an ordinary path. It is a context read, but
+  -- not a declared hole -- which is the whole reason @ctx(...)@ is a
+  -- separate node when it evaluates identically.
+  it "does not count a parameter read as $ctx.path" $
     contextHoles (prog "import(\"dep\", {\"replicas\": $ctx.spec.replicas}).rendered") `shouldBe` Set.empty
 
   it "finds none in a program with no imports" $
@@ -115,3 +119,23 @@ holeSpec = describe "context holes" $ do
   it "bubbles up the holes of imported libraries" $
     deepContextHoles libs (prog ".div(import(\"needs\", {}).rendered)")
       `shouldBe` Set.fromList [["inner", "name"]]
+
+  it "counts both spellings as context reads" $
+    contextReads (prog "@a=$ctx.x\nimport(\"dep\", {r: ctx(spec.replicas)}).rendered")
+      `shouldBe` Set.fromList [["x"], ["spec", "replicas"]]
+
+  it "counts a bare $ctx as reading the whole context" $
+    contextReads (prog "$ctx") `shouldBe` Set.fromList [[]]
+
+  -- What a library reads and the import never supplies: the parameters
+  -- that have to arrive by a later call, without running anything.
+  it "finds the parameters an import has not supplied" $
+    unsuppliedParams libs (prog "import(\"panel\", {\"name\": \"web\"}).rendered")
+      `shouldBe` [("panel", Set.fromList [["replicas"]])]
+
+  it "finds nothing unsupplied when every read is covered" $
+    unsuppliedParams libs (prog "import(\"panel\", {name: ctx(n), \"replicas\": 3}).rendered")
+      `shouldBe` [("panel", Set.empty)]
+
+  it "reports nothing unsupplied for a library outside the table" $
+    unsuppliedParams libs (prog "import(\"nope\", {}).rendered") `shouldBe` [("nope", Set.empty)]

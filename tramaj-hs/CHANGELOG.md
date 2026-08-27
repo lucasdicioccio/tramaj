@@ -25,16 +25,25 @@ carries an annotations map that transformations preserve.
 
 **New `Tramaj.Analysis`**: `staticImportNames`, `staticActionKeys` and
 `contextHoles`, each with a deep variant that follows imports through a
-library table and cuts cycles. `staticActionKeys` applies action adaptation
-rather than ignoring it, so a prefixed subtree's keys are known without
-evaluating anything.
+library table and cuts cycles, plus `contextReads` (every path a program
+reads from its own context) and `unsuppliedParams` (per import, what its
+library reads and the import does not supply). `staticActionKeys` applies
+action adaptation rather than ignoring it, so a prefixed subtree's keys are
+known without evaluating anything.
 
-**Imports declare their holes.** One `import(name, {k: expr, k2: ctx(path)})`
-form; `partial-import` is gone. An import is partial exactly when a parameter
-is still `ctx(path)`, so partiality is read off the source instead of being
-inferred by running the library and catching a `PathNotFound` that started with
-`ctx` -- which means a genuinely missing parameter is now the hard error it
-always was, rather than being silently reinterpreted as partiality.
+**Imports take their parameters three ways.** One
+`import(name, {k: expr, k2: ctx(path)})` form; `partial-import` is gone, and
+so is v1's `tryPartial` heuristic, which inferred partiality by running a
+library and catching a `PathNotFound` that started with `ctx`. A parameter is
+supplied by an expression, by `ctx(path)` -- which reads the *importing*
+program's own `$ctx.path` where the import is written, and exists as its own
+form so `contextHoles` can enumerate the holes statically -- or by being left
+out and supplied later, by calling the import with more parameters
+(right-biased). An import runs when a field is read off it, `.rendered` or
+`.vals`, not where it is written, so one wired-up import can serve a whole
+`map`. A parameter nobody supplies is the library's own `PathNotFound`,
+wrapped in the new `InLibrary` error naming the library that raised it.
+`../specs/decisions.md` #10 has the reasoning.
 
 **Other language changes.** `a <> b` concatenates strings, arrays or objects
 (mixed types rejected, objects right-biased). `branch` is uniformly lazy and a

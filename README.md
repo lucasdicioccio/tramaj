@@ -45,10 +45,12 @@ Also new in v2: a normative JSON interchange format for the evaluated document
 ([`specs/node-json.md`](specs/node-json.md)) in which scalars stay scalars and
 an element may carry many actions; `a <> b` concatenation over strings, arrays
 and objects; `--` comments to the end of the line, which v1 refused outright;
-imports that declare their own holes with `ctx(path)` rather than
-having partiality inferred; action adaptation restricted to a static prefix;
-and three static analyses that answer what a program imports, what actions it
-can emit, and what context it still needs — without evaluating it.
+imports whose parameters may arrive in three ways — an expression, a
+`ctx(path)` hole marking a read of the importing program's own context, or
+omission, saturated later by calling the import; action adaptation restricted
+to a static prefix; and static analyses that answer what a program imports,
+what actions it can emit, what context it reads and which import parameters
+are still unsupplied — without evaluating it.
 
 **[`specs/reference.md`](specs/reference.md) is the reference** — the language
 as implemented: core AST, values, evaluation rules, surface syntax and its

@@ -66,7 +66,7 @@ type State =
   , activeTab :: Int
   -- ^ Index into `tabs` — which one is shown/evaluated as the root
   -- program on the right. Every tab, including this one, is still
-  -- available to `import`/`partial-import` (see `buildLibraryTable`); a
+  -- available to `import(...)` (see `buildLibraryTable`); a
   -- tab importing itself is handled by the language's own cycle guard,
   -- not excluded here.
   , jsonInput :: String
@@ -104,8 +104,11 @@ initialState =
       [ { name: "main"
         , source:
             """@item-count=cardinality($ctx.items)
+-- a parameter given as an expression, evaluated right here
 @greeting=import("greeting", {"name": "World"})
-@row=import("row", {title: ctx(title)})
+-- kind: a hole read from this program's own $ctx, marked so the analyses
+-- can see it; title: not listed, so each row supplies its own below
+@row=import("row", {kind: ctx(row-kind)})
 @namespaced=adapt-actions($row, prefix("main:"))
 @header=.(
   $greeting.rendered,
@@ -125,8 +128,10 @@ initialState =
         }
       , { name: "row"
         , source:
-            """.li(
-  .span($ctx.title),
+            """-- a library's $ctx is the parameters it was given, however they
+-- arrived: kind came from the importer's context, title from the call
+.li(
+  .span("`$ctx.title` (`$ctx.kind`)"),
   .button(action("on-click", "select-item", {"title": $ctx.title}), "Select")
 )
 """
@@ -142,7 +147,8 @@ initialState =
       -- Carries what every default tab reads, not just the active one, so
       -- selecting a library tab shows it rendering instead of a
       -- PathNotFound for the parameter its importer would have supplied.
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha"}"""
+      -- row-kind is the one the main tab actually reads, through ctx(...).
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item"}"""
   , actionLog: []
   }
 
@@ -497,20 +503,26 @@ BRANCH
 
 IMPORTS
   import("name", {param: expr, other: ctx(path)})
-  The name is a literal, never computed. Each parameter is either supplied
-  now, or ctx(path) — which declares that it comes from the context given
-  when the import is completed. Note the difference:
-    $ctx.spec.replicas   read spec.replicas from the CURRENT context now
-    ctx(spec.replicas)   take it from the COMPLETION context, later
-  An import with no unresolved ctx(...) runs immediately; one with any is a
-  partial, completed by calling it with a context — progressively, if you
-  like:
-    @p=import("panel", {name: ctx(n), replicas: ctx(r)})
-    @half=$p({"n": "web"})
-    $half({"r": 2}).rendered
-  A completed import exposes .rendered (whatever its root evaluated to) and
-  .vals (its top-level bindings). Because partiality is DECLARED, a
-  parameter that is simply missing is a hard error, not a partial.
+  The name is a literal, never computed. A parameter arrives in one of
+  three ways:
+    param: expr        any expression, evaluated here
+    other: ctx(path)   this program's $ctx.path, read here
+    (not listed)       supplied later, by calling the import
+  ctx(path) means exactly what $ctx.path means and is interchangeable with
+  it at runtime. It exists so the hole sits in a STATIC position, where the
+  analyses can enumerate it without evaluating anything — writing ctx(...)
+  says "this is a hole, count it", at the cost of not being able to compute
+  the value.
+  An import RUNS when you read a field off it — .rendered (whatever its
+  root evaluated to) or .vals (its top-level bindings) — never where it is
+  written. Until then it just accumulates parameters, right-biased:
+    @p=import("panel", {})
+    @half=$p({"name": "web"})
+    $half({"replicas": 2}).rendered
+  which is what lets one import serve a whole map, each iteration adding
+  its own parameter. A library reads its parameters as its own $ctx, so a
+  parameter nobody supplied is that library's own PathNotFound, reported as
+  InLibrary "panel" (PathNotFound ["ctx", "replicas"]).
 
 ACTIONS
   action("event-type", "key", payloadExpr)
@@ -528,7 +540,8 @@ ACTIONS
   gives b:a:key. The operation is only ever identity-or-prefix, never an
   arbitrary rewriting function. The optional fn sees each already-prefixed
   action and may change its eventType and payload only; a key it returns is
-  ignored. Applied to a partial import, it is queued until completion.
+  ignored. Applied to an import that has not run, it is queued and runs
+  on that import's result.
 
 STRINGS AND str
   Interpolation lowers to concat over str(...), so str decides what lands

@@ -41,7 +41,7 @@ acceptanceSpec = describe "accepts" $ do
   accepts "an element value slot" ".Replicas(value(3))"
   accepts "a bare special form as a child" ".div(fold($ctx.nums, 0, (acc, n) => $acc))"
   accepts "an import as a child" ".div(import(\"lib\", {}).rendered)"
-  accepts "a deferred import parameter" "@p=import(\"lib\", {name: ctx(spec.name)})\n$p({})"
+  accepts "a ctx(...) import parameter" "@p=import(\"lib\", {name: ctx(spec.name)})\n$p({}).rendered"
   accepts "adapt-actions without a closure" "adapt-actions($x, prefix(\"ns:\"))"
   accepts "adapt-actions with a closure" "adapt-actions($x, prefix(\"ns:\"), (a) => $a)"
   accepts "the identity adaptation" "adapt-actions($x, identity)"

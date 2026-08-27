@@ -28,9 +28,9 @@ import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Test.Fixtures (Fixture, Kind(..), fixtures)
-import Tramaj.Analysis (contextHoles, deepActionKeys, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames)
+import Tramaj.Analysis (contextHoles, contextReads, deepActionKeys, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames, unsuppliedParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program)
-import Tramaj.Eval (LibraryTable, Output(..), evalProgram)
+import Tramaj.Eval (EvalError(..), LibraryTable, Output(..), evalProgram)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
 
@@ -238,7 +238,7 @@ libs = Map.fromFoldable (map (\(Tuple n src) -> Tuple n (unsafeParse src)) sourc
     , Tuple "data" "@a=1\n{\"a\": $a, \"b\": $ctx.b}"
     , Tuple "wrapper" ".div(import(\"button\", {\"name\": \"inner\"}).rendered)"
     , Tuple "loopy" ".div(import(\"loopy\", {}).rendered)"
-    , Tuple "needs" "@p=import(\"button\", {name: ctx(inner.name)})\n$p({})"
+    , Tuple "needs" "@p=import(\"button\", {name: ctx(inner.name)})\n$p({}).rendered"
     , Tuple "row" ".tr(action(\"on-click\", \"select\", {}), import(\"button\", {}).rendered)"
     ]
 
@@ -252,43 +252,123 @@ unsafeParse src = case parseProgram src of
 
 runLibraryChecks :: Effect Unit
 runLibraryChecks = do
+  -- The three ways a parameter is supplied -- an expression, a `ctx(path)`
+  -- hole read from the importing program's own context, and omission
+  -- saturated by a later call -- rendering the same library the same way.
   traverse_ okWithLibs
-    [ { label: "a complete import renders"
+    [ { label: "parameters given as expressions"
+      , ctx: "null"
       , template: "import(\"panel\", {\"name\": \"web\", \"replicas\": 3}).rendered"
-      , expected: "{\"type\":\"element\",\"tag\":\"section\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"h2\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":\"web\",\"annotations\":{}}],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":3,\"annotations\":{}}],\"annotations\":{}}],\"annotations\":{}}"
+      , expected: panel "\"web\"" "3"
+      }
+    , { label: "parameters given as ctx(path) holes"
+      , ctx: "{\"n\": \"web\", \"spec\": {\"replicas\": 3}}"
+      , template: "import(\"panel\", {name: ctx(n), replicas: ctx(spec.replicas)}).rendered"
+      , expected: panel "\"web\"" "3"
+      }
+    , { label: "an omitted parameter saturated by calling the import"
+      , ctx: "null"
+      , template: "@p=import(\"panel\", {\"name\": \"web\"})\n$p({\"replicas\": 3}).rendered"
+      , expected: panel "\"web\"" "3"
+      }
+    , { label: "parameters accumulating across two calls"
+      , ctx: "null"
+      , template: "@p=import(\"panel\", {})\n@half=$p({\"name\": \"web\"})\n$half({\"replicas\": 3}).rendered"
+      , expected: panel "\"web\"" "3"
+      }
+    , { label: "a later call overriding an earlier parameter"
+      , ctx: "{\"n\": \"stale\"}"
+      , template: "@p=import(\"panel\", {name: ctx(n), \"replicas\": 3})\n$p({\"name\": \"web\"}).rendered"
+      , expected: panel "\"web\"" "3"
+      }
+    -- One wired-up import, reused across a `map` with each iteration
+    -- supplying its own parameter. This is the pattern that pays for
+    -- running a library on field access rather than where it is written.
+    , { label: "one import reused with different parameters"
+      , ctx: "null"
+      , template: "@p=import(\"data\", {})\nmap([1, 2], (b) => $p({\"b\": $b}).rendered.b)"
+      , expected: "[1,2]"
       }
     , { label: "an expression-rooted library's .vals"
+      , ctx: "null"
       , template: "import(\"data\", {\"b\": 2}).vals.a"
       , expected: "1"
       }
-    , { label: "a deferred parameter completed from the supplied context"
-      , template: "@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n@half=$p({\"n\": \"web\"})\n$half({\"r\": 2}).rendered"
-      , expected: "{\"type\":\"element\",\"tag\":\"section\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"h2\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":\"web\",\"annotations\":{}}],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":2,\"annotations\":{}}],\"annotations\":{}}],\"annotations\":{}}"
-      }
     , { label: "adapt-actions prefixes every key in the subtree"
+      , ctx: "null"
       , template: "adapt-actions(import(\"two-actions\", {}).rendered, prefix(\"user:\"))"
       , expected: "{\"type\":\"element\",\"tag\":\"div\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"user:save\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"user:delete\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}}],\"annotations\":{}}"
       }
     , { label: "adaptations compose as b:a:key"
+      , ctx: "null"
       , template: "adapt-actions(adapt-actions(import(\"two-actions\", {}).rendered, prefix(\"a:\")), prefix(\"b:\"))"
       , expected: "{\"type\":\"element\",\"tag\":\"div\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"b:a:save\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"b\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"b:a:delete\",\"payload\":{}}],\"value\":null,\"children\":[],\"annotations\":{}}],\"annotations\":{}}"
       }
+    -- Adapting an import before it has run: nothing has actions yet, so
+    -- the adaptation waits for the result rather than passing through.
+    , { label: "an adaptation queued on an import that has not run"
+      , ctx: "null"
+      , template: "@p=import(\"button\", {})\n@a=adapt-actions($p, prefix(\"q:\"))\n$a({\"name\": \"w\"}).rendered"
+      , expected: "{\"type\":\"element\",\"tag\":\"button\",\"attributes\":[{\"kind\":\"action\",\"event\":\"on-click\",\"key\":\"q:deploy\",\"payload\":{\"n\":\"w\"}}],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":\"go: w\",\"annotations\":{}}],\"annotations\":{}}"
+      }
+    ]
+  -- A parameter nobody supplied is not a declared hole and not a special
+  -- value: it is the library reading a path its context lacks, which is an
+  -- ordinary PathNotFound wearing the name of the library that raised it.
+  traverse_ failsWithLibs
+    [ { label: "a parameter the import never supplies"
+      , ctx: "null"
+      , template: "import(\"panel\", {\"name\": \"web\"}).rendered"
+      , expected: InLibrary "panel" (PathNotFound [ "ctx", "replicas" ])
+      }
+    , { label: "a ctx(path) the importing context lacks"
+      , ctx: "{\"name\": \"web\"}"
+      , template: "import(\"panel\", {name: ctx(nope), \"replicas\": 3}).rendered"
+      , expected: PathNotFound [ "ctx", "nope" ]
+      }
+    , { label: "an import cycle"
+      , ctx: "null"
+      , template: "import(\"loopy\", {}).rendered"
+      , expected: InLibrary "loopy" (ImportCycle "loopy")
+      }
+    , { label: "an unknown library"
+      , ctx: "null"
+      , template: "import(\"nope\", {}).rendered"
+      , expected: UnknownLibrary "nope"
+      }
     ]
   traverse_ (uncurry rejectsWithLibs)
-    [ Tuple "an import still waiting on a parameter"
-        "@p=import(\"panel\", {name: ctx(n), replicas: ctx(r)})\n$p({\"n\": \"web\"})"
-    , Tuple "a genuinely missing parameter, rather than suspending"
-        "import(\"panel\", {\"name\": \"web\"}).rendered"
-    , Tuple "an import cycle" "import(\"loopy\", {}).rendered"
-    , Tuple "an unknown library" "import(\"nope\", {}).rendered"
+    [ Tuple "an import used where a plain value is expected"
+        ".div(\"data-x\": import(\"data\", {\"b\": 1}))"
+    , Tuple "an import saturated with something that is not an object"
+        "@p=import(\"panel\", {})\n$p(3).rendered"
+    , Tuple "an import saturated with more than one argument"
+        "@p=import(\"panel\", {})\n$p({}, {}).rendered"
     ]
   log "ok - imports and action adaptation"
   where
+  -- What the `panel` library renders, written once: the checks above
+  -- differ in how its two parameters arrived, never in the result.
+  panel name replicas =
+    "{\"type\":\"element\",\"tag\":\"section\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"element\",\"tag\":\"h2\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":"
+      <> name
+      <> ",\"annotations\":{}}],\"annotations\":{}},{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[],\"value\":null,\"children\":[{\"type\":\"text\",\"value\":"
+      <> replicas
+      <> ",\"annotations\":{}}],\"annotations\":{}}],\"annotations\":{}}"
+
   rejectsWithLibs label template = do
     program <- mustParse label template
     case evalProgram libs jsonNull program of
       Left _ -> pure unit
       Right _ -> throw ("expected an eval error for " <> label)
+
+  failsWithLibs f = do
+    ctx <- mustParseJson (f.label <> " (ctx)") f.ctx
+    program <- mustParse f.label f.template
+    case evalProgram libs ctx program of
+      Left err | err == f.expected -> pure unit
+      Left err -> throw (f.label <> ": expected " <> show f.expected <> ", got " <> show err)
+      Right _ -> throw ("expected an eval error for " <> f.label)
 
 runAnalysisChecks :: Effect Unit
 runAnalysisChecks = do
@@ -319,15 +399,38 @@ runAnalysisChecks = do
   check "keys from a library are adapted too"
     (Set.toUnfoldable (deepActionKeys libs (unsafeParse "adapt-actions(import(\"button\", {}).rendered, prefix(\"deployment:\"))")))
     [ "deployment:deploy" ]
-  check "context holes are the paths a deferred parameter reads"
-    (Set.toUnfoldable (contextHoles (unsafeParse "@p=import(\"dep\", {\"r\": ctx(spec.replicas)})\n$p({})")))
+  check "context holes are the paths written as ctx(...)"
+    (Set.toUnfoldable (contextHoles (unsafeParse "@p=import(\"dep\", {\"r\": ctx(spec.replicas)})\n$p({}).rendered")))
     [ [ "spec", "replicas" ] ]
-  check "a supplied parameter is not a hole"
+  -- The same read, spelled as an ordinary path. It is a context read, but
+  -- not a declared hole -- which is the whole reason `ctx(...)` exists as
+  -- a separate node when it evaluates identically.
+  check "a parameter read as $ctx.path is not a hole"
     (Set.toUnfoldable (contextHoles (unsafeParse "import(\"dep\", {\"r\": $ctx.spec.replicas}).rendered")))
     ([] :: Array (Array String))
   check "holes bubble up from imported libraries"
     (Set.toUnfoldable (deepContextHoles libs (unsafeParse ".div(import(\"needs\", {}).rendered)")))
     [ [ "inner", "name" ] ]
+  check "context reads count both spellings"
+    (Set.toUnfoldable (contextReads (unsafeParse "@a=$ctx.x\nimport(\"dep\", {r: ctx(spec.replicas)}).rendered")))
+    [ [ "spec", "replicas" ], [ "x" ] ]
+  check "a bare $ctx reads the whole context"
+    (Set.toUnfoldable (contextReads (unsafeParse "$ctx")))
+    [ [] ]
+  -- What a library reads and the import never supplies: the parameters
+  -- that must arrive by a later call, computed without running anything.
+  check "unsupplied parameters of an import"
+    (map (\(Tuple name missing) -> Tuple name (Set.toUnfoldable missing :: Array (Array String)))
+      (unsuppliedParams libs (unsafeParse "import(\"panel\", {\"name\": \"web\"}).rendered")))
+    [ Tuple "panel" [ [ "replicas" ] ] ]
+  check "an import supplying everything has nothing unsupplied"
+    (map (\(Tuple name missing) -> Tuple name (Set.toUnfoldable missing :: Array (Array String)))
+      (unsuppliedParams libs (unsafeParse "import(\"panel\", {name: ctx(n), \"replicas\": 3}).rendered")))
+    [ Tuple "panel" [] ]
+  check "a library outside the table reports nothing unsupplied"
+    (map (\(Tuple name missing) -> Tuple name (Set.toUnfoldable missing :: Array (Array String)))
+      (unsuppliedParams libs (unsafeParse "import(\"nope\", {}).rendered")))
+    [ Tuple "nope" [] ]
   log "ok - static analyses"
   where
   check :: forall a. Eq a => Show a => String -> a -> a -> Effect Unit
@@ -396,11 +499,12 @@ unsafeJson src = case jsonParser src of
   Right j -> j
   Left _ -> jsonNull
 
-okWithLibs :: { label :: String, template :: String, expected :: String } -> Effect Unit
+okWithLibs :: { label :: String, ctx :: String, template :: String, expected :: String } -> Effect Unit
 okWithLibs f = do
+  ctx <- mustParseJson (f.label <> " (ctx)") f.ctx
   expected <- mustParseJson (f.label <> " (expected)") f.expected
   program <- mustParse f.label f.template
-  case evalProgram libs jsonNull program of
+  case evalProgram libs ctx program of
     Left err -> throw (f.label <> ": eval failed: " <> show err)
     Right output -> do
       let

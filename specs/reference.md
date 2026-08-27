@@ -69,8 +69,8 @@ Expr
                  function: Optional<Expr>
 
 ParamValue
-  = PExpr        Expr            -- supplied now
-  | PFromContext path: List<String>   -- supplied at completion
+  = PExpr        Expr                 -- any expression, evaluated at the import
+  | PFromContext path: List<String>   -- read from the importing program's $ctx
 
 Attribute
   = Attr         name: String, value: Expr
@@ -82,13 +82,15 @@ ActionAdaptation
 ```
 
 **Every static position is a `String`, not an `Expr`**: an import's name, an
-action's event and key, an adaptation's prefix, a deferred parameter's path.
+action's event and key, an adaptation's prefix, a `ctx(...)` parameter's path.
 That is what makes §9's analyses possible, and the grammar refuses anything
 else in those positions — the restriction is enforced at parse time, not
 checked later at evaluation time.
 
-There is no `PartialImport` constructor: an import is partial exactly when a
-parameter is still `PFromContext`.
+There is no partial-import constructor, and partiality is not visible in the
+syntax at all: an import is unsaturated when the library reads a parameter
+nobody has supplied yet, which is a fact about two programs, not about this
+one (§7).
 
 ---
 
@@ -102,8 +104,8 @@ Value
   | Node                        -- a document
   | Closure                     -- a lambda, with its captured environment
   | Builtin                     -- a builtin, referenced but not yet called
-  | ImportResult                -- {rendered, vals}
-  | PartialImport               -- an import still awaiting context
+  | ImportResult                -- {rendered, vals}, once the library has run
+  | Import                      -- an import wired up but not yet run
 ```
 
 Arrays and objects hold `Value`s, **not** JSON — so a document can travel
@@ -112,9 +114,9 @@ separate "template value" category.
 
 JSON is required only at the boundaries where a document would be meaningless:
 an attribute value, an action payload, an element's value slot, and an
-expression program's result. A closure, a builtin, an import result, a partial
-import, or a document reaching one of those positions is an error, not a
-silent serialization.
+expression program's result. A closure, a builtin, an import result, an
+import that has not run, or a document reaching one of those positions is an
+error, not a silent serialization.
 
 ---
 
@@ -189,7 +191,7 @@ one.
 | `action("event", "key", payload)` | action; attribute position, any number |
 | `map/filter(coll, fn)`, `scan/fold(coll, init, fn)` | array primitives |
 | `branch(fallback, p1, v1, …)` | conditional |
-| `import("name", {k: expr, j: ctx(path)})` | import |
+| `import("name", {k: expr, j: ctx(path)})` | import; a parameter may also be left out and supplied later |
 | `adapt-actions(node, prefix("ns:") \| identity [, fn])` | action adaptation |
 
 Names — bindings, path segments, tags, bare keys — start with a letter and
@@ -263,7 +265,7 @@ source order.
 | a document | itself, as one child |
 | an array | each element, recursively — this is how `map(...)` repeats children |
 | anything else JSON-able | one text node carrying that value unconverted |
-| a closure / builtin / import result / partial | an error |
+| a closure / builtin / import result / unrun import | an error |
 
 So an array in child position is a *sibling sequence*, not one value. An array
 wanted as data belongs in an attribute or the value slot.
@@ -300,38 +302,75 @@ character for character.
 
 ```
 import("deployment", {
-  name:     "web",              -- supplied now
-  replicas: ctx(spec.replicas)  -- supplied at completion
-})
+  name:     "web",              -- (a) an expression, evaluated here
+  replicas: ctx(spec.replicas)  -- (b) this program's $ctx.spec.replicas
+})                              -- (c) anything not listed: supplied later
 ```
 
-(That one is *partial*, because of the `ctx(...)`, so it is a value to be
-completed rather than a finished result — see below.)
+Three ways to supply a parameter, and the third is not writing it down.
 
-`ctx(path)` states **provenance**, not absence: this parameter comes from the
-context supplied when the import is completed. It is deliberately distinct
-from `$ctx.spec.replicas`, which reads the *current* context now.
+**(a)** Any expression. It is evaluated where the import is written, like
+every other argument in the language.
 
-An import with no unresolved `ctx(...)` runs immediately. One with any is a
-partial value, completed by calling it with a context object — and completion
-is **progressive**: paths the context does not carry stay deferred.
+**(b)** `ctx(path)` reads the *importing* program's own context, also where
+the import is written. It means exactly what `$ctx.spec.replicas` means, and
+a path the context lacks is the same `PathNotFound` — the two forms are
+interchangeable at runtime and the evaluator makes no distinction between
+them.
+
+The distinction is entirely static. `ctx(path)` puts the path in a static
+position in the AST, where §9's `contextHoles` can enumerate it directly;
+the same read spelled `$ctx.spec.replicas` is an ordinary path buried in an
+arbitrary expression, indistinguishable from every other read. Writing
+`ctx(...)` is how an author says *this is a hole — count it*, and it costs
+the ability to compute the value, which is the point.
+
+**(c)** A parameter the import does not mention is supplied later, by calling
+the import with an object of more parameters. Merging is right-biased, like
+`<>` on objects, so a later call overrides an earlier value for the same
+name.
 
 ```
-@p=import("panel", {name: ctx(n), replicas: ctx(r)})
-@half=$p({"n": "web"})
-$half({"r": 2}).rendered
+@panel=import("panel", {})
+@half=$panel({"name": "web"})
+$half({"replicas": 2}).rendered
 ```
 
-A completed import exposes `.rendered` (whatever its root evaluated to — a
+An import runs **when a field is read off it** — `.rendered` or `.vals` —
+never where it is written. Everything before that is accumulation, which is
+what lets one wired-up import serve a whole `map`, each iteration adding its
+own parameter:
+
+```
+@row=import("row", {kind: ctx(row-kind)})
+.ul(map($ctx.items, (item) => $row({"title": $item.title}).rendered))
+```
+
+A run import exposes `.rendered` (whatever its root evaluated to — a
 document or an ordinary value) and `.vals` (its own top-level bindings).
+Using the import itself where a value is expected is an error: it has not
+run, so it has nothing to serialize.
 
-A library is evaluated against its parameters as its own fresh `$ctx`. Import
-names are resolved by a host-supplied table; where a library came from is not
-the language's business. Re-entering a library already being evaluated is
-reported as a cycle, not run.
+A library is evaluated against its parameters as its own fresh `$ctx` — a
+library's `$ctx` *is* its parameter object, which is why a library reads
+`$ctx.title` for the parameter `title`, and why a `ctx(...)` hole inside a
+library is a hole in what its importer must pass. Import names are resolved
+by a host-supplied table; where a library came from is not the language's
+business. Re-entering a library already being evaluated is reported as a
+cycle, not run.
 
-Because partiality is *declared*, a parameter that is simply missing is a hard
-error rather than being reinterpreted as partiality.
+Nothing checks that the parameters are *enough* before running a library,
+because nothing in the import knows what enough would be. A library that
+reads a path nobody supplied fails with its own `PathNotFound`, wrapped in
+an `InLibrary` naming the library that raised it:
+
+```
+import("panel", {"name": "web"}).rendered
+  -- InLibrary "panel" (PathNotFound ["ctx", "replicas"])
+```
+
+The static counterpart is §9's `unsuppliedParams`, which answers the same
+question without running anything.
 
 **Known limitation:** an import or `adapt-actions` result cannot be called
 directly — `import("x", {...})({...})` is a parse error. Bind it first, as the
@@ -368,15 +407,25 @@ desugaring and needs no change to the core AST.
 
 ## 9. Static analysis
 
-All three answer from the AST alone — no context, no library evaluation, no
-host code. Each has a deep variant that follows imports through a library
-table and cuts cycles.
+All of these answer from the AST alone — no context, no library evaluation,
+no host code. The three the laws ask for each have a deep variant that
+follows imports through a library table and cuts cycles.
 
 | function | answers |
 |---|---|
 | `staticImportNames` / `transitiveImportNames` | which libraries this program depends on |
 | `staticActionKeys` / `deepActionKeys` | which action keys it can emit |
-| `contextHoles` / `deepContextHoles` | which context values it still needs |
+| `contextHoles` / `deepContextHoles` | which context paths it declares as holes with `ctx(...)` |
+| `contextReads` | every path it reads from its own context, `$ctx.a` and `ctx(a)` alike |
+| `unsuppliedParams` | per import, the paths its library reads that the import does not supply |
+
+`contextReads` of a library is the shape of the parameter object it expects,
+since a library's context is its parameters. `unsuppliedParams` is that set
+minus what each import supplies — the parameters still to be saturated by a
+later call (§7), computed without running anything. It attributes a read to a
+parameter by the read's first segment, and stops at the library's own reads
+rather than following that library's imports, whose parameters it supplies
+itself.
 
 `staticActionKeys` **applies** adaptation rather than ignoring it, using the
 same function the evaluator does: `adapt-actions(x, prefix("user:"))` over
@@ -384,9 +433,11 @@ same function the evaluator does: `adapt-actions(x, prefix("user:"))` over
 restricting adaptation to identity-or-prefix.
 
 These are over-approximations: keys under a `Branch` arm that a given context
-will never select are still reported. A name that is imported but missing from
-the table is reported too — an unresolvable dependency is what a caller wants
-to hear about.
+will never select are still reported, and so is a parameter a library reads
+only in such an arm. A name that is imported but missing from the table is
+reported too — an unresolvable dependency is what a caller wants to hear
+about — though it contributes no unsupplied parameters, since what it needs
+is unknowable rather than nothing.
 
 ---
 
@@ -408,8 +459,8 @@ adapt-actions(node, prefix("ns:"), fn)
 
 Prefixes every action key in the subtree, reaching through imported programs
 and supplied fragments. Adaptations compose the obvious way — `a:` then `b:`
-gives `b:a:key` — with no "already adapted" state. Applied to a partial
-import, the adaptation is queued and runs when the import completes.
+gives `b:a:key` — with no "already adapted" state. Applied to an import that
+has not run, the adaptation is queued and runs on its result.
 
 The optional `fn` sees each *already-prefixed* action and may change only its
 event type and payload; a `key` it returns is ignored. Letting it win would
@@ -461,6 +512,7 @@ can do.
 | `ConcatMismatch` | `<>` over two different types |
 | `UnknownLibrary` | an import name the host table does not resolve |
 | `ImportCycle` | a library re-entered while already being evaluated |
+| `InLibrary` | wraps whatever an imported library failed with, naming that library; nests through a chain of imports |
 
 ---
 

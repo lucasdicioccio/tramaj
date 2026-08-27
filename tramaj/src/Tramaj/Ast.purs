@@ -103,10 +103,12 @@ programRoot (ExpressionProgram e) = e
 -- | collisions.
 -- |
 -- | `Import name parameters` is a statically named dependency and the
--- | parameters supplied to it. An import is *partial* exactly when some
--- | parameter is still a `PFromContext` — there is deliberately no
--- | separate partial-import constructor, so partiality is declared in the
--- | source rather than discovered by evaluating and watching what fails.
+-- | parameters supplied to it *here* — not necessarily all of them. An
+-- | import that omits a parameter its library reads is saturated later, by
+-- | calling the import value with more parameters; there is deliberately
+-- | no partial-import constructor, because partiality is not a property of
+-- | the syntax at all, only of which names have arrived by the time the
+-- | library runs.
 -- |
 -- | `AdaptActions target adaptation fn` prefixes every action key in a
 -- | document subtree, with an optional closure for the event type and
@@ -162,14 +164,21 @@ instance showExpr :: Show Expr where
   show (AdaptActions target adaptation fn) =
     "AdaptActions (" <> show target <> ") (" <> show adaptation <> ") " <> show fn
 
--- | How one import parameter gets its value.
+-- | How one import parameter gets its value. There are three ways to
+-- | supply one and only two of them are here — the third is leaving it
+-- | out (see `Import`).
 -- |
--- | `PFromContext` is provenance, not absence: `ctx(spec.replicas)` states
--- | that this parameter comes from the context supplied when the import is
--- | completed, so a reader (and `Tramaj.Analysis`) knows where a hole is
--- | filled from without inspecting the imported program at all. It is
--- | deliberately distinct from `$ctx.spec.replicas`, which reads from the
--- | *current* context now.
+-- | `PExpr` is any expression, evaluated where the import is written.
+-- |
+-- | `PFromContext path` is `ctx(spec.replicas)`: the value comes from the
+-- | *importing* program's own context, read where the import is written.
+-- | It means what `$ctx.spec.replicas` means and evaluates identically —
+-- | the point of the separate node is entirely static. A path sitting in
+-- | the AST is a hole `Tramaj.Analysis` can enumerate directly, whereas
+-- | the same read spelled `$ctx.spec.replicas` is an ordinary `Path`
+-- | buried in an arbitrary expression, indistinguishable from every other
+-- | read. Writing `ctx(...)` is how an author says "this is a hole, count
+-- | it".
 data ParamValue
   = PExpr Expr
   | PFromContext (Array String)

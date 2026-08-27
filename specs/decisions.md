@@ -42,6 +42,10 @@ values a program needs from its completion context statically computable
 Consequence: a genuinely missing `$ctx.x` inside a library is a hard error again,
 rather than being silently reinterpreted as "this import must be partial".
 
+**Superseded by §10**, which keeps one `Import` constructor and the
+`FromContext` parameter but reverses what `ctx(path)` *means* and what makes an
+import partial.
+
 ## 3. `branch` is uniformly lazy
 
 core.md wins over merged2 §13/§14's lazy-template / eager-expression split. That
@@ -135,3 +139,53 @@ name characters including `-`, so `$x-- note` lexed as a name `x--`, silently,
 even though the reference has always said hyphens are *internal*. Enforcing
 what the reference said is what keeps a comment written hard against a name
 from being swallowed by it.
+
+## 10. `ctx(path)` substitutes at the wiring site; omission is what defers
+
+This reverses §2's reading of `FromContext`, keeping its AST and its static
+analysis and changing its semantics.
+
+Under §2, `ctx(path)` declared a hole to be filled by a *completion context*:
+the import evaluated to a partial value, and calling it with an object read
+each declared path out of that object. The ambient `$ctx` was never consulted,
+which made `ctx(foo)` and `$ctx.foo` name entirely different things.
+
+Two problems showed up in use. The first is that the obvious reading of
+`import("hello", {foo: ctx(foo)})` — *pass my own `$ctx.foo` through* — was
+not the implemented one, and the failure mode was silent: a completion context
+carrying a different key left the parameter deferred, and the error surfaced
+much later, as `.rendered` on something still partial. The second is that the
+"bubbled up context holes" the laws ask for did not actually bubble anywhere.
+A hole belonged to the import's own completion context, so a library's holes
+and its importer's holes were unrelated sets that `deepContextHoles` could
+only union and hope the reader interpreted correctly.
+
+So `ctx(path)` now reads the importing program's own context, at the point the
+import is written, and means exactly what `$ctx.path` means. The AST node and
+`contextHoles` survive unchanged, and they are the entire justification for the
+form: a path in a static position is a hole an analyzer can enumerate, where
+the same read inside an arbitrary expression is not. `ctx(...)` buys static
+visibility and nothing else, and that is a fair trade to state plainly rather
+than dress up as a second kind of context.
+
+What then defers an import is **omission**: a parameter the import does not
+list, supplied later by calling the import value with more parameters,
+right-biased. This is not v1's `tryPartial` heuristic returning — nothing
+catches a `PathNotFound` and reinterprets it as partiality. It is simpler than
+either: an import accumulates parameters, and running it is a separate event.
+
+That event is **reading a field off it**. An import runs at `.rendered` or
+`.vals`, not where it is written, which is what makes one wired-up import
+reusable across a `map` with each iteration supplying its own parameter. The
+evaluator therefore keeps no notion of "still missing": there is no list of
+what a library needs, and it does not compute one. A library that reads a path
+nobody supplied fails with its own `PathNotFound`, wrapped in the new
+`InLibrary` error naming it. Deciding statically what is missing is
+`Tramaj.Analysis`'s job (`contextReads`, `unsuppliedParams`), where an
+over-approximation is useful and cannot break a program that would have run.
+
+Consequences worth stating: an import parameter that is simply absent is no
+longer an error at all, reversing §2's last paragraph; `ctx(path)` where the
+context lacks the path *is* an error, at the import rather than inside the
+library; and `PartialImport` in the value domain became `Import`, an import
+that has not run yet, which every import is until a field is read off it.

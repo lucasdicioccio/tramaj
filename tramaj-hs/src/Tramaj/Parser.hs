@@ -279,7 +279,7 @@ pathExpr = lexeme $ do
 
 -- | @name(args)@ or @$name(args)@ -- the two spellings mean the same thing.
 -- The callee may be a dotted path, so a function reached through an import's
--- values (@$lib.vals.fn(1)@) or a partial import awaiting completion
+-- values (@$lib.vals.fn(1)@) or an import being given more parameters
 -- (@$deployment({...})@) is callable directly.
 call :: P Expr
 call = try $ do
@@ -410,9 +410,9 @@ specialForm = do
       k <- identifier
       pure (k, PExpr (Path k []))
 
-    -- | @ctx(spec.replicas)@ declares that this parameter comes from the
-    -- context supplied when the import is completed -- deliberately distinct
-    -- from @$ctx.spec.replicas@, which reads the /current/ context now.
+    -- | @ctx(spec.replicas)@ reads this program's own @$ctx.spec.replicas@,
+    -- and means exactly that. The separate form exists so the path lands in a
+    -- static position the analyses can read; see "Tramaj.Ast"'s 'ParamValue'.
     paramValue :: P ParamValue
     paramValue = fromContext <|> (PExpr <$> expr)
 
