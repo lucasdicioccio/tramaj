@@ -1,41 +1,192 @@
--- | Parser-only checks not covered by 'Tramaj.EvalSpec'\'s end-to-end
--- fixtures -- in particular the attrs-after-child ordering *rejection*,
--- which is a parse failure rather than a success/expected-'Node' pair (same
--- split as @../tramaj/test/Test/Main.purs@).
+-- | Grammar checks: what the surface accepts, what it rejects, and what it
+-- desugars into.
+--
+-- The desugaring assertions matter more than they look. Every one of them
+-- pins a surface convenience to the core constructors it lowers to, which is
+-- the property the language design rests on: the surface may grow, the
+-- semantic AST should not. A test here failing means a convenience quietly
+-- became a semantic construct.
 module Tramaj.ParserSpec (spec) where
 
 import Data.Either (isLeft, isRight)
-import Tramaj.Parser (parseProgram)
+import Data.Text (Text)
 import Test.Hspec
+import Tramaj.Ast
+import Tramaj.Parser
 
 spec :: Spec
-spec = describe "Tramaj.Parser" $ do
-  it "parses a plain nested element tree" $
-    parseProgram ".div(.p(\"Hello\"))" `shouldSatisfy` isRight
+spec = do
+  acceptanceSpec
+  rejectionSpec
+  desugaringSpec
+  programKindSpec
 
-  it "rejects a named-arg/action(...) appearing after a sibling child node" $
-    parseProgram ".div(.p(\"hi\"), \"attr\": \"value\")" `shouldSatisfy` isLeft
+-- | Parses to /something/; what exactly is 'desugaringSpec''s business.
+accepts :: String -> Text -> Spec
+accepts name src = it name (parseProgram src `shouldSatisfy` isRight)
 
-  it "rejects more than one action(...) on the same node" $
-    parseProgram ".button(action(\"on-click\", \"a\", {}), action(\"on-click\", \"b\", {}))" `shouldSatisfy` isLeft
+rejects :: String -> Text -> Spec
+rejects name src = it name (parseProgram src `shouldSatisfy` isLeft)
 
-  it "accepts a kebab-case tag and identifier" $
-    parseProgram "@my-var=1\n.my-tag(\"x\")" `shouldSatisfy` isRight
+acceptanceSpec :: Spec
+acceptanceSpec = describe "accepts" $ do
+  accepts "a plain nested element tree" ".div(.p(\"Hello\"))"
+  accepts "a fragment as the root" ".(.p(\"a\"), .p(\"b\"))"
+  accepts "an empty fragment" ".()"
+  accepts "an element with no arguments at all" ".hr()"
+  accepts "kebab-case tags and binding names" "@my-var=1\n.my-tag(\"x\")"
+  accepts "a quoted attribute key alongside a bare one" ".div(class: \"a\", \"data-id\": 1)"
+  accepts "several actions on one element" ".b(action(\"on-click\", \"a\", {}), action(\"on-key\", \"b\", {}))"
+  accepts "an element value slot" ".Replicas(value(3))"
+  accepts "a bare special form as a child" ".div(fold($ctx.nums, 0, (acc, n) => $acc))"
+  accepts "an import as a child" ".div(import(\"lib\", {}).rendered)"
+  accepts "a deferred import parameter" "@p=import(\"lib\", {name: ctx(spec.name)})\n$p({})"
+  accepts "adapt-actions without a closure" "adapt-actions($x, prefix(\"ns:\"))"
+  accepts "adapt-actions with a closure" "adapt-actions($x, prefix(\"ns:\"), (a) => $a)"
+  accepts "the identity adaptation" "adapt-actions($x, identity)"
+  accepts "a call on a dotted path" "$lib.vals.fn(1)"
+  accepts "concat chained several times" "\"a\" <> \"b\" <> \"c\""
+  accepts "a parenthesized expression" "(1)"
+  accepts "an expression-rooted program" "@n=1\n{\"n\": $n}"
+  accepts "a trailing comma in an element's arguments" ".div(\"a\", \"b\",)"
+  accepts "a lambda with no parameters" "() => 1"
 
-  it "accepts a bare special form (not via an @-binding) as a node child" $
-    parseProgram ".div(scan($ctx.nums, 0, (acc, n) => $acc))" `shouldSatisfy` isRight
+  -- The v1 regression this replaces: a '.' beginning the next line is a new
+  -- element, not a field access on the call that just closed.
+  accepts
+    "a '.' starting the next line rather than continuing a field access"
+    "@x=cardinality($ctx.items)\n.div(\"`$x`\")"
 
-  it "accepts a bare import(...) as a node child" $
-    parseProgram ".div(import(\"lib\", {}))" `shouldSatisfy` isRight
+rejectionSpec :: Spec
+rejectionSpec = describe "rejects" $ do
+  rejects "an attribute after a child" ".div(.p(\"hi\"), class: \"a\")"
+  rejects "an action after a child" ".div(.p(\"hi\"), action(\"on-click\", \"a\", {}))"
+  rejects "a value slot after a child" ".div(.p(\"hi\"), value(1))"
+  rejects "more than one value slot" ".div(value(1), value(2))"
 
-  it "rejects import(...) with a computed (non-literal) name" $
-    parseProgram "@bar=import($ctx.libname, {})\n.div($bar.rendered)" `shouldSatisfy` isLeft
+  -- Every static position is static because the grammar refuses anything
+  -- else there -- not because evaluation checks it later.
+  rejects "an import name that is computed" "@l=import($ctx.name, {})\n.div($l.rendered)"
+  rejects "an import name that is interpolated" "@l=import(\"a`$x`\", {})\n.div($l.rendered)"
+  rejects "an action key that is computed" ".b(action(\"on-click\", $ctx.key, {}))"
+  rejects "an action event that is computed" ".b(action($ctx.evt, \"save\", {}))"
+  rejects "an adaptation prefix that is computed" "adapt-actions($x, prefix($ctx.ns))"
+  rejects "an adaptation that is an arbitrary function" "adapt-actions($x, (a) => $a)"
+  rejects "an unknown adaptation" "adapt-actions($x, replace(\"a\", \"b\"))"
 
-  it "rejects partial-import(...) with a computed (non-literal) name" $
-    parseProgram "@bar=partial-import($ctx.libname, {})\n.div($bar.rendered)" `shouldSatisfy` isLeft
+  -- A malformed special form must fail here, not fall through to a
+  -- meaningless Call that only fails much later.
+  rejects "a malformed import" "import(\"lib\")"
+  rejects "a malformed map" "map($xs)"
+  rejects "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
 
-  it "rejects action(...) with a computed (non-literal) key" $
-    parseProgram ".button(action(\"on-click\", $ctx.key, {}))" `shouldSatisfy` isLeft
+  rejects "an unknown escape sequence" "\"a\\qb\""
+  rejects "an unterminated string" "\"abc"
+  rejects "trailing input after the root" ".div() .span()"
 
-  it "does not misparse a '.' starting the next line's node as a field access after a closing call" $
-    parseProgram "@x=cardinality($ctx.items)\n.div(\"`$x`\")" `shouldSatisfy` isRight
+-- | Each case states the desugaring in full: surface on the left, core AST on
+-- the right, with nothing in between.
+desugaringSpec :: Spec
+desugaringSpec = describe "desugars" $ do
+  let parsesTo name src expected = it name (parseExpr src `shouldBe` Right expected)
+
+  parsesTo "a plain string to a single literal" "\"hello\"" (StringLit "hello")
+
+  parsesTo
+    "escape sequences into the characters they denote, leaving one literal"
+    "\"a\\nb\\tc\\\\d\\\"e\""
+    (StringLit "a\nb\tc\\d\"e")
+
+  parsesTo "a braced unicode escape" "\"\\u{1F600}\"" (StringLit "\128512")
+
+  parsesTo
+    "interpolation into concat over the str builtin"
+    "\"n: `$x`!\""
+    (Concat (Concat (StringLit "n: ") (Call (Path "str" []) [Path "x" []])) (StringLit "!"))
+
+  parsesTo "an empty string" "\"\"" (StringLit "")
+
+  parsesTo
+    "object shorthand into an explicit field reading the same name"
+    "{foo, bar: 1}"
+    (ObjectLit [("foo", Path "foo" []), ("bar", NumberLit 1)])
+
+  parsesTo
+    "a multi-armed branch into nested Branch, fallback innermost"
+    "branch(0, $a, 1, $b, 2)"
+    (Branch (Path "a" []) (NumberLit 1) (Branch (Path "b" []) (NumberLit 2) (NumberLit 0)))
+
+  parsesTo
+    "concat as a left-associative chain"
+    "$a <> $b <> $c"
+    (Concat (Concat (Path "a" []) (Path "b" [])) (Path "c" []))
+
+  parsesTo
+    "a fragment into Fragment, with no wrapper element"
+    ".(.p(\"a\"))"
+    (Fragment [Element "p" [] NullLit [StringLit "a"]])
+
+  parsesTo
+    "an element's arguments into attributes, value slot and children"
+    ".div(class: \"a\", action(\"on-click\", \"save\", 1), value(2), \"kid\")"
+    ( Element
+        "div"
+        [Attr "class" (StringLit "a"), ActionAttr "on-click" "save" (NumberLit 1)]
+        (NumberLit 2)
+        [StringLit "kid"]
+    )
+
+  parsesTo
+    "an absent value slot into NullLit"
+    ".div()"
+    (Element "div" [] NullLit [])
+
+  parsesTo
+    "import parameters into supplied values and declared context holes"
+    "import(\"dep\", {\"name\": \"web\", \"replicas\": ctx(spec.replicas)})"
+    (Import "dep" [("name", PExpr (StringLit "web")), ("replicas", PFromContext ["spec", "replicas"])])
+
+  parsesTo
+    "import parameter shorthand into a supplied value, not a context hole"
+    "import(\"dep\", {name})"
+    (Import "dep" [("name", PExpr (Path "name" []))])
+
+  parsesTo
+    "an omitted adaptation closure into Nothing"
+    "adapt-actions($x, prefix(\"ns:\"))"
+    (AdaptActions (Path "x" []) (Prefix "ns:") Nothing)
+
+  parsesTo "a dotted path into one Path, not nested field accesses" "$a.b.c" (Path "a" ["b", "c"])
+
+  parsesTo
+    "a field access on a call's result into FieldAccess"
+    "$f(1).rendered"
+    (FieldAccess (Call (Path "f" []) [NumberLit 1]) ["rendered"])
+
+  parsesTo "the $ prefix on a call as optional" "cardinality($x)" (Call (Path "cardinality" []) [Path "x" []])
+  parsesTo "the $ prefix on a call as meaning the same thing" "$cardinality($x)" (Call (Path "cardinality" []) [Path "x" []])
+
+  it "binding lines into nested Lets, in declaration order" $
+    parseProgram "@a=1\n@b=$a\n.p($b)"
+      `shouldBe` Right
+        ( DocumentProgram
+            (Let "a" (NumberLit 1) (Let "b" (Path "a" []) (Element "p" [] NullLit [Path "b" []])))
+        )
+
+-- | Which kind of program it is follows from the root's own form; there is no
+-- mode to declare.
+programKindSpec :: Spec
+programKindSpec = describe "program kind" $ do
+  let isDocument (Right (DocumentProgram _)) = True
+      isDocument _ = False
+      isExpression (Right (ExpressionProgram _)) = True
+      isExpression _ = False
+
+  it "an element root is a document program" $
+    parseProgram ".div()" `shouldSatisfy` isDocument
+  it "a fragment root is a document program" $
+    parseProgram ".()" `shouldSatisfy` isDocument
+  it "an object root is an expression program" $
+    parseProgram "{\"a\": 1}" `shouldSatisfy` isExpression
+  it "bindings do not change the kind" $
+    parseProgram "@a=.div()\n{\"a\": 1}" `shouldSatisfy` isExpression

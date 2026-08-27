@@ -9,8 +9,8 @@ decoupled from the language — evaluation produces a generic `Node` AST, and it
 is the host that decides whether that becomes Halogen HTML, JSON, or anything
 else.
 
-A template is an optional block of `@name=expr` bindings followed by exactly one
-root element:
+A template is an optional block of `@name=expr` bindings followed by a root
+expression:
 
 ```
 @items=$ctx.items
@@ -27,14 +27,41 @@ opaque, structured action to an element — the language recognises the syntax
 but assigns it no meaning, leaving the host to map the key onto a real event
 handler.
 
-**[`specs/llm.md`](specs/llm.md) is the reference** — overview, design
-constraints, grammar, AST, how to embed it in a host, and the CLI. Start there,
-and point agents at it.
+## v2 is landing, one implementation at a time
 
-[`specs/templating-language.md`](specs/templating-language.md) is the historical
-design record: why each decision went the way it did, in the order it was made.
-It preserves superseded intermediate designs on purpose, so where the two
-disagree, `llm.md` is correct.
+`tramaj-hs` implements **v2** of the language; the PureScript packages still
+implement v1, and the two do not currently agree. The port is the next step.
+
+v2 is expression-oriented: documents *are* values, so an element or fragment
+can be bound, passed to a lambda, and returned from one — which is what makes
+the JSX-children pattern work without a separate template-value category.
+
+```
+@kids=.(.p("one"), .p("two"))            -- a fragment, as an ordinary value
+@panel=(title, children) =>
+  .section(.h2($title), $children)
+
+.main($panel("Deployment", $kids))
+```
+
+Also new in v2: a normative JSON interchange format for the evaluated document
+([`specs/node-json.md`](specs/node-json.md)) in which scalars stay scalars and
+an element may carry many actions; `a <> b` concatenation over strings, arrays
+and objects; imports that declare their own holes with `ctx(path)` rather than
+having partiality inferred; action adaptation restricted to a static prefix;
+and three static analyses that answer what a program imports, what actions it
+can emit, and what context it still needs — without evaluating it.
+
+**Reference for v2**: [`specs/merged2.md`](specs/merged2.md) is the fullest
+description of the language, [`specs/core.md`](specs/core.md) the condensed core
+AST, [`specs/node-json.md`](specs/node-json.md) the normative output format, and
+[`specs/decisions.md`](specs/decisions.md) records which reading won wherever
+those drafts contradict each other — read that one first.
+
+**Reference for v1** (what the PureScript packages still implement):
+[`specs/llm.md`](specs/llm.md), with
+[`specs/templating-language.md`](specs/templating-language.md) as the historical
+design record.
 
 ## Packages
 
@@ -44,7 +71,7 @@ disagree, `llm.md` is correct.
 | [`tramaj-halogen/`](tramaj-halogen) | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring `action(...)` to the host's own `Action` type. |
 | [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
-| [`tramaj-hs/`](tramaj-hs) | Haskell | Independent port of Ast/Parser/Eval on megaparsec + aeson, for evaluating templates server-side. Also has a JSON mode (`parseJsonProgram`/`evalJsonProgram`): same language, expression root, a JSON value out instead of a document tree. |
+| [`tramaj-hs/`](tramaj-hs) | Haskell | **v2 reference implementation.** `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, plus `Tramaj.Node` (the normative interchange format) and `Tramaj.Analysis` (the static analyses). megaparsec + aeson, no browser runtime. |
 
 `tramaj-halogen` is a separate package precisely so that `tramaj` itself
 never pulls in Halogen; that is what lets `tramaj-cli` (and any other
@@ -52,16 +79,19 @@ non-browser host) depend on the core alone.
 
 ## Two implementations, one grammar
 
-`tramaj-hs` is a hand-written port, not a shared core behind an FFI. The two
-implementations are kept in agreement by test fixtures that were ported
-one-for-one: `tramaj/test/Test/Fixtures.purs` (25 fixtures) is the original,
-and `tramaj-hs/test/unit/Tramaj/EvalSpec.hs` mirrors it.
+`tramaj-hs` is a hand-written port, not a shared core behind an FFI, and the
+two implementations are kept in agreement by hand-ported test fixtures.
 
-**Known gap:** that agreement is maintained by hand and is not mechanically
-enforced — there is no shared golden-file corpus and no cross-language
-conformance runner, so the two suites can drift silently. Both `nodeToJson`
-implementations emit the same JSON shape, so such a harness could be built on
-that format without new code in either package. Contributions welcome.
+**They are out of agreement right now**, deliberately: `tramaj-hs` has moved to
+v2 and the PureScript side has not yet followed.
+
+**Known gap:** that agreement was never mechanically enforced — there is no
+shared golden-file corpus and no cross-language conformance runner, so the two
+suites can drift silently. v2 gives that harness something solid to stand on:
+[`specs/node-json.md`](specs/node-json.md) is a normative format both sides must
+encode *and* decode, so a shared corpus of template/context/expected-JSON
+triples would check them against the specification rather than against each
+other. Contributions welcome.
 
 ## Building
 

@@ -43,7 +43,7 @@ library
   import:           defaults
   hs-source-dirs:   src
   exposed-modules:
-    -- Tramaj.Analysis (added in step 5)
+    Tramaj.Analysis
     Tramaj.Ast
     Tramaj.Eval
     Tramaj.Node
@@ -63,7 +63,7 @@ test-suite unit
   hs-source-dirs:   test/unit
   main-is:          Main.hs
   other-modules:
-    -- Tramaj.AnalysisSpec (added in step 5)
+    Tramaj.AnalysisSpec
     Tramaj.EvalSpec
     Tramaj.NodeJsonSpec
     Tramaj.ParserSpec

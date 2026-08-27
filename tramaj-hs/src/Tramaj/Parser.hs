@@ -1,44 +1,58 @@
--- | Parser combinators (built on @megaparsec@) for the grammar in
--- @../specs/templating-language.md@ -- ported from
--- @../tramaj/src/Tramaj/Parser.purs@ (built on
--- @purescript-parsing@); same grammar, same three-leader-character
--- convention (@.@ element, @$@ getter, @@@ setter), same precedence order
--- in 'expr'/'node'. See that file's Haddock comments for the full grammar
--- rationale -- comments here only cover Haskell-specific differences.
+-- | Surface syntax to core AST. Everything the surface offers beyond
+-- "Tramaj.Ast"'s constructors is desugared here rather than represented:
 --
--- One structural difference from the PureScript parser: @purescript-parsing@
--- backtracks on failure by default (a failed alternative doesn't consume
--- input unless explicitly committed via its own internal logic), so the
--- PureScript source sprinkles explicit @try@ only where one alternative's
--- prefix overlaps another's. @megaparsec@ defaults the other way --
--- 'Text.Megaparsec.<|>' only tries the next alternative if the first
--- failed *without consuming input* -- so this port wraps every alternative
--- in 'try' consistently in the ambiguous @expr@\/@node@\/@templateSpecialForm@
--- productions, rather than replicating the PureScript source's exact
--- placement one-for-one.
+-- * @\@name=expr@ binding lines become nested 'Let's;
+-- * string interpolation becomes 'Concat' over the @str@ builtin;
+-- * @branch(fallback, p1, v1, ...)@ becomes nested 'Branch';
+-- * object shorthand @{foo}@ becomes @{"foo": $foo}@;
+-- * escape sequences are resolved into the 'StringLit' they denote.
+--
+-- The grammar keeps three leader characters from v1: @.@ introduces a
+-- document, @$@ reads a binding, @\@@ defines one. What changed is that
+-- there is now a single expression grammar -- v1's separate template-phase
+-- productions (@node@, @nodeArg@, @childArg@, @templateSpecialForm@,
+-- @pathOrCallChild@) are gone, because documents are expressions.
+--
+-- Two conventions are load-bearing and carried over deliberately:
+--
+-- * A special form's 'try' covers /name recognition only/. Once @import@ or
+--   @map@ has matched, its shape is parsed without backtracking, so a
+--   malformed one is a hard parse error instead of silently falling through
+--   to a meaningless 'Call' that would only fail much later at eval time.
+-- * A field-access suffix is parsed with no whitespace skipped before it, so
+--   @f().rendered@ is a field access while @f()@ followed by a newline and
+--   @.div(...)@ is two separate things.
 module Tramaj.Parser
   ( parseProgram
-  , parseJsonProgram
   , parseExpr
-  , parseTemplateNode
   ) where
 
-import Data.Char (isAlphaNum, isLetter)
+import Data.Char (chr, isAlphaNum, isDigit, isHexDigit, isLetter)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
-import Tramaj.Ast
+import Numeric (readHex)
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import Tramaj.Ast
 
 type P = Parsec Void Text
 
--- | One parsed node-arg, before it's bucketed into 'TElement'\'s attrs\/
--- action\/children.
-data NodeArg
-  = NArgNamed (Text, Expr)
-  | NArgAction TAction
-  | NArgChild TemplateNode
+-- | One argument of an element, before the arguments are bucketed into
+-- attributes, the value slot, and children -- and before the
+-- attributes-before-children rule is checked, which needs to see them in
+-- source order.
+data ElementArg
+  = EArgAttr Attribute
+  | EArgValue Expr
+  | EArgChild Expr
+
+-- | One piece of a double-quoted string, before 'desugarString' folds the
+-- pieces into core constructors. Not part of the AST: core.md is explicit
+-- that interpolation needs no node of its own.
+data StringPart
+  = SLit Text
+  | SInterp Expr
 
 -- Lexing --------------------------------------------------------------
 
@@ -51,10 +65,10 @@ lexeme p = p <* skipSpaces
 symbol :: Text -> P Text
 symbol s = lexeme (string s)
 
--- | Identifier with no trailing whitespace consumed -- used inside paths
--- (@ctx.items@, no space around @.@) and node tags (@.tr@, no space after
--- @.@). Allows internal hyphens (kebab-case) as well as the usual
--- alphanumeric\/underscore run, as long as the first character is a letter.
+-- | An identifier with no trailing whitespace consumed -- used where the
+-- following character is significant: inside dotted paths and after an
+-- element's @.@. Internal hyphens are allowed (kebab-case), so @$my-var@ and
+-- @.my-tag@ are one token each.
 rawIdent :: P Text
 rawIdent = do
   c0 <- satisfy isLetter
@@ -64,99 +78,134 @@ rawIdent = do
 identifier :: P Text
 identifier = lexeme rawIdent
 
-pathTail :: P [Text]
+pathTail :: P (Text, [Text])
 pathTail = do
-  first <- rawIdent
+  root <- rawIdent
   rest <- many (char '.' *> rawIdent)
-  pure (first : rest)
+  pure (root, rest)
 
--- | Zero or more @.field@ segments trailing a call's closing @)@ -- the
--- postfix counterpart to 'pathTail'\'s prefix dotted chain, letting a call's
--- result (most commonly a completed @partial-import@\'s @.rendered@\/
--- @.vals@) be field-accessed directly. Same no-whitespace-around-@.@
--- convention as 'pathTail'.
+-- | Zero or more @.field@ segments directly after a closing @)@. Deliberately
+-- runs before any whitespace is skipped -- see the module header.
 fieldAccessSuffix :: P [Text]
-fieldAccessSuffix = many (char '.' *> rawIdent)
+fieldAccessSuffix = many (try (char '.' *> rawIdent))
 
 applyFieldAccess :: Expr -> [Text] -> Expr
 applyFieldAccess base [] = base
 applyFieldAccess base segs = FieldAccess base segs
 
--- | A double-quoted key with no interpolation -- used for attribute keys
--- that aren't valid bare identifiers, and for JSON-object-literal keys.
-quotedKey :: P Text
-quotedKey = lexeme (char '"' *> takeWhileP Nothing (/= '"') <* char '"')
+-- | A double-quoted string with no interpolation: every statically-required
+-- position uses this, so what the source says is what the analysis sees.
+-- Import names, action events and keys, adaptation prefixes and object keys
+-- are all parsed with it.
+--
+-- A backtick here is an error rather than a literal backtick. Someone writing
+-- @import("lib-`$x`")@ means interpolation, and silently handing them a
+-- library named @lib-`$x`@ would answer a question they did not ask -- the
+-- whole point of the position being static is that it cannot be computed.
+staticString :: P Text
+staticString = lexeme $ do
+  _ <- char '"'
+  s <- takeWhileP Nothing (\c -> c /= '"' && c /= '`')
+  _ <- char '"' <|> interpolationRefused
+  pure s
+  where
+    interpolationRefused =
+      fail "this position must be a literal string, so it cannot contain an interpolation"
 
-attrKey :: P Text
-attrKey = identifier <|> quotedKey
+-- Strings ---------------------------------------------------------------
 
--- Computation-phase expressions ----------------------------------------
-
-pathExpr :: P Expr
-pathExpr = lexeme (Path <$> (char '$' *> pathTail))
-
-numberLit :: P Expr
-numberLit = lexeme $ try $ do
-  intPart <- takeWhile1P (Just "digit") (`elem` ['0' .. '9'])
-  fracPart <- optional (char '.' *> takeWhile1P (Just "digit") (`elem` ['0' .. '9']))
-  let fullStr = case fracPart of
-        Nothing -> intPart
-        Just frac -> intPart <> "." <> frac
-  case reads (T.unpack fullStr) :: [(Double, String)] of
-    [(n, "")] -> pure (NumberLit n)
-    _ -> fail ("invalid number literal: " <> T.unpack fullStr)
-
--- | @true@\/@false@ as whole identifiers, not just the literal text -- so a
--- longer name that merely starts with one (like @truest@) isn't chopped
--- into a bogus bool-literal-plus-leftover.
-boolLit :: P Expr
-boolLit = try $ do
-  name <- identifier
-  case name of
-    "true" -> pure (BoolLit True)
-    "false" -> pure (BoolLit False)
-    _ -> fail "not a boolean literal"
-
-{- | A backtick-delimited interpolation holds an arbitrary 'expr'.
-
-TODO: no escape sequences -- 'litPart' stops at @\"@ and at a backtick, so
-neither character can appear in a string at all. That makes generating quoted
-output (an HTML attribute, a @\<script\>@ block, JSON inside JSON) awkward,
-which server-side hosts emitting text hit sooner than a DOM-building one. See
-the TODO in @specs/llm.md@ §3.2; a fix has to land in both parsers at once.
--}
+-- | A string literal: escape sequences plus backtick interpolation of an
+-- arbitrary expression.
 stringLit :: P Expr
 stringLit = lexeme $ do
   _ <- char '"'
   parts <- many stringPart
   _ <- char '"'
-  pure (StringLit parts)
+  pure (desugarString parts)
   where
     stringPart :: P StringPart
-    stringPart = interpPart <|> litPart
+    stringPart = interpPart <|> (SLit <$> litChunk)
 
     interpPart :: P StringPart
-    interpPart = try $ do
-      _ <- char '`'
-      e <- expr
-      _ <- char '`'
-      pure (Interp e)
+    interpPart = SInterp <$> (char '`' *> expr <* char '`')
 
-    litPart :: P StringPart
-    litPart = Lit <$> takeWhile1P Nothing (\c -> c /= '"' && c /= '`')
+    -- | A run of ordinary characters, with escape sequences resolved as they
+    -- are read. Stops at a closing quote or an interpolation's backtick;
+    -- either can still be written escaped.
+    litChunk :: P Text
+    litChunk = T.concat <$> some (escapeSeq <|> plainRun)
 
--- | A function call -- @name(args)@ or @$name(args)@. Both spellings mean
--- the same thing: look up @name@ in the environment and apply it.
-call :: P Expr
-call = try $ do
-  _ <- optional (char '$')
+    plainRun :: P Text
+    plainRun = takeWhile1P Nothing (\c -> c /= '"' && c /= '`' && c /= '\\')
+
+escapeSeq :: P Text
+escapeSeq = char '\\' *> (unicodeEscape <|> simpleEscape)
+  where
+    simpleEscape :: P Text
+    simpleEscape = do
+      c <- anySingle
+      case c of
+        'n' -> pure "\n"
+        't' -> pure "\t"
+        'r' -> pure "\r"
+        '\\' -> pure "\\"
+        '"' -> pure "\""
+        '`' -> pure "`"
+        '0' -> pure "\0"
+        _ -> fail ("unknown escape sequence: \\" <> [c])
+
+    -- | @\\u{1F600}@ -- braced so it is not limited to four hex digits and
+    -- does not need surrogate pairs.
+    unicodeEscape :: P Text
+    unicodeEscape = do
+      _ <- char 'u'
+      _ <- char '{'
+      digits <- takeWhile1P (Just "hex digit") isHexDigit
+      _ <- char '}'
+      case readHex (T.unpack digits) of
+        [(n, "")] | n <= 0x10FFFF -> pure (T.singleton (chr n))
+        _ -> fail ("invalid unicode escape: \\u{" <> T.unpack digits <> "}")
+
+-- | Folds string pieces into core constructors. A string with no
+-- interpolation is a plain 'StringLit'; otherwise each interpolated
+-- expression is rendered through the @str@ builtin and the pieces are joined
+-- with 'Concat', which is exactly what @"a `$x` b"@ means.
+desugarString :: [StringPart] -> Expr
+desugarString parts = case map partExpr (coalesce parts) of
+  [] -> StringLit ""
+  (e : es) -> foldl Concat e es
+  where
+    partExpr (SLit t) = StringLit t
+    partExpr (SInterp e) = Call (Path "str" []) [e]
+
+    -- | Adjacent literal chunks (an escape sequence splits one in two) are
+    -- merged, so an escape does not leave a stray 'Concat' in the AST.
+    coalesce (SLit a : SLit b : rest) = coalesce (SLit (a <> b) : rest)
+    coalesce (p : rest) = p : coalesce rest
+    coalesce [] = []
+
+-- Literals ---------------------------------------------------------------
+
+numberLit :: P Expr
+numberLit = lexeme $ try $ do
+  intPart <- takeWhile1P (Just "digit") isDigit
+  fracPart <- optional (try (char '.' *> takeWhile1P (Just "digit") isDigit))
+  let fullStr = maybe intPart (\frac -> intPart <> "." <> frac) fracPart
+  case reads (T.unpack fullStr) :: [(Double, String)] of
+    [(n, "")] -> pure (NumberLit n)
+    _ -> fail ("invalid number literal: " <> T.unpack fullStr)
+
+-- | @true@\/@false@\/@null@ matched as whole identifiers, so a longer name
+-- merely starting with one (@truest@, @nullable@) is not chopped into a
+-- literal plus leftovers.
+keywordLit :: P Expr
+keywordLit = try $ do
   name <- identifier
-  _ <- symbol "("
-  args <- sepEndBy expr (symbol ",")
-  _ <- char ')'
-  segs <- fieldAccessSuffix
-  skipSpaces
-  pure (applyFieldAccess (Call [name] args) segs)
+  case name of
+    "true" -> pure (BoolLit True)
+    "false" -> pure (BoolLit False)
+    "null" -> pure NullLit
+    _ -> fail "not a literal keyword"
 
 arrayLit :: P Expr
 arrayLit = lexeme $ do
@@ -165,6 +214,8 @@ arrayLit = lexeme $ do
   _ <- symbol "]"
   pure (ArrayLit elems)
 
+-- | Object keys may be quoted or bare, and a bare key on its own is shorthand
+-- for reading the binding of the same name: @{foo, bar: $baz}@.
 objectLit :: P Expr
 objectLit = lexeme $ do
   _ <- symbol "{"
@@ -173,170 +224,351 @@ objectLit = lexeme $ do
   pure (ObjectLit entries)
   where
     objEntry :: P (Text, Expr)
-    objEntry = do
-      k <- quotedKey
+    objEntry = try explicitEntry <|> shorthandEntry
+
+    explicitEntry :: P (Text, Expr)
+    explicitEntry = do
+      k <- objectKey
       _ <- symbol ":"
       v <- expr
       pure (k, v)
 
--- | @(p1, p2, ...) => body@ -- a lambda *value*, not tied to any particular
--- call site.
+    shorthandEntry :: P (Text, Expr)
+    shorthandEntry = do
+      k <- identifier
+      pure (k, Path k [])
+
+objectKey :: P Text
+objectKey = staticString <|> identifier
+
+-- Expressions ------------------------------------------------------------
+
+pathExpr :: P Expr
+pathExpr = lexeme $ do
+  _ <- char '$'
+  (root, fields) <- pathTail
+  pure (Path root fields)
+
+-- | @name(args)@ or @$name(args)@ -- the two spellings mean the same thing.
+-- The callee may be a dotted path, so a function reached through an import's
+-- values (@$lib.vals.fn(1)@) or a partial import awaiting completion
+-- (@$deployment({...})@) is callable directly.
+call :: P Expr
+call = try $ do
+  _ <- optional (char '$')
+  (root, fields) <- pathTail
+  _ <- symbol "("
+  args <- sepEndBy expr (symbol ",")
+  _ <- char ')'
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Call (Path root fields) args) segs)
+
 lambdaExpr :: P Expr
 lambdaExpr = try $ do
   _ <- symbol "("
   params <- sepEndBy identifier (symbol ",")
   _ <- symbol ")"
   _ <- symbol "=>"
-  body <- expr
-  pure (LambdaExpr params body)
+  Lambda params <$> expr
 
--- | The functional array primitives -- @map(arr, fn)@, @filter(arr, fn)@,
--- @scan(arr, init, fn)@, @fold(arr, init, fn)@ -- parsed as their own
--- dedicated shapes (not through the generic 'call' production) since
--- @arr@\'s elements need binding into @fn@\'s closure environment fresh per
--- element, which the uniform eagerly-evaluate-every-argument 'Call'
--- dispatch can't express.
+-- | Grouping, for readability where 'Concat' chains get long. Not a semantic
+-- construct: the parse tree it produces is the same as the inner expression's.
+parenExpr :: P Expr
+parenExpr = try $ do
+  _ <- symbol "("
+  e <- expr
+  _ <- symbol ")"
+  pure e
+
+-- | The forms whose evaluation the language defines itself, rather than
+-- leaving to a builtin: the array primitives (whose function argument needs a
+-- fresh binding per element), 'Branch' (which must not evaluate the arm it
+-- does not select), imports, and action adaptation.
 --
--- The 'try' here only covers *name recognition*: once @name@ matches one
--- of the special forms, its shape is parsed without further backtracking,
--- so a malformed @import(...)@\/@partial-import(...)@ (e.g. a computed,
--- non-literal name) is a hard parse error rather than quietly falling
--- through to 'call' and producing a meaningless @Call "import" [...]@ that
--- would only fail later, at eval time, as @UnknownFunction "import"@ --
--- see 'importShape'\/'partialImportShape'.
-specialFormExpr :: P Expr
-specialFormExpr = do
+-- The 'try' covers name recognition only -- see the module header.
+specialForm :: P Expr
+specialForm = do
   name <- try $ do
     _ <- optional (char '$')
     n <- identifier
-    case n of
-      "map" -> pure n
-      "filter" -> pure n
-      "scan" -> pure n
-      "fold" -> pure n
-      "import" -> pure n
-      "partial-import" -> pure n
-      "remap-actions" -> pure n
-      _ -> fail "not a map/filter/scan/fold/import/partial-import/remap-actions special form"
+    if n `elem` (["map", "filter", "scan", "fold", "branch", "import", "adapt-actions"] :: [Text])
+      then pure n
+      else fail "not a special form"
   base <- case name of
-    "map" -> mapShape
-    "filter" -> filterShape
-    "scan" -> scanShape
-    "fold" -> foldShape
+    "map" -> binaryShape Map
+    "filter" -> binaryShape Filter
+    "scan" -> ternaryShape Scan
+    "fold" -> ternaryShape Fold
+    "branch" -> branchShape
     "import" -> importShape
-    "partial-import" -> partialImportShape
-    "remap-actions" -> remapActionsShape
+    "adapt-actions" -> adaptActionsShape
     _ -> fail "unreachable: name already checked against the recognized special-form set"
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess base segs)
   where
-    mapShape :: P Expr
-    mapShape = do
+    binaryShape :: (Expr -> Expr -> Expr) -> P Expr
+    binaryShape ctor = do
       _ <- symbol "("
-      arr <- expr
+      a <- expr
       _ <- symbol ","
-      fn <- expr
+      b <- expr
       _ <- char ')'
-      pure (MapExpr arr fn)
+      pure (ctor a b)
 
-    filterShape :: P Expr
-    filterShape = do
+    ternaryShape :: (Expr -> Expr -> Expr -> Expr) -> P Expr
+    ternaryShape ctor = do
       _ <- symbol "("
-      arr <- expr
+      a <- expr
       _ <- symbol ","
-      fn <- expr
+      b <- expr
+      _ <- symbol ","
+      c <- expr
       _ <- char ')'
-      pure (FilterExpr arr fn)
+      pure (ctor a b c)
 
-    scanShape :: P Expr
-    scanShape = do
+    -- | @branch(fallback, p1, v1, p2, v2, ...)@ reads "if p1 then v1, else if
+    -- p2 then v2, ..., else fallback" and lowers to nested 'Branch', so the
+    -- laziness is the core constructor's rather than a rule of its own.
+    branchShape :: P Expr
+    branchShape = do
       _ <- symbol "("
-      arr <- expr
-      _ <- symbol ","
-      initE <- expr
-      _ <- symbol ","
-      fn <- expr
+      fallback <- expr
+      arms <- many (try (symbol "," *> arm))
+      _ <- optional (symbol ",")
       _ <- char ')'
-      pure (ScanExpr arr initE fn)
+      pure (foldr (\(p, v) acc -> Branch p v acc) fallback arms)
 
-    foldShape :: P Expr
-    foldShape = do
-      _ <- symbol "("
-      arr <- expr
+    arm :: P (Expr, Expr)
+    arm = do
+      p <- expr
       _ <- symbol ","
-      initE <- expr
-      _ <- symbol ","
-      fn <- expr
-      _ <- char ')'
-      pure (FoldExpr arr initE fn)
+      v <- expr
+      pure (p, v)
 
+    -- | @import("name", {param: expr, other: ctx(path)})@. The name is a
+    -- static literal, and the parameters are a dedicated production rather
+    -- than an ordinary object expression, because @ctx(...)@ means something
+    -- only here.
     importShape :: P Expr
     importShape = do
       _ <- symbol "("
-      name <- quotedKey
+      name <- staticString
       _ <- symbol ","
-      paramsE <- expr
+      params <- importParams
       _ <- char ')'
-      pure (ImportExpr name paramsE)
+      pure (Import name params)
 
-    partialImportShape :: P Expr
-    partialImportShape = do
+    importParams :: P [(Text, ParamValue)]
+    importParams = do
+      _ <- symbol "{"
+      entries <- sepEndBy paramEntry (symbol ",")
+      _ <- symbol "}"
+      pure entries
+
+    paramEntry :: P (Text, ParamValue)
+    paramEntry = try explicitParam <|> shorthandParam
+
+    explicitParam :: P (Text, ParamValue)
+    explicitParam = do
+      k <- objectKey
+      _ <- symbol ":"
+      v <- paramValue
+      pure (k, v)
+
+    shorthandParam :: P (Text, ParamValue)
+    shorthandParam = do
+      k <- identifier
+      pure (k, PExpr (Path k []))
+
+    -- | @ctx(spec.replicas)@ declares that this parameter comes from the
+    -- context supplied when the import is completed -- deliberately distinct
+    -- from @$ctx.spec.replicas@, which reads the /current/ context now.
+    paramValue :: P ParamValue
+    paramValue = fromContext <|> (PExpr <$> expr)
+
+    fromContext :: P ParamValue
+    fromContext = do
+      _ <- try $ do
+        n <- identifier
+        _ <- lookAhead (char '(')
+        if n == ("ctx" :: Text) then pure n else fail "not a ctx(...) parameter"
       _ <- symbol "("
-      name <- quotedKey
-      _ <- symbol ","
-      paramsE <- expr
+      (root, fields) <- pathTail
+      skipSpaces
       _ <- char ')'
-      pure (PartialImportExpr name paramsE)
+      skipSpaces
+      pure (PFromContext (root : fields))
 
-    remapActionsShape :: P Expr
-    remapActionsShape = do
+    -- | @adapt-actions(node, prefix("ns:"))@, optionally with a closure for
+    -- the event type and payload.
+    adaptActionsShape :: P Expr
+    adaptActionsShape = do
       _ <- symbol "("
-      nodeE <- expr
+      target <- expr
       _ <- symbol ","
-      keySpec <- keySpecShape
-      _ <- symbol ","
-      fnE <- expr
+      adaptation <- adaptationShape
+      fn <- optional (try (symbol "," *> expr))
+      _ <- optional (symbol ",")
       _ <- char ')'
-      pure (RemapActionsExpr nodeE keySpec fnE)
+      pure (AdaptActions target adaptation fn)
 
-    -- | @remap-actions@'s second argument: the key-rewriting operation,
-    -- currently just @prefix(prefixExpr)@. Recognized by name the same way
-    -- 'specialFormExpr' recognizes @map@\/@import@\/etc -- no backtracking
-    -- once the name matches, so a malformed @prefix(...)@ is a hard parse
-    -- error rather than silently falling through to a bogus 'Call'.
-    keySpecShape :: P KeySpec
-    keySpecShape = do
+    -- | Two forms only, never an arbitrary rewriting function: this is what
+    -- keeps the set of action keys a program can emit enumerable without
+    -- evaluating it.
+    adaptationShape :: P ActionAdaptation
+    adaptationShape = do
       name <- identifier
       case name of
+        "identity" -> pure Identity
         "prefix" -> do
           _ <- symbol "("
-          prefixE <- expr
+          p <- staticString
           _ <- char ')'
           skipSpaces
-          pure (KeyPrefix prefixE)
-        _ -> fail "remap-actions's second argument must be a key-rewriting operation, e.g. prefix(\"ns:\")"
+          pure (Prefix p)
+        _ -> fail "an action adaptation must be identity or prefix(\"...\")"
 
--- | @expr := bool-lit | lambda-expr | map\/filter\/scan-special-form | call
--- | path | string-lit | number-lit | array-lit | object-lit@. Every
--- alternative is tried in order via megaparsec's backtracking @<|>@; each
--- alternative that shares a leading token with another (identifiers,
--- mainly) wraps itself in its own 'try' so a mismatch backtracks cleanly
--- to the next alternative.
+-- Documents ---------------------------------------------------------------
+
+-- | @.tag(...)@ is an element; @.(...)@ is a fragment -- a tagless element,
+-- introducing siblings with no wrapper.
+documentExpr :: P Expr
+documentExpr = try $ do
+  _ <- char '.'
+  choice [fragmentShape, elementShape]
+  where
+    fragmentShape :: P Expr
+    fragmentShape = do
+      _ <- symbol "("
+      children <- sepEndBy expr (symbol ",")
+      _ <- symbol ")"
+      pure (Fragment children)
+
+    elementShape :: P Expr
+    elementShape = do
+      tag <- rawIdent
+      skipSpaces
+      _ <- symbol "("
+      args <- sepEndBy elementArg (symbol ",")
+      _ <- symbol ")"
+      buildElement tag args
+
+-- | Buckets an element's arguments and enforces the one ordering rule:
+-- everything in attribute position comes before any child.
+buildElement :: Text -> [ElementArg] -> P Expr
+buildElement tag args = do
+  ensureAttrsBeforeChildren
+  val <- singleValueSlot
+  pure (Element tag [a | EArgAttr a <- args] val [c | EArgChild c <- args])
+  where
+    ensureAttrsBeforeChildren :: P ()
+    ensureAttrsBeforeChildren
+      | fst (foldl step (True, False) args) = pure ()
+      | otherwise = fail "attributes, action(...) and value(...) must all come before an element's children"
+      where
+        step (ok, seenChild) arg = case arg of
+          EArgChild _ -> (ok, True)
+          _ -> (ok && not seenChild, seenChild)
+
+    singleValueSlot :: P Expr
+    singleValueSlot = case [v | EArgValue v <- args] of
+      [] -> pure NullLit
+      [v] -> pure v
+      _ -> fail "an element can have at most one value(...)"
+
+elementArg :: P ElementArg
+elementArg =
+  attributePositionArg
+    <|> (EArgAttr <$> try namedArg)
+    <|> (EArgChild <$> expr)
+
+-- | @action(...)@ and @value(...)@, the two forms that mean something only in
+-- an element's argument list.
+--
+-- As with 'specialForm', the 'try' covers name recognition only: once
+-- @action@ has been seen applied to arguments, a malformed one is a parse
+-- error. Letting it backtrack would leave @action("on-click", $computed, {})@
+-- parsing happily as a call to an unbound function named @action@, and the
+-- static-key restriction would be enforced by nothing at all.
+--
+-- Recognition needs the following @(@, so @action@ and @value@ remain usable
+-- as ordinary attribute names: @value: 1@ is an attribute, @value(1)@ is the
+-- value slot.
+attributePositionArg :: P ElementArg
+attributePositionArg = do
+  name <- try $ do
+    n <- identifier
+    _ <- lookAhead (char '(')
+    if n `elem` (["action", "value"] :: [Text])
+      then pure n
+      else fail "not an action(...) or value(...) form"
+  case name of
+    "action" -> EArgAttr <$> actionShape
+    _ -> EArgValue <$> valueShape
+
+-- | @action("on-click", "save", payloadExpr)@. Both the event and the key are
+-- static literals; only the payload is computed. The host still owns the
+-- event vocabulary -- what is fixed is the position, not the words allowed in
+-- it.
+actionShape :: P Attribute
+actionShape = do
+  _ <- symbol "("
+  event <- staticString
+  _ <- symbol ","
+  key <- staticString
+  _ <- symbol ","
+  payload <- expr
+  _ <- symbol ")"
+  pure (ActionAttr event key payload)
+
+-- | @value(expr)@ fills the element's value slot -- see "Tramaj.Node" for
+-- what a host does with it.
+valueShape :: P Expr
+valueShape = do
+  _ <- symbol "("
+  v <- expr
+  _ <- symbol ")"
+  pure v
+
+namedArg :: P Attribute
+namedArg = do
+  name <- objectKey
+  _ <- symbol ":"
+  Attr name <$> expr
+
+-- Precedence ---------------------------------------------------------------
+
+-- | @a \<\> b@, left-associative and the lowest precedence in the language --
+-- the only infix operator there is.
 expr :: P Expr
-expr =
-  boolLit
+expr = do
+  first <- operand
+  rest <- many (try (symbol "<>" *> operand))
+  pure (foldl Concat first rest)
+
+-- | Alternatives are ordered so that a longer form is tried before a prefix of
+-- it: keyword literals before paths and calls, special forms before ordinary
+-- calls, lambdas before parenthesized expressions.
+operand :: P Expr
+operand =
+  keywordLit
     <|> lambdaExpr
-    <|> specialFormExpr
+    <|> parenExpr
+    <|> specialForm
     <|> call
     <|> pathExpr
+    <|> documentExpr
     <|> stringLit
     <|> numberLit
     <|> arrayLit
     <|> objectLit
 
--- | @\@@ leads a binding *definition* (a setter -- @\@foo=$bar@ defines
--- @foo@), symmetric with @$@ leading a binding *read* (a getter).
+-- Programs -----------------------------------------------------------------
+
+-- | @\@name=expr@, one per line. @\@@ leads a binding definition, mirroring
+-- @$@ leading a binding read.
 binding :: P (Text, Expr)
 binding = try $ do
   _ <- char '@'
@@ -345,177 +577,25 @@ binding = try $ do
   e <- expr
   pure (name, e)
 
-compBlock :: P [(Text, Expr)]
-compBlock = many (try binding)
-
--- Template-phase nodes ---------------------------------------------------
-
-namedArg :: P (Text, Expr)
-namedArg = try $ do
-  name <- attrKey
-  _ <- symbol ":"
-  v <- expr
-  pure (name, v)
-
--- | @action(eventTypeExpr, key, payloadExpr)@ -- appears directly among a
--- node's arguments, not as @key: value@. @key@ must be a plain quoted
--- string (same no-interpolation 'quotedKey' treatment as 'importShape'\'s
--- name), not an arbitrary 'expr' -- see 'Tramaj.Ast.staticActionKeys'.
-actionArg :: P TAction
-actionArg = try $ do
-  name <- identifier
-  if name /= "action"
-    then fail "not an action(...) form"
-    else do
-      _ <- symbol "("
-      eventTypeE <- expr
-      _ <- symbol ","
-      key <- quotedKey
-      _ <- symbol ","
-      payloadE <- expr
-      _ <- symbol ")"
-      pure (TAction eventTypeE key payloadE)
-
--- | Any @$@-prefixed child form that isn't @map(...)@\/@branch(...)@: a
--- bare path (@$ctx.title@) or a call (@$foo("123")@).
-pathOrCallChild :: P TemplateNode
-pathOrCallChild = lexeme $ try $ do
-  segs <- char '$' *> pathTail
-  hasParen <- optional (symbol "(")
-  case hasParen of
-    Nothing -> pure (TValue (Path segs))
-    Just _ -> do
-      args <- sepEndBy expr (symbol ",")
-      _ <- char ')'
-      fieldSegs <- fieldAccessSuffix
-      pure (TValue (applyFieldAccess (Call segs args) fieldSegs))
-
--- | The template-block counterparts of 'specialFormExpr': @map(arrExpr,
--- (item) => node)@ produces a 'TMap' child; @branch(fallbackNode, pred1,
--- node1, pred2, node2, ...)@ produces a 'TBranch' child, selecting exactly
--- one node.
-templateSpecialForm :: P TemplateNode
-templateSpecialForm = try $ do
-  _ <- optional (char '$')
-  name <- identifier
-  case name of
-    "map" -> mapNodeShape
-    "branch" -> branchNodeShape
-    _ -> fail "not a map/branch special form"
-  where
-    mapNodeShape :: P TemplateNode
-    mapNodeShape = do
-      _ <- symbol "("
-      arr <- expr
-      _ <- symbol ","
-      _ <- symbol "("
-      itemName <- identifier
-      _ <- symbol ")"
-      _ <- symbol "=>"
-      body <- node
-      _ <- symbol ")"
-      pure (TMap arr itemName body)
-
-    branchNodeShape :: P TemplateNode
-    branchNodeShape = do
-      _ <- symbol "("
-      fallback <- node
-      pairs <- many (try (symbol "," *> pairP))
-      _ <- optional (symbol ",")
-      _ <- symbol ")"
-      pure (TBranch fallback pairs)
-
-    pairP :: P (Expr, TemplateNode)
-    pairP = do
-      p <- expr
-      _ <- symbol ","
-      n <- node
-      pure (p, n)
-
--- | @node@, @childArg@, @nodeArg@ and (via the lambda\/branch bodies above)
--- even @templateSpecialForm@ form one mutually recursive family.
-childArg :: P TemplateNode
-childArg =
-  node
-    <|> templateSpecialForm
-    <|> (TValue <$> specialFormExpr)
-    <|> pathOrCallChild
-    <|> (TValue <$> stringLit)
-
-nodeArg :: P NodeArg
-nodeArg =
-  (NArgAction <$> try actionArg)
-    <|> (NArgNamed <$> try namedArg)
-    <|> (NArgChild <$> childArg)
-
-node :: P TemplateNode
-node = lexeme $ try $ do
-  _ <- char '.'
-  tag <- rawIdent
-  skipSpaces
-  _ <- symbol "("
-  argsList <- sepEndBy nodeArg (symbol ",")
-  _ <- symbol ")"
-  ensureAttrsBeforeChildren argsList
-  action <- extractSingleAction argsList
-  let attrs = [t | NArgNamed t <- argsList]
-      children = [c | NArgChild c <- argsList]
-  pure (TElement tag attrs action children)
-  where
-    -- | Hard-enforces "all attributes/action before sibling nodes": once a
-    -- @child-arg@ has been seen in the list, a further @named-arg@ or
-    -- @action(...)@ is a parse error rather than silently
-    -- accepted-but-reordered.
-    ensureAttrsBeforeChildren :: [NodeArg] -> P ()
-    ensureAttrsBeforeChildren argsList =
-      if fst (foldl step (True, False) argsList)
-        then pure ()
-        else fail "attributes and action(...) must all come before sibling child nodes in a node's argument list"
-      where
-        step (ok, seenChild) arg = case arg of
-          NArgNamed _ -> (ok && not seenChild, seenChild)
-          NArgAction _ -> (ok && not seenChild, seenChild)
-          NArgChild _ -> (ok, True)
-
-    -- | A node may have at most one @action(...)@.
-    extractSingleAction :: [NodeArg] -> P (Maybe TAction)
-    extractSingleAction argsList = case [a | NArgAction a <- argsList] of
-      [] -> pure Nothing
-      [a] -> pure (Just a)
-      _ -> fail "a node can have at most one action(...)"
-
--- Program ----------------------------------------------------------------
-
-program :: P Program
-program = do
-  skipSpaces
-  bindings <- compBlock
-  root <- node
-  skipSpaces
-  eof
-  pure (Program bindings root)
-
+-- | A program is a sequence of bindings and a root expression. Which kind of
+-- program it is follows from the root's own form -- a document root is
+-- exactly one written as a document -- so there is no mode to declare and no
+-- separate entry point to pick.
 parseProgram :: Text -> Either (ParseErrorBundle Text Void) Program
-parseProgram input = runParser program "" input
-
--- | Same computation block as 'program', but the root is an 'expr' rather
--- than a 'node' -- the parser half of the JSON-producing mode (see
--- 'Tramaj.Eval.evalJsonProgram'). The two roots can never be confused:
--- an element root always starts with @.@, which no expression form does.
-jsonProgram :: P JsonProgram
-jsonProgram = do
-  skipSpaces
-  bindings <- compBlock
-  root <- expr
-  skipSpaces
-  eof
-  pure (JsonProgram bindings root)
-
-parseJsonProgram :: Text -> Either (ParseErrorBundle Text Void) JsonProgram
-parseJsonProgram input = runParser jsonProgram "" input
+parseProgram = runParser program ""
+  where
+    program :: P Program
+    program = do
+      skipSpaces
+      bindings <- many binding
+      root <- expr
+      skipSpaces
+      eof
+      let body = lets bindings root
+      pure $ case root of
+        Element {} -> DocumentProgram body
+        Fragment {} -> DocumentProgram body
+        _ -> ExpressionProgram body
 
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
-parseExpr input = runParser (skipSpaces *> expr <* eof) "" input
-
-parseTemplateNode :: Text -> Either (ParseErrorBundle Text Void) TemplateNode
-parseTemplateNode input = runParser (skipSpaces *> node <* eof) "" input
+parseExpr = runParser (skipSpaces *> expr <* eof) ""
