@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="branding/assets/lockup-horizontal.png" alt="tramaj" width="420">
+</p>
+
 # tramaj
 
 A small template language for turning a JSON value into a document tree.
