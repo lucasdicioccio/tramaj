@@ -1,0 +1,5 @@
+{
+  "name": "an expression program evaluates to an ordinary value",
+  "kind": "expression",
+  "mode": "concrete"
+}

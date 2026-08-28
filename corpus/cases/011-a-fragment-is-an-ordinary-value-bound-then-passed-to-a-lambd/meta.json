@@ -1,0 +1,5 @@
+{
+  "name": "a fragment is an ordinary value: bound, then passed to a lambda",
+  "kind": "document",
+  "mode": "concrete"
+}

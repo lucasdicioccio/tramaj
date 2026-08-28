@@ -1,0 +1,5 @@
+{
+  "name": "str renders a large integer without a fractional part",
+  "kind": "expression",
+  "mode": "concrete"
+}

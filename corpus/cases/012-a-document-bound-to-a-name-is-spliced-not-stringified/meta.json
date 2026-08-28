@@ -1,0 +1,5 @@
+{
+  "name": "a document bound to a name is spliced, not stringified",
+  "kind": "document",
+  "mode": "concrete"
+}

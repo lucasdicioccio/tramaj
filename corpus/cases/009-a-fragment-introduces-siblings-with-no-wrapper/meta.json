@@ -1,0 +1,5 @@
+{
+  "name": "a fragment introduces siblings with no wrapper",
+  "kind": "document",
+  "mode": "concrete"
+}

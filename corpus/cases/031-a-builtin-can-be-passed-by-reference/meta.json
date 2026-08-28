@@ -1,0 +1,5 @@
+{
+  "name": "a builtin can be passed by reference",
+  "kind": "expression",
+  "mode": "concrete"
+}

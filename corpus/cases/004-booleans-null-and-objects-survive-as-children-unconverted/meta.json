@@ -1,0 +1,5 @@
+{
+  "name": "booleans, null and objects survive as children unconverted",
+  "kind": "document",
+  "mode": "concrete"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "concat merges objects right-biased",
+  "kind": "expression",
+  "mode": "concrete"
+}

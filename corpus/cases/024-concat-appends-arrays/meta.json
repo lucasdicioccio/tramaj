@@ -1,0 +1,5 @@
+{
+  "name": "concat appends arrays",
+  "kind": "expression",
+  "mode": "concrete"
+}

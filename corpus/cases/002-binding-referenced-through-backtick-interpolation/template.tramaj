@@ -1,0 +1,2 @@
+@count=cardinality($ctx.items)
+.p("there are `$count` item(s)")

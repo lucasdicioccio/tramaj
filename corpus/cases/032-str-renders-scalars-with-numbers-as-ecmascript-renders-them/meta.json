@@ -1,0 +1,5 @@
+{
+  "name": "str renders scalars, with numbers as ECMAScript renders them",
+  "kind": "expression",
+  "mode": "concrete"
+}

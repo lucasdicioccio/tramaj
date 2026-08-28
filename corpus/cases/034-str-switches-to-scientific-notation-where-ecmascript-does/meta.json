@@ -1,0 +1,5 @@
+{
+  "name": "str switches to scientific notation where ECMAScript does",
+  "kind": "expression",
+  "mode": "concrete"
+}

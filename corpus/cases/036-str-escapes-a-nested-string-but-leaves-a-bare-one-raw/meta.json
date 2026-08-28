@@ -1,0 +1,5 @@
+{
+  "name": "str escapes a nested string but leaves a bare one raw",
+  "kind": "expression",
+  "mode": "concrete"
+}

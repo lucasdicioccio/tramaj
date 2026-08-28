@@ -1,0 +1,3 @@
+-- a heading
+@n=cardinality($ctx.items) -- how many
+.p("`$n` -- so far")

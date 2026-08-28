@@ -1,0 +1,1 @@
+.ul(map($ctx.items, (i) => .li($i.name)))

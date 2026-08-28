@@ -1,0 +1,5 @@
+{
+  "name": "fold keeps only the final accumulator",
+  "kind": "expression",
+  "mode": "concrete"
+}

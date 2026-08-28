@@ -1,0 +1,5 @@
+{
+  "name": "a nested fragment stays a real node rather than being flattened",
+  "kind": "document",
+  "mode": "concrete"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "a closure captures the environment where it was written",
+  "kind": "expression",
+  "mode": "concrete"
+}

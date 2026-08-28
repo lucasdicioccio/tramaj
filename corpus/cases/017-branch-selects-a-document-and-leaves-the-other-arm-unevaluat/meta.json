@@ -1,0 +1,5 @@
+{
+  "name": "branch selects a document and leaves the other arm unevaluated",
+  "kind": "document",
+  "mode": "concrete"
+}

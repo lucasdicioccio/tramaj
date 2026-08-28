@@ -1,0 +1,1 @@
+.ul(.li("first"), map($ctx.items, (i) => .li($i.name)), .li("last"))

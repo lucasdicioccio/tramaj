@@ -1,0 +1,2 @@
+@n=cardinality($ctx.items)
+{"count": $n, "first": $ctx.items}

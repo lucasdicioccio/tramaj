@@ -1,0 +1,5 @@
+{
+  "name": "an action payload is computed from the context",
+  "kind": "document",
+  "mode": "concrete"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "scan keeps the initial accumulator and every step",
+  "kind": "expression",
+  "mode": "concrete"
+}

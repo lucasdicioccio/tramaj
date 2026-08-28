@@ -64,13 +64,17 @@ test-suite unit
   main-is:          Main.hs
   other-modules:
     Tramaj.AnalysisSpec
+    Tramaj.CorpusSpec
     Tramaj.EvalSpec
     Tramaj.NodeJsonSpec
     Tramaj.ParserSpec
   build-depends:
     , base
     , aeson
+    , bytestring
     , containers
+    , directory
+    , filepath
     , hspec        >=2.11
     , tramaj-hs
     , text

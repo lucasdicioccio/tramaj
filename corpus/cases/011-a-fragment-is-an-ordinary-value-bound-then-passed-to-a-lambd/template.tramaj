@@ -1,0 +1,3 @@
+@kids=.(.p("a"), .p("b"))
+@panel=(t, c) => .section(.h2($t), $c)
+$panel("T", $kids)

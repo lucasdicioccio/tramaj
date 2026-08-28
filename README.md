@@ -85,20 +85,17 @@ non-browser host) depend on the core alone.
 
 ## Two implementations, one grammar
 
-`tramaj-hs` is a hand-written port, not a shared core behind an FFI, and the
-two implementations are kept in agreement by hand-ported test fixtures.
+`tramaj-hs` is a hand-written port, not a shared core behind an FFI. Agreement
+between the two is enforced by a shared, language-neutral corpus at
+[`corpus/`](corpus) — template / context / expected-JSON triples that both
+suites read directly (`tramaj/test/Test/Corpus.purs`,
+`tramaj-hs/test/unit/Tramaj/CorpusSpec.hs`), rather than two hand-maintained
+fixture tables that could drift silently. Both check against the same
+normative representation ([`specs/node-json.md`](specs/node-json.md)) too, so
+a divergence shows up as a byte mismatch rather than a shrug.
 
-**Known gap:** that agreement is still not mechanically enforced — there is no
-shared corpus and no cross-language conformance runner, so the two suites can
-drift silently.
-
-v2 narrows the gap without closing it. Both suites now assert against the same
-normative representation ([`specs/node-json.md`](specs/node-json.md)) rather
-than against their own internal types, and both fixture tables are written as
-template / context / expected-JSON triples — so a fixture and its counterpart
-can be compared by reading them. The remaining step is a single corpus file
-both runners read, checking each implementation against the specification
-rather than against the other. Contributions welcome.
+Behavior that is legitimately implementation-specific (error message
+wording, host-only checks) still lives in each suite's own tests.
 
 The port already earned its keep: it caught a divergence that neither side's
 own suite could have. PureScript's `Char` is a UTF-16 code unit, so

@@ -1,0 +1,1 @@
+.b(action("on-click", "deploy", {"id": $ctx.id}), "Go")

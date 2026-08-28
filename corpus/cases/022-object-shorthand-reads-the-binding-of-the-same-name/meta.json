@@ -1,0 +1,5 @@
+{
+  "name": "object shorthand reads the binding of the same name",
+  "kind": "expression",
+  "mode": "concrete"
+}

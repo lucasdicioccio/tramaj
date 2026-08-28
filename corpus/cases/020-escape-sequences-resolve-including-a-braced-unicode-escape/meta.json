@@ -1,0 +1,5 @@
+{
+  "name": "escape sequences resolve, including a braced unicode escape",
+  "kind": "expression",
+  "mode": "concrete"
+}

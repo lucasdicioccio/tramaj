@@ -1,0 +1,1 @@
+{"type":"element","tag":"b","attributes":[{"kind":"attribute","name":"class","value":"c"},{"kind":"action","event":"on-click","key":"a","payload":{}},{"kind":"action","event":"on-key","key":"b","payload":{}}],"value":null,"children":[],"annotations":{}}

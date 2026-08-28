@@ -1,0 +1,1 @@
+.b(class: "c", action("on-click", "a", {}), action("on-key", "b", {}))

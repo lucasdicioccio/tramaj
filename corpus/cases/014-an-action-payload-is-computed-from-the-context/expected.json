@@ -1,0 +1,1 @@
+{"type":"element","tag":"b","attributes":[{"kind":"action","event":"on-click","key":"deploy","payload":{"id":1}}],"value":null,"children":[{"type":"text","value":"Go","annotations":{}}],"annotations":{}}

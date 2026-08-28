@@ -1,0 +1,5 @@
+{
+  "name": "concat joins strings",
+  "kind": "expression",
+  "mode": "concrete"
+}

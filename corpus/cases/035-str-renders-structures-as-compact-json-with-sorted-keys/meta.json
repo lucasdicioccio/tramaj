@@ -1,0 +1,5 @@
+{
+  "name": "str renders structures as compact JSON with sorted keys",
+  "kind": "expression",
+  "mode": "concrete"
+}

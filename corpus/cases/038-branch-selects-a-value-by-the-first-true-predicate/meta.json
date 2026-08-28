@@ -1,0 +1,5 @@
+{
+  "name": "branch selects a value by the first true predicate",
+  "kind": "expression",
+  "mode": "concrete"
+}

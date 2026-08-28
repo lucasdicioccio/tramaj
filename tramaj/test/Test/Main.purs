@@ -1,17 +1,13 @@
--- | Runs the `Test.Fixtures` corpus end to end — parse, evaluate,
+-- | Runs the shared `corpus/cases` corpus end to end — parse, evaluate,
 -- | serialize — and checks the result against the normative
 -- | `specs/node-json.md` representation, plus the parser, analysis and
--- | round-trip checks the fixture shape cannot express.
+-- | round-trip checks the corpus shape cannot express.
 -- |
 -- | A bare-`Effect` runner that `throw`s on the first failure, rather than
 -- | a spec-runner dependency: the same convention v1 used.
 -- |
 -- | This mirrors the Haskell suites (`ParserSpec`, `EvalSpec`,
--- | `AnalysisSpec`, `NodeJsonSpec`). Because both sides now assert against
--- | the same normative JSON, a fixture here and its Haskell counterpart can
--- | be compared by reading them — the natural next step being a single
--- | shared corpus both runners read, which is the "no cross-language
--- | conformance runner" gap the README has carried since v1.
+-- | `AnalysisSpec`, `NodeJsonSpec`, `CorpusSpec`). See `corpus/README.md`.
 module Test.Main where
 
 import Prelude
@@ -27,7 +23,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
-import Test.Fixtures (Fixture, Kind(..), fixtures)
+import Test.Corpus (runCorpus)
 import Tramaj.Analysis (contextHoles, contextReads, deepActionKeys, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames, unsuppliedParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program)
 import Tramaj.Eval (EvalError(..), LibraryTable, Output(..), evalProgram)
@@ -36,41 +32,13 @@ import Tramaj.Parser (parseExpr, parseProgram)
 
 main :: Effect Unit
 main = do
-  runFixtures
+  runCorpus
   runParserChecks
   runCommentChecks
   runLibraryChecks
   runAnalysisChecks
   runNodeJsonChecks
   log "All tramaj checks passed."
-
--- Fixtures --------------------------------------------------------------
-
-runFixtures :: Effect Unit
-runFixtures = do
-  traverse_ runFixture fixtures
-  log ("ok - " <> show (Array.length fixtures) <> " fixtures")
-
-runFixture :: Fixture -> Effect Unit
-runFixture f = do
-  ctx <- mustParseJson (f.name <> " (ctx)") f.ctx
-  expected <- mustParseJson (f.name <> " (expected)") f.expected
-  program <- mustParse f.name f.template
-  case evalProgram Map.empty ctx program of
-    Left err -> throw (f.name <> ": eval failed: " <> show err)
-    Right output -> do
-      actual <- case output, f.kind of
-        ONode n, Document -> pure (nodeToJson n)
-        OValue v, Expression -> pure v
-        ONode _, Expression -> throw (f.name <> ": expected a value, got a document")
-        OValue v, Document -> throw (f.name <> ": expected a document, got the value " <> stringify v)
-      if actual == expected then pure unit
-      else
-        throw
-          ( f.name <> ": mismatch\n  expected: " <> stringify expected
-              <> "\n  actual:   "
-              <> stringify actual
-          )
 
 -- Parser ---------------------------------------------------------------
 

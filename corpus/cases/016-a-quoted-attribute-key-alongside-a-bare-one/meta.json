@@ -1,0 +1,5 @@
+{
+  "name": "a quoted attribute key alongside a bare one",
+  "kind": "document",
+  "mode": "concrete"
+}

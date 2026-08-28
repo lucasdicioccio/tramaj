@@ -1,0 +1,5 @@
+{
+  "name": "comments are stripped, and a -- inside a string stays text",
+  "kind": "document",
+  "mode": "concrete"
+}

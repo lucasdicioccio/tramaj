@@ -1,0 +1,5 @@
+{
+  "name": "a scalar child keeps its type instead of being stringified",
+  "kind": "document",
+  "mode": "concrete"
+}

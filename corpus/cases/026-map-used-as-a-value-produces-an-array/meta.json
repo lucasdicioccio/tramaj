@@ -1,0 +1,5 @@
+{
+  "name": "map used as a value produces an array",
+  "kind": "expression",
+  "mode": "concrete"
+}
