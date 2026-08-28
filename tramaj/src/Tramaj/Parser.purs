@@ -48,13 +48,13 @@ import Data.Maybe (Maybe(..))
 import Data.Number as Number
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
-import Data.Tuple (Tuple(..), uncurry)
+import Data.Tuple (Tuple(..))
 import Parsing (ParseError, Parser, fail, runParser)
 import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, skipMany, try)
 import Parsing.String (anyChar, char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
-import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), numberAllocs, stmts)
+import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), TypeConstraintArg(..), TypeExpr(..), numberAllocs, stmts)
 
 type P a = Parser String a
 
@@ -510,7 +510,7 @@ specialForm = do
   -- | a static position the analyses can read; see `Tramaj.Ast`'s
   -- | `ParamValue`.
   paramValue :: P ParamValue
-  paramValue = fromContext <|> (PExpr <$> defer \_ -> expr)
+  paramValue = (PType <$> markedTypeExpr) <|> fromContext <|> (PExpr <$> defer \_ -> expr)
 
   fromContext :: P ParamValue
   fromContext = do
@@ -553,6 +553,181 @@ specialForm = do
         skipSpaces
         pure (Prefix p)
       _ -> fail "an action adaptation must be identity or prefix(\"...\")"
+
+-- Types ---------------------------------------------------------------------
+
+-- | The five value-domain shapes v4-types §1 reserves as type primitives.
+-- | Fixed and closed, so recognized here rather than left for a later
+-- | resolution pass to classify.
+primNames :: Array String
+primNames = [ "string", "number", "bool", "null", "document" ]
+
+-- | A type expression (v4-types §1), in the position a full `TypeExpr` may
+-- | appear: a declaration's right-hand side, a record field's type, an
+-- | array's element type. `typeUnion` and `typePrimOrRef` are included here
+-- | but deliberately excluded from `typeExprPayload`, which is what a union
+-- | arm's own payload parses with — see that function for why.
+typeExpr :: P TypeExpr
+typeExpr = defer \_ -> typeVar <|> typeUnion <|> typeArray <|> typeRecord <|> typePrimOrRef
+
+-- | Everything a union arm's payload may be. Deliberately narrower than
+-- | `typeExpr`: a nested union has no bracketing in the surface grammar, and
+-- | a bare name (a `TPrim` or `TName`) is excluded because nothing marks
+-- | where a nullary arm ends — `| Dev | Staging` must parse as two nullary
+-- | arms, not `Dev` with a payload named `Staging`, and the same trap would
+-- | swallow a following statement's root expression whenever it starts with
+-- | a bare identifier (`true`, or a special form written without its
+-- | leading `$`). Every constructor kept here starts with a token — `%`,
+-- | `[`, `{` — that cannot otherwise begin whatever follows a union
+-- | declaration, so no such ambiguity exists for them.
+typeExprPayload :: P TypeExpr
+typeExprPayload = defer \_ -> typeVar <|> typeArray <|> typeRecord
+
+-- | `%ctx.a.b` (v4-types §1): a type hole. The path MUST be rooted at `ctx`,
+-- | mirroring `demandExpr` on the value side.
+typeVar :: P TypeExpr
+typeVar = lexeme $ try do
+  _ <- char '%'
+  root <- rawIdent
+  if root == "ctx" then TVar <<< Array.fromFoldable <$> many (char '.' *> rawIdent)
+  else fail "a type hole must be rooted at ctx, as in %ctx.path"
+
+-- | A `%`-marked type argument, in the two positions v4-types §2 and §5
+-- | both use it: an import parameter's value, and a `!type-constraint`
+-- | argument. Unlike `typeVar`, the leading `%` here does not require what
+-- | follows to be `ctx` — `%Json` (§2's supply) and `%ctx.payload` (§6's
+-- | forward) are both legal, told apart only after the `%` itself is seen,
+-- | so this cannot simply be `char '%' *> typeExpr`: that would need a
+-- | second `%` before the `ctx` case. `typeUnion`/`typeArray`/`typeRecord`/
+-- | `typePrimOrRef` need no such adjustment, since none of them themselves
+-- | start with `%`.
+markedTypeExpr :: P TypeExpr
+markedTypeExpr = try do
+  _ <- char '%'
+  ctxForward <|> (defer \_ -> typeUnion <|> typeArray <|> typeRecord <|> typePrimOrRef)
+  where
+  ctxForward :: P TypeExpr
+  ctxForward = lexeme $ try do
+    root <- rawIdent
+    if root == "ctx" then TVar <<< Array.fromFoldable <$> many (char '.' *> rawIdent)
+    else fail "a %-marked value must be ctx.path or a type expression"
+
+typeArray :: P TypeExpr
+typeArray = do
+  _ <- symbol "["
+  t <- defer \_ -> typeExpr
+  _ <- symbol "]"
+  pure (TArray t)
+
+typeRecord :: P TypeExpr
+typeRecord = do
+  _ <- symbol "{"
+  fields <- sepEndBy (defer \_ -> typeField) (symbol ",")
+  _ <- symbol "}"
+  pure (TRecord (Array.fromFoldable fields))
+  where
+  -- | Unlike an ordinary object literal's `objectKey`, a field name here is
+  -- | always a bare `identifier`, never a quoted string (v4-types §1.1's
+  -- | examples never show one either). This is what keeps a canonical id
+  -- | (v4-types §3, `Tramaj.Types`) injective: the id grammar uses `:`, `,`,
+  -- | `[`, `]` and `|` as its own delimiters, and an identifier can never
+  -- | contain any of them, so inserting a field name raw can never be
+  -- | confused with the surrounding structure. A quoted key could.
+  typeField :: P (Tuple String TypeExpr)
+  typeField = do
+    k <- identifier
+    _ <- symbol ":"
+    t <- defer \_ -> typeExpr
+    pure (Tuple k t)
+
+-- | `| A T | B U | C` (v4-types §1.1): one or more arms, each a name with an
+-- | optional payload — a nullary arm is an enum case, not a payload-carrying
+-- | one with an empty payload.
+typeUnion :: P TypeExpr
+typeUnion = TUnion <<< Array.fromFoldable <$> many1 (symbol "|" *> defer \_ -> unionArm)
+  where
+  unionArm :: P (Tuple String (Maybe TypeExpr))
+  unionArm = do
+    name <- identifier
+    payload <- optionMaybe (defer \_ -> typeExprPayload)
+    pure (Tuple name payload)
+
+-- | A bare name (a primitive keyword or a declaration reference) or a
+-- | library-qualified one, `$lib.types.Name` (v4-types §1.1's `@m :
+-- | $msg.types.Envelope`). Which of `TName` and `TLibRef` applies is a
+-- | purely syntactic distinction here; resolving either to a primitive, a
+-- | declaration, or `UnresolvedType` is a later pass's job (v4-types §9, not
+-- | yet implemented).
+typePrimOrRef :: P TypeExpr
+typePrimOrRef = libRef <|> nameOrPrim
+  where
+  libRef :: P TypeExpr
+  libRef = lexeme $ try do
+    _ <- char '$'
+    libName <- rawIdent
+    _ <- char '.'
+    _ <- string "types"
+    _ <- char '.'
+    typeName <- rawIdent
+    pure (TLibRef libName typeName)
+
+  nameOrPrim :: P TypeExpr
+  nameOrPrim = do
+    name <- identifier
+    pure (if Array.elem name primNames then TPrim name else TName name)
+
+-- | `type Name = TypeExpr` (v4-types §1.1): the fifth statement leader.
+-- | Unlike `@`/`!`/`.`/`$` it is a whole keyword rather than a single
+-- | character, so it is recognized by parsing a full identifier and
+-- | checking it — the same device `keywordLit` uses — which is what keeps
+-- | `typeface = ...` from being chopped into the keyword `type` plus
+-- | leftovers.
+typeDeclStmt :: P Stmt
+typeDeclStmt = try do
+  kw <- identifier
+  if kw /= "type" then fail "not a type declaration" else pure unit
+  name <- identifier
+  _ <- symbol "="
+  STypeDecl name <$> defer \_ -> typeExpr
+
+-- | One argument to `!type-constraint` (v4-types §5): a `%`-marked type
+-- | expression, or a literal scalar — reusing the same primitive literal
+-- | parsers `numberLit`/`keywordLit` use, unwrapped to the scalar the
+-- | argument actually carries, since it is never wrapped as an evaluable
+-- | `Expr` here. A string scalar is `staticString`, not `stringLit`: like a
+-- | constraint's own name, this position is never computed.
+typeConstraintArg :: P TypeConstraintArg
+typeConstraintArg = (TCType <$> markedTypeExpr) <|> scalarArg
+  where
+  scalarArg :: P TypeConstraintArg
+  scalarArg =
+    (TCScalarStr <$> staticString)
+      <|> (asScalar <$> numberLit)
+      <|> (asScalar <$> keywordLit)
+
+  asScalar :: Expr -> TypeConstraintArg
+  asScalar (NumberLit n) = TCScalarNum n
+  asScalar (BoolLit b) = TCScalarBool b
+  asScalar NullLit = TCScalarNull
+  asScalar (StringLit s) = TCScalarStr s
+  asScalar _ = TCScalarNull -- unreachable: `numberLit`/`keywordLit` only ever produce the cases above
+
+-- | `!type-constraint(name, args...)` (v4-types §5, roadmap Phase 12): tried
+-- | before the general `!expr` `emission`, since both share the `!` leader
+-- | and `type-constraint(...)` would otherwise parse as an ordinary call to
+-- | an unbound name.
+typeEmission :: P Stmt
+typeEmission = try do
+  _ <- char '!'
+  kw <- identifier
+  if kw /= "type-constraint" then fail "not a !type-constraint" else pure unit
+  _ <- symbol "("
+  name <- staticString
+  args <- many (try (symbol "," *> typeConstraintArg))
+  _ <- optionMaybe (symbol ",")
+  _ <- char ')'
+  skipSpaces
+  pure (STypeEmit name (Array.fromFoldable args))
 
 -- Documents ---------------------------------------------------------------
 
@@ -704,15 +879,19 @@ operand = defer \_ ->
 
 -- Programs -----------------------------------------------------------------
 
--- | `@name=expr`, one per line. `@` leads a binding definition, mirroring
--- | `$` leading a binding read.
-binding :: P (Tuple String Expr)
+-- | `@name=expr` or `@name : T = expr` (v4-types §7), one per line. `@`
+-- | leads a binding definition, mirroring `$` leading a binding read; the
+-- | optional `: T` is what tells `SLet` and `SAnnotate` apart.
+binding :: P Stmt
 binding = try do
   _ <- char '@'
   name <- identifier
+  annot <- optionMaybe (try (symbol ":" *> defer \_ -> typeExpr))
   _ <- symbol "="
   e <- defer \_ -> expr
-  pure (Tuple name e)
+  pure case annot of
+    Nothing -> SLet name e
+    Just t -> SAnnotate name t e
 
 -- | `!expr` (v3-symbols §2.2): the fourth statement leader, joining `.`,
 -- | `$` and `@`. A statement position only — it may not appear inside an
@@ -722,11 +901,13 @@ emission = try do
   _ <- char '!'
   defer \_ -> expr
 
--- | One statement of the surface grammar: a binding or an emission, in the
--- | order the source wrote them — what `Ast.stmts` rebuilds into the
--- | `Let`/`Emit` chain.
+-- | One statement of the surface grammar: a binding (plain or annotated),
+-- | an emission (value or type), or a type declaration, in the order the
+-- | source wrote them — what `Ast.stmts` rebuilds into the core chain.
+-- | `typeEmission` is tried ahead of `emission` since both share the `!`
+-- | leader.
 statement :: P Stmt
-statement = (uncurry SLet <$> binding) <|> (SEmit <$> emission)
+statement = binding <|> typeEmission <|> (SEmit <$> emission) <|> typeDeclStmt
 
 -- | A program is a sequence of statements and a root expression. Which kind
 -- | of program it is follows from the root's own form — a document root is

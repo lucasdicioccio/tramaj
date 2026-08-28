@@ -1,0 +1,7 @@
+{
+  "name": "a partial annotation is a static PartialType error, not an evaluation one (§4, §7)",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeErr"
+}

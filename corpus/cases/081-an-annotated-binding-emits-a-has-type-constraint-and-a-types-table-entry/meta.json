@@ -1,0 +1,5 @@
+{
+  "name": "an annotated binding emits a has-type constraint and a types table entry (§7, §8)",
+  "kind": "expression",
+  "mode": "symbolic"
+}

@@ -1,0 +1,3 @@
+type Deployment = { replicas : number }
+@d : Deployment = {"replicas": 3}
+$d

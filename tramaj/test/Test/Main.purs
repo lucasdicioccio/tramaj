@@ -12,10 +12,11 @@ module Test.Main where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, jsonNull, stringify)
+import Data.Argonaut.Core (Json, fromArray, jsonNull, stringify, toObject)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array as Array
 import Data.Either (Either(..))
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Set as Set
@@ -23,20 +24,28 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
+import Foreign.Object as Object
+import Partial.Unsafe (unsafeCrashWith)
 import Test.Corpus (runCorpus)
-import Tramaj.Analysis (constraintKinds, contextHoles, contextReads, deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, unsuppliedParams)
-import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program)
-import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram)
+import Tramaj.Analysis (constraintKinds, contextHoles, contextReads, deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
+import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), TypeConstraintArg(..), TypeExpr(..), programRoot, typeDecls, unlets)
+import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
+import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError(..), canonicalId, checkTypeParamCollisions, requireClosed, resolveTypeExpr, typeClosure, typeConstraints)
 
 main :: Effect Unit
 main = do
   runCorpus
   runParserChecks
+  runTypeDeclChecks
   runCommentChecks
   runLibraryChecks
   runAnalysisChecks
+  runTypeResolutionChecks
+  runTypeParamChecks
+  runTypeOutputChecks
+  runTypedEvalChecks
   runNodeJsonChecks
   log "All tramaj checks passed."
 
@@ -110,6 +119,91 @@ runParserChecks = do
     Right e ->
       if e == expected then pure unit
       else throw (src <> " desugared to\n  " <> show e <> "\nexpected\n  " <> show expected)
+
+-- Type declarations ------------------------------------------------------
+
+-- | `type Name = TypeExpr` (v4-types §1.1, roadmap Phase 8: parse only). One
+-- | case per `TypeExpr` constructor, each pinning the surface to the exact
+-- | core shape it parses to — the same discipline the value grammar's
+-- | `desugarsTo` checks apply, but over `parseProgram` since a declaration is
+-- | a statement, not an expression.
+runTypeDeclChecks :: Effect Unit
+runTypeDeclChecks = do
+  traverse_ (uncurry declaresTo)
+    [ Tuple "type Point = { x : number, y : number }\ntrue"
+        (ExpressionProgram (TypeDecl "Point" (TRecord [ Tuple "x" (TPrim "number"), Tuple "y" (TPrim "number") ]) (BoolLit true)))
+    , Tuple "type Shape = | Circle { r : number } | Dev\ntrue"
+        ( ExpressionProgram
+            ( TypeDecl "Shape"
+                (TUnion [ Tuple "Circle" (Just (TRecord [ Tuple "r" (TPrim "number") ])), Tuple "Dev" Nothing ])
+                (BoolLit true)
+            )
+        )
+    , Tuple "type Env = | Dev | Staging | Prod\ntrue"
+        ( ExpressionProgram
+            (TypeDecl "Env" (TUnion [ Tuple "Dev" Nothing, Tuple "Staging" Nothing, Tuple "Prod" Nothing ]) (BoolLit true))
+        )
+    , Tuple "type Items = [ string ]\ntrue"
+        (ExpressionProgram (TypeDecl "Items" (TArray (TPrim "string")) (BoolLit true)))
+    , Tuple "type UserId = string\ntrue"
+        (ExpressionProgram (TypeDecl "UserId" (TPrim "string") (BoolLit true)))
+    , Tuple "type Tree = | Leaf | Node { l : Tree, r : Tree }\ntrue"
+        ( ExpressionProgram
+            ( TypeDecl "Tree"
+                (TUnion [ Tuple "Leaf" Nothing, Tuple "Node" (Just (TRecord [ Tuple "l" (TName "Tree"), Tuple "r" (TName "Tree") ])) ])
+                (BoolLit true)
+            )
+        )
+    , Tuple "type Message = { to : string, payload : %ctx.payload }\ntrue"
+        ( ExpressionProgram
+            (TypeDecl "Message" (TRecord [ Tuple "to" (TPrim "string"), Tuple "payload" (TVar [ "payload" ]) ]) (BoolLit true))
+        )
+    , Tuple "type Big = [ $lib.types.Item ]\ntrue"
+        (ExpressionProgram (TypeDecl "Big" (TArray (TLibRef "lib" "Item")) (BoolLit true)))
+    -- roadmap Phase 10: type parameters through imports.
+    , Tuple "@msg=import(\"message\", {payload: %Json})\ntrue"
+        (ExpressionProgram (Let "msg" (Import "message" [ Tuple "payload" (PType (TName "Json")) ]) (BoolLit true)))
+    , Tuple "@in=import(\"inner\", {payload: %ctx.payload})\ntrue"
+        (ExpressionProgram (Let "in" (Import "inner" [ Tuple "payload" (PType (TVar [ "payload" ])) ]) (BoolLit true)))
+    , Tuple "@msg=import(\"message\", {payload: %$json.types.Value})\ntrue"
+        (ExpressionProgram (Let "msg" (Import "message" [ Tuple "payload" (PType (TLibRef "json" "Value")) ]) (BoolLit true)))
+    -- roadmap Phase 11: annotated bindings.
+    , Tuple "@d : Deployment = ?(\"d\")\ntrue"
+        (ExpressionProgram (TypeAnnotate "d" (TName "Deployment") (Alloc 0 (StringLit "d")) (BoolLit true)))
+    , Tuple "@m : $msg.types.Envelope = 1\ntrue"
+        (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (NumberLit 1.0) (BoolLit true)))
+    -- roadmap Phase 12: !type-constraint.
+    , Tuple "!type-constraint(\"has-default\", %ctx.payload)\ntrue"
+        (ExpressionProgram (TypeEmit "has-default" [ TCType (TVar [ "payload" ]) ] (BoolLit true)))
+    , Tuple "!type-constraint(\"coercible-to\", %ctx.payload, %Json, \"lossy\")\ntrue"
+        ( ExpressionProgram
+            (TypeEmit "coercible-to" [ TCType (TVar [ "payload" ]), TCType (TName "Json"), TCScalarStr "lossy" ] (BoolLit true))
+        )
+    , Tuple "!type-constraint(\"closed-world\")\ntrue"
+        (ExpressionProgram (TypeEmit "closed-world" [] (BoolLit true)))
+    , Tuple "!constraint(\"k\", 1)\ntrue"
+        (ExpressionProgram (Emit (Constrain "k" [ NumberLit 1.0 ]) (BoolLit true)))
+    ]
+  ( case parseProgram "@a=1\ntype T = string\n@b=2\n.p(\"x\")" of
+      Left err -> throw ("expected the .vals-across-a-type-declaration case to parse, got: " <> show err)
+      Right p ->
+        let
+          expected = DocumentProgram
+            ( Let "a" (NumberLit 1.0)
+                (TypeDecl "T" (TPrim "string") (Let "b" (NumberLit 2.0) (Element "p" [] NullLit [ StringLit "x" ])))
+            )
+        in
+          if p == expected then pure unit
+          else throw ("expected .vals to survive an intervening type declaration, got: " <> show p)
+  )
+  log "ok - type declarations"
+  where
+  declaresTo :: String -> Program -> Effect Unit
+  declaresTo src expected = case parseProgram src of
+    Left err -> throw ("expected " <> src <> " to parse, got: " <> show err)
+    Right p ->
+      if p == expected then pure unit
+      else throw (src <> " parsed to\n  " <> show p <> "\nexpected\n  " <> show expected)
 
 -- Comments --------------------------------------------------------------
 
@@ -445,6 +539,281 @@ runAnalysisChecks = do
   check label actual expected =
     if actual == expected then pure unit
     else throw (label <> ": expected " <> show expected <> ", got " <> show actual)
+
+-- Types (v4-types resolution and canonical identity) ---------------------
+
+-- | The load-bearing property here is the same one `runAnalysisChecks` and
+-- | `runParserChecks` already hold the language to: every case asserts the
+-- | exact string a canonical id renders to, not just that resolution
+-- | succeeded. That is what "two implementations must agree on the id
+-- | strings" (roadmap Phase 9, following Phase 4's own discipline for
+-- | symbol ids) means in practice — this file and its Haskell sibling
+-- | (`Tramaj.TypesSpec`) assert the identical literal strings.
+runTypeResolutionChecks :: Effect Unit
+runTypeResolutionChecks = do
+  resolvesTo Map.empty
+    (unsafeParse "type Tree = | Leaf | Node { l : Tree, r : Tree }\ntrue")
+    "Tree"
+    "|Leaf|Node {l:root:Tree,r:root:Tree}"
+
+  resolvesTo Map.empty
+    (unsafeParse "type Inner = { x : number }\ntype Outer = { items : [ Inner ] }\ntrue")
+    "Outer"
+    "{items:[root:Inner]}"
+
+  resolvesTo (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { to : string, id : number }\ntrue") ])
+    (unsafeParse "@msg=import(\"message\", {})\ntype UsesEnvelope = { env : $msg.types.Envelope }\ntrue")
+    "UsesEnvelope"
+    "{env:\"message\":Envelope}"
+
+  -- Sorted by arm/field name, regardless of source order.
+  resolvesTo Map.empty
+    (unsafeParse "type Shape = | Square { s : number } | Circle { r : number } | Dev\ntrue")
+    "Shape"
+    "|Circle {r:number}|Dev|Square {s:number}"
+
+  -- A root declaration and a same-named library declaration must render to
+  -- different strings.
+  resolvesTo (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { to : string }\ntrue") ])
+    (unsafeParse "@msg=import(\"message\", {})\ntype Envelope = string\ntype Both = { local : Envelope, remote : $msg.types.Envelope }\ntrue")
+    "Both"
+    "{local:root:Envelope,remote:\"message\":Envelope}"
+
+  resolvesTo Map.empty
+    (unsafeParse "type Message = { to : string, payload : %ctx.payload }\ntrue")
+    "Message"
+    "{payload:%ctx.payload,to:string}"
+
+  resolvesTo Map.empty
+    (unsafeParse "type Items = [ string ]\ntrue")
+    "Items"
+    "[string]"
+
+  let
+    badName = unsafeParse "type Bad = NoSuchType\ntrue"
+  failsWith Map.empty badName "Bad" (UnresolvedType "NoSuchType")
+
+  let
+    notDirect = unsafeParse "@x=1\n@msg=$x\ntype T = { e : $msg.types.Envelope }\ntrue"
+  failsWith Map.empty notDirect "T" (NotStaticallyResolvable "msg")
+
+  let
+    missingLib = unsafeParse "@msg=import(\"missing\", {})\ntype T = { e : $msg.types.Envelope }\ntrue"
+  failsWith Map.empty missingLib "T" (NotStaticallyResolvable "msg")
+
+  let
+    undeclaredInLib = unsafeParse "@msg=import(\"message\", {})\ntype T = { e : $msg.types.Missing }\ntrue"
+  failsWith (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = string\ntrue") ]) undeclaredInLib "T" (UnresolvedType "Missing")
+
+  log "ok - type resolution and canonical ids"
+  where
+  declBody :: Program -> String -> TypeExpr
+  declBody p n = case Array.find (\(Tuple k _) -> k == n) (typeDecls (unlets (programRoot p)).statements) of
+    Just (Tuple _ t) -> t
+    Nothing -> unsafeCrashWith ("no such declaration: " <> n)
+
+  resolvesTo :: Map String Program -> Program -> String -> String -> Effect Unit
+  resolvesTo libsTable p declName expectedId =
+    case resolveTypeExpr libsTable p (declBody p declName) of
+      Left err -> throw (declName <> ": expected " <> expectedId <> ", got error " <> show err)
+      Right resolved ->
+        let
+          actualId = canonicalId resolved
+        in
+          if actualId == expectedId then pure unit
+          else throw (declName <> ": expected " <> expectedId <> ", got " <> actualId)
+
+  failsWith :: Map String Program -> Program -> String -> TypeError -> Effect Unit
+  failsWith libsTable p declName expectedErr =
+    case resolveTypeExpr libsTable p (declBody p declName) of
+      Left err | err == expectedErr -> pure unit
+      Left err -> throw (declName <> ": expected error " <> show expectedErr <> ", got " <> show err)
+      Right resolved -> throw (declName <> ": expected error " <> show expectedErr <> ", got " <> canonicalId resolved)
+
+-- | Type parameters through imports (v4-types §2, roadmap Phase 10): a
+-- | `RRef`'s `arguments` come from the import that reached it, not from any
+-- | syntax at the reference site itself. Mirrors `parameterSpec` in the
+-- | Haskell `TypesSpec`.
+runTypeParamChecks :: Effect Unit
+runTypeParamChecks = do
+  resolvesTo
+    ( Map.fromFoldable
+        [ Tuple "json" (unsafeParse "type Value = document\ntrue")
+        , Tuple "message" (unsafeParse "type Envelope = { to : string, payload : %ctx.payload }\ntrue")
+        ]
+    )
+    (unsafeParse "@json=import(\"json\", {})\n@msg=import(\"message\", {payload: %$json.types.Value})\ntype T = $msg.types.Envelope\ntrue")
+    "T"
+    "\"message\":Envelope[payload=\"json\":Value]"
+
+  resolvesTo
+    (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { payload : %ctx.payload }\ntrue") ])
+    (unsafeParse "type Json = string\n@msg=import(\"message\", {payload: %Json})\ntype T = $msg.types.Envelope\ntrue")
+    "T"
+    "\"message\":Envelope[payload=root:Json]"
+
+  resolvesTo
+    ( Map.fromFoldable
+        [ Tuple "inner" (unsafeParse "type Box = { payload : %ctx.payload }\ntrue")
+        , Tuple "outer" (unsafeParse "@in=import(\"inner\", {payload: %ctx.payload})\ntype Outer = $in.types.Box\ntrue")
+        ]
+    )
+    (unsafeParse "@o=import(\"outer\", {payload: %string})\ntype T = $o.types.Outer\ntrue")
+    "T"
+    "\"outer\":Outer[payload=string]"
+
+  resolvesTo
+    (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { payload : %ctx.payload }\ntrue") ])
+    (unsafeParse "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue")
+    "T"
+    "\"message\":Envelope[payload=%ctx.payload]"
+
+  let
+    typedLibs = Map.fromFoldable [ Tuple "outer" (unsafeParse "@in=import(\"inner\", {payload: %ctx.payload})\ntrue") ]
+  if unsuppliedTypeParams typedLibs (unsafeParse "@o=import(\"outer\", {})\ntrue") == [ Tuple "outer" (Set.singleton [ "payload" ]) ]
+  then pure unit
+  else throw "unsuppliedTypeParams: expected outer's payload to be unsupplied"
+
+  let
+    closedLibs = Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { payload : %ctx.payload }\ntrue") ]
+    closedProg = unsafeParse "@msg=import(\"message\", {payload: %string})\ntype T = $msg.types.Envelope\ntrue"
+  case resolveTypeExpr closedLibs closedProg (declBody closedProg "T") >>= requireClosed of
+    Right _ -> pure unit
+    Left err -> throw ("expected requireClosed to accept a fully supplied type, got: " <> show err)
+
+  let
+    partialLibs = Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { payload : %ctx.payload }\ntrue") ]
+    partialProg = unsafeParse "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue"
+  case resolveTypeExpr partialLibs partialProg (declBody partialProg "T") >>= requireClosed of
+    Left (PartialType tid path) | tid == "\"message\":Envelope[payload=%ctx.payload]" && path == [ "payload" ] -> pure unit
+    other -> throw ("expected PartialType, got: " <> show other)
+
+  case checkTypeParamCollisions (unsafeParse "@a=import(\"m\", {k: %ctx.k})\n@b=$ctx.k\ntrue") of
+    Left (TypeParamCollision "k") -> pure unit
+    other -> throw ("expected TypeParamCollision \"k\", got: " <> show other)
+
+  case checkTypeParamCollisions (unsafeParse "@a=import(\"m\", {k: %ctx.k})\n@b=$ctx.other\ntrue") of
+    Right unit -> pure unit
+    other -> throw ("expected no collision, got: " <> show other)
+
+  if typeParams (unsafeParse "@in=import(\"inner\", {payload: %ctx.payload})\ntrue") == Set.singleton [ "payload" ] then pure unit
+  else throw "typeParams: expected a forwarding import's own %ctx.* param to be visible with no type declaration at all"
+
+  if typeDeclarations (unsafeParse "type A = string\ntype B = number\ntrue") == Set.fromFoldable [ "A", "B" ] then pure unit
+  else throw "typeDeclarations: expected {A, B}"
+
+  log "ok - type parameters through imports"
+  where
+  declBody :: Program -> String -> TypeExpr
+  declBody p n = case Array.find (\(Tuple k _) -> k == n) (typeDecls (unlets (programRoot p)).statements) of
+    Just (Tuple _ t) -> t
+    Nothing -> unsafeCrashWith ("no such declaration: " <> n)
+
+  resolvesTo :: Map String Program -> Program -> String -> String -> Effect Unit
+  resolvesTo libsTable p declName expectedId =
+    case resolveTypeExpr libsTable p (declBody p declName) of
+      Left err -> throw (declName <> ": expected " <> expectedId <> ", got error " <> show err)
+      Right resolved ->
+        let
+          actualId = canonicalId resolved
+        in
+          if actualId == expectedId then pure unit
+          else throw (declName <> ": expected " <> expectedId <> ", got " <> actualId)
+
+-- | The `"types"` closure (§8, roadmap Phase 13) and `!type-constraint`
+-- | collection (§5, roadmap Phase 12). Mirrors `closureAndConstraintSpec`
+-- | in the Haskell `TypesSpec`.
+runTypeOutputChecks :: Effect Unit
+runTypeOutputChecks = do
+  let
+    closureLibs =
+      Map.fromFoldable
+        [ Tuple "inner" (unsafeParse "type Box = { payload : %ctx.payload }\ntrue")
+        , Tuple "outer" (unsafeParse "@in=import(\"inner\", {payload: %ctx.payload})\ntype Outer = $in.types.Box\ntrue")
+        ]
+    p = unsafeParse "@o=import(\"outer\", {payload: %string})\ntype T = $o.types.Outer\ntrue"
+    declBody = case Array.find (\(Tuple k _) -> k == "T") (typeDecls (unlets (programRoot p)).statements) of
+      Just (Tuple _ t) -> t
+      Nothing -> unsafeCrashWith "no such declaration: T"
+  case resolveTypeExpr closureLibs p declBody of
+    Left err -> throw ("expected T to resolve, got: " <> show err)
+    Right root -> case typeClosure closureLibs p [ root ] of
+      Left err -> throw ("expected the closure to build, got: " <> show err)
+      Right table -> do
+        if Map.lookup "\"outer\":Outer[payload=string]" table == Just (RRef (Just "inner") "Box" [ Tuple "payload" (RPrim "string") ])
+        then pure unit
+        else throw "closure: expected outer:Outer[payload=string] to point at inner:Box[payload=string]"
+        if Map.lookup "\"inner\":Box[payload=string]" table == Just (RRecord [ Tuple "payload" (RPrim "string") ])
+        then pure unit
+        else throw "closure: expected inner:Box[payload=string] to expand to {payload:string}"
+
+  case typeConstraints Map.empty (unsafeParse "type Json = string\n!type-constraint(\"coercible-to\", %Json, \"lossy\")\ntrue") of
+    Right [ Tuple "coercible-to" [ RCType (RRef Nothing "Json" []), RCScalarStr "lossy" ] ] -> pure unit
+    other -> throw ("expected one resolved coercible-to constraint, got: " <> show other)
+
+  case
+    typeConstraints Map.empty
+      (unsafeParse "type Json = string\n!type-constraint(\"has-default\", %Json)\n!type-constraint(\"has-default\", %Json)\ntrue")
+    of
+    Right [ Tuple "has-default" [ RCType (RRef Nothing "Json" []) ] ] -> pure unit
+    other -> throw ("expected duplicate type constraints deduplicated to one, got: " <> show other)
+
+  log "ok - type closure and type-constraint output"
+
+-- | Erasure (§7, roadmap Phase 11) and the envelope's `"types"`/
+-- | `"type-constraints"` lists (§8, roadmap Phase 13). Mirrors `typeSpec`
+-- | in the Haskell `EvalSpec`.
+runTypedEvalChecks :: Effect Unit
+runTypedEvalChecks = do
+  let
+    runMode :: Mode -> String -> Json -> Either String Json
+    runMode mode src ctx = case parseProgram src of
+      Left err -> Left ("parse error: " <> show err)
+      Right prog -> case runProgram mode Map.empty ctx prog of
+        Left err -> Left (show err)
+        Right v -> Right v
+
+  if runMode Concrete "@d : string = \"x\"\n$d" jsonNull == runMode Concrete "@d = \"x\"\n$d" jsonNull then pure unit
+  else throw "erasure invariant: an annotated program's concrete output should equal the unannotated one"
+
+  case runMode Symbolic "type Deployment = { replicas : number }\n@d : Deployment = {\"replicas\": 3}\n$d" jsonNull of
+    Right v -> case toObjectField v "types" of
+      Just types -> case jsonParser "[{\"id\":\"root:Deployment\",\"definition\":{\"kind\":\"record\",\"fields\":[{\"name\":\"replicas\",\"type\":{\"kind\":\"prim\",\"name\":\"number\"}}]}}]" of
+        Right expected | types == expected -> pure unit
+        _ -> throw ("expected the types table to carry Deployment's own definition, got: " <> stringify types)
+      Nothing -> throw "expected a \"types\" field in the symbolic envelope"
+    Left err -> throw ("expected the annotated program to evaluate, got: " <> err)
+
+  case runMode Symbolic "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue" jsonNull of
+    Right v -> case Tuple (toObjectField v "type-constraints") (toObjectField v "constraints") of
+      Tuple (Just tcs) (Just cs) ->
+        case jsonParser "[{\"name\":\"has-default\",\"arguments\":[{\"$type\":\"root:Json\"}]}]" of
+          Right expected | tcs == expected && cs == arrJson [] -> pure unit
+          _ -> throw ("expected a resolved has-default type-constraint and no value constraints, got: " <> stringify tcs <> " / " <> stringify cs)
+      _ -> throw "expected \"type-constraints\" and \"constraints\" fields"
+    Left err -> throw ("expected the type-constraint program to evaluate, got: " <> err)
+
+  case runMode Symbolic "1" jsonNull of
+    Right v -> case Tuple (toObjectField v "types") (toObjectField v "type-constraints") of
+      Tuple (Just types) (Just tcs) | types == arrJson [] && tcs == arrJson [] -> pure unit
+      _ -> throw "expected an untyped program's envelope to carry empty \"types\" and \"type-constraints\""
+    Left err -> throw ("expected the untyped program to evaluate, got: " <> err)
+
+  let
+    partialLibs = Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { payload : %ctx.payload }\ntrue") ]
+    partialProg = unsafeParse "@msg=import(\"message\", {})\n@m : $msg.types.Envelope = 1\ntrue"
+  case runProgram Concrete partialLibs jsonNull partialProg of
+    Left (TypeErr (PartialType _ _)) -> pure unit
+    Left err -> throw ("expected a static PartialType error, got a different error: " <> show err)
+    Right _ -> throw "expected a static PartialType error, but evaluation succeeded"
+
+  log "ok - erasure and the typed output envelope"
+  where
+  toObjectField :: Json -> String -> Maybe Json
+  toObjectField v k = toObject v >>= Object.lookup k
+
+  arrJson :: Array Json -> Json
+  arrJson = fromArray
 
 -- Node JSON --------------------------------------------------------------
 

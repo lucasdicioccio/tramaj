@@ -18,7 +18,9 @@
 -- | since `"$sym"` as a literal object key is a parse error, so seeing the
 -- | shape already tells the whole story. `renderSymbolTable` and
 -- | `renderConstraintTable` render the envelope's `"symbols"`/
--- | `"constraints"` arrays the same way. This module is an example host,
+-- | `"constraints"` arrays the same way; `renderTypesTable` and
+-- | `renderTypeConstraintTable` do the same for v4-types \S8's `"types"`/
+-- | `"type-constraints"` arrays. This module is an example host,
 -- | not a normative one, so treat the table layout and origin formatting
 -- | below as a starting point, not a contract.
 module Tramaj.Halogen
@@ -28,6 +30,8 @@ module Tramaj.Halogen
   , validateAttrNames
   , renderSymbolTable
   , renderConstraintTable
+  , renderTypesTable
+  , renderTypeConstraintTable
   ) where
 
 import Prelude
@@ -239,3 +243,89 @@ renderConstraintTable entries =
       ]
 
   field name entry = toObject entry >>= Object.lookup name
+
+-- | Renders a v4-types \S8 `"types"` array (the envelope's type table) as
+-- | an HTML table: canonical id, and its definition rendered to short text
+-- | by `resolvedTypeText`. Declaration boundaries stay boundaries here too
+-- | — a `ref` definition shows only the id it points at, never the
+-- | pointee's own definition inlined, since that entry is its own row.
+renderTypesTable :: forall action slots m. Array Json -> ComponentHTML action slots m
+renderTypesTable [] = HH.p_ [ HH.text "No types." ]
+renderTypesTable entries =
+  HH.table_
+    [ HH.thead_ [ HH.tr_ [ HH.th_ [ HH.text "id" ], HH.th_ [ HH.text "definition" ] ] ]
+    , HH.tbody_ (map renderRow entries)
+    ]
+  where
+  renderRow entry =
+    HH.tr_
+      [ HH.td_ [ HH.code_ [ HH.text (fromMaybe "?" (field "id" entry >>= toString)) ] ]
+      , HH.td_ [ HH.code_ [ HH.text (maybe "?" resolvedTypeText (field "definition" entry)) ] ]
+      ]
+
+  field name entry = toObject entry >>= Object.lookup name
+
+  maybe d f = case _ of
+    Just x -> f x
+    Nothing -> d
+
+-- | Renders one `ResolvedType` JSON value (v4-types \S8's tagged union,
+-- | `"kind"` \[?\] prim/array/record/union/ref/var) to a short one-line
+-- | text form -- deliberately terse, since this is a table cell, not the
+-- | canonical id itself.
+resolvedTypeText :: Json -> String
+resolvedTypeText j = fromMaybe "?" do
+  o <- toObject j
+  kind <- Object.lookup "kind" o >>= toString
+  case kind of
+    "prim" -> Object.lookup "name" o >>= toString
+    "array" -> (\t -> "[" <> t <> "]") <$> (Object.lookup "element" o >>= (Just <<< resolvedTypeText))
+    "record" -> do
+      fieldsArr <- Object.lookup "fields" o >>= toArray
+      pure ("{" <> joinWith ", " (map recordField fieldsArr) <> "}")
+    "union" -> do
+      armsArr <- Object.lookup "arms" o >>= toArray
+      pure (joinWith " | " (map unionArm armsArr))
+    "ref" -> Object.lookup "id" o >>= toString
+    "var" -> do
+      pathArr <- Object.lookup "path" o >>= toArray
+      path <- traverse toString pathArr
+      pure ("%ctx." <> joinWith "." path)
+    _ -> Nothing
+  where
+  recordField f = fromMaybe "?" do
+    fo <- toObject f
+    name <- Object.lookup "name" fo >>= toString
+    ty <- Object.lookup "type" fo
+    pure (name <> ": " <> resolvedTypeText ty)
+
+  unionArm a = fromMaybe "?" do
+    ao <- toObject a
+    name <- Object.lookup "name" ao >>= toString
+    pure case Object.lookup "payload" ao of
+      Just payload -> name <> "(" <> resolvedTypeText payload <> ")"
+      Nothing -> name
+
+-- | Renders a v4-types \S8 `"type-constraints"` array — same shape as
+-- | `renderConstraintTable`'s `"constraints"` (`name`/`arguments`), except
+-- | a type argument is the erased `{"$type": ...}` tag \S7 reserves rather
+-- | than a plain scalar, so it needs its own argument formatter.
+renderTypeConstraintTable :: forall action slots m. Array Json -> ComponentHTML action slots m
+renderTypeConstraintTable [] = HH.p_ [ HH.text "No type constraints." ]
+renderTypeConstraintTable entries =
+  HH.table_
+    [ HH.thead_ [ HH.tr_ [ HH.th_ [ HH.text "name" ], HH.th_ [ HH.text "arguments" ] ] ]
+    , HH.tbody_ (map renderRow entries)
+    ]
+  where
+  renderRow entry =
+    HH.tr_
+      [ HH.td_ [ HH.code_ [ HH.text (fromMaybe "?" (field "name" entry >>= toString)) ] ]
+      , HH.td_ [ HH.text (joinWith ", " (map typeConstraintArgText (fromMaybe [] (field "arguments" entry >>= toArray)))) ]
+      ]
+
+  field name entry = toObject entry >>= Object.lookup name
+
+  typeConstraintArgText a = case toObject a >>= Object.lookup "$type" >>= toString of
+    Just tid -> tid
+    Nothing -> renderScalar a

@@ -50,7 +50,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
-import Tramaj.Halogen (foldToHalogen, renderConstraintTable, renderSymbolTable, validateAttrNames)
+import Tramaj.Halogen (foldToHalogen, renderConstraintTable, renderSymbolTable, renderTypeConstraintTable, renderTypesTable, validateAttrNames)
 import Tramaj.Node (Node, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseProgram)
 
@@ -190,6 +190,62 @@ initialState =
 .p("(sized in steps of 5)")
 """
         }
+      , { name: "types-demo"
+        , source:
+            """-- v4-types: "type X = ..." declares a nominal type; "@x : T = e" is
+-- sugar for "@x=e" plus a has-type constraint, erased before evaluation
+-- (specs/v4-types.md \x00A77). Switch on "Symbolic mode" to see the Types
+-- and Type constraints tables below fill in -- in concrete mode a typed
+-- program is byte-identical to the same program with every "type"
+-- declaration and ":" annotation deleted.
+
+-- An ordinary nominal declaration, structural in its own body. "Zone" is
+-- an enum: a union whose arms carry no payload.
+type Deployment = { replicas : number, zone : Zone }
+type Zone = | Eu | Us
+
+-- "message" is parameterised over a type: %ctx.payload inside it is a
+-- type-level hole, read like a value parameter but marked "%" because
+-- it's a type, not a value (v4-types \x00A72). Supplying it with
+-- %$json.types.Value resolves that hole to json's own declared type --
+-- forwarding it instead (%ctx.payload) would leave it a hole for our own
+-- importer to fill.
+@json=import("json", {})
+@msg=import("message", {payload: %$json.types.Value})
+
+-- A type-level fact about a type this program does not itself define --
+-- the sibling of !constraint(...), but resolved statically rather than
+-- evaluated (v4-types \x00A75).
+!type-constraint("has-default", %$json.types.Value)
+
+-- Annotating a binding erases to a has-type constraint plus a "types"
+-- table entry for the annotation's type, closed over any arguments.
+@d : Deployment           = {"replicas": 3, "zone": "eu"}
+@m : $msg.types.Envelope  = {"to": "ops", "payload": true}
+
+.div(
+  .p("deployment: `$d.zone`, `$d.replicas` replicas"),
+  .p("message to: `$m.to`")
+)"""
+        }
+      , { name: "message"
+        , source:
+            """-- A library exporting a type parameterised over its own $ctx, the same
+-- way it would be parameterised over a value (v4-types \x00A72). Its
+-- importer supplies "payload" as a type argument, not a value one.
+type Envelope = { to : string, payload : %ctx.payload }
+!type-constraint("has-default", %ctx.payload)
+.p("(message library body -- imported here for its types, not rendered)")
+"""
+        }
+      , { name: "json"
+        , source:
+            """-- A trivial library whose only purpose is to export a nominal type
+-- ("Value") for other tabs to reference by $lib.types.Name.
+type Value = document
+.p("(json library body -- imported here for its types, not rendered)")
+"""
+        }
       ]
   , activeTab: 0
   , jsonInput:
@@ -323,6 +379,20 @@ render state =
             , renderConstraints state
             ]
         ]
+    , HH.div [ HP.class_ (HH.ClassName "cols") ]
+        [ HH.div [ HP.class_ (HH.ClassName "card") ]
+            [ HH.h2_ [ HH.text "Types" ]
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "The v4-types \x00A7 8 type table — every type this program's root closes over, cut at declaration boundaries. Always empty in concrete mode." ]
+            , renderTypes state
+            ]
+        , HH.div [ HP.class_ (HH.ClassName "card") ]
+            [ HH.h2_ [ HH.text "Type constraints" ]
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "Every !type-constraint(...) the program emitted, resolved and deduplicated — always empty in concrete mode." ]
+            , renderTypeConstraints state
+            ]
+        ]
     , HH.div [ HP.class_ (HH.ClassName "card") ]
         [ HH.div [ HP.class_ (HH.ClassName "row") ]
             [ HH.h2_ [ HH.text "Action log" ]
@@ -412,6 +482,8 @@ type EnvelopeResult =
   { output :: EvalResult
   , symbols :: Array Json
   , constraints :: Array Json
+  , types :: Array Json
+  , typeConstraints :: Array Json
   }
 
 -- | Shared by 'renderOutput', 'renderAst', 'renderSymbols' and
@@ -442,8 +514,8 @@ computeResult state = case jsonParser state.jsonInput of
         Right program -> case state.mode of
           Concrete -> case evalProgram Concrete libs ctx program of
             Left err -> Left ("Template eval error: " <> show err)
-            Right (ONode node) -> Right { output: ResultNode node, symbols: [], constraints: [] }
-            Right (OValue value) -> Right { output: ResultValue value, symbols: [], constraints: [] }
+            Right (ONode node) -> Right { output: ResultNode node, symbols: [], constraints: [], types: [], typeConstraints: [] }
+            Right (OValue value) -> Right { output: ResultValue value, symbols: [], constraints: [], types: [], typeConstraints: [] }
           Symbolic -> case runProgram Symbolic libs ctx program of
             Left err -> Left ("Template eval error: " <> show err)
             Right envelope -> decodeEnvelope envelope
@@ -456,12 +528,14 @@ computeResult state = case jsonParser state.jsonInput of
       let
         symbols = fromMaybe [] (Object.lookup "symbols" obj >>= toArray)
         constraints = fromMaybe [] (Object.lookup "constraints" obj >>= toArray)
+        types = fromMaybe [] (Object.lookup "types" obj >>= toArray)
+        typeConstraints = fromMaybe [] (Object.lookup "type-constraints" obj >>= toArray)
       in
         case Object.lookup "kind" obj >>= toString, Object.lookup "root" obj of
           Just "document", Just root -> case nodeFromJson root of
             Left err -> Left ("Malformed symbolic envelope root: " <> err)
-            Right node -> Right { output: ResultNode node, symbols, constraints }
-          Just "expression", Just root -> Right { output: ResultValue root, symbols, constraints }
+            Right node -> Right { output: ResultNode node, symbols, constraints, types, typeConstraints }
+          Just "expression", Just root -> Right { output: ResultValue root, symbols, constraints, types, typeConstraints }
           _, _ -> Left "Malformed symbolic envelope: missing \"kind\"/\"root\""
 
 -- | Returns an `Array` because `foldToHalogen` does: a document rooted at
@@ -502,6 +576,16 @@ renderConstraints :: State -> H.ComponentHTML Action () Aff
 renderConstraints state = case computeResult state of
   Left _ -> HH.p [ HP.class_ (HH.ClassName "empty") ] [ HH.text "N/A — see the error above." ]
   Right { constraints } -> renderConstraintTable constraints
+
+renderTypes :: State -> H.ComponentHTML Action () Aff
+renderTypes state = case computeResult state of
+  Left _ -> HH.p [ HP.class_ (HH.ClassName "empty") ] [ HH.text "N/A — see the error above." ]
+  Right { types } -> renderTypesTable types
+
+renderTypeConstraints :: State -> H.ComponentHTML Action () Aff
+renderTypeConstraints state = case computeResult state of
+  Left _ -> HH.p [ HP.class_ (HH.ClassName "empty") ] [ HH.text "N/A — see the error above." ]
+  Right { typeConstraints } -> renderTypeConstraintTable typeConstraints
 
 -- | The demo dispatcher: every `action(...)` click becomes a real
 -- | Halogen action appended to the log. A read-only host would pass
@@ -724,6 +808,84 @@ the JSON context)
   concrete mode has no way to represent a symbol at all, so allocating or
   minting one there is SymbolsUnavailable rather than a value.
 
+TYPES (v4, static -- see the Types/Type constraints tables below the
+rendered output, in either mode)
+  type Name = TypeExpr
+                     a nominal declaration, one per line, above the root
+                     alongside @/! statements. Legal wherever a statement
+                     is. Six TypeExpr shapes, closed:
+                       string / number / bool / null / document   a primitive
+                       [T]                                        an array
+                       { a : T, b : U }                           a record
+                       | A T | B | C U                            a union --
+                                        an arm may carry a payload or not
+                       Name / $lib.types.Name                     a reference
+                                        to another declaration, own or a
+                                        library's
+                       %ctx.path                                  a type hole,
+                                        filled by this program's importer
+                     A declaration is nominal, not an alias: type UserId =
+                     string is a new type, distinct from string and from
+                     any other declaration with the same body. Two
+                     declarations with the same NAME (library, name) are
+                     the same type; identical bodies under different names
+                     are two. A self-recursive body (type Tree = | Leaf |
+                     Node { l : Tree, r : Tree }) terminates: a reference to
+                     another declaration is never expanded, so recursion is
+                     compared by name, never by walking the body forever.
+
+  %ctx.path          a type hole INSIDE a declaration's own body -- the
+                     type-level counterpart of a value parameter, read from
+                     this library's own $ctx. An importer fills it exactly
+                     like a value parameter, marked "%" for "this is a
+                     type, not a value":
+                       import("message", {payload: %Json})     -- supply:
+                                        the hole is gone
+                       import("inner", {payload: %ctx.payload})  -- forward:
+                                        still a hole, now the caller's
+                     A type left partial (still containing %ctx.path
+                     somewhere) is perfectly legal in a library -- that is
+                     what a parameterised library exports -- and a
+                     PartialType error at the PROGRAM ROOT: unlike a value
+                     symbol, a type may never reach the output with a hole
+                     still in it.
+
+  $lib.types.Name    a library's declared type, read the same way $lib.vals
+                     reads a binding -- except this is resolved statically,
+                     at analysis time, not at evaluation time. lib must be
+                     bound directly to an import(...) in an enclosing
+                     binding; one reached through a lambda, an array, or a
+                     later saturating call cannot be resolved.
+
+  @x : T = e         an annotated binding -- sugar for @x=e plus
+                     !constraint("has-type", $x, {"$type": "<T's id>"}).
+                     The type is erased before evaluation into that inert
+                     tagged object, so a typed program's concrete-mode
+                     output is byte-identical to the same program with
+                     every ": T" deleted, and $x is an ordinary value
+                     afterwards -- never computed on, branched on, or built
+                     at runtime.
+
+  !type-constraint(name, arg, ...)
+                     the type realm's sibling of !constraint(...) (see
+                     SYMBOLS AND CONSTRAINTS above): a static name plus any
+                     number of arguments, each either a %-marked type
+                     expression or a plain scalar. Resolved by the
+                     analyser, never evaluated -- it lives in the
+                     "type-constraints" list, not "constraints", and takes
+                     no value-realm hole with it.
+
+  Two types are the same type iff their canonical id strings are equal --
+  no unifier, no subsumption, just string equality. A type reference is
+  ALWAYS rendered as its bare name in that id, never expanded to its body
+  (the same rule a self-recursive declaration relies on to terminate), so
+  a host looks up each id it cares about in the "types" table rather than
+  inlining one long string. Tramaj checks nothing about these facts or
+  declarations against the values that flow through the program -- it only
+  resolves references, normalises expressions, and refuses to leave a type
+  hole unfilled at the root. A checker, if you want one, runs downstream on
+  the concrete output.
+
 STRINGS AND str
   Interpolation lowers to concat over str(...), so str decides what lands
   in the output:
@@ -780,5 +942,15 @@ ERRORS you may see
                    only the root may allocate
   SymbolsUnavailable  a symbol would have to be minted in concrete mode —
                    switch on "Symbolic mode" instead
+  UnresolvedType   a type name that resolves to no declaration and no
+                   primitive
+  PartialType      the root ships a type that still contains a %ctx.path
+                   hole (see TYPES above) — supply it or move the
+                   annotation into a library instead
+  TypeParamCollision  one import params key read both as $ctx.k and %ctx.k
+  NotStaticallyResolvable  $lib.types.X where lib is not bound directly to
+                   an import(...) in an enclosing binding
+  TypeCycle        a type declaration's ARGUMENTS cycle through each other
+                   (a recursive body, like type Tree above, does not)
 
 Full reference: specs/reference.md. Output format: specs/node-json.md."""

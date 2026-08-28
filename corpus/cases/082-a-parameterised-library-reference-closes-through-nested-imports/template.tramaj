@@ -1,0 +1,5 @@
+@json=import("json", {})
+@msg=import("message", {payload: %$json.types.Value})
+type T = $msg.types.Envelope
+@x : T = {"to": "a", "payload": true}
+$x

@@ -1,0 +1,5 @@
+{
+  "name": "a union declaration with nullary arms is inert",
+  "kind": "expression",
+  "mode": "concrete"
+}

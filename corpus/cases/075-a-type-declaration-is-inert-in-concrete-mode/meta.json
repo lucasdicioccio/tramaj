@@ -1,0 +1,5 @@
+{
+  "name": "a type declaration is inert in concrete mode",
+  "kind": "document",
+  "mode": "concrete"
+}

@@ -1,8 +1,16 @@
 # Tramaj v4 — Types (draft)
 
-Status: **draft, not frozen.** Split out of the v3 design so that
-[`v3-symbols.md`](v3-symbols.md) could be frozen without waiting on the type
-questions. Nothing here is settled and nothing is implemented.
+Status: **draft, not frozen, implemented.** Split out of the v3 design so
+that [`v3-symbols.md`](v3-symbols.md) could be frozen without waiting on the
+type questions. The design itself is still not settled — the gate in
+roadmap-to-v4's Part II was crossed by explicit choice ("no host yet, proceed
+anyway"), not by a host actually hurt by a plain-string `has-type` argument,
+so the six items in §11 remain open and this document remains a draft that
+could still change under real use. What follows §11 is nonetheless
+implemented, byte-identically, in both hosts (roadmap-to-v4 Phases 8-14):
+parsing, resolution and canonical identity, type parameters through imports,
+annotation erasure, `!type-constraint`, the `"types"`/`"type-constraints"`
+output lists, and the static analyses in §9.
 
 v3 is complete without this document. A constraint argument may be any JSON
 value, so a v3 program can already say `!constraint("has-type", $d,

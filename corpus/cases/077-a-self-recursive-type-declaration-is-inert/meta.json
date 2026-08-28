@@ -1,0 +1,5 @@
+{
+  "name": "a self-recursive type declaration is inert",
+  "kind": "expression",
+  "mode": "concrete"
+}

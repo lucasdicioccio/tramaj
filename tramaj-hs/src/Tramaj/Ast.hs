@@ -29,10 +29,13 @@ module Tramaj.Ast
   , ParamValue (..)
   , ActionAdaptation (..)
   , Stmt (..)
+  , TypeExpr (..)
+  , TypeConstraintArg (..)
   , programRoot
   , stmts
   , unlets
   , letBindings
+  , typeDecls
   , adaptKey
   , subExprs
   , attributeExprs
@@ -141,6 +144,65 @@ data Expr
     -- ordinary read, an unsupplied demand at the root allocates instead of
     -- failing.
     Demand [Text]
+  | -- | @type Name = TypeExpr@ (v4-types \S1.1): a nominal type declaration.
+    -- Nests into the same 'Let'\/'Emit' chain as an ordinary binding -- see
+    -- roadmap-to-v4 Phase 8 -- which is what keeps 'Program' untouched. The
+    -- 'TypeExpr' carries no 'Expr': resolution (v4-types \S9) is a separate
+    -- static pass over the chain, not something this constructor threads
+    -- through evaluation, so the evaluator never needs to know it exists.
+    TypeDecl Text TypeExpr Expr
+  | -- | @\@x : T = e@ (v4-types \S7): an annotated binding. Distinct from
+    -- 'Let' rather than folding the type into it, because a plain 'Let' must
+    -- stay meaningful with no type pass ever having run -- v3 is complete
+    -- without this constructor existing at all. An erasure pass (v4-types
+    -- \S7, roadmap Phase 11), run before evaluation, rewrites every
+    -- 'TypeAnnotate' into the 'Let' plus 'Emit' of a @has-type@ constraint
+    -- that \S7 specifies; the evaluator itself never matches this
+    -- constructor.
+    TypeAnnotate Text TypeExpr Expr Expr
+  | -- | @!type-constraint(name, args...)@ (v4-types \S5, roadmap Phase 12): a
+    -- sibling of 'Emit' in the type realm. Resolved by the analyser, never
+    -- evaluated -- \S5.1 is explicit that the evaluator's statement fold
+    -- skips this the way it skips 'TypeDecl'.
+    TypeEmit Text [TypeConstraintArg] Expr
+  deriving stock (Eq, Show)
+
+-- | One argument to @!type-constraint@ (v4-types \S5): a \"%\"-marked type
+-- expression, or a literal scalar. A bare 'Expr' would overreach -- \S5 fixes
+-- the argument grammar to exactly these two shapes, computed nowhere, which
+-- is what keeps a type constraint statically collectible the way an ordinary
+-- @constraint@'s /name/ is (v3-symbols \S2.1) but its arguments are not.
+data TypeConstraintArg
+  = TCType TypeExpr
+  | TCScalarStr Text
+  | TCScalarNum Double
+  | TCScalarBool Bool
+  | TCScalarNull
+  deriving stock (Eq, Show)
+
+-- | The type algebra (v4-types \S1), before resolution. Six shapes there
+-- become six here, but 'Ref' is split into two pre-resolution forms: 'TName'
+-- for a bare local name (@Point@) and 'TLibRef' for a name reached through an
+-- import (@$msg.types.Envelope@). Resolution (v4-types \S9, not yet
+-- implemented) is what turns either into a genuine @(library, name)@
+-- reference or reports 'UnresolvedType' -- parsing alone cannot tell a
+-- declaration name from a typo.
+--
+-- 'TPrim' is recognized here, at parse time, rather than left for resolution
+-- to classify: the five primitive names are a closed, reserved lexical set
+-- (v4-types \S1), not ordinary identifiers that happen to resolve to a
+-- primitive.
+data TypeExpr
+  = TPrim Text
+  | TArray TypeExpr
+  | TRecord [(Text, TypeExpr)]
+  | TUnion [(Text, Maybe TypeExpr)]
+  | TName Text
+  | TLibRef Text Text
+  | -- | @%ctx.a.b@ (v4-types \S1): a type hole. Unlike 'Demand', this never
+    -- allocates anything -- v4-types \S4 requires every 'TVar' to be resolved
+    -- away before a program may run at all.
+    TVar [Text]
   deriving stock (Eq, Show)
 
 -- | How one import parameter gets its value. There are three ways to supply
@@ -157,9 +219,16 @@ data Expr
 -- @$ctx.spec.replicas@ is an ordinary 'Path' buried in an arbitrary
 -- expression, indistinguishable from every other read. Writing @ctx(...)@ is
 -- how an author says "this is a hole, count it".
+-- | @%T@ or @%ctx.path@ in a params record (v4-types \S2): a type argument,
+-- told apart from 'PExpr'\/'PFromContext' purely by the leading @%@ the
+-- parser already saw -- the params record stays one syntactic form even
+-- though it carries two semantic channels (\S2.1). 'PType' carries a full
+-- 'TypeExpr' rather than just a name, since @%[T]@, @%{a:T}@ and forwarding
+-- @%ctx.path@ are all legal here, not only a bare reference.
 data ParamValue
   = PExpr Expr
   | PFromContext [Text]
+  | PType TypeExpr
   deriving stock (Eq, Show)
 
 -- | Both attribute-position constructs. An action's event and key are 'Text',
@@ -188,6 +257,9 @@ stmts statements body = foldr wrap body statements
   where
     wrap (SLet name value) acc = Let name value acc
     wrap (SEmit constraint) acc = Emit constraint acc
+    wrap (STypeDecl name t) acc = TypeDecl name t acc
+    wrap (SAnnotate name t value) acc = TypeAnnotate name t value acc
+    wrap (STypeEmit name args) acc = TypeEmit name args acc
 
 -- | How an adaptation rewrites one action key. Shared by evaluation and by
 -- static analysis, which is the point of restricting adaptation to these two
@@ -229,6 +301,9 @@ subExprs (Constrain _ args) = args
 subExprs (Emit constraint body) = [constraint, body]
 subExprs (Alloc _ key) = [key]
 subExprs (Demand _) = []
+subExprs (TypeDecl _ _ body) = [body]
+subExprs (TypeAnnotate _ _ value body) = [value, body]
+subExprs (TypeEmit _ _ body) = [body]
 
 -- | The computed expressions in a list of attributes -- an ordinary
 -- attribute's value or an action's payload. An action's event and key are
@@ -242,6 +317,9 @@ attributeExprs attrs = [e | attr <- attrs, e <- case attr of Attr _ e -> [e]; Ac
 data Stmt
   = SLet Text Expr
   | SEmit Expr
+  | STypeDecl Text TypeExpr
+  | SAnnotate Text TypeExpr Expr
+  | STypeEmit Text [TypeConstraintArg]
   deriving stock (Eq, Show)
 
 -- | Peels the outermost 'Let'\/'Emit' chain back off, inverting 'lets'.
@@ -261,14 +339,31 @@ data Stmt
 unlets :: Expr -> ([Stmt], Expr)
 unlets (Let name value body) = let (stmts, root) = unlets body in (SLet name value : stmts, root)
 unlets (Emit constraint body) = let (stmts, root) = unlets body in (SEmit constraint : stmts, root)
+unlets (TypeDecl name t body) = let (stmts, root) = unlets body in (STypeDecl name t : stmts, root)
+unlets (TypeAnnotate name t value body) = let (stmts, root) = unlets body in (SAnnotate name t value : stmts, root)
+unlets (TypeEmit name args body) = let (stmts, root) = unlets body in (STypeEmit name args : stmts, root)
 unlets e = ([], e)
 
 -- | Just the named bindings of a statement block, in order -- what an
--- import exposes as @.vals@. Discards emissions positionally; a caller that
--- must also evaluate them (running a library) should fold over 'unlets'\'
--- full result instead.
+-- import exposes as @.vals@. An annotated binding (@\@x : T = e@) still
+-- binds @x@, so it counts here exactly as a plain 'SLet' does; only
+-- emissions and type declarations are discarded positionally. A caller that
+-- must also evaluate every statement (running a library) should fold over
+-- 'unlets'\' full result instead.
 letBindings :: [Stmt] -> [(Text, Expr)]
-letBindings stmts = [(n, e) | SLet n e <- stmts]
+letBindings stmts = [(n, e) | stmt <- stmts, Just (n, e) <- [asBinding stmt]]
+  where
+    asBinding (SLet n e) = Just (n, e)
+    asBinding (SAnnotate n _ e) = Just (n, e)
+    asBinding _ = Nothing
+
+-- | Just the type declarations of a statement block, in order -- the
+-- analogue of 'letBindings' for the type realm (v4-types \S1.1). This is
+-- what a later resolution pass (v4-types \S9) collects before resolving any
+-- of them, so that a self- or mutually-recursive declaration is visible to
+-- the pass before it looks anything up.
+typeDecls :: [Stmt] -> [(Text, TypeExpr)]
+typeDecls stmts = [(n, t) | STypeDecl n t <- stmts]
 
 -- | Assigns each 'Alloc' in a program the index of its @?(...)@ among all of
 -- them, in source order (v3-symbols \S1.4) -- a plain pre-order, left-to-right
@@ -357,6 +452,12 @@ numberAllocs e = snd (go 0 e)
           (n2, body') = go n1 body
        in (n2, Emit constraint' body')
     go n e'@(Demand _) = (n, e')
+    go n (TypeDecl name t body) = let (n', body') = go n body in (n', TypeDecl name t body')
+    go n (TypeAnnotate name t value body) =
+      let (n1, value') = go n value
+          (n2, body') = go n1 body
+       in (n2, TypeAnnotate name t value' body')
+    go n (TypeEmit name tcArgs body) = let (n', body') = go n body in (n', TypeEmit name tcArgs body')
 
     goList :: Int -> [Expr] -> (Int, [Expr])
     goList n [] = (n, [])
@@ -390,4 +491,6 @@ numberAllocs e = snd (go 0 e)
           (n2, xs') = goParams n1 xs
        in (n2, (k, PExpr x') : xs')
     goParams n ((k, p@(PFromContext _)) : xs) =
+      let (n1, xs') = goParams n xs in (n1, (k, p) : xs')
+    goParams n ((k, p@(PType _)) : xs) =
       let (n1, xs') = goParams n xs in (n1, (k, p) : xs')

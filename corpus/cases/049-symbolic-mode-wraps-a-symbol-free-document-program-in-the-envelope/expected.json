@@ -1,7 +1,31 @@
 {
+  "constraints": [],
   "format": "tramaj/symbolic/1",
   "kind": "document",
-  "root": {"type":"element","tag":"div","attributes":[],"value":null,"children":[{"type":"element","tag":"p","attributes":[],"value":null,"children":[{"type":"text","value":"Hello","annotations":{}}],"annotations":{}}],"annotations":{}},
+  "root": {
+    "annotations": {},
+    "attributes": [],
+    "children": [
+      {
+        "annotations": {},
+        "attributes": [],
+        "children": [
+          {
+            "annotations": {},
+            "type": "text",
+            "value": "Hello"
+          }
+        ],
+        "tag": "p",
+        "type": "element",
+        "value": null
+      }
+    ],
+    "tag": "div",
+    "type": "element",
+    "value": null
+  },
   "symbols": [],
-  "constraints": []
+  "type-constraints": [],
+  "types": []
 }

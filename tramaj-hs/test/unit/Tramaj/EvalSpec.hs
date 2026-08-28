@@ -7,6 +7,7 @@
 module Tramaj.EvalSpec (spec) where
 
 import Data.Aeson (Value (..), object, (.=))
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -16,6 +17,7 @@ import Tramaj.Ast (Program)
 import Tramaj.Eval
 import Tramaj.Node
 import Tramaj.Parser
+import Tramaj.Types (TypeError (..))
 
 spec :: Spec
 spec = do
@@ -31,6 +33,7 @@ spec = do
   importSpec
   adaptSpec
   errorSpec
+  typeSpec
 
 -- Helpers -------------------------------------------------------------------
 
@@ -568,3 +571,79 @@ errorSpec = describe "errors" $ do
 
   it "reports a non-array given to map" $
     (failsWith (\case TypeMismatch _ -> True; _ -> False) "map(1, (x) => $x)" Null) `shouldBe` True
+
+-- Types (v4-types, roadmap Phases 11-13) ---------------------------------------------------------------
+
+-- | 'runProgram' over 'libs', for a given mode -- what a host actually
+-- serializes, rather than the internal 'Output'.
+runMode :: Mode -> Text -> Value -> Either String Value
+runMode mode src ctx = case parseProgram src of
+  Left e -> Left ("parse error: " <> show e)
+  Right prog -> either (Left . show) Right (runProgram mode libs ctx prog)
+
+typeSpec :: Spec
+typeSpec = describe "types" $ do
+  it "erasure invariant (\\S8): a concrete-mode run is byte-identical to the same program with its annotation deleted" $
+    runMode Concrete "@d : string = \"x\"\n$d" Null
+      `shouldBe` runMode Concrete "@d = \"x\"\n$d" Null
+
+  it "an annotated binding emits a has-type constraint carrying the erased $type tag (\\S7)" $
+    case runMode Symbolic "type Deployment = { replicas : number }\n@d : Deployment = {\"replicas\": 3}\n$d" Null of
+      Right (Object o) ->
+        KeyMap.lookup "constraints" o
+          `shouldBe` Just
+            ( Array
+                ( V.fromList
+                    [ object
+                        [ "name" .= ("has-type" :: Text)
+                        , "arguments"
+                            .= [ object ["replicas" .= (3 :: Int)]
+                               , object ["$type" .= ("root:Deployment" :: Text)]
+                               ]
+                        ]
+                    ]
+                )
+            )
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "the \"types\" table carries the referenced type's own definition, closed over its fields" $
+    case runMode Symbolic "type Deployment = { replicas : number }\n@d : Deployment = {\"replicas\": 3}\n$d" Null of
+      Right (Object o) ->
+        KeyMap.lookup "types" o
+          `shouldBe` Just
+            ( Array
+                ( V.fromList
+                    [ object
+                        [ "id" .= ("root:Deployment" :: Text)
+                        , "definition"
+                            .= object
+                              [ "kind" .= ("record" :: Text)
+                              , "fields" .= [object ["name" .= ("replicas" :: Text), "type" .= object ["kind" .= ("prim" :: Text), "name" .= ("number" :: Text)]]]
+                              ]
+                        ]
+                    ]
+                )
+            )
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "a !type-constraint appears in \"type-constraints\", resolved, and never in \"constraints\"" $
+    case runMode Symbolic "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue" Null of
+      Right (Object o) -> do
+        KeyMap.lookup "type-constraints" o
+          `shouldBe` Just (Array (V.fromList [object ["name" .= ("has-default" :: Text), "arguments" .= [object ["$type" .= ("root:Json" :: Text)]]]]))
+        KeyMap.lookup "constraints" o `shouldBe` Just (Array V.empty)
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "a symbol-free, type-free program's envelope carries empty \"types\" and \"type-constraints\" (\\S8: a v3 consumer sees nothing new)" $
+    case runMode Symbolic "1" Null of
+      Right (Object o) -> do
+        KeyMap.lookup "types" o `shouldBe` Just (Array V.empty)
+        KeyMap.lookup "type-constraints" o `shouldBe` Just (Array V.empty)
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "an annotation whose type is still partial is a static PartialType error (\\S4), not an evaluation one" $
+    let libsHere = Map.fromList [("message", either (\e -> error (show e)) id (parseProgram "type Envelope = { payload : %ctx.payload }\ntrue"))]
+        p = either (\e -> error (show e)) id (parseProgram "@msg=import(\"message\", {})\n@m : $msg.types.Envelope = 1\ntrue")
+     in case runProgram Concrete libsHere Null p of
+          Left (TypeErr (PartialType _ _)) -> pure ()
+          other -> expectationFailure ("expected a PartialType error, got " <> show other)

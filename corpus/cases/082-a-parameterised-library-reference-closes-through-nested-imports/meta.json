@@ -1,0 +1,5 @@
+{
+  "name": "a parameterised library reference closes through nested imports, stopping at each declaration boundary (§2, §3, §8)",
+  "kind": "expression",
+  "mode": "symbolic"
+}

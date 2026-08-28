@@ -1,7 +1,17 @@
 {
+  "constraints": [
+    {
+      "arguments": [
+        3,
+        1
+      ],
+      "name": "gte"
+    }
+  ],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
   "root": 3,
   "symbols": [],
-  "constraints": [{"name": "gte", "arguments": [3, 1]}]
+  "type-constraints": [],
+  "types": []
 }

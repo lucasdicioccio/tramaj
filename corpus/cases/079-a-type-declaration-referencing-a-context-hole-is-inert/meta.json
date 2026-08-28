@@ -1,0 +1,5 @@
+{
+  "name": "a type declaration referencing a context type hole is inert",
+  "kind": "expression",
+  "mode": "concrete"
+}

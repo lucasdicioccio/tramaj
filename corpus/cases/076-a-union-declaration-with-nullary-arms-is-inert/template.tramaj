@@ -1,0 +1,2 @@
+type Env = | Dev | Staging | Prod
+"ok"

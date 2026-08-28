@@ -1,7 +1,11 @@
 {
+  "constraints": [],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
-  "root": {"replicas": 3},
+  "root": {
+    "replicas": 3
+  },
   "symbols": [],
-  "constraints": []
+  "type-constraints": [],
+  "types": []
 }

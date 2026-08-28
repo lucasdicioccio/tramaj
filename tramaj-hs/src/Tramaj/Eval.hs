@@ -35,6 +35,7 @@ import Data.Foldable (traverse_)
 import Data.List (foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (catMaybes)
 import Data.Scientific (Scientific, toRealFloat)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -47,6 +48,7 @@ import Numeric (floatToDigits)
 import Tramaj.Analysis (symbolSites)
 import Tramaj.Ast
 import Tramaj.Node
+import Tramaj.Types (ResolvedConstraintArg (..), ResolvedType (..), TypeError, canonicalId, deepTypeConstraints, eraseTypes, programTypeRoots, typeClosure)
 
 data EvalError
   = UnboundName Text
@@ -77,6 +79,14 @@ data EvalError
     -- source contains an allocation site, whether or not evaluation would
     -- ever reach it.
     AllocationInLibrary Text
+  | -- | A static v4-types failure (v4-types \S10), surfaced from either the
+    -- erasure pass every entry point below runs before evaluating anything
+    -- (\S7, roadmap Phase 11) or from building the symbolic envelope's
+    -- @\"types\"@\/@\"type-constraints\"@ lists (\S8, Phase 13). Not a new
+    -- evaluation failure mode -- nothing here is raised /during/ evaluation
+    -- -- but 'Tramaj.Types.TypeError' still needs a home in the one error
+    -- type every entry point already returns.
+    TypeErr TypeError
   deriving stock (Eq, Show)
 
 -- | What a program produced. Which one it is follows from the value the root
@@ -285,10 +295,11 @@ evalProgram mode libs input prog = fst <$> evalProgramWithEmissions mode libs in
 -- concrete mode discards them (\S5.1) and cannot produce a symbol at all.
 evalProgramWithEmissions :: Mode -> LibraryTable -> Value -> Program -> Either EvalError (Output, Emissions)
 evalProgramWithEmissions mode libs input prog = do
+  erased <- first TypeErr (eraseTypes libs prog)
   (v, emitted) <- runEval $ do
     ctx <- liftEither (checkedFromJson mode input)
     let evalCtx = EvalCtx {ecLibs = libs, ecInProgress = Set.empty, ecMode = mode, ecIsRoot = True}
-    evalExpr evalCtx (initialEnv ctx) (programRoot prog)
+    evalExpr evalCtx (initialEnv ctx) (programRoot erased)
   output <- case v of
     VNode' n -> Right (ONode n)
     other -> OValue <$> toJson other
@@ -331,13 +342,33 @@ constraintEq _ _ = False
 -- v3 envelope (\S5.2), including the deduplicated symbol table and
 -- constraint list.
 runProgram :: Mode -> LibraryTable -> Value -> Program -> Either EvalError Value
-runProgram mode libs input prog = renderOutput mode <$> evalProgramWithEmissions mode libs input prog
+runProgram mode libs input prog = do
+  result <- evalProgramWithEmissions mode libs input prog
+  typesInfo <- case mode of
+    Concrete -> Right (Map.empty, [])
+    Symbolic -> first TypeErr (buildTypesInfo libs prog)
+  pure (renderOutput mode typesInfo result)
 
-renderOutput :: Mode -> (Output, Emissions) -> Value
-renderOutput Concrete (output, _) = case output of
+-- | The @\"types\"@ table's entries and the deduplicated @\"type-constraints\"@
+-- list (v4-types \S8, roadmap Phase 13), computed from @prog@ /before/
+-- erasure -- unlike evaluation, which never needs a 'TypeAnnotate' or
+-- 'TypeEmit' once erasure has run, this is the one place they still matter:
+-- the envelope is exactly where a host needs the definitions and constraints
+-- those nodes named. Concrete mode never calls this ('runProgram' short-
+-- circuits it), matching \S8's promise that a v3 consumer reading a v4
+-- envelope sees nothing new.
+buildTypesInfo :: LibraryTable -> Program -> Either TypeError (Map Text ResolvedType, [(Text, [ResolvedConstraintArg])])
+buildTypesInfo libs prog = do
+  roots <- programTypeRoots libs prog
+  closure <- typeClosure libs prog roots
+  tcs <- deepTypeConstraints libs prog
+  pure (closure, tcs)
+
+renderOutput :: Mode -> (Map Text ResolvedType, [(Text, [ResolvedConstraintArg])]) -> (Output, Emissions) -> Value
+renderOutput Concrete _ (output, _) = case output of
   ONode n -> nodeToJson n
   OValue v -> v
-renderOutput Symbolic (output, Emissions constraints symbols) =
+renderOutput Symbolic (typesTable, typeConstraintsList) (output, Emissions constraints symbols) =
   Object
     ( KeyMap.fromList
         [ ("format", String "tramaj/symbolic/1")
@@ -345,12 +376,54 @@ renderOutput Symbolic (output, Emissions constraints symbols) =
         , ("root", root)
         , ("symbols", Array (V.fromList (map symbolEntryToJson symbols)))
         , ("constraints", Array (V.fromList (map constraintToJson constraints)))
+        , ("types", Array (V.fromList (map typeEntryToJson (Map.toList typesTable))))
+        , ("type-constraints", Array (V.fromList (map typeConstraintToJson typeConstraintsList)))
         ]
     )
   where
     (kind, root) = case output of
       ONode n -> ("document", nodeToJson n)
       OValue v -> ("expression", v)
+
+-- | One @\"types\"@ table entry (v4-types \S8): the id, and the definition
+-- behind it, rendered by 'resolvedTypeToJson'.
+typeEntryToJson :: (Text, ResolvedType) -> Value
+typeEntryToJson (tid, rt) =
+  Object (KeyMap.fromList [("id", String tid), ("definition", resolvedTypeToJson rt)])
+
+-- | A 'ResolvedType'\'s @\"definition\"@ shape (v4-types \S8's example): a
+-- tagged union whose @kind@ names which of the six algebra shapes it is. A
+-- 'RRef' renders as a pointer only -- its own definition is a separate entry
+-- in the table, not inlined here -- which is \S3's "stop at declaration
+-- boundaries" clause, still honoured at the JSON boundary.
+resolvedTypeToJson :: ResolvedType -> Value
+resolvedTypeToJson (RPrim name) = Object (KeyMap.fromList [("kind", String "prim"), ("name", String name)])
+resolvedTypeToJson (RArray t) = Object (KeyMap.fromList [("kind", String "array"), ("element", resolvedTypeToJson t)])
+resolvedTypeToJson (RRecord fields) =
+  Object (KeyMap.fromList [("kind", String "record"), ("fields", Array (V.fromList (map field fields)))])
+  where
+    field (name, t) = Object (KeyMap.fromList [("name", String name), ("type", resolvedTypeToJson t)])
+resolvedTypeToJson (RUnion arms) =
+  Object (KeyMap.fromList [("kind", String "union"), ("arms", Array (V.fromList (map arm arms)))])
+  where
+    arm (name, mt) =
+      Object (KeyMap.fromList (("name", String name) : maybe [] (\t -> [("payload", resolvedTypeToJson t)]) mt))
+resolvedTypeToJson r@(RRef _ _ _) = Object (KeyMap.fromList [("kind", String "ref"), ("id", String (canonicalId r))])
+resolvedTypeToJson (RVar path) = Object (KeyMap.fromList [("kind", String "var"), ("path", Array (V.fromList (map String path)))])
+
+-- | A @\"type-constraints\"@ entry (v4-types \S8): a name and its resolved
+-- arguments, a type argument rendered as the erased @{\"$type\": ...}@ tag
+-- \S7 already reserves so a host reads both lists the same way, a scalar
+-- argument as the plain JSON it already is.
+typeConstraintToJson :: (Text, [ResolvedConstraintArg]) -> Value
+typeConstraintToJson (name, args) =
+  Object (KeyMap.fromList [("name", String name), ("arguments", Array (V.fromList (map arg args)))])
+  where
+    arg (RCType rt) = Object (KeyMap.fromList [("$type", String (canonicalId rt))])
+    arg (RCScalarStr s) = String s
+    arg (RCScalarNum n) = Number (realToFrac n)
+    arg (RCScalarBool b) = Bool b
+    arg RCScalarNull = Null
 
 -- | A constraint's envelope rendering (v3-symbols \S5.2): its name and its
 -- arguments, each already-evaluated to plain JSON, an argument that is
@@ -491,12 +564,19 @@ evalExpr ctx env (Concat leftExpr rightExpr) = do
 -- a distinct AST node purely so "Tramaj.Analysis" can read every hole off the
 -- source without evaluating anything; the evaluator gains nothing from the
 -- distinction and deliberately makes no other use of it.
+-- | A @%@-marked entry (v4-types \S2) supplies a type, not a value, so it
+-- never reaches the library's own @$ctx@ -- 'resolveParam' drops it, the
+-- same way 'pParams' never has a slot for it, rather than passing some inert
+-- placeholder through: the two channels sharing one params record share no
+-- runtime representation at all, one being erased entirely before
+-- evaluation (\S7).
 evalExpr ctx env (Import name params) = do
-  supplied <- traverse resolveParam params
+  supplied <- catMaybes <$> traverse resolveParam params
   pure (VImport (Pending name (Map.fromList supplied) []))
   where
-    resolveParam (k, PExpr e) = (,) k <$> evalExpr ctx env e
-    resolveParam (k, PFromContext path) = (,) k <$> evalExpr ctx env (Path "ctx" path)
+    resolveParam (k, PExpr e) = Just . (,) k <$> evalExpr ctx env e
+    resolveParam (k, PFromContext path) = Just . (,) k <$> evalExpr ctx env (Path "ctx" path)
+    resolveParam (_, PType _) = pure Nothing
 evalExpr ctx env (AdaptActions targetExpr adaptation fnExpr) = do
   target <- evalExpr ctx env targetExpr
   fnVal <- traverse (evalExpr ctx env) fnExpr
@@ -521,6 +601,23 @@ evalExpr ctx env (Emit constraintExpr body) = do
   evalExpr ctx env body
 evalExpr ctx env e@(Alloc _ _) = evalBindable ctx env Nothing e
 evalExpr ctx env e@(Demand _) = evalBindable ctx env Nothing e
+-- | @type Name = TypeExpr@ (v4-types \S1.1, roadmap Phase 8): means nothing
+-- to evaluation -- resolution is a static pass (v4-types \S9) -- so this
+-- simply continues into the body.
+evalExpr ctx env (TypeDecl _ _ body) = evalExpr ctx env body
+-- | Every entry point below ('evalProgramWithEmissions', 'runLibrary') runs
+-- "Tramaj.Types"\'s erasure pass before ever calling 'evalExpr', which
+-- rewrites every 'TypeAnnotate' into the 'Let'\/'Emit' pair v4-types \S7
+-- specifies -- so this case is not the normal path. It is kept total anyway,
+-- exactly as 'TypeDecl'\'s case is total on purpose: matching what erasure
+-- would have produced, minus the emission, keeps 'evalExpr' correct even if
+-- a caller somehow reaches it pre-erasure, rather than leaving a partial
+-- match for that case to crash on.
+evalExpr ctx env (TypeAnnotate name _ valueExpr body) = evalExpr ctx env (Let name valueExpr body)
+-- | @!type-constraint(...)@ (v4-types \S5, roadmap Phase 12): resolved by
+-- the analyser, never evaluated -- \S5.1 is explicit that the evaluator's
+-- statement fold skips this, exactly as it skips 'TypeDecl'.
+evalExpr ctx env (TypeEmit _ _ body) = evalExpr ctx env body
 
 -- | 'Alloc' and 'Demand' are the two forms whose symbol-table entry records
 -- the name they were bound to, or 'Nothing' when used inline (v3-symbols
@@ -707,8 +804,9 @@ runLibrary :: EvalCtx -> Text -> Value' -> Eval Value'
 runLibrary ctx name ctxVal
   | Set.member name (ecInProgress ctx) = evalError (ImportCycle name)
   | otherwise = do
-      prog <- liftEither (maybe (Left (UnknownLibrary name)) Right (Map.lookup name (ecLibs ctx)))
-      liftEither (if Set.null (symbolSites prog) then Right () else Left (AllocationInLibrary name))
+      rawProg <- liftEither (maybe (Left (UnknownLibrary name)) Right (Map.lookup name (ecLibs ctx)))
+      liftEither (if Set.null (symbolSites rawProg) then Right () else Left (AllocationInLibrary name))
+      prog <- liftEither (first TypeErr (eraseTypes (ecLibs ctx) rawProg))
       mapEvalError (InLibrary name) $ do
         let ctx' = enterLibrary name ctx
             (statements, root) = unlets (programRoot prog)
@@ -725,6 +823,18 @@ runLibrary ctx name ctxVal
       collected <- liftEither (collectConstraints cv)
       tellConstraints collected
       pure env
+    -- | A type declaration means nothing to the evaluator (v4-types, roadmap
+    -- Phase 8) -- it exists for static resolution alone, so replaying it here
+    -- is a no-op on the environment.
+    bindStep _ env (STypeDecl _ _) = pure env
+    -- | See 'evalExpr'\'s 'TypeAnnotate' case: erasure has already turned
+    -- this into a 'SLet' plus 'SEmit' by the time a library's own chain gets
+    -- here, so this branch, like that one, only guards totality.
+    bindStep ctx' env (SAnnotate n _ e) = do
+      v <- evalExpr ctx' env e
+      pure (Map.insert n v env)
+    -- | See 'evalExpr'\'s 'TypeEmit' case: never evaluated.
+    bindStep _ env (STypeEmit _ _) = pure env
 
 -- Action adaptation -------------------------------------------------------------------
 

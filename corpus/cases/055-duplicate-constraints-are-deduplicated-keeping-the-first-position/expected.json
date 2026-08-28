@@ -1,10 +1,22 @@
 {
+  "constraints": [
+    {
+      "arguments": [
+        1
+      ],
+      "name": "a"
+    },
+    {
+      "arguments": [
+        2
+      ],
+      "name": "b"
+    }
+  ],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
   "root": 1,
   "symbols": [],
-  "constraints": [
-    {"name": "a", "arguments": [1]},
-    {"name": "b", "arguments": [2]}
-  ]
+  "type-constraints": [],
+  "types": []
 }

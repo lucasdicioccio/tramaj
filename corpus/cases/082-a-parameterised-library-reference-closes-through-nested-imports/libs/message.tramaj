@@ -1,0 +1,2 @@
+type Envelope = { to : string, payload : %ctx.payload }
+true

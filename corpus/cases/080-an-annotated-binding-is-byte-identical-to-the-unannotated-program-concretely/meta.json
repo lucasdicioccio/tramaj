@@ -1,0 +1,5 @@
+{
+  "name": "an annotated binding is byte-identical to the unannotated program, concretely (§8)",
+  "kind": "expression",
+  "mode": "concrete"
+}

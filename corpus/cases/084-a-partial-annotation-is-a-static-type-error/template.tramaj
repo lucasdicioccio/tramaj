@@ -1,0 +1,3 @@
+@msg=import("message", {})
+@m : $msg.types.Envelope = 1
+true

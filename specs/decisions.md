@@ -189,3 +189,121 @@ longer an error at all, reversing §2's last paragraph; `ctx(path)` where the
 context lacks the path *is* an error, at the import rather than inside the
 library; and `PartialImport` in the value domain became `Import`, an import
 that has not run yet, which every import is until a field is read off it.
+
+## 11. Prescribed evaluation order (v3-symbols §4)
+
+`reference.md` §13 left the order in which a call's arguments, an array's
+elements, an object's fields and a special form's arguments evaluate
+unspecified. v3 removes that freedom: all four evaluate strictly in source
+order, left to right, everywhere. Nothing about `reference.md`'s own examples
+depended on the freedom being there — no observable difference in a
+concrete-mode result follows from picking source order over any other — so
+this costs a conforming host nothing.
+
+What earns the decision its own entry is v3, not v2: once evaluation can
+*emit* (a constraint, a symbol allocation, a site index), order stops being
+purely internal and becomes part of the result. Symbol site numbering
+(v3-symbols §1.4) and constraint emission order (§4's dedup, "first position
+kept") are both defined in terms of "source order", which is meaningless
+unless every implementation evaluates in the same order to produce it. Fixing
+the order was therefore a precondition for allocation ids and dedup being
+well-defined at all, not an independent stylistic choice — which is why it
+shipped in Phase 1, before either.
+
+## 12. Deduplication is by evaluated equality, first position kept
+
+Two emitted constraints with equal name and equal already-evaluated
+arguments are one constraint (v3-symbols §4); two symbol-table entries with
+the same id are one entry. Both keep the *first* occurrence's position, not
+the last and not a stable sort by some other key.
+
+Equality is on the evaluated `Value`, not on the expression that produced it:
+`!constraint("k", 1)` and `!constraint("k", $ctx.one)` collide if `$ctx.one`
+evaluates to `1`, because what the host receives is one fact stated twice, not
+two different facts. This is why dedup happens once, globally, after
+evaluation finishes accumulating emissions — folding it into `tellConstraints`
+itself would compare not-yet-evaluated expressions and miss exactly the
+collisions that matter.
+
+"First position kept" rather than "last" is arbitrary as a matter of the
+document's own semantics — a set has no order — but not arbitrary as a matter
+of stable, cross-implementation output: fixing *a* rule, and the same rule
+everywhere, is what makes two implementations produce byte-identical
+envelopes for a program that constrains something twice.
+
+## 13. `canon` is compact JSON with quoted top-level strings, not `str`
+
+An allocation's identity (v3-symbols §1.4) is `#<site>:<canon key>`, where
+`canon` is compact JSON with object keys sorted — deliberately *not* `str`
+(ref §6's display rendering), even though the two agree on every array and
+object. They disagree at exactly one point: `str` renders a top-level string
+raw (`str("3")` is the three characters `3`), while `canon` quotes it
+(`canon("3")` is `"3"`, four characters including the quotes).
+
+That one point is load-bearing. Allocation identity must be injective: two
+different keys must never produce the same id. `str(3)` and `str("3")` render
+to the same characters — a number and a string that happen to look alike —
+so building an id from `str` would silently merge `?(3)` and `?("3")` into
+one variable at the same site. Quoting a top-level string is the smallest
+change that restores injectivity without disturbing the one thing `str` and
+`canon` are both for elsewhere: nested strings inside an array or object are
+already quoted by ordinary JSON encoding, so `canon` and `str` already agree
+everywhere except the position `str` treats specially for display.
+
+## 14. v4-types: declarations and annotations stay in the `Let`/`Emit` chain
+
+roadmap-to-v4 Phase 8 posed the choice directly: either a declaration block on
+`Program`, or a new constructor nested in the same statement chain `Let` and
+`Emit` already occupy. The chain won, for both `TypeDecl` (Phase 8) and, later,
+`TypeAnnotate` and `TypeEmit` (Phases 11-12) — every v4 construct that needed a
+place in the AST went into the chain rather than growing `Program`.
+
+The consequence stated in roadmap-to-v4 Phase 15 follows directly:
+`Program = DocumentProgram Expr | ExpressionProgram Expr` is untouched by v4,
+exactly as it was by v3, so every host that pattern-matches `Program` keeps
+compiling and **v4 ships as a minor bump**, not a major one. The catch Phase 8
+flagged — the chain is lexical and non-recursive by construction, while
+`type Tree = | Leaf | Node { l : Tree, r : Tree }` needs `Tree` in scope inside
+its own body — is resolved by treating a declaration as gathered, not
+evaluated: `Tramaj.Ast.typeDecls` collects every `TypeDecl` in a chain before
+`Tramaj.Types.resolveTypeExpr` resolves any of them, so a self-reference is a
+lookup against the whole gathered set rather than a scoping problem at all.
+
+## 15. Canonical type ids: a quoted library key, and the bare word `root`
+
+v4-types §3 fixes the grammar `ref ::= library ":" name [...]` and its own
+worked examples insert `library` — an arbitrary host-chosen `staticString` —
+unquoted. Doing that literally breaks injectivity for the one case those
+examples never exercise: a declaration with *no* importing library at all (an
+ordinary `type X = ...` in the program being resolved, not reached through any
+`import`). That case needs some token for "no library", and no bare word is
+safe for it, because a library can legally be named `"root"`, or even `""` —
+`staticString` forbids only a literal `"` or a backtick.
+
+The fix follows from that one forbidden character. Every real library key is
+wrapped in a literal pair of quotes in the rendered id (safe, and injective,
+precisely because a key can never itself contain one), and the bare, unquoted
+word `root` is reserved for "this program, not a library" — a token no quoted
+key can ever equal, since a quoted key always begins with `"`. `name` itself
+is never quoted: the grammar already guarantees it is a colon-free identifier
+(`Tramaj.Parser`'s `typeField`, tightened in the same phase to reject a
+quoted-string field name for exactly this reason), so `library <> ":" <> name`
+is unambiguous to split however many colons `library` contains.
+
+## 16. A `Ref`'s arguments include every unsupplied type parameter, as a hole
+
+roadmap-to-v4 Phase 10 builds a `Ref`'s `arguments` map from the target
+library's own type parameters (`typeParams`), not from what a particular
+import happens to supply. An unsupplied parameter still gets a slot in the
+map — rendered as its own `RVar`, the same shape a bare `%ctx.path` hole
+renders as — rather than being silently omitted.
+
+This was not the first attempt: omitting an unsupplied argument is simpler and
+matches every worked example that happens to be fully applied, but it breaks
+v4-types §4's own promise. `requireClosed` (the `PartialType` check) walks a
+resolved type looking for a `Var` anywhere, including inside a `Ref`'s
+arguments — an omitted argument is invisible to that walk, so a reference to a
+library still missing a parameter would silently pass as closed. Filling the
+slot with `RVar` is what makes §3's own worked example (`payload=%ctx.p`,
+explicitly shown *with* an unfilled argument) the actual behavior rather than
+an illustration of a case the implementation could not otherwise produce.

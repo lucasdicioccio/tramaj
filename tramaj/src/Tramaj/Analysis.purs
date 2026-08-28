@@ -31,6 +31,13 @@ module Tramaj.Analysis
   , symbolSites
   , symbolDemands
   , deepSymbolDemands
+  , typeDeclarations
+  , typeParams
+  , unsuppliedTypeParams
+  , typeParamCollisions
+  , typeExprsIn
+  , everywhere
+  , everywhereIn
   ) where
 
 import Prelude
@@ -42,8 +49,8 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Tuple (Tuple(..), fst)
-import Tramaj.Ast (Attribute(..), Expr(..), ParamValue(..), Program, adaptKey, programRoot, subExprs)
+import Data.Tuple (Tuple(..), fst, snd)
+import Tramaj.Ast (Attribute(..), Expr(..), ParamValue(..), Program, TypeConstraintArg(..), TypeExpr(..), adaptKey, programRoot, subExprs, typeDecls, unlets)
 
 -- | Collects from an expression and every expression inside it.
 everywhere :: forall m. Monoid m => (Expr -> m) -> Expr -> m
@@ -282,3 +289,91 @@ deepSymbolDemands :: Map String Program -> Program -> Set (Array String)
 deepSymbolDemands libs prog =
   symbolDemands prog
     <> foldMap (maybe Set.empty symbolDemands <<< flip Map.lookup libs) (transitiveImportNames libs prog)
+
+-- Types -----------------------------------------------------------------------
+
+-- | Every name this program declares with `type ... = ...` (v4-types §9) —
+-- | the type-realm counterpart of a program's own let-bound names, and the
+-- | source `Tramaj.Types.resolveTypeExpr` consults for a bare `TName`.
+typeDeclarations :: Program -> Set String
+typeDeclarations prog = Set.fromFoldable (map fst (typeDecls (unlets (programRoot prog)).statements))
+
+-- | The `%ctx.*` paths one `TypeExpr` mentions directly — `TVar` is a leaf,
+-- | so this is a plain fold, with no need to stop at a `TName`/`TLibRef` the
+-- | way `Tramaj.Types.resolveTypeExpr` must: a reference's own parameters
+-- | are not this program's variables, so there is nothing to recurse into
+-- | there, and nothing here evaluates or resolves anything.
+typeParamsIn :: TypeExpr -> Set (Array String)
+typeParamsIn (TPrim _) = Set.empty
+typeParamsIn (TArray t) = typeParamsIn t
+typeParamsIn (TRecord fields) = foldMap (typeParamsIn <<< snd) fields
+typeParamsIn (TUnion arms) = foldMap (maybe Set.empty typeParamsIn <<< snd) arms
+typeParamsIn (TName _) = Set.empty
+typeParamsIn (TLibRef _ _) = Set.empty
+typeParamsIn (TVar path) = Set.singleton path
+
+-- | Every `TypeExpr` sitting in one expression's own syntax, not recursing
+-- | into subexpressions — `everywhere` does that part. A declaration's
+-- | body, an annotation's type, a type constraint's type-marked arguments,
+-- | and an import parameter's `%`-marked value (v4-types §2, roadmap
+-- | Phase 10) are the four positions a `TypeExpr` can occur in at all.
+typeExprsIn :: Expr -> Array TypeExpr
+typeExprsIn (TypeDecl _ t _) = [ t ]
+typeExprsIn (TypeAnnotate _ t _ _) = [ t ]
+typeExprsIn (TypeEmit _ args _) = Array.mapMaybe onlyType args
+  where
+  onlyType (TCType t) = Just t
+  onlyType _ = Nothing
+typeExprsIn (Import _ params) = Array.mapMaybe onlyType params
+  where
+  onlyType (Tuple _ (PType t)) = Just t
+  onlyType _ = Nothing
+typeExprsIn _ = []
+
+-- | Every `%ctx.*` path this program mentions in a type-bearing position
+-- | (v4-types §9, roadmap Phase 10) — its type-level parameter list, the
+-- | way `contextReads` is a program's value-level one. This is what a
+-- | library exposes for its importer to supply via a `%`-marked param
+-- | (§2), and it must include a forwarding import's own `%ctx.*` params,
+-- | not only what a `type ... = ...` declaration mentions directly:
+-- | forwarding (`import("inner", {payload: %ctx.payload})`, §2) is exactly
+-- | how a library that itself has no annotated declaration still has an
+-- | unsaturated parameter its own importer must close.
+typeParams :: Program -> Set (Array String)
+typeParams = everywhereIn (foldMap typeParamsIn <<< typeExprsIn)
+
+-- | For each import in this program, the type params (`typeParams`) its
+-- | library needs that the import's `%`-marked entries do not supply —
+-- | `unsuppliedParams`' type-side twin (roadmap Phase 10), sharing the same
+-- | first-segment attribution rule and the same stopping condition: a read
+-- | is attributed to the parameter its path begins with, and a missing
+-- | library contributes nothing rather than failing.
+unsuppliedTypeParams :: Map String Program -> Program -> Array (Tuple String (Set (Array String)))
+unsuppliedTypeParams libs = everywhereIn case _ of
+  Import name params -> [ Tuple name (missingFor name params) ]
+  _ -> []
+  where
+  missingFor name params =
+    Set.filter (unsupplied (Set.fromFoldable (Array.mapMaybe onlyTypeKey params)))
+      (maybe Set.empty typeParams (Map.lookup name libs))
+
+  onlyTypeKey (Tuple k (PType _)) = Just k
+  onlyTypeKey _ = Nothing
+
+  unsupplied supplied path = case Array.head path of
+    Nothing -> false
+    Just root -> not (Set.member root supplied)
+
+-- | Param keys this program reads both as an ordinary value hole
+-- | (`$ctx.k`/`ctx(k)`) and as a type hole (`%ctx.k`) — v4-types §10's
+-- | `TypeParamCollision`, keyed by first segment exactly as
+-- | `unsuppliedParams` and `unsuppliedTypeParams` both are, since that
+-- | segment is the parameter name the two channels of §2.1's one params
+-- | record would otherwise share.
+typeParamCollisions :: Program -> Set String
+typeParamCollisions prog =
+  Set.intersection (Set.map firstSegment (contextReads prog)) (Set.map firstSegment (typeParams prog))
+  where
+  firstSegment path = case Array.head path of
+    Nothing -> ""
+    Just x -> x

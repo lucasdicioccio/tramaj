@@ -1,0 +1,39 @@
+{
+  "constraints": [
+    {
+      "arguments": [
+        {
+          "replicas": 3
+        },
+        {
+          "$type": "root:Deployment"
+        }
+      ],
+      "name": "has-type"
+    }
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "replicas": 3
+  },
+  "symbols": [],
+  "type-constraints": [],
+  "types": [
+    {
+      "definition": {
+        "fields": [
+          {
+            "name": "replicas",
+            "type": {
+              "kind": "prim",
+              "name": "number"
+            }
+          }
+        ],
+        "kind": "record"
+      },
+      "id": "root:Deployment"
+    }
+  ]
+}

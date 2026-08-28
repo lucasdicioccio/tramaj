@@ -1,9 +1,23 @@
 {
+  "constraints": [],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
-  "root": {"$sym": "#ctx.threshold", "path": []},
+  "root": {
+    "$sym": "#ctx.threshold",
+    "path": []
+  },
   "symbols": [
-    {"id": "#ctx.threshold", "origin": {"kind": "demand", "path": ["threshold"]}, "binding": "t"}
+    {
+      "binding": "t",
+      "id": "#ctx.threshold",
+      "origin": {
+        "kind": "demand",
+        "path": [
+          "threshold"
+        ]
+      }
+    }
   ],
-  "constraints": []
+  "type-constraints": [],
+  "types": []
 }

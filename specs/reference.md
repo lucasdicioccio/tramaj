@@ -537,14 +537,17 @@ Programs must not depend on any of these.
 - Negative and exponent number literals — `-1` and `1e5` are parse errors
   today. With no arithmetic in the language (§11) there is no way to write
   such a value inline at all; it has to arrive through `$ctx` or a library.
-- A shared cross-implementation conformance corpus. Both suites already assert
-  against `node-json.md` and both fixture tables are template / context /
-  expected-JSON triples, so the remaining step is one corpus file both runners
-  read.
 - Types, domains and constraints. The AST is built to accept them: node
   annotations are where derived type/domain information goes, and the
   semantics avoid equating "unknown" with `null`, so a constraint-aware
   evaluator can reuse this AST rather than forking the language. The symbolic
-  and constraint half of that is now specified in [`v3-symbols.md`](v3-symbols.md),
-  frozen as a design and not yet implemented; nominal types are drafted in
-  [`v4-types.md`](v4-types.md).
+  and constraint half of that is specified in [`v3-symbols.md`](v3-symbols.md)
+  and implemented in both hosts; nominal types are specified in
+  [`v4-types.md`](v4-types.md) — still a draft, not frozen, but implemented in
+  both hosts through roadmap-to-v4 Phase 15 (tooling included: both the CLI
+  and the browser playground surface the `"types"`/`"type-constraints"`
+  envelope fields). v4 shipped as a **minor** bump — `type X = ...`
+  declarations and `@x : T = e` annotations both fit inside the existing
+  `Let`/`Emit` chain, so `Program`'s own shape (`DocumentProgram |
+  ExpressionProgram`) never changed and no host that pattern-matches it is
+  affected (roadmap-to-v4 Phase 15's version decision).

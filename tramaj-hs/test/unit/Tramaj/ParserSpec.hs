@@ -21,6 +21,7 @@ spec = do
   commentSpec
   desugaringSpec
   programKindSpec
+  typeExprSpec
 
 -- | Parses to /something/; what exactly is 'desugaringSpec''s business.
 accepts :: String -> Text -> Spec
@@ -252,3 +253,123 @@ programKindSpec = describe "program kind" $ do
     parseProgram "{\"a\": 1}" `shouldSatisfy` isExpression
   it "bindings do not change the kind" $
     parseProgram "@a=.div()\n{\"a\": 1}" `shouldSatisfy` isExpression
+
+-- | @type Name = TypeExpr@ (v4-types \S1.1, roadmap Phase 8: parse only). One
+-- case per 'TypeExpr' constructor, each pinning the surface to the exact core
+-- shape it parses to -- the same discipline 'desugaringSpec' applies to the
+-- value grammar.
+typeExprSpec :: Spec
+typeExprSpec = describe "type declarations" $ do
+  let declares name src expected = it name (parseProgram src `shouldBe` Right expected)
+
+  declares
+    "a record declaration"
+    "type Point = { x : number, y : number }\ntrue"
+    (ExpressionProgram (TypeDecl "Point" (TRecord [("x", TPrim "number"), ("y", TPrim "number")]) (BoolLit True)))
+
+  declares
+    "a union declaration with payload-carrying and nullary arms"
+    "type Shape = | Circle { r : number } | Dev\ntrue"
+    ( ExpressionProgram
+        ( TypeDecl
+            "Shape"
+            (TUnion [("Circle", Just (TRecord [("r", TPrim "number")])), ("Dev", Nothing)])
+            (BoolLit True)
+        )
+    )
+
+  declares
+    "a pure-enum union, all arms nullary, immediately followed by a bare keyword root"
+    "type Env = | Dev | Staging | Prod\ntrue"
+    (ExpressionProgram (TypeDecl "Env" (TUnion [("Dev", Nothing), ("Staging", Nothing), ("Prod", Nothing)]) (BoolLit True)))
+
+  declares
+    "an array declaration"
+    "type Items = [ string ]\ntrue"
+    (ExpressionProgram (TypeDecl "Items" (TArray (TPrim "string")) (BoolLit True)))
+
+  declares
+    "a newtype over a primitive"
+    "type UserId = string\ntrue"
+    (ExpressionProgram (TypeDecl "UserId" (TPrim "string") (BoolLit True)))
+
+  declares
+    "a self-recursive declaration, compared nominally rather than expanded"
+    "type Tree = | Leaf | Node { l : Tree, r : Tree }\ntrue"
+    ( ExpressionProgram
+        ( TypeDecl
+            "Tree"
+            (TUnion [("Leaf", Nothing), ("Node", Just (TRecord [("l", TName "Tree"), ("r", TName "Tree")]))])
+            (BoolLit True)
+        )
+    )
+
+  declares
+    "a context type hole in a record field"
+    "type Message = { to : string, payload : %ctx.payload }\ntrue"
+    (ExpressionProgram (TypeDecl "Message" (TRecord [("to", TPrim "string"), ("payload", TVar ["payload"])]) (BoolLit True)))
+
+  declares
+    "a library-qualified type reference"
+    "type Big = [ $lib.types.Item ]\ntrue"
+    (ExpressionProgram (TypeDecl "Big" (TArray (TLibRef "lib" "Item")) (BoolLit True)))
+
+  it "does not truncate .vals across an intervening type declaration" $
+    parseProgram "@a=1\ntype T = string\n@b=2\n.p(\"x\")"
+      `shouldBe` Right
+        ( DocumentProgram
+            ( Let
+                "a"
+                (NumberLit 1)
+                (TypeDecl "T" (TPrim "string") (Let "b" (NumberLit 2) (Element "p" [] NullLit [StringLit "x"])))
+            )
+        )
+
+  -- roadmap Phase 10: type parameters through imports.
+  declares
+    "a %-marked import parameter supplying a bare type name"
+    "@msg=import(\"message\", {payload: %Json})\ntrue"
+    (ExpressionProgram (Let "msg" (Import "message" [("payload", PType (TName "Json"))]) (BoolLit True)))
+
+  declares
+    "a %-marked import parameter forwarding a type hole"
+    "@in=import(\"inner\", {payload: %ctx.payload})\ntrue"
+    (ExpressionProgram (Let "in" (Import "inner" [("payload", PType (TVar ["payload"]))]) (BoolLit True)))
+
+  declares
+    "a %-marked import parameter supplying a library-qualified type"
+    "@msg=import(\"message\", {payload: %$json.types.Value})\ntrue"
+    (ExpressionProgram (Let "msg" (Import "message" [("payload", PType (TLibRef "json" "Value"))]) (BoolLit True)))
+
+  -- roadmap Phase 11: annotated bindings.
+  declares
+    "an annotated binding desugars to nothing at parse time -- it stays a TypeAnnotate"
+    "@d : Deployment = ?(\"d\")\ntrue"
+    (ExpressionProgram (TypeAnnotate "d" (TName "Deployment") (Alloc 0 (StringLit "d")) (BoolLit True)))
+
+  declares
+    "an annotation naming a library-qualified type"
+    "@m : $msg.types.Envelope = 1\ntrue"
+    (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (NumberLit 1) (BoolLit True)))
+
+  -- roadmap Phase 12: !type-constraint.
+  declares
+    "a !type-constraint with one type argument"
+    "!type-constraint(\"has-default\", %ctx.payload)\ntrue"
+    (ExpressionProgram (TypeEmit "has-default" [TCType (TVar ["payload"])] (BoolLit True)))
+
+  declares
+    "a !type-constraint mixing a type argument and scalar arguments"
+    "!type-constraint(\"coercible-to\", %ctx.payload, %Json, \"lossy\")\ntrue"
+    ( ExpressionProgram
+        (TypeEmit "coercible-to" [TCType (TVar ["payload"]), TCType (TName "Json"), TCScalarStr "lossy"] (BoolLit True))
+    )
+
+  declares
+    "a zero-argument !type-constraint"
+    "!type-constraint(\"closed-world\")\ntrue"
+    (ExpressionProgram (TypeEmit "closed-world" [] (BoolLit True)))
+
+  it "does not confuse !type-constraint with an ordinary !expr emission" $
+    parseProgram "!constraint(\"k\", 1)\ntrue"
+      `shouldBe` Right (ExpressionProgram (Emit (Constrain "k" [NumberLit 1]) (BoolLit True)))

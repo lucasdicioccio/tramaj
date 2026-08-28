@@ -31,10 +31,13 @@ module Tramaj.Ast
   , ParamValue(..)
   , ActionAdaptation(..)
   , Stmt(..)
+  , TypeExpr(..)
+  , TypeConstraintArg(..)
   , programRoot
   , stmts
   , unlets
   , letBindings
+  , typeDecls
   , adaptKey
   , subExprs
   , attributeExprs
@@ -166,8 +169,51 @@ data Expr
     -- | an ordinary read, an unsupplied demand at the root allocates
     -- | instead of failing.
     Demand (Array String)
+  | -- | `type Name = TypeExpr` (v4-types §1.1): a nominal type declaration.
+    -- | Nests into the same `Let`/`Emit` chain as an ordinary binding — see
+    -- | roadmap-to-v4 Phase 8 — which is what keeps `Program` untouched. The
+    -- | `TypeExpr` carries no `Expr`: resolution (v4-types §9) is a separate
+    -- | static pass over the chain, not something this constructor threads
+    -- | through evaluation, so the evaluator never needs to know it exists.
+    TypeDecl String TypeExpr Expr
+  | -- | `@x : T = e` (v4-types §7): an annotated binding. Distinct from
+    -- | `Let` rather than folding the type into it, because a plain `Let`
+    -- | must stay meaningful with no type pass ever having run — v3 is
+    -- | complete without this constructor existing at all. An erasure pass
+    -- | (v4-types §7, roadmap Phase 11), run before evaluation, rewrites
+    -- | every `TypeAnnotate` into the `Let` plus `Emit` of a `has-type`
+    -- | constraint that §7 specifies; the evaluator itself never matches
+    -- | this constructor.
+    TypeAnnotate String TypeExpr Expr Expr
+  | -- | `!type-constraint(name, args...)` (v4-types §5, roadmap Phase 12): a
+    -- | sibling of `Emit` in the type realm. Resolved by the analyser, never
+    -- | evaluated — §5.1 is explicit that the evaluator's statement fold
+    -- | skips this the way it skips `TypeDecl`.
+    TypeEmit String (Array TypeConstraintArg) Expr
 
 derive instance eqExpr :: Eq Expr
+
+-- | One argument to `!type-constraint` (v4-types §5): a "%"-marked type
+-- | expression, or a literal scalar. A bare `Expr` would overreach — §5
+-- | fixes the argument grammar to exactly these two shapes, computed
+-- | nowhere, which is what keeps a type constraint statically collectible
+-- | the way an ordinary `constraint`'s *name* is (v3-symbols §2.1) but its
+-- | arguments are not.
+data TypeConstraintArg
+  = TCType TypeExpr
+  | TCScalarStr String
+  | TCScalarNum Number
+  | TCScalarBool Boolean
+  | TCScalarNull
+
+derive instance eqTypeConstraintArg :: Eq TypeConstraintArg
+
+instance showTypeConstraintArg :: Show TypeConstraintArg where
+  show (TCType t) = "TCType (" <> show t <> ")"
+  show (TCScalarStr s) = "TCScalarStr " <> show s
+  show (TCScalarNum n) = "TCScalarNum " <> show n
+  show (TCScalarBool b) = "TCScalarBool " <> show b
+  show TCScalarNull = "TCScalarNull"
 
 instance showExpr :: Show Expr where
   show (Path root fields) = "Path " <> show root <> " " <> show fields
@@ -197,6 +243,45 @@ instance showExpr :: Show Expr where
   show (Emit constraint body) = "Emit (" <> show constraint <> ") (" <> show body <> ")"
   show (Alloc site key) = "Alloc " <> show site <> " (" <> show key <> ")"
   show (Demand path) = "Demand " <> show path
+  show (TypeDecl name t body) = "TypeDecl " <> show name <> " (" <> show t <> ") (" <> show body <> ")"
+  show (TypeAnnotate name t value body) =
+    "TypeAnnotate " <> show name <> " (" <> show t <> ") (" <> show value <> ") (" <> show body <> ")"
+  show (TypeEmit name args body) = "TypeEmit " <> show name <> " " <> show args <> " (" <> show body <> ")"
+
+-- | The type algebra (v4-types §1), before resolution. Six shapes there
+-- | become six here, but `Ref` is split into two pre-resolution forms:
+-- | `TName` for a bare local name (`Point`) and `TLibRef` for a name reached
+-- | through an import (`$msg.types.Envelope`). Resolution (v4-types §9, not
+-- | yet implemented) is what turns either into a genuine `(library, name)`
+-- | reference or reports `UnresolvedType` — parsing alone cannot tell a
+-- | declaration name from a typo.
+-- |
+-- | `TPrim` is recognized here, at parse time, rather than left for
+-- | resolution to classify: the five primitive names are a closed, reserved
+-- | lexical set (v4-types §1), not ordinary identifiers that happen to
+-- | resolve to a primitive.
+data TypeExpr
+  = TPrim String
+  | TArray TypeExpr
+  | TRecord (Array (Tuple String TypeExpr))
+  | TUnion (Array (Tuple String (Maybe TypeExpr)))
+  | TName String
+  | TLibRef String String
+  | -- | `%ctx.a.b` (v4-types §1): a type hole. Unlike `Demand`, this never
+    -- | allocates anything — v4-types §4 requires every `TVar` to be
+    -- | resolved away before a program may run at all.
+    TVar (Array String)
+
+derive instance eqTypeExpr :: Eq TypeExpr
+
+instance showTypeExpr :: Show TypeExpr where
+  show (TPrim name) = "TPrim " <> show name
+  show (TArray t) = "TArray (" <> show t <> ")"
+  show (TRecord fields) = "TRecord " <> show fields
+  show (TUnion arms) = "TUnion " <> show arms
+  show (TName name) = "TName " <> show name
+  show (TLibRef lib name) = "TLibRef " <> show lib <> " " <> show name
+  show (TVar path) = "TVar " <> show path
 
 -- | How one import parameter gets its value. There are three ways to
 -- | supply one and only two of them are here — the third is leaving it
@@ -213,15 +298,23 @@ instance showExpr :: Show Expr where
 -- | buried in an arbitrary expression, indistinguishable from every other
 -- | read. Writing `ctx(...)` is how an author says "this is a hole, count
 -- | it".
+-- | `%T` or `%ctx.path` in a params record (v4-types §2): a type argument,
+-- | told apart from `PExpr`/`PFromContext` purely by the leading `%` the
+-- | parser already saw — the params record stays one syntactic form even
+-- | though it carries two semantic channels (§2.1). `PType` carries a full
+-- | `TypeExpr` rather than just a name, since `%[T]`, `%{a:T}` and
+-- | forwarding `%ctx.path` are all legal here, not only a bare reference.
 data ParamValue
   = PExpr Expr
   | PFromContext (Array String)
+  | PType TypeExpr
 
 derive instance eqParamValue :: Eq ParamValue
 
 instance showParamValue :: Show ParamValue where
   show (PExpr e) = "PExpr (" <> show e <> ")"
   show (PFromContext path) = "PFromContext " <> show path
+  show (PType t) = "PType (" <> show t <> ")"
 
 -- | Both attribute-position constructs. An action's event and key are
 -- | `String`, not `Expr`: the payload stays fully dynamic, but the
@@ -258,22 +351,32 @@ instance showActionAdaptation :: Show ActionAdaptation where
 data Stmt
   = SLet String Expr
   | SEmit Expr
+  | STypeDecl String TypeExpr
+  | SAnnotate String TypeExpr Expr
+  | STypeEmit String (Array TypeConstraintArg)
 
 derive instance eqStmt :: Eq Stmt
 
 instance showStmt :: Show Stmt where
   show (SLet name value) = "SLet " <> show name <> " (" <> show value <> ")"
   show (SEmit e) = "SEmit (" <> show e <> ")"
+  show (STypeDecl name t) = "STypeDecl " <> show name <> " (" <> show t <> ")"
+  show (SAnnotate name t value) = "SAnnotate " <> show name <> " (" <> show t <> ") (" <> show value <> ")"
+  show (STypeEmit name args) = "STypeEmit " <> show name <> " " <> show args
 
 -- | Nests a sequence of statements around a body, innermost last — the
 -- | lowering the surface `statement* expr` program grammar uses
 -- | (v3-symbols §2.2): a binding becomes a `Let`, an emission an `Emit`,
--- | each wrapping everything that follows it.
+-- | a type declaration a `TypeDecl`, each wrapping everything that follows
+-- | it.
 stmts :: Array Stmt -> Expr -> Expr
 stmts statements body = Array.foldr wrap body statements
   where
   wrap (SLet name value) acc = Let name value acc
   wrap (SEmit constraint) acc = Emit constraint acc
+  wrap (STypeDecl name t) acc = TypeDecl name t acc
+  wrap (SAnnotate name t value) acc = TypeAnnotate name t value acc
+  wrap (STypeEmit name args) acc = TypeEmit name args acc
 
 -- | Peels the outermost `Let`/`Emit` chain back off, inverting `stmts`.
 -- |
@@ -300,16 +403,46 @@ unlets (Emit constraint body) =
     rest = unlets body
   in
     { statements: Array.cons (SEmit constraint) rest.statements, root: rest.root }
+unlets (TypeDecl name t body) =
+  let
+    rest = unlets body
+  in
+    { statements: Array.cons (STypeDecl name t) rest.statements, root: rest.root }
+unlets (TypeAnnotate name t value body) =
+  let
+    rest = unlets body
+  in
+    { statements: Array.cons (SAnnotate name t value) rest.statements, root: rest.root }
+unlets (TypeEmit name args body) =
+  let
+    rest = unlets body
+  in
+    { statements: Array.cons (STypeEmit name args) rest.statements, root: rest.root }
 unlets e = { statements: [], root: e }
 
 -- | Just the named bindings of a statement block, in order — what an
--- | import exposes as `.vals`. Discards emissions positionally; a caller
--- | that must also evaluate them (running a library) should fold over
--- | `unlets`' full result instead.
+-- | import exposes as `.vals`. An annotated binding (`@x : T = e`) still
+-- | binds `x`, so it counts here exactly as a plain `SLet` does; only
+-- | emissions and type declarations are discarded positionally. A caller
+-- | that must also evaluate every statement (running a library) should fold
+-- | over `unlets`' full result instead.
 letBindings :: Array Stmt -> Array (Tuple String Expr)
 letBindings = Array.mapMaybe case _ of
   SLet n e -> Just (Tuple n e)
+  SAnnotate n _ e -> Just (Tuple n e)
   SEmit _ -> Nothing
+  STypeDecl _ _ -> Nothing
+  STypeEmit _ _ -> Nothing
+
+-- | Just the type declarations of a statement block, in order — the
+-- | analogue of `letBindings` for the type realm (v4-types §1.1). This is
+-- | what a later resolution pass (v4-types §9) collects before resolving
+-- | any of them, so that a self- or mutually-recursive declaration is
+-- | visible to the pass before it looks anything up.
+typeDecls :: Array Stmt -> Array (Tuple String TypeExpr)
+typeDecls = Array.mapMaybe case _ of
+  STypeDecl n t -> Just (Tuple n t)
+  _ -> Nothing
 
 -- | How an adaptation rewrites one action key. Shared by evaluation and by
 -- | static analysis, which is the point of restricting adaptation to these
@@ -357,6 +490,9 @@ subExprs (Constrain _ args) = args
 subExprs (Emit constraint body) = [ constraint, body ]
 subExprs (Alloc _ key) = [ key ]
 subExprs (Demand _) = []
+subExprs (TypeDecl _ _ body) = [ body ]
+subExprs (TypeAnnotate _ _ value body) = [ value, body ]
+subExprs (TypeEmit _ _ body) = [ body ]
 
 -- | The computed expressions in a list of attributes — an ordinary
 -- | attribute's value or an action's payload. An action's event and key
@@ -452,6 +588,12 @@ numberAllocs e = (go 0 e).expr
         r2 = go r1.next body
     in { next: r2.next, expr: Emit r1.expr r2.expr }
   go n e'@(Demand _) = { next: n, expr: e' }
+  go n (TypeDecl name t body) = let r = go n body in { next: r.next, expr: TypeDecl name t r.expr }
+  go n (TypeAnnotate name t value body) =
+    let r1 = go n value
+        r2 = go r1.next body
+    in { next: r2.next, expr: TypeAnnotate name t r1.expr r2.expr }
+  go n (TypeEmit name tcArgs body) = let r = go n body in { next: r.next, expr: TypeEmit name tcArgs r.expr }
 
   goArray :: Int -> Array Expr -> { next :: Int, arr :: Array Expr }
   goArray n xs = case Array.uncons xs of
@@ -489,5 +631,8 @@ numberAllocs e = (go 0 e).expr
           r2 = goParams r1.next tail
       in { next: r2.next, arr: Array.cons (Tuple k (PExpr r1.expr)) r2.arr }
     Just { head: p@(Tuple _ (PFromContext _)), tail } ->
+      let r1 = goParams n tail
+      in { next: r1.next, arr: Array.cons p r1.arr }
+    Just { head: p@(Tuple _ (PType _)), tail } ->
       let r1 = goParams n tail
       in { next: r1.next, arr: Array.cons p r1.arr }

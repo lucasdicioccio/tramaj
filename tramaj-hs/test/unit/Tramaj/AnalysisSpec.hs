@@ -23,6 +23,7 @@ spec = do
   holeSpec
   constraintSpec
   symbolSpec
+  typeParamSpec
 
 prog :: Text -> Program
 prog src = either (\e -> error ("analysis fixture does not parse: " <> show e)) id (parseProgram src)
@@ -191,3 +192,35 @@ symbolSpec = describe "symbol sites" $ do
   it "bubbles up demands from an imported library" $
     deepSymbolDemands (Map.insert "withDemand" (prog "?ctx.threshold") libs) (prog "import(\"withDemand\", {}).rendered")
       `shouldBe` Set.fromList [["threshold"]]
+
+-- v4-types \S9-\S10, roadmap Phase 10 -------------------------------------------
+
+typeParamSpec :: Spec
+typeParamSpec = describe "type declarations and parameters" $ do
+  it "finds every type this program declares" $
+    typeDeclarations (prog "type A = string\ntype B = number\ntrue") `shouldBe` Set.fromList ["A", "B"]
+
+  it "is empty for a program with no type declaration" $
+    typeDeclarations (prog "1") `shouldBe` Set.empty
+
+  it "finds a %ctx.* path inside a declaration's own body" $
+    typeParams (prog "type Message = { payload : %ctx.payload }\ntrue") `shouldBe` Set.fromList [["payload"]]
+
+  it "finds a %ctx.* path forwarded through an import parameter, with no type declaration at all" $
+    typeParams (prog "@in=import(\"inner\", {payload: %ctx.payload})\ntrue") `shouldBe` Set.fromList [["payload"]]
+
+  it "finds a %ctx.* path inside a !type-constraint argument" $
+    typeParams (prog "!type-constraint(\"has-default\", %ctx.payload)\ntrue") `shouldBe` Set.fromList [["payload"]]
+
+  it "finds a %ctx.* path inside an annotation" $
+    typeParams (prog "@x : %ctx.t = 1\ntrue") `shouldBe` Set.fromList [["t"]]
+
+  it "reports which type params an import leaves unsupplied" $
+    let typedLibs = Map.singleton "message" (prog "type Envelope = { payload : %ctx.payload }\ntrue")
+     in unsuppliedTypeParams typedLibs (prog "@msg=import(\"message\", {})\ntrue")
+          `shouldBe` [("message", Set.fromList [["payload"]])]
+
+  it "reports nothing unsupplied once the import supplies the param" $
+    let typedLibs = Map.singleton "message" (prog "type Envelope = { payload : %ctx.payload }\ntrue")
+     in unsuppliedTypeParams typedLibs (prog "@msg=import(\"message\", {payload: %string})\ntrue")
+          `shouldBe` [("message", Set.empty)]

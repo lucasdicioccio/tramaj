@@ -1,0 +1,3 @@
+type Json = string
+!type-constraint("has-default", %Json)
+true

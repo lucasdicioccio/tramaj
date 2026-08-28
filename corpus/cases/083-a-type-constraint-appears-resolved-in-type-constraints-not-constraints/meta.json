@@ -1,0 +1,5 @@
+{
+  "name": "a !type-constraint appears resolved in type-constraints, never in constraints (§5, §8)",
+  "kind": "expression",
+  "mode": "symbolic"
+}

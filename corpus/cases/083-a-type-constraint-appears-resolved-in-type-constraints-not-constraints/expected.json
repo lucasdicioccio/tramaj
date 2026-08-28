@@ -1,0 +1,26 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": true,
+  "symbols": [],
+  "type-constraints": [
+    {
+      "arguments": [
+        {
+          "$type": "root:Json"
+        }
+      ],
+      "name": "has-default"
+    }
+  ],
+  "types": [
+    {
+      "definition": {
+        "kind": "prim",
+        "name": "string"
+      },
+      "id": "root:Json"
+    }
+  ]
+}

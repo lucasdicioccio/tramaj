@@ -1,12 +1,28 @@
 {
+  "constraints": [],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
   "root": [
-    {"$sym": "#0:\"port\"", "path": []},
-    {"$sym": "#0:\"port\"", "path": []}
+    {
+      "$sym": "#0:\"port\"",
+      "path": []
+    },
+    {
+      "$sym": "#0:\"port\"",
+      "path": []
+    }
   ],
   "symbols": [
-    {"id": "#0:\"port\"", "origin": {"kind": "alloc", "site": 0, "key": "port"}, "binding": null}
+    {
+      "binding": null,
+      "id": "#0:\"port\"",
+      "origin": {
+        "key": "port",
+        "kind": "alloc",
+        "site": 0
+      }
+    }
   ],
-  "constraints": []
+  "type-constraints": [],
+  "types": []
 }

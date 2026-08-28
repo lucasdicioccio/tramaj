@@ -1,0 +1,62 @@
+{
+  "constraints": [
+    {
+      "arguments": [
+        {
+          "payload": true,
+          "to": "a"
+        },
+        {
+          "$type": "root:T"
+        }
+      ],
+      "name": "has-type"
+    }
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "payload": true,
+    "to": "a"
+  },
+  "symbols": [],
+  "type-constraints": [],
+  "types": [
+    {
+      "definition": {
+        "kind": "prim",
+        "name": "document"
+      },
+      "id": "\"json\":Value"
+    },
+    {
+      "definition": {
+        "fields": [
+          {
+            "name": "payload",
+            "type": {
+              "id": "\"json\":Value",
+              "kind": "ref"
+            }
+          },
+          {
+            "name": "to",
+            "type": {
+              "kind": "prim",
+              "name": "string"
+            }
+          }
+        ],
+        "kind": "record"
+      },
+      "id": "\"message\":Envelope[payload=\"json\":Value]"
+    },
+    {
+      "definition": {
+        "id": "\"message\":Envelope[payload=\"json\":Value]",
+        "kind": "ref"
+      },
+      "id": "root:T"
+    }
+  ]
+}

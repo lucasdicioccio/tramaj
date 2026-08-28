@@ -48,6 +48,7 @@ library
     Tramaj.Eval
     Tramaj.Node
     Tramaj.Parser
+    Tramaj.Types
   build-depends:
     , base            ^>=4.19
     , aeson           >=2.1
@@ -68,6 +69,7 @@ test-suite unit
     Tramaj.EvalSpec
     Tramaj.NodeJsonSpec
     Tramaj.ParserSpec
+    Tramaj.TypesSpec
   build-depends:
     , base
     , aeson

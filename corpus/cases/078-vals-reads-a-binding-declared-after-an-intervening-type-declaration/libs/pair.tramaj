@@ -1,0 +1,4 @@
+@a = 1
+type T = string
+@b = 2
+.p("x")

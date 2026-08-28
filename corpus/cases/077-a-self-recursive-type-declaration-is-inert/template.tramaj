@@ -1,0 +1,2 @@
+type Tree = | Leaf | Node { l : Tree, r : Tree }
+42

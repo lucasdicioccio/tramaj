@@ -1,7 +1,12 @@
 {
+  "constraints": [],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
-  "root": {"$sym": "#ctx.replicas", "path": []},
+  "root": {
+    "$sym": "#ctx.replicas",
+    "path": []
+  },
   "symbols": [],
-  "constraints": []
+  "type-constraints": [],
+  "types": []
 }

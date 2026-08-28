@@ -1,7 +1,14 @@
 {
+  "constraints": [
+    {
+      "arguments": [],
+      "name": "then-branch"
+    }
+  ],
   "format": "tramaj/symbolic/1",
   "kind": "expression",
   "root": 1,
   "symbols": [],
-  "constraints": [{"name": "then-branch", "arguments": []}]
+  "type-constraints": [],
+  "types": []
 }
