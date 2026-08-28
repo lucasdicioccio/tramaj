@@ -1,0 +1,7 @@
+{
+  "name": "a constraint value cannot be a document child",
+  "kind": "document",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

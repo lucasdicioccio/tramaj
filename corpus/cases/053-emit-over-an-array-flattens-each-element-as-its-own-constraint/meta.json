@@ -1,0 +1,5 @@
+{
+  "name": "! over an array flattens each element as its own constraint",
+  "kind": "expression",
+  "mode": "symbolic"
+}

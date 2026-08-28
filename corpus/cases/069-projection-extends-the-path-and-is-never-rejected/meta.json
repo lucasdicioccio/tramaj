@@ -1,0 +1,5 @@
+{
+  "name": "projection extends the path and is never rejected",
+  "kind": "expression",
+  "mode": "symbolic"
+}

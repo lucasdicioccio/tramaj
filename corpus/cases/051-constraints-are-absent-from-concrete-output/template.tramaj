@@ -1,0 +1,2 @@
+!constraint("gte", $ctx.replicas, 1)
+$ctx.replicas

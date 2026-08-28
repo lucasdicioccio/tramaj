@@ -1,0 +1,7 @@
+{
+  "name": "reserved key $sym in the context is rejected even in concrete mode",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

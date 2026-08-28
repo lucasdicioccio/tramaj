@@ -1,0 +1,2 @@
+@r = ?("replicas")
+.div(class: $r, value($r), action("on-click", "save", {"r": $r}), "Deploy ", $r, " replicas")

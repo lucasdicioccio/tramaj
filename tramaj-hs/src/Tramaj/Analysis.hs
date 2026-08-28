@@ -24,6 +24,11 @@ module Tramaj.Analysis
   , deepContextHoles
   , contextReads
   , unsuppliedParams
+  , constraintKinds
+  , deepConstraintKinds
+  , symbolSites
+  , symbolDemands
+  , deepSymbolDemands
   ) where
 
 import Data.Map.Strict (Map)
@@ -183,3 +188,64 @@ unsuppliedParams libs = everywhereIn $ \case
         maybe Set.empty contextReads (Map.lookup name libs)
     unsupplied _ [] = False
     unsupplied supplied (root : _) = not (Set.member root supplied)
+
+-- Constraints -------------------------------------------------------------------
+
+-- | Every constraint name this program can emit from its own AST
+-- (v3-symbols \S7). Answerable statically because a @constraint(...)@'s name
+-- is a static string, like an action's event and key.
+constraintKinds :: Program -> Set Text
+constraintKinds = everywhereIn $ \case
+  Constrain name _ -> Set.singleton name
+  _ -> Set.empty
+
+-- | Every constraint name this program can emit, following imports -- the
+-- question a host actually wants answered before it decides whether it
+-- supports a template (v3-symbols \S7: "lets a host decide ... before
+-- running it"). Over-approximates like 'deepActionKeys': a kind emitted only
+-- under a 'Branch' arm no context will select is still reported, and a
+-- missing library contributes nothing rather than failing.
+deepConstraintKinds :: Map Text Program -> Program -> Set Text
+deepConstraintKinds libs prog = go Set.empty (programRoot prog)
+  where
+    go seen (Import name params)
+      | Set.member name seen = fromParams
+      | otherwise = fromParams <> maybe Set.empty (go (Set.insert name seen) . programRoot) (Map.lookup name libs)
+      where
+        fromParams = foldMap (go seen) [e | (_, PExpr e) <- params]
+    go seen e = ownKind e <> foldMap (go seen) (subExprs e)
+      where
+        ownKind (Constrain name _) = Set.singleton name
+        ownKind _ = Set.empty
+
+-- Symbols -------------------------------------------------------------------
+
+-- | The @?(k)@ allocation sites this program contains (v3-symbols \S7) --
+-- sites, not keys, since the number of symbols a site produces is a runtime
+-- fact (one per @map@ iteration, say) but the number of sites is not.
+--
+-- This is also the static counterpart of 'AllocationInLibrary' (\S6): a
+-- program with a non-empty 'symbolSites' cannot serve as a library, which is
+-- exactly the check 'Tramaj.Eval.runLibrary' makes before evaluating one.
+symbolSites :: Program -> Set Int
+symbolSites = everywhereIn $ \case
+  Alloc site _ -> Set.singleton site
+  _ -> Set.empty
+
+-- | Every context path this program declares symbolic with @?ctx.…@ (\S7),
+-- directly -- the demand form's counterpart of 'contextHoles'.
+symbolDemands :: Program -> Set [Text]
+symbolDemands = everywhereIn $ \case
+  Demand path -> Set.singleton path
+  _ -> Set.empty
+
+-- | Demands bubbled up through every library this program imports, the way
+-- 'deepContextHoles' bubbles up @ctx(...)@ holes -- the counterpart of
+-- ref \S9's @unsuppliedParams@ for this feature (\S7): since only the root
+-- may allocate, knowing which paths the libraries beneath will discuss
+-- symbolically /is/ the whole planning problem, answered without running
+-- anything.
+deepSymbolDemands :: Map Text Program -> Program -> Set [Text]
+deepSymbolDemands libs prog =
+  symbolDemands prog
+    <> foldMap (maybe Set.empty symbolDemands . flip Map.lookup libs) (transitiveImportNames libs prog)

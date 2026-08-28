@@ -1,0 +1,7 @@
+{
+  "name": "mapping over a symbol is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete"
+}

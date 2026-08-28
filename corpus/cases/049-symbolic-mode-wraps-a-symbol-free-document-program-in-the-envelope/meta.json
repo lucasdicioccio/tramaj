@@ -1,0 +1,5 @@
+{
+  "name": "symbolic mode wraps a symbol-free document program in the envelope",
+  "kind": "document",
+  "mode": "symbolic"
+}

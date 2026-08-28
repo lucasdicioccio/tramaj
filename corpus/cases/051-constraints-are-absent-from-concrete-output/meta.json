@@ -1,0 +1,5 @@
+{
+  "name": "constraints are absent from concrete output",
+  "kind": "expression",
+  "mode": "concrete"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "an unsupplied demand at the root is unavailable in concrete mode",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "SymbolsUnavailable"
+}

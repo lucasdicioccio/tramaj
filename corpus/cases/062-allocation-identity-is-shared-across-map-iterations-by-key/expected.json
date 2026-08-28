@@ -1,0 +1,14 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [
+    {"$sym": "#0:\"web\"", "path": []},
+    {"$sym": "#0:\"db\"", "path": []},
+    {"$sym": "#0:\"web\"", "path": []}
+  ],
+  "symbols": [
+    {"id": "#0:\"web\"", "origin": {"kind": "alloc", "site": 0, "key": "web"}, "binding": null},
+    {"id": "#0:\"db\"", "origin": {"kind": "alloc", "site": 0, "key": "db"}, "binding": null}
+  ],
+  "constraints": []
+}

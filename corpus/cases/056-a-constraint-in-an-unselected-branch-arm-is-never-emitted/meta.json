@@ -1,0 +1,5 @@
+{
+  "name": "a constraint in an unselected branch arm is never emitted",
+  "kind": "expression",
+  "mode": "symbolic"
+}

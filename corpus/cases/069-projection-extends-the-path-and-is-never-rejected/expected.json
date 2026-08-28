@@ -1,0 +1,13 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [
+    {"$sym": "#0:\"d\"", "path": []},
+    {"$sym": "#0:\"d\"", "path": ["replicas"]},
+    {"$sym": "#0:\"d\"", "path": ["spec", "replicas"]}
+  ],
+  "symbols": [
+    {"id": "#0:\"d\"", "origin": {"kind": "alloc", "site": 0, "key": "d"}, "binding": "d"}
+  ],
+  "constraints": []
+}

@@ -21,6 +21,8 @@ spec = do
   importSpec
   actionSpec
   holeSpec
+  constraintSpec
+  symbolSpec
 
 prog :: Text -> Program
 prog src = either (\e -> error ("analysis fixture does not parse: " <> show e)) id (parseProgram src)
@@ -33,6 +35,7 @@ libs =
     , ("needs", prog "@p=import(\"button\", {name: ctx(inner.name)})\n$p({}).rendered")
     , ("panel", prog "@n=$ctx.replicas\n.section(.h2($ctx.name), .p($n))")
     , ("loopy", prog ".div(import(\"loopy\", {}).rendered)")
+    , ("typed", prog "!constraint(\"has-type\", $ctx, \"Deployment\")\n1")
     ]
 
 importSpec :: Spec
@@ -139,3 +142,52 @@ holeSpec = describe "context holes" $ do
 
   it "reports nothing unsupplied for a library outside the table" $
     unsuppliedParams libs (prog "import(\"nope\", {}).rendered") `shouldBe` [("nope", Set.empty)]
+
+constraintSpec :: Spec
+constraintSpec = describe "constraint kinds" $ do
+  it "finds every constraint name a program can emit" $
+    constraintKinds (prog "!constraint(\"gte\", 1, 0)\n!constraint(\"lte\", 1, 10)\n1")
+      `shouldBe` Set.fromList ["gte", "lte"]
+
+  it "finds a kind emitted only under an unreached branch arm, since the analysis approximates upward" $
+    constraintKinds (prog "!branch(constraint(\"never\"), true, 1)\n1")
+      `shouldBe` Set.fromList ["never"]
+
+  it "finds none in a program that emits nothing" $
+    constraintKinds (prog "1") `shouldBe` Set.empty
+
+  it "does not reach into a library on its own" $
+    constraintKinds (prog "import(\"typed\", {}).rendered") `shouldBe` Set.empty
+
+  it "reaches into a library when given the table" $
+    deepConstraintKinds libs (prog "import(\"typed\", {}).rendered") `shouldBe` Set.fromList ["has-type"]
+
+  it "cuts a cycle rather than looping" $
+    deepConstraintKinds libs (prog ".div(import(\"loopy\", {}).rendered)") `shouldBe` Set.empty
+
+symbolSpec :: Spec
+symbolSpec = describe "symbol sites" $ do
+  it "finds every allocation site a program contains" $
+    symbolSites (prog "[?(\"a\"), ?(\"b\")]") `shouldBe` Set.fromList [0, 1]
+
+  it "finds none in a program that allocates nothing" $
+    symbolSites (prog "1") `shouldBe` Set.empty
+
+  it "finds a site inside a lambda" $
+    symbolSites (prog "map($ctx.xs, (x) => ?($x))") `shouldBe` Set.fromList [0]
+
+  it "is non-empty for a program that cannot serve as a library" $
+    symbolSites (prog "?(\"x\")") `shouldNotBe` Set.empty
+
+  it "finds every ?ctx.path demand directly" $
+    symbolDemands (prog "[?ctx.a, ?ctx.b.c]") `shouldBe` Set.fromList [["a"], ["b", "c"]]
+
+  it "finds none in a program with no demand" $
+    symbolDemands (prog "$ctx.a") `shouldBe` Set.empty
+
+  it "does not reach into a library on its own" $
+    symbolDemands (prog "import(\"withDemand\", {}).rendered") `shouldBe` Set.empty
+
+  it "bubbles up demands from an imported library" $
+    deepSymbolDemands (Map.insert "withDemand" (prog "?ctx.threshold") libs) (prog "import(\"withDemand\", {}).rendered")
+      `shouldBe` Set.fromList [["threshold"]]

@@ -1,0 +1,7 @@
+{
+  "name": "call arguments evaluate in source order -- the first errors first",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "UnboundName"
+}

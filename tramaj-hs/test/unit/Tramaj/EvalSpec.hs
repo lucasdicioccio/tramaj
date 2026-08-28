@@ -53,7 +53,7 @@ libs =
 run :: Text -> Value -> Either String Output
 run src ctx = case parseProgram src of
   Left e -> Left ("parse error: " <> show e)
-  Right prog -> either (Left . show) Right (evalProgram libs ctx prog)
+  Right prog -> either (Left . show) Right (evalProgram Concrete libs ctx prog)
 
 -- | The document a program produced, as its normative JSON -- what a host
 -- receives, rather than the internal representation.
@@ -72,7 +72,7 @@ val src ctx =
 failsWith :: (EvalError -> Bool) -> Text -> Value -> Bool
 failsWith p src ctx = case parseProgram src of
   Left _ -> False
-  Right prog -> either p (const False) (evalProgram libs ctx prog)
+  Right prog -> either p (const False) (evalProgram Concrete libs ctx prog)
 
 -- | Expected-node builders, matching @specs/node-json.md@.
 elemJ :: Text -> [Value] -> [Value] -> Value -> Value

@@ -31,7 +31,7 @@ import Effect.Class.Console (log, error)
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Sync (readTextFile)
 import Node.Process (argv, exit')
-import Tramaj.Eval (LibraryTable, Output(..), evalProgram)
+import Tramaj.Eval (LibraryTable, Mode(Concrete), Output(..), evalProgram)
 import Tramaj.Ast (Program)
 import Tramaj.Node (nodeToJson)
 import Tramaj.Parser (parseProgram)
@@ -81,7 +81,7 @@ run libSpecs templatePath ctxPath = do
         Left err -> die ("invalid JSON context (" <> ctxPath <> "): " <> err)
         Right ctxJson -> case parseProgram templateSrc of
           Left err -> die ("parse error (" <> templatePath <> "): " <> show err)
-          Right program -> case evalProgram libs ctxJson program of
+          Right program -> case evalProgram Concrete libs ctxJson program of
             Left err -> die ("eval error: " <> show err)
             Right (ONode node) -> log (stringify (nodeToJson node))
             Right (OValue value) -> log (stringify value)

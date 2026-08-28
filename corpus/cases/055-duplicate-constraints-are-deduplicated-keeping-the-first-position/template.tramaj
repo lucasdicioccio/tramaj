@@ -1,0 +1,4 @@
+!constraint("a", 1)
+!constraint("b", 2)
+!constraint("a", 1)
+1

@@ -18,8 +18,10 @@
 module Tramaj.Eval
   ( EvalError (..)
   , Output (..)
+  , Mode (..)
   , LibraryTable
   , evalProgram
+  , runProgram
   , evalExprWith
   , builtinNames
   ) where
@@ -29,6 +31,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Bifunctor (first)
 import Data.Char (intToDigit)
+import Data.Foldable (traverse_)
 import Data.List (foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -41,6 +44,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Vector as V
 import Numeric (floatToDigits)
+import Tramaj.Analysis (symbolSites)
 import Tramaj.Ast
 import Tramaj.Node
 
@@ -59,6 +63,20 @@ data EvalError
     -- own @PathNotFound ["ctx", ...]@, and without the tag there would be
     -- nothing on it to say whose context was short.
     InLibrary Text EvalError
+  | -- | A symbol would have to be minted in concrete mode: an allocation
+    -- (@?(k)@, v3-symbols \S4) or an unsupplied @?ctx.path@ demand at the root
+    -- (\S1.3). Concrete mode has no way to represent either. Symbolic mode
+    -- never raises it: that is the one mode where a symbol is representable.
+    SymbolsUnavailable
+  | -- | A symbolic value where the language requires a concrete one (\S1.5's
+    -- table, and a symbol used as an allocation key).
+    NotConcrete Text
+  | -- | A program containing @?(k)@ is loaded as a library (\S1.4): only the
+    -- root may allocate, because the root runs exactly once and a library
+    -- does not. Lexical, not data-flow -- raised because the library's own
+    -- source contains an allocation site, whether or not evaluation would
+    -- ever reach it.
+    AllocationInLibrary Text
   deriving stock (Eq, Show)
 
 -- | What a program produced. Which one it is follows from the value the root
@@ -67,6 +85,15 @@ data EvalError
 data Output
   = ONode Node
   | OValue Value
+  deriving stock (Eq, Show)
+
+-- | A host parameter, not a property of the program (v3-symbols \S5): what an
+-- interpreter is willing to read back out, not anything the template itself
+-- declares. 'Concrete' is @reference.md@ exactly -- Node JSON or a plain
+-- value, byte for byte. 'Symbolic' wraps the same evaluation in the v3
+-- envelope (\S5.2); until \S3\/\S4 land, that envelope's @"symbols"@ and
+-- @"constraints"@ are always empty, because nothing yet produces either.
+data Mode = Concrete | Symbolic
   deriving stock (Eq, Show)
 
 -- | Host-supplied library store. Where a library came from -- a file, an
@@ -95,8 +122,45 @@ data Value'
   | VBuiltin Text
   | VEnv Env
   | VImport Pending
+  | -- | @constraint(name, args...)@ (v3-symbols \S2.1): a value like any
+    -- other, so it can be bound, passed around and collected into an array,
+    -- right up until it tries to cross a JSON boundary ('toJson' refuses it)
+    -- or is left unreached by any @!@.
+    VConstraint Text [Value']
+  | -- | A symbol (\S1.1): opaque data, identified by 'SymbolId' and a
+    -- projection path extended one segment at a time by field access
+    -- (\S1.6). An allocation (@?(k)@) starts with an empty path; so does a
+    -- demand (@?ctx.path@) once minted -- its own path is baked into the id,
+    -- not carried here.
+    VSymbol SymbolId [Text]
 
 type Env = Map Text Value'
+
+-- | A symbol's identity (\S1.4): a string, identical in every conforming
+-- implementation for the same program and key. Kept distinct from 'Text'
+-- only so the two forms ('renderAllocId', 'renderDemandId') stay the only
+-- places one is built.
+type SymbolId = Text
+
+-- | An entry in the symbol table (\S5.2). Only allocations appear there --
+-- which includes an unsupplied demand minted at the root (\S1.3), since
+-- that too is the root allocating -- and a symbol the host seeded (\S5.4)
+-- is never listed, because the language has nothing to add about one it
+-- did not mint.
+data SymbolEntry = SymbolEntry
+  { seId :: SymbolId
+  , seOrigin :: SymbolOrigin
+  , seBinding :: Maybe Text
+  }
+  deriving stock (Eq, Show)
+
+-- | Where a symbol table entry came from: an @?(k)@ at a given site, with
+-- the key it was allocated with already reduced to JSON; or an unsupplied
+-- @?ctx.path@ demand, minted at the root.
+data SymbolOrigin
+  = OAlloc Int Value
+  | ODemand [Text]
+  deriving stock (Eq, Show)
 
 -- | An import that has been named and wired up, and has not run.
 --
@@ -116,19 +180,216 @@ data Pending = Pending
   , pQueued :: [(ActionAdaptation, Maybe Value')]
   }
 
+-- | Everything evaluation needs to know about that is not the local
+-- environment: the library table, the set of libraries already being
+-- evaluated on this chain (cycle detection), the mode (v3-symbols \S5), and
+-- whether this is the root program or somewhere inside a library (\S1.3,
+-- \S1.4) -- bundled so that adding one more such fact, as \S1.4's did,
+-- touches this record instead of every function's argument list.
+data EvalCtx = EvalCtx
+  { ecLibs :: LibraryTable
+  , ecInProgress :: Set Text
+  , ecMode :: Mode
+  , ecIsRoot :: Bool
+  }
+
+-- | Enters a library: adds it to the in-progress set (so re-entering it is a
+-- cycle, not a loop) and clears 'ecIsRoot' -- a library never allocates or
+-- mints (\S1.3, \S1.4), no matter how deep the chain that reached it.
+enterLibrary :: Text -> EvalCtx -> EvalCtx
+enterLibrary name ctx = ctx {ecInProgress = Set.insert name (ecInProgress ctx), ecIsRoot = False}
+
+-- | What evaluation accumulates alongside its result (v3-symbols \S4):
+-- emitted constraints and allocated symbol-table entries, each in
+-- evaluation order and each deduplicated only once, globally, at the top
+-- (\S4 -- "first position kept") rather than on every append.
+data Emissions = Emissions
+  { emConstraints :: [Value']
+  , emSymbols :: [SymbolEntry]
+  }
+
+instance Semigroup Emissions where
+  Emissions c1 s1 <> Emissions c2 s2 = Emissions (c1 <> c2) (s1 <> s2)
+
+instance Monoid Emissions where
+  mempty = Emissions [] []
+
+-- The evaluation monad -------------------------------------------------------
+
+-- | Evaluation threads two things besides the value it produces: it can fail
+-- with an 'EvalError', and it accumulates 'Emissions' monoidally -- appended
+-- in evaluation order, never mutated in place, so 'Branch' evaluating only
+-- its selected arm gives exactly the right emission set for free, with no
+-- separate mechanism.
+newtype Eval a = MkEval {runEval :: Either EvalError (a, Emissions)}
+
+instance Functor Eval where
+  fmap f (MkEval e) = MkEval (fmap (\(a, w) -> (f a, w)) e)
+
+instance Applicative Eval where
+  pure a = MkEval (Right (a, mempty))
+  MkEval mf <*> MkEval ma = MkEval $ do
+    (f, w1) <- mf
+    (a, w2) <- ma
+    pure (f a, w1 <> w2)
+
+instance Monad Eval where
+  MkEval ma >>= f = MkEval $ do
+    (a, w1) <- ma
+    (b, w2) <- runEval (f a)
+    pure (b, w1 <> w2)
+
+evalError :: EvalError -> Eval a
+evalError e = MkEval (Left e)
+
+-- | Brings a pure, non-emitting computation into 'Eval' -- every helper that
+-- only inspects already-evaluated 'Value''s (no 'Expr' to evaluate, so
+-- nothing it could emit) stays plain 'Either' and is lifted at the call site.
+liftEither :: Either EvalError a -> Eval a
+liftEither = MkEval . fmap (,mempty)
+
+-- | Records constraints reached by a @!@ (v3-symbols \S2.2), in the order
+-- given.
+tellConstraints :: [Value'] -> Eval ()
+tellConstraints vs = MkEval (Right ((), mempty {emConstraints = vs}))
+
+-- | Records one symbol-table entry, minted by an allocation or an
+-- unsupplied demand at the root (\S1.3, \S5.2).
+tellSymbol :: SymbolEntry -> Eval ()
+tellSymbol entry = MkEval (Right ((), mempty {emSymbols = [entry]}))
+
+-- | Maps over the error only, leaving any emissions already accumulated
+-- alone -- 'InLibrary'\'s tag, applied the same way 'Data.Bifunctor.first'
+-- tags a plain 'Either'.
+mapEvalError :: (EvalError -> EvalError) -> Eval a -> Eval a
+mapEvalError f (MkEval e) = MkEval (first f e)
+
+foldlEval :: (b -> a -> Eval b) -> b -> [a] -> Eval b
+foldlEval f = go
+  where
+    go acc [] = pure acc
+    go acc (x : xs) = f acc x >>= \acc' -> go acc' xs
+
 -- Entry points ---------------------------------------------------------------
 
-evalProgram :: LibraryTable -> Value -> Program -> Either EvalError Output
-evalProgram libs input prog = do
-  v <- evalExprWith libs (fromJson input) (programRoot prog)
-  case v of
+-- | Evaluation now depends on the mode (v3-symbols \S5): an allocation or an
+-- unsupplied root demand mints a symbol in symbolic mode and raises
+-- 'SymbolsUnavailable' in concrete mode. There is no mode-independent
+-- evaluation any more, so every entry point takes one.
+evalProgram :: Mode -> LibraryTable -> Value -> Program -> Either EvalError Output
+evalProgram mode libs input prog = fst <$> evalProgramWithEmissions mode libs input prog
+
+-- | As 'evalProgram', but also returns the deduplicated 'Emissions'
+-- (v3-symbols \S4) -- empty for any program that emits or allocates nothing,
+-- and always empty in what concrete mode goes on to serialize, since
+-- concrete mode discards them (\S5.1) and cannot produce a symbol at all.
+evalProgramWithEmissions :: Mode -> LibraryTable -> Value -> Program -> Either EvalError (Output, Emissions)
+evalProgramWithEmissions mode libs input prog = do
+  (v, emitted) <- runEval $ do
+    ctx <- liftEither (checkedFromJson mode input)
+    let evalCtx = EvalCtx {ecLibs = libs, ecInProgress = Set.empty, ecMode = mode, ecIsRoot = True}
+    evalExpr evalCtx (initialEnv ctx) (programRoot prog)
+  output <- case v of
     VNode' n -> Right (ONode n)
     other -> OValue <$> toJson other
+  pure (output, dedupe emitted)
+
+-- | Two constraints with the same name and equal arguments are one
+-- constraint, and two symbol-table entries with the same id are one entry --
+-- each kept at the position of the first (v3-symbols \S4). Constraint
+-- equality is on the already-evaluated 'Value'', which is why this must run
+-- after evaluation rather than being folded into 'tellConstraints' -- two
+-- constraints built from different expressions can still evaluate to the
+-- same fact.
+dedupe :: Emissions -> Emissions
+dedupe (Emissions cs ss) = Emissions (dedupeBy constraintEq cs) (dedupeBy (\a b -> seId a == seId b) ss)
+  where
+    dedupeBy eq = go []
+      where
+        go _ [] = []
+        go seen (x : xs)
+          | any (eq x) seen = go seen xs
+          | otherwise = x : go (x : seen) xs
+
+-- | Structural equality restricted to what a constraint's identity is made
+-- of: its name and its arguments, each compared as the JSON they will
+-- render as. Two constraints are the same fact regardless of which
+-- expressions produced them.
+constraintEq :: Value' -> Value' -> Bool
+constraintEq (VConstraint n1 as1) (VConstraint n2 as2) =
+  n1 == n2 && length as1 == length as2 && and (zipWith argEq as1 as2)
+  where
+    argEq a b = case (toJson a, toJson b) of
+      (Right ja, Right jb) -> ja == jb
+      _ -> False
+constraintEq _ _ = False
+
+-- | The mode-aware entry point: what a host actually serializes. Concrete
+-- mode is 'evalProgram' unchanged, projected down to plain JSON -- Node JSON
+-- for a document, the value itself for an expression, with any emissions
+-- discarded (v3-symbols \S5.1). Symbolic mode wraps the same 'Output' in the
+-- v3 envelope (\S5.2), including the deduplicated symbol table and
+-- constraint list.
+runProgram :: Mode -> LibraryTable -> Value -> Program -> Either EvalError Value
+runProgram mode libs input prog = renderOutput mode <$> evalProgramWithEmissions mode libs input prog
+
+renderOutput :: Mode -> (Output, Emissions) -> Value
+renderOutput Concrete (output, _) = case output of
+  ONode n -> nodeToJson n
+  OValue v -> v
+renderOutput Symbolic (output, Emissions constraints symbols) =
+  Object
+    ( KeyMap.fromList
+        [ ("format", String "tramaj/symbolic/1")
+        , ("kind", String kind)
+        , ("root", root)
+        , ("symbols", Array (V.fromList (map symbolEntryToJson symbols)))
+        , ("constraints", Array (V.fromList (map constraintToJson constraints)))
+        ]
+    )
+  where
+    (kind, root) = case output of
+      ONode n -> ("document", nodeToJson n)
+      OValue v -> ("expression", v)
+
+-- | A constraint's envelope rendering (v3-symbols \S5.2): its name and its
+-- arguments, each already-evaluated to plain JSON, an argument that is
+-- itself a symbol rendering as \S5.3's @{"$sym": ..., "path": [...]}@ tag
+-- via 'toJson'.
+constraintToJson :: Value' -> Value
+constraintToJson (VConstraint name args) =
+  Object
+    ( KeyMap.fromList
+        [ ("name", String name)
+        , ("arguments", Array (V.fromList (map (either (const Null) id . toJson) args)))
+        ]
+    )
+constraintToJson other = either (const Null) id (toJson other)
+
+-- | A symbol table entry's envelope rendering (\S5.2): id, origin (the
+-- structured form of the id, so a host never has to parse it) and binding.
+symbolEntryToJson :: SymbolEntry -> Value
+symbolEntryToJson (SymbolEntry sid origin binding) =
+  Object
+    ( KeyMap.fromList
+        [ ("id", String sid)
+        , ("origin", originToJson origin)
+        , ("binding", maybe Null String binding)
+        ]
+    )
+  where
+    originToJson (OAlloc site key) =
+      Object (KeyMap.fromList [("kind", String "alloc"), ("site", Number (fromIntegral site)), ("key", key)])
+    originToJson (ODemand path) =
+      Object (KeyMap.fromList [("kind", String "demand"), ("path", Array (V.fromList (map String path)))])
 
 -- | Evaluates one expression against a context value, with the builtins in
 -- scope -- the shared path 'evalProgram' and library evaluation both take.
-evalExprWith :: LibraryTable -> Value' -> Expr -> Either EvalError Value'
-evalExprWith libs ctx = evalExpr libs Set.empty (initialEnv ctx)
+-- Any emissions reached are discarded; callers that need them should use
+-- 'evalExpr' directly inside 'Eval'.
+evalExprWith :: Mode -> LibraryTable -> Value' -> Expr -> Either EvalError Value'
+evalExprWith mode libs ctx e =
+  fst <$> runEval (evalExpr (EvalCtx {ecLibs = libs, ecInProgress = Set.empty, ecMode = mode, ecIsRoot = True}) (initialEnv ctx) e)
 
 initialEnv :: Value' -> Env
 initialEnv ctx = Map.insert "ctx" ctx (Map.fromList [(n, VBuiltin n) | n <- builtinNames])
@@ -157,64 +418,69 @@ builtinNames =
 
 -- Core evaluation ------------------------------------------------------------
 
-evalExpr :: LibraryTable -> Set Text -> Env -> Expr -> Either EvalError Value'
-evalExpr libs inProgress env (Path root fields) = case Map.lookup root env of
-  Nothing -> Left (UnboundName root)
-  Just v -> walkFields libs inProgress (root : fields) v fields
-evalExpr libs inProgress env (FieldAccess target fields) = do
-  v <- evalExpr libs inProgress env target
-  walkFields libs inProgress fields v fields
-evalExpr libs inProgress env (Call fnExpr argExprs) = do
-  fnVal <- evalExpr libs inProgress env fnExpr
-  argVals <- traverse (evalExpr libs inProgress env) argExprs
-  apply libs inProgress (describeCallee fnExpr) fnVal argVals
-evalExpr _ _ env (Lambda params body) = Right (VClosure params body env)
-evalExpr libs inProgress env (Let name valueExpr body) = do
-  v <- evalExpr libs inProgress env valueExpr
-  evalExpr libs inProgress (Map.insert name v env) body
-evalExpr _ _ _ (StringLit s) = Right (VString s)
-evalExpr _ _ _ (NumberLit n) = Right (VNumber (realToFrac n))
-evalExpr _ _ _ (BoolLit b) = Right (VBool b)
-evalExpr _ _ _ NullLit = Right VNull
-evalExpr libs inProgress env (ArrayLit elems) =
-  VArray <$> traverse (evalExpr libs inProgress env) elems
-evalExpr libs inProgress env (ObjectLit entries) =
-  VObject . Map.fromList <$> traverse (\(k, e) -> (,) k <$> evalExpr libs inProgress env e) entries
-evalExpr libs inProgress env (Element tag attrs valExpr children) = do
-  attrs' <- traverse (evalAttribute libs inProgress env) attrs
-  val <- evalExpr libs inProgress env valExpr >>= toJson
-  children' <- evalChildren libs inProgress env children
+evalExpr :: EvalCtx -> Env -> Expr -> Eval Value'
+evalExpr ctx env (Path root fields) = case Map.lookup root env of
+  Nothing -> evalError (UnboundName root)
+  Just v -> walkFields ctx (root : fields) v fields
+evalExpr ctx env (FieldAccess target fields) = do
+  v <- evalExpr ctx env target
+  walkFields ctx fields v fields
+evalExpr ctx env (Call fnExpr argExprs) = do
+  fnVal <- evalExpr ctx env fnExpr
+  argVals <- traverse (evalExpr ctx env) argExprs
+  apply ctx (describeCallee fnExpr) fnVal argVals
+evalExpr _ env (Lambda params body) = pure (VClosure params body env)
+-- | @\@name=?(k)@ or @\@name=?ctx.path@ binds the allocation\/demand directly
+-- to a name, which is what the symbol table's @"binding"@ field (\S5.2)
+-- reports; anything else evaluates exactly as it always has. Routed through
+-- 'evalBindable' rather than special-cased here so a standalone 'Alloc'\/
+-- 'Demand' (used inline, with no binding) shares the same minting logic.
+evalExpr ctx env (Let name valueExpr body) = do
+  v <- evalBindable ctx env (Just name) valueExpr
+  evalExpr ctx (Map.insert name v env) body
+evalExpr _ _ (StringLit s) = pure (VString s)
+evalExpr _ _ (NumberLit n) = pure (VNumber (realToFrac n))
+evalExpr _ _ (BoolLit b) = pure (VBool b)
+evalExpr _ _ NullLit = pure VNull
+evalExpr ctx env (ArrayLit elems) =
+  VArray <$> traverse (evalExpr ctx env) elems
+evalExpr ctx env (ObjectLit entries) =
+  VObject . Map.fromList <$> traverse (\(k, e) -> (,) k <$> evalExpr ctx env e) entries
+evalExpr ctx env (Element tag attrs valExpr children) = do
+  attrs' <- traverse (evalAttribute ctx env) attrs
+  val <- evalExpr ctx env valExpr >>= liftEither . toJson
+  children' <- evalChildren ctx env children
   pure (VNode' (NElement tag attrs' val children' noAnnotations))
-evalExpr libs inProgress env (Fragment children) =
-  VNode' . flip NFragment noAnnotations <$> evalChildren libs inProgress env children
+evalExpr ctx env (Fragment children) =
+  VNode' . flip NFragment noAnnotations <$> evalChildren ctx env children
 -- | The one non-eager form in the language: the arm not selected is never
 -- evaluated, so an error inside it never surfaces.
-evalExpr libs inProgress env (Branch condExpr thenExpr elseExpr) = do
-  cond <- evalExpr libs inProgress env condExpr >>= requireBool "a branch condition"
-  evalExpr libs inProgress env (if cond then thenExpr else elseExpr)
-evalExpr libs inProgress env (Map collExpr fnExpr) = do
-  items <- evalCollection libs inProgress env "map" collExpr
-  fnVal <- evalExpr libs inProgress env fnExpr
-  VArray <$> traverse (\item -> apply libs inProgress "map" fnVal [item]) items
-evalExpr libs inProgress env (Filter collExpr fnExpr) = do
-  items <- evalCollection libs inProgress env "filter" collExpr
-  fnVal <- evalExpr libs inProgress env fnExpr
-  kept <- traverse (\item -> (,) item <$> (apply libs inProgress "filter" fnVal [item] >>= requireBool "a filter predicate")) items
+evalExpr ctx env (Branch condExpr thenExpr elseExpr) = do
+  cond <- evalExpr ctx env condExpr >>= liftEither . requireBool "a branch condition"
+  evalExpr ctx env (if cond then thenExpr else elseExpr)
+evalExpr ctx env (Map collExpr fnExpr) = do
+  items <- evalCollection ctx env "map" collExpr
+  fnVal <- evalExpr ctx env fnExpr
+  VArray <$> traverse (\item -> apply ctx "map" fnVal [item]) items
+evalExpr ctx env (Filter collExpr fnExpr) = do
+  items <- evalCollection ctx env "filter" collExpr
+  fnVal <- evalExpr ctx env fnExpr
+  kept <- traverse (\item -> (,) item <$> (apply ctx "filter" fnVal [item] >>= liftEither . requireBool "a filter predicate")) items
   pure (VArray [item | (item, True) <- kept])
-evalExpr libs inProgress env (Scan collExpr initExpr fnExpr) = do
-  items <- evalCollection libs inProgress env "scan" collExpr
-  acc0 <- evalExpr libs inProgress env initExpr
-  fnVal <- evalExpr libs inProgress env fnExpr
-  VArray <$> scanSteps libs inProgress fnVal acc0 items
-evalExpr libs inProgress env (Fold collExpr initExpr fnExpr) = do
-  items <- evalCollection libs inProgress env "fold" collExpr
-  acc0 <- evalExpr libs inProgress env initExpr
-  fnVal <- evalExpr libs inProgress env fnExpr
-  foldSteps libs inProgress fnVal acc0 items
-evalExpr libs inProgress env (Concat leftExpr rightExpr) = do
-  l <- evalExpr libs inProgress env leftExpr
-  r <- evalExpr libs inProgress env rightExpr
-  concatValues l r
+evalExpr ctx env (Scan collExpr initExpr fnExpr) = do
+  items <- evalCollection ctx env "scan" collExpr
+  acc0 <- evalExpr ctx env initExpr
+  fnVal <- evalExpr ctx env fnExpr
+  VArray <$> scanSteps ctx fnVal acc0 items
+evalExpr ctx env (Fold collExpr initExpr fnExpr) = do
+  items <- evalCollection ctx env "fold" collExpr
+  acc0 <- evalExpr ctx env initExpr
+  fnVal <- evalExpr ctx env fnExpr
+  foldSteps ctx fnVal acc0 items
+evalExpr ctx env (Concat leftExpr rightExpr) = do
+  l <- evalExpr ctx env leftExpr
+  r <- evalExpr ctx env rightExpr
+  liftEither (concatValues l r)
 -- | Wiring up an import evaluates its parameters and stops there. The library
 -- itself runs later, when a field is read off the result, so parameters can
 -- keep arriving in between.
@@ -225,16 +491,97 @@ evalExpr libs inProgress env (Concat leftExpr rightExpr) = do
 -- a distinct AST node purely so "Tramaj.Analysis" can read every hole off the
 -- source without evaluating anything; the evaluator gains nothing from the
 -- distinction and deliberately makes no other use of it.
-evalExpr libs inProgress env (Import name params) = do
+evalExpr ctx env (Import name params) = do
   supplied <- traverse resolveParam params
   pure (VImport (Pending name (Map.fromList supplied) []))
   where
-    resolveParam (k, PExpr e) = (,) k <$> evalExpr libs inProgress env e
-    resolveParam (k, PFromContext path) = (,) k <$> evalExpr libs inProgress env (Path "ctx" path)
-evalExpr libs inProgress env (AdaptActions targetExpr adaptation fnExpr) = do
-  target <- evalExpr libs inProgress env targetExpr
-  fnVal <- traverse (evalExpr libs inProgress env) fnExpr
-  adaptValue libs inProgress adaptation fnVal target
+    resolveParam (k, PExpr e) = (,) k <$> evalExpr ctx env e
+    resolveParam (k, PFromContext path) = (,) k <$> evalExpr ctx env (Path "ctx" path)
+evalExpr ctx env (AdaptActions targetExpr adaptation fnExpr) = do
+  target <- evalExpr ctx env targetExpr
+  fnVal <- traverse (evalExpr ctx env) fnExpr
+  adaptValue ctx adaptation fnVal target
+-- | @constraint(name, args...)@ (v3-symbols \S2.1). Each argument must be
+-- something that can cross a JSON boundary -- the same rule 'toJson' already
+-- enforces everywhere else -- checked here and not deferred, since a
+-- constraint carrying a closure would otherwise sit unnoticed until whatever
+-- @!@ eventually reaches it, or never surface at all if none does.
+evalExpr ctx env (Constrain name argExprs) = do
+  argVals <- traverse (evalExpr ctx env) argExprs
+  liftEither (traverse_ toJson argVals)
+  pure (VConstraint name argVals)
+-- | @!expr@ (\S2.2): evaluates the constraint expression, collects from its
+-- value by the coercion table 'collectConstraints' encodes, records what it
+-- collected, then continues into the body -- the same "earlier bindings
+-- only" shape 'Let' already has, since both nest into one chain.
+evalExpr ctx env (Emit constraintExpr body) = do
+  cv <- evalExpr ctx env constraintExpr
+  collected <- liftEither (collectConstraints cv)
+  tellConstraints collected
+  evalExpr ctx env body
+evalExpr ctx env e@(Alloc _ _) = evalBindable ctx env Nothing e
+evalExpr ctx env e@(Demand _) = evalBindable ctx env Nothing e
+
+-- | 'Alloc' and 'Demand' are the two forms whose symbol-table entry records
+-- the name they were bound to, or 'Nothing' when used inline (v3-symbols
+-- \S5.2's @"binding"@ field) -- everything else evaluates through plain
+-- 'evalExpr', unaffected by whether it happens to sit on a 'Let'\'s
+-- right-hand side.
+evalBindable :: EvalCtx -> Env -> Maybe Text -> Expr -> Eval Value'
+evalBindable ctx env binding (Alloc site keyExpr) = evalAlloc ctx env binding site keyExpr
+evalBindable ctx env binding (Demand path) = evalDemand ctx env binding path
+evalBindable ctx env _ other = evalExpr ctx env other
+
+-- | @?(key)@ (\S1.2, \S4): the key is evaluated first, in both modes alike --
+-- so an error inside it surfaces the same way regardless of mode -- and
+-- only /minting/ depends on the mode (\S5.1): concrete mode has no way to
+-- represent the result, symbolic mode allocates and records the entry.
+evalAlloc :: EvalCtx -> Env -> Maybe Text -> Int -> Expr -> Eval Value'
+evalAlloc ctx env binding site keyExpr = do
+  keyVal <- evalExpr ctx env keyExpr
+  keyJson <- liftEither (requireConcrete "?(...)" keyVal)
+  case ecMode ctx of
+    Concrete -> evalError SymbolsUnavailable
+    Symbolic -> do
+      let sid = "#" <> tshow site <> ":" <> canon keyJson
+      tellSymbol (SymbolEntry sid (OAlloc site keyJson) binding)
+      pure (VSymbol sid [])
+
+-- | @?ctx.a.b@ (\S1.3): reads exactly as @$ctx.a.b@ would when the path is
+-- supplied, in either mode -- 'tryEval' only ever looks past a
+-- 'PathNotFound' it raises. Unsupplied, it allocates at the root (mode
+-- permitting) and is an ordinary unsupplied read anywhere else, which
+-- 'mapEvalError' in 'runLibrary' already tags with 'InLibrary'.
+evalDemand :: EvalCtx -> Env -> Maybe Text -> [Text] -> Eval Value'
+evalDemand ctx env binding path = do
+  attempt <- tryEval (evalExpr ctx env (Path "ctx" path))
+  case attempt of
+    Right v -> pure v
+    Left (PathNotFound _) | ecIsRoot ctx -> case ecMode ctx of
+      Concrete -> evalError SymbolsUnavailable
+      Symbolic -> do
+        let sid = "#ctx" <> mconcat (map ("." <>) path)
+        tellSymbol (SymbolEntry sid (ODemand path) binding)
+        pure (VSymbol sid [])
+    Left e -> evalError e
+
+-- | Runs an 'Eval' computation and reports whether it failed, without
+-- discarding whatever it had already accumulated on success. Used only to
+-- look past a 'PathNotFound' that might mean "allocate instead" -- every
+-- other error still propagates once inspected.
+tryEval :: Eval a -> Eval (Either EvalError a)
+tryEval (MkEval e) = MkEval $ case e of
+  Left err -> Right (Left err, mempty)
+  Right (a, w) -> Right (Right a, w)
+
+-- | The coercion table a @!@ collects by (v3-symbols \S2.2): a constraint
+-- contributes itself; an array contributes each element, recursively, which
+-- is why @!map(...)@ and @!$cs@ (a binding holding an array built earlier)
+-- both read naturally; anything else is a 'TypeMismatch'.
+collectConstraints :: Value' -> Either EvalError [Value']
+collectConstraints v@(VConstraint _ _) = Right [v]
+collectConstraints (VArray xs) = concat <$> traverse collectConstraints xs
+collectConstraints other = Left (TypeMismatch ("! expects a constraint or an array of them, got " <> describeValue other))
 
 -- | Only for error messages: what the source called, as written.
 describeCallee :: Expr -> Text
@@ -243,21 +590,23 @@ describeCallee _ = "a call"
 
 -- Documents -------------------------------------------------------------------
 
-evalAttribute :: LibraryTable -> Set Text -> Env -> Attribute -> Either EvalError NodeAttribute
-evalAttribute libs inProgress env (Attr name e) = NAttr name <$> (evalExpr libs inProgress env e >>= toJson)
-evalAttribute libs inProgress env (ActionAttr event key payloadExpr) =
-  NAction event key <$> (evalExpr libs inProgress env payloadExpr >>= toJson)
+evalAttribute :: EvalCtx -> Env -> Attribute -> Eval NodeAttribute
+evalAttribute ctx env (Attr name e) = NAttr name <$> (evalExpr ctx env e >>= liftEither . toJson)
+evalAttribute ctx env (ActionAttr event key payloadExpr) =
+  NAction event key <$> (evalExpr ctx env payloadExpr >>= liftEither . toJson)
 
-evalChildren :: LibraryTable -> Set Text -> Env -> [Expr] -> Either EvalError [Node]
-evalChildren libs inProgress env children =
-  concat <$> traverse (\e -> evalExpr libs inProgress env e >>= childNodes) children
+evalChildren :: EvalCtx -> Env -> [Expr] -> Eval [Node]
+evalChildren ctx env children =
+  concat <$> traverse (\e -> evalExpr ctx env e >>= liftEither . childNodes) children
 
 -- | How a value becomes children. A node is itself one child; an array
 -- contributes each of its elements, which is how @map(...)@ produces repeated
 -- siblings without a document-specific map form; anything else becomes a text
 -- node carrying that value unconverted, so a number child stays a number.
 --
--- A closure or an unfinished import has no rendering, and 'toJson' says so.
+-- A closure, an unfinished import or a constraint has no rendering, and
+-- 'toJson' says so -- a 'VConstraint' reaching here is exactly \S2.1's rule
+-- that a constraint MUST NOT cross a JSON boundary, including as a child.
 childNodes :: Value' -> Either EvalError [Node]
 childNodes (VNode' n) = Right [n]
 childNodes (VArray xs) = concat <$> traverse childNodes xs
@@ -265,53 +614,59 @@ childNodes v = (\j -> [NText j noAnnotations]) <$> toJson v
 
 -- Application ------------------------------------------------------------------
 
-apply :: LibraryTable -> Set Text -> Text -> Value' -> [Value'] -> Either EvalError Value'
-apply libs inProgress _ (VClosure params body closureEnv) args
+apply :: EvalCtx -> Text -> Value' -> [Value'] -> Eval Value'
+apply ctx _ (VClosure params body closureEnv) args
   | length params /= length args =
-      Left (TypeMismatch ("closure expects " <> tshow (length params) <> " argument(s), got " <> tshow (length args)))
+      evalError (TypeMismatch ("closure expects " <> tshow (length params) <> " argument(s), got " <> tshow (length args)))
   | otherwise =
-      evalExpr libs inProgress (foldl' (\e (p, v) -> Map.insert p v e) closureEnv (zip params args)) body
-apply _ _ _ (VBuiltin name) args = evalBuiltin name args
+      evalExpr ctx (foldl' (\e (p, v) -> Map.insert p v e) closureEnv (zip params args)) body
+apply _ _ (VBuiltin name) args = liftEither (evalBuiltin name args)
 -- | Saturating an import: the argument is more parameters, merged over what it
 -- already has. Right-biased, like @\<\>@ on objects, so a later call overrides
 -- an earlier value for the same name -- which is what makes one wired-up
 -- import reusable across a @map@, each iteration supplying its own.
-apply _ _ who (VImport pending) args = case args of
-  [VObject more] -> Right (VImport pending {pParams = Map.union more (pParams pending)})
+apply _ who (VImport pending) args = case args of
+  [VObject more] -> pure (VImport pending {pParams = Map.union more (pParams pending)})
   [other] ->
-    Left
+    evalError
       ( TypeMismatch
           (who <> ": the import of " <> tshow (pName pending) <> " takes an object of parameters, got " <> describeValue other)
       )
-  _ -> Left (TypeMismatch (who <> ": the import of " <> tshow (pName pending) <> " expects exactly 1 argument, the parameters to add"))
-apply _ _ who v _ = Left (TypeMismatch (who <> " is not callable: " <> describeValue v))
+  _ -> evalError (TypeMismatch (who <> ": the import of " <> tshow (pName pending) <> " expects exactly 1 argument, the parameters to add"))
+apply _ who v _ = evalError (TypeMismatch (who <> " is not callable: " <> describeValue v))
 
 -- | @scan@'s output is @[init, f(init, x1), f(f(init, x1), x2), ...]@ --
 -- @scanl@, not @scanl1@.
-scanSteps :: LibraryTable -> Set Text -> Value' -> Value' -> [Value'] -> Either EvalError [Value']
-scanSteps _ _ _ acc [] = Right [acc]
-scanSteps libs inProgress fnVal acc (item : rest) = do
-  next <- apply libs inProgress "scan" fnVal [acc, item]
-  (acc :) <$> scanSteps libs inProgress fnVal next rest
+scanSteps :: EvalCtx -> Value' -> Value' -> [Value'] -> Eval [Value']
+scanSteps _ _ acc [] = pure [acc]
+scanSteps ctx fnVal acc (item : rest) = do
+  next <- apply ctx "scan" fnVal [acc, item]
+  (acc :) <$> scanSteps ctx fnVal next rest
 
 -- | The same steps as 'scanSteps', keeping only the final accumulator.
-foldSteps :: LibraryTable -> Set Text -> Value' -> Value' -> [Value'] -> Either EvalError Value'
-foldSteps _ _ _ acc [] = Right acc
-foldSteps libs inProgress fnVal acc (item : rest) = do
-  next <- apply libs inProgress "fold" fnVal [acc, item]
-  foldSteps libs inProgress fnVal next rest
+foldSteps :: EvalCtx -> Value' -> Value' -> [Value'] -> Eval Value'
+foldSteps _ _ acc [] = pure acc
+foldSteps ctx fnVal acc (item : rest) = do
+  next <- apply ctx "fold" fnVal [acc, item]
+  foldSteps ctx fnVal next rest
 
-evalCollection :: LibraryTable -> Set Text -> Env -> Text -> Expr -> Either EvalError [Value']
-evalCollection libs inProgress env who e =
-  evalExpr libs inProgress env e >>= \case
-    VArray xs -> Right xs
-    other -> Left (TypeMismatch (who <> " expects an array as its first argument, got " <> describeValue other))
+evalCollection :: EvalCtx -> Env -> Text -> Expr -> Eval [Value']
+evalCollection ctx env who e =
+  evalExpr ctx env e >>= \case
+    VArray xs -> pure xs
+    VSymbol _ _ -> evalError (NotConcrete who)
+    other -> evalError (TypeMismatch (who <> " expects an array as its first argument, got " <> describeValue other))
 
 -- Concat -------------------------------------------------------------------------
 
 -- | The monoid operation over the three types that have one. Mixed types are
--- an error rather than a coercion, and objects merge right-biased.
+-- an error rather than a coercion, and objects merge right-biased. Either
+-- side being a symbol is 'NotConcrete' (v3-symbols \S1.5), ahead of the
+-- generic mismatch: the spine of a concatenation must be known, unlike an
+-- element it might merely carry.
 concatValues :: Value' -> Value' -> Either EvalError Value'
+concatValues (VSymbol _ _) _ = Left (NotConcrete "<>")
+concatValues _ (VSymbol _ _) = Left (NotConcrete "<>")
 concatValues (VString a) (VString b) = Right (VString (a <> b))
 concatValues (VArray a) (VArray b) = Right (VArray (a <> b))
 concatValues (VObject a) (VObject b) = Right (VObject (Map.union b a))
@@ -328,36 +683,48 @@ concatValues l r = Left (ConcatMismatch (describeValue l) (describeValue r))
 -- of what "enough" would be. A library that reads a @$ctx@ path nobody
 -- supplied fails with its own 'PathNotFound', tagged by 'runLibrary' with the
 -- library's name.
-forceImport :: LibraryTable -> Set Text -> Pending -> Either EvalError Value'
-forceImport libs inProgress pending = do
-  result <- runLibrary libs inProgress (pName pending) (VObject (pParams pending))
-  applyQueued libs inProgress (pQueued pending) result
+forceImport :: EvalCtx -> Pending -> Eval Value'
+forceImport ctx pending = do
+  result <- runLibrary ctx (pName pending) (VObject (pParams pending))
+  applyQueued ctx (pQueued pending) result
 
 -- | Evaluates a library against its own fresh @$ctx@ -- the parameters it was
 -- given -- and exposes @{rendered, vals}@. @inProgress@ carries the libraries
 -- already being evaluated on this chain, so re-entering one is reported as a
 -- cycle instead of running forever.
-runLibrary :: LibraryTable -> Set Text -> Text -> Value' -> Either EvalError Value'
-runLibrary libs inProgress name ctxVal
-  | Set.member name inProgress = Left (ImportCycle name)
+--
+-- Bindings are replayed by hand, via 'foldlEval' over 'bindStep', rather than
+-- letting a single 'evalExpr' over the whole chain produce @rendered@:
+-- that is what exposes each binding's own value for @.vals@ without a
+-- separate environment-inspection mechanism. Any @!@ interleaved among the
+-- bindings (v3-symbols \S2.3 -- "a library's emissions are collected ... when
+-- a field is read off its import") is replayed the same way, in the same
+-- pass, so its constraints are collected exactly once, at its position in
+-- the chain -- this is the fix for the 'unlets' trap: the old version simply
+-- stopped at the first non-'Let', which silently dropped both the bindings
+-- after a @!@ and the @!@'s own constraint.
+runLibrary :: EvalCtx -> Text -> Value' -> Eval Value'
+runLibrary ctx name ctxVal
+  | Set.member name (ecInProgress ctx) = evalError (ImportCycle name)
   | otherwise = do
-      prog <- maybe (Left (UnknownLibrary name)) Right (Map.lookup name libs)
-      first (InLibrary name) $ do
-        let inProgress' = Set.insert name inProgress
-            (bindings, root) = unlets (programRoot prog)
-        libEnv <- foldlEither (bindStep inProgress') (initialEnv ctxVal) bindings
-        rendered <- evalExpr libs inProgress' libEnv root
+      prog <- liftEither (maybe (Left (UnknownLibrary name)) Right (Map.lookup name (ecLibs ctx)))
+      liftEither (if Set.null (symbolSites prog) then Right () else Left (AllocationInLibrary name))
+      mapEvalError (InLibrary name) $ do
+        let ctx' = enterLibrary name ctx
+            (statements, root) = unlets (programRoot prog)
+        libEnv <- foldlEval (bindStep ctx') (initialEnv ctxVal) statements
+        rendered <- evalExpr ctx' libEnv root
+        let bindings = letBindings statements
         pure (VEnv (Map.fromList [("rendered", rendered), ("vals", VEnv (Map.fromList (map (\(n, _) -> (n, libEnv Map.! n)) bindings)))]))
   where
-    bindStep inProgress' env (n, e) = do
-      v <- evalExpr libs inProgress' env e
+    bindStep ctx' env (SLet n e) = do
+      v <- evalExpr ctx' env e
       pure (Map.insert n v env)
-
-foldlEither :: (b -> a -> Either e b) -> b -> [a] -> Either e b
-foldlEither f = go
-  where
-    go acc [] = Right acc
-    go acc (x : xs) = f acc x >>= \acc' -> go acc' xs
+    bindStep ctx' env (SEmit e) = do
+      cv <- evalExpr ctx' env e
+      collected <- liftEither (collectConstraints cv)
+      tellConstraints collected
+      pure env
 
 -- Action adaptation -------------------------------------------------------------------
 
@@ -366,39 +733,39 @@ foldlEither f = go
 -- through arrays. An import that has not run has no actions yet, so the
 -- adaptation is queued and runs on its result. Anything else has no actions
 -- and passes through untouched.
-adaptValue :: LibraryTable -> Set Text -> ActionAdaptation -> Maybe Value' -> Value' -> Either EvalError Value'
-adaptValue libs inProgress adaptation fnVal = go
+adaptValue :: EvalCtx -> ActionAdaptation -> Maybe Value' -> Value' -> Eval Value'
+adaptValue ctx adaptation fnVal = go
   where
-    go (VNode' n) = VNode' <$> mapActions (adaptAction libs inProgress adaptation fnVal) n
+    go (VNode' n) = VNode' <$> mapActions (adaptAction ctx adaptation fnVal) n
     go (VEnv e) = VEnv <$> traverse go e
     go (VArray xs) = VArray <$> traverse go xs
     go (VObject o) = VObject <$> traverse go o
-    go (VImport pending) = Right (VImport pending {pQueued = pQueued pending <> [(adaptation, fnVal)]})
-    go v = Right v
+    go (VImport pending) = pure (VImport pending {pQueued = pQueued pending <> [(adaptation, fnVal)]})
+    go v = pure v
 
-applyQueued :: LibraryTable -> Set Text -> [(ActionAdaptation, Maybe Value')] -> Value' -> Either EvalError Value'
-applyQueued libs inProgress queued v0 =
-  foldlEither (\v (adaptation, fnVal) -> adaptValue libs inProgress adaptation fnVal v) v0 queued
+applyQueued :: EvalCtx -> [(ActionAdaptation, Maybe Value')] -> Value' -> Eval Value'
+applyQueued ctx queued v0 =
+  foldlEval (\v (adaptation, fnVal) -> adaptValue ctx adaptation fnVal v) v0 queued
 
 -- | One action, adapted. The key is rewritten first, unconditionally, by the
 -- static adaptation; the optional closure then sees the already-adapted action
 -- and may change only its event type and payload. A @key@ in the closure's
 -- result is ignored -- letting it win would put the action vocabulary back
 -- beyond static reach, which is the whole point of restricting adaptation.
-adaptAction :: LibraryTable -> Set Text -> ActionAdaptation -> Maybe Value' -> Text -> Text -> Value -> Either EvalError NodeAttribute
-adaptAction libs inProgress adaptation fnVal event key payload =
+adaptAction :: EvalCtx -> ActionAdaptation -> Maybe Value' -> Text -> Text -> Value -> Eval NodeAttribute
+adaptAction ctx adaptation fnVal event key payload =
   case fnVal of
-    Nothing -> Right (NAction event key' payload)
+    Nothing -> pure (NAction event key' payload)
     Just fn -> do
-      result <- apply libs inProgress "adapt-actions" fn [actionAsValue] >>= toJson
+      result <- apply ctx "adapt-actions" fn [actionAsValue] >>= liftEither . toJson
       case result of
         Object obj -> do
-          event' <- case KeyMap.lookup (Key.fromText "eventType") obj of
+          event' <- liftEither $ case KeyMap.lookup (Key.fromText "eventType") obj of
             Just (String s) -> Right s
             _ -> Left (TypeMismatch "adapt-actions: the function's result needs a string \"eventType\" field")
           let payload' = maybe Null id (KeyMap.lookup (Key.fromText "payload") obj)
-          Right (NAction event' key' payload')
-        _ -> Left (TypeMismatch "adapt-actions: the function must return an object with an eventType field")
+          pure (NAction event' key' payload')
+        _ -> evalError (TypeMismatch "adapt-actions: the function must return an object with an eventType field")
   where
     key' = adaptKey adaptation key
     actionAsValue =
@@ -409,23 +776,28 @@ adaptAction libs inProgress adaptation fnVal event key payload =
 
 -- | Walks named segments into a value. @context@ is the full path as written,
 -- for error messages only.
-walkFields :: LibraryTable -> Set Text -> [Text] -> Value' -> [Text] -> Either EvalError Value'
-walkFields _ _ _ v [] = Right v
-walkFields libs inProgress context v fields@(field : rest) = case v of
+walkFields :: EvalCtx -> [Text] -> Value' -> [Text] -> Eval Value'
+walkFields _ _ v [] = pure v
+walkFields ctx context v fields@(field : rest) = case v of
   VObject o -> case Map.lookup field o of
-    Nothing -> Left (PathNotFound context)
-    Just v' -> walkFields libs inProgress context v' rest
+    Nothing -> evalError (PathNotFound context)
+    Just v' -> walkFields ctx context v' rest
   VEnv e -> case Map.lookup field e of
-    Nothing -> Left (PathNotFound context)
-    Just v' -> walkFields libs inProgress context v' rest
+    Nothing -> evalError (PathNotFound context)
+    Just v' -> walkFields ctx context v' rest
   -- Reading a field off an import is what runs it -- @.rendered@ and @.vals@
   -- are fields of the result, so the same segment is then walked into that
   -- result rather than consumed here.
   VImport pending -> do
-    result <- forceImport libs inProgress pending
-    walkFields libs inProgress context result fields
+    result <- forceImport ctx pending
+    walkFields ctx context result fields
+  -- Projection (v3-symbols \S1.6): reads nothing, and is never rejected --
+  -- whether the thing a symbol stands for has this field is a question for
+  -- whoever owns its meaning, not the language. Consumes every remaining
+  -- segment at once, since a projection just extends the path.
+  VSymbol sid path -> pure (VSymbol sid (path <> fields))
   other ->
-    Left
+    evalError
       ( TypeMismatch
           ("cannot read field " <> tshow field <> " of " <> describeValue other <> " in path " <> tshow (T.intercalate "." context))
       )
@@ -447,6 +819,14 @@ toJson (VString s) = Right (String s)
 toJson (VArray xs) = Array . V.fromList <$> traverse toJson xs
 toJson (VObject o) = Object . KeyMap.fromList <$> traverse (\(k, v) -> (,) (Key.fromText k) <$> toJson v) (Map.toList o)
 toJson (VNode' _) = Left (TypeMismatch "a document node is not a plain value -- nest it as a child rather than using it where a value is expected")
+toJson (VConstraint name _) = Left (TypeMismatch ("a constraint (" <> tshow name <> ") cannot cross a JSON boundary -- only \"!\" may consume it"))
+-- | A symbol may sit in an attribute, a payload, a value slot or a text
+-- child (v3-symbols \S1.5), so this always succeeds -- it is 'requireConcrete'
+-- that refuses one, for the handful of forms that need to. \S5.3's tagged
+-- shape: both fields required, matching what the decoder in
+-- 'checkedFromJson' accepts back.
+toJson (VSymbol sid path) =
+  Right (Object (KeyMap.fromList [("$sym", String sid), ("path", Array (V.fromList (map String path)))]))
 toJson (VClosure _ _ _) = Left (TypeMismatch "expected a value, got a function -- call it first, e.g. $my-fn(...)")
 toJson (VBuiltin name) = Left (TypeMismatch ("expected a value, got the builtin " <> tshow name <> " -- call it first"))
 toJson (VEnv _) = Left (TypeMismatch "expected a value, got an import result -- read .rendered, .vals, or a binding name from it first")
@@ -467,6 +847,35 @@ fromJson (String s) = VString s
 fromJson (Array arr) = VArray (map fromJson (V.toList arr))
 fromJson (Object obj) = VObject (Map.fromList (map (\(k, v) -> (Key.toText k, fromJson v)) (KeyMap.toList obj)))
 
+-- | The input context's boundary: as 'fromJson', but recursively refusing
+-- @"$sym"@ and @"$type"@ as ordinary object keys (v3-symbols \S5.3). In
+-- concrete mode either key is refused unconditionally. In symbolic mode,
+-- seeding (\S5.4) accepts a well-formed @{"$sym": ..., "path": [...]}@ back
+-- as an actual symbol -- anything else carrying @"$sym"@, or @"$type"@ at
+-- all (v3 has no valid shape for it yet), is still refused.
+checkedFromJson :: Mode -> Value -> Either EvalError Value'
+checkedFromJson _ Null = Right VNull
+checkedFromJson _ (Bool b) = Right (VBool b)
+checkedFromJson _ (Number n) = Right (VNumber n)
+checkedFromJson _ (String s) = Right (VString s)
+checkedFromJson mode (Array arr) = VArray <$> traverse (checkedFromJson mode) (V.toList arr)
+checkedFromJson mode (Object obj)
+  | KeyMap.member (Key.fromText "$type") obj =
+      Left (TypeMismatch "the context carries the reserved key \"$type\", which only a typed envelope may use")
+  | Just symVal <- KeyMap.lookup (Key.fromText "$sym") obj =
+      case mode of
+        Concrete -> Left (TypeMismatch "the context carries the reserved key \"$sym\", which only a symbolic envelope may use")
+        Symbolic -> case (symVal, KeyMap.toList (KeyMap.delete (Key.fromText "$sym") obj)) of
+          (String sid, [("path", Array pathArr)]) -> do
+            path <- traverse expectString (V.toList pathArr)
+            Right (VSymbol sid path)
+          _ -> Left (TypeMismatch "a \"$sym\" object must be exactly {\"$sym\": <id>, \"path\": [<segment>, ...]}")
+  | otherwise =
+      VObject . Map.fromList <$> traverse (\(k, v) -> (,) (Key.toText k) <$> checkedFromJson mode v) (KeyMap.toList obj)
+  where
+    expectString (String s) = Right s
+    expectString _ = Left (TypeMismatch "a symbol reference's \"path\" must be an array of strings")
+
 describeValue :: Value' -> Text
 describeValue VNull = "null"
 describeValue (VBool _) = "a boolean"
@@ -479,10 +888,45 @@ describeValue (VClosure _ _ _) = "a function"
 describeValue (VBuiltin name) = "the builtin " <> tshow name
 describeValue (VEnv _) = "an import result"
 describeValue (VImport pending) = "the not-yet-run import of " <> tshow (pName pending)
+describeValue (VConstraint name _) = "a constraint (" <> tshow name <> ")"
+describeValue (VSymbol _ _) = "a symbol"
 
+-- | Control flow must be concrete (v3-symbols \S1.5): a symbolic condition is
+-- 'NotConcrete', not merely the wrong type.
 requireBool :: Text -> Value' -> Either EvalError Bool
 requireBool _ (VBool b) = Right b
+requireBool who (VSymbol _ _) = Left (NotConcrete who)
 requireBool who other = Left (TypeMismatch (who <> " must be a boolean, got " <> describeValue other))
+
+-- | Whether a value is, or contains, a symbol -- what makes a value
+-- concrete's negation (\S1.5, \S1.7): a structure built of concrete pieces is
+-- itself concrete and every structural operation on it works as normal;
+-- only a symbol itself, wherever it sits, makes the whole not concrete.
+containsSymbol :: Value' -> Bool
+containsSymbol (VSymbol _ _) = True
+containsSymbol (VArray xs) = any containsSymbol xs
+containsSymbol (VObject o) = any containsSymbol (Map.elems o)
+containsSymbol _ = False
+
+-- | Requires a value with no symbol anywhere in it, for the handful of
+-- operations \S1.5 lists as needing to *know* something about their
+-- argument rather than merely carry it: @str@, @eq@, and an allocation key.
+-- Everything else about crossing a JSON boundary is 'toJson'\'s ordinary
+-- business, which this defers to once a symbol is ruled out.
+requireConcrete :: Text -> Value' -> Either EvalError Value
+requireConcrete who v
+  | containsSymbol v = Left (NotConcrete who)
+  | otherwise = toJson v
+
+-- | v3-symbols \S1.4: compact JSON with keys sorted, agreeing with @str@ on
+-- arrays and objects and differing at the top level for strings, where
+-- @str@ renders raw and this quotes -- the difference that makes it
+-- injective. This is exactly 'compactJson', which already quotes a string
+-- unconditionally; the two are one function under two names because they
+-- serve the same requirement (\S1.4's canon, \S6's @str@) for the same
+-- reason.
+canon :: Value -> Text
+canon = compactJson
 
 tshow :: (Show a) => a -> Text
 tshow = T.pack . show
@@ -496,11 +940,11 @@ evalBuiltin :: Text -> [Value'] -> Either EvalError Value'
 evalBuiltin name args = case name of
   "cardinality" -> cardinality
   "count" -> cardinality
-  "str" -> arity1 (fmap (VString . displayString) . toJson)
+  "str" -> arity1 (fmap (VString . displayString) . requireConcrete name)
   "not" -> arity1 (fmap (VBool . not) . asBool)
   "and" -> variadicBool (&&) True
   "or" -> variadicBool (||) False
-  "eq" -> binary (\a b -> VBool <$> ((==) <$> toJson a <*> toJson b))
+  "eq" -> binary (\a b -> VBool <$> ((==) <$> requireConcrete name a <*> requireConcrete name b))
   "lt" -> comparison (<)
   "lte" -> comparison (<=)
   "gt" -> comparison (>)
@@ -530,6 +974,7 @@ evalBuiltin name args = case name of
     cardinality = arity1 $ \case
       VArray xs -> Right (VNumber (fromIntegral (length xs)))
       VObject o -> Right (VNumber (fromIntegral (Map.size o)))
+      VSymbol _ _ -> Left (NotConcrete name)
       other -> Left (TypeMismatch (name <> " expects an array or object, got " <> describeValue other))
 
     asBool :: Value' -> Either EvalError Bool
@@ -538,6 +983,7 @@ evalBuiltin name args = case name of
 
     asNumber :: Value' -> Either EvalError Scientific
     asNumber (VNumber n) = Right n
+    asNumber (VSymbol _ _) = Left (NotConcrete name)
     asNumber other = Left (TypeMismatch (name <> " expects a number argument, got " <> describeValue other))
 
     asArray :: Value' -> Either EvalError [Value']
@@ -553,16 +999,23 @@ evalBuiltin name args = case name of
     comparison op = binary $ \a b -> VBool <$> (op <$> asNumber a <*> asNumber b)
 
     -- | Deliberately tolerant: a missing key, an out-of-range index, or a
-    -- container of the wrong shape all answer @false@ rather than erroring.
+    -- container of the wrong shape all answer @false@ rather than erroring
+    -- -- except a symbolic container, which is 'NotConcrete' rather than a
+    -- lie (v3-symbols \S1.5): the tolerant @false@ would claim to know
+    -- something about a container the language cannot see into.
     hasImpl :: Value' -> Value' -> Either EvalError Value'
+    hasImpl (VSymbol _ _) _ = Left (NotConcrete name)
     hasImpl container key = Right . VBool $ case (container, key) of
       (VObject o, VString k) -> Map.member k o
       (VArray xs, VNumber n) -> maybe False (\i -> i >= 0 && i < length xs) (asIndex n)
       _ -> False
 
     -- | Dynamic access by a computed key or index -- the counterpart to a
-    -- static path segment. The third argument is the mandatory fallback.
+    -- static path segment. The third argument is the mandatory fallback. A
+    -- symbolic container is 'NotConcrete' rather than falling back, which
+    -- would silently discard the symbol (\S1.5).
     lookupImpl :: Value' -> Value' -> Value' -> Either EvalError Value'
+    lookupImpl (VSymbol _ _) _ _ = Left (NotConcrete name)
     lookupImpl container key fallback = Right $ case (container, key) of
       (VObject o, VString k) -> maybe fallback id (Map.lookup k o)
       (VArray xs, VNumber n) -> maybe fallback id (asIndex n >>= atIndex xs)

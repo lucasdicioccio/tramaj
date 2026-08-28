@@ -1,0 +1,7 @@
+{
+  "name": "! over something that is neither a constraint nor an array is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "a constant key under map produces one shared symbol",
+  "kind": "expression",
+  "mode": "symbolic"
+}

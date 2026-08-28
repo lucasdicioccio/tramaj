@@ -1,0 +1,2 @@
+@d = ?("d")
+[$d, $d.replicas, $d.spec.replicas]

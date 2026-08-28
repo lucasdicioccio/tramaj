@@ -1,0 +1,5 @@
+{
+  "name": "! over a nested array flattens recursively",
+  "kind": "expression",
+  "mode": "symbolic"
+}

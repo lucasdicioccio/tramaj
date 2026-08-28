@@ -1,0 +1,5 @@
+{
+  "name": "a demand supplied via seeding round-trips as the same symbol",
+  "kind": "expression",
+  "mode": "symbolic"
+}

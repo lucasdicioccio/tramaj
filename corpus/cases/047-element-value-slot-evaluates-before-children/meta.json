@@ -1,0 +1,7 @@
+{
+  "name": "an element's value slot evaluates before its children",
+  "kind": "document",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "UnboundName"
+}

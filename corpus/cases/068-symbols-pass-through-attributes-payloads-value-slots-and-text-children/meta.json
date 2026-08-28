@@ -1,0 +1,5 @@
+{
+  "name": "symbols pass through attributes, payloads, value slots and text children",
+  "kind": "document",
+  "mode": "symbolic"
+}

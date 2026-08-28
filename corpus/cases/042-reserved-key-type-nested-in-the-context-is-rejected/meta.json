@@ -1,0 +1,7 @@
+{
+  "name": "reserved key $type nested in the context is rejected",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

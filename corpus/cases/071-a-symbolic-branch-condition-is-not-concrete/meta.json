@@ -1,0 +1,7 @@
+{
+  "name": "a symbolic branch condition is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "reserved key $sym in an object literal is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

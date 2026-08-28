@@ -1,0 +1,7 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": 1,
+  "symbols": [],
+  "constraints": [{"name": "all-different", "arguments": [[3, 1, 2]]}]
+}

@@ -1,0 +1,9 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$sym": "#ctx.threshold", "path": []},
+  "symbols": [
+    {"id": "#ctx.threshold", "origin": {"kind": "demand", "path": ["threshold"]}, "binding": "t"}
+  ],
+  "constraints": []
+}

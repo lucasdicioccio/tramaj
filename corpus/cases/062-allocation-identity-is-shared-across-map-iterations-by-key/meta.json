@@ -1,0 +1,5 @@
+{
+  "name": "allocation identity is per-key across map iterations at one site",
+  "kind": "expression",
+  "mode": "symbolic"
+}

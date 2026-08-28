@@ -168,18 +168,16 @@ reqAnnotations obj =
 
 -- | Rewrites every action reachable in a tree, leaving everything else --
 -- tags, ordinary attributes, element value slots, child order, and every
--- annotation map -- untouched. The traversal is effectful in 'Either' so a
--- rewrite that can fail (@adapt-actions@'s optional payload closure) reports
--- where it failed rather than being forced to succeed.
-mapActions :: (Text -> Text -> Value -> Either e NodeAttribute) -> Node -> Either e Node
-mapActions _ n@(NText _ _) = Right n
-mapActions f (NElement tag attrs val children anns) = do
-  attrs' <- traverse step attrs
-  children' <- traverse (mapActions f) children
-  pure (NElement tag attrs' val children' anns)
+-- annotation map -- untouched. Polymorphic in the applicative so a caller
+-- that only fails ('Either') and one that also accumulates something
+-- alongside its result (v3-symbols constraint emission) can share this one
+-- traversal.
+mapActions :: (Applicative f) => (Text -> Text -> Value -> f NodeAttribute) -> Node -> f Node
+mapActions _ n@(NText _ _) = pure n
+mapActions f (NElement tag attrs val children anns) =
+  NElement tag <$> traverse step attrs <*> pure val <*> traverse (mapActions f) children <*> pure anns
   where
-    step a@(NAttr _ _) = Right a
+    step a@(NAttr _ _) = pure a
     step (NAction event key payload) = f event key payload
-mapActions f (NFragment children anns) = do
-  children' <- traverse (mapActions f) children
-  pure (NFragment children' anns)
+mapActions f (NFragment children anns) =
+  NFragment <$> traverse (mapActions f) children <*> pure anns

@@ -43,7 +43,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (LibraryTable, Output(..), evalProgram)
+import Tramaj.Eval (LibraryTable, Mode(Concrete), Output(..), evalProgram)
 import Tramaj.Halogen (foldToHalogen, validateAttrNames)
 import Tramaj.Node (Node, nodeToJson)
 import Tramaj.Parser (parseProgram)
@@ -340,7 +340,7 @@ computeResult state = case jsonParser state.jsonInput of
     in
       case parseProgram activeTab.source of
         Left err -> Left ("Template parse error: " <> show err)
-        Right program -> case evalProgram libs ctx program of
+        Right program -> case evalProgram Concrete libs ctx program of
           Left err -> Left ("Template eval error: " <> show err)
           Right (ONode node) -> Right (ResultNode node)
           Right (OValue value) -> Right (ResultValue value)

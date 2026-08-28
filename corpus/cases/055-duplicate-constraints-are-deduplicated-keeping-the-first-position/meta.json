@@ -1,0 +1,5 @@
+{
+  "name": "duplicate constraints are deduplicated, keeping the first position",
+  "kind": "expression",
+  "mode": "symbolic"
+}

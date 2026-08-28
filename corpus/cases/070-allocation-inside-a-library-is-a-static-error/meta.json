@@ -1,0 +1,7 @@
+{
+  "name": "allocation inside a library is a static error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "AllocationInLibrary"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "an unsupplied demand at the root allocates in symbolic mode",
+  "kind": "expression",
+  "mode": "symbolic"
+}

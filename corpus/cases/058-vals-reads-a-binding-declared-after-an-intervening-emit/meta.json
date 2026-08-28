@@ -1,0 +1,5 @@
+{
+  "name": ".vals reads a binding declared after an intervening !",
+  "kind": "expression",
+  "mode": "concrete"
+}

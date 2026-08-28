@@ -1,0 +1,6 @@
+{
+  "name": "reserved key $type in an object literal is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

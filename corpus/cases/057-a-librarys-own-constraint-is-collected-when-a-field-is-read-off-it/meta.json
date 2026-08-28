@@ -1,0 +1,5 @@
+{
+  "name": "a library's own constraint is collected when a field is read off it",
+  "kind": "expression",
+  "mode": "symbolic"
+}

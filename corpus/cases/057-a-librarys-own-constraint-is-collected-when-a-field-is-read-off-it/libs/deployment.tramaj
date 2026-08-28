@@ -1,0 +1,3 @@
+@replicas = $ctx.replicas
+!constraint("gte", $replicas, 1)
+$replicas

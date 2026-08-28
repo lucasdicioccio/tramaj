@@ -1,0 +1,7 @@
+{
+  "name": "a symbol used as an allocation key is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete"
+}

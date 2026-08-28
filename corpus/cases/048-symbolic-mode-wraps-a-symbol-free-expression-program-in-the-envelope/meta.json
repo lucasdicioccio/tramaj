@@ -1,0 +1,5 @@
+{
+  "name": "symbolic mode wraps a symbol-free expression program in the envelope",
+  "kind": "expression",
+  "mode": "symbolic"
+}

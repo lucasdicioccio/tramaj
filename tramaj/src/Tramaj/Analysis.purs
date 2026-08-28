@@ -26,6 +26,11 @@ module Tramaj.Analysis
   , deepContextHoles
   , contextReads
   , unsuppliedParams
+  , constraintKinds
+  , deepConstraintKinds
+  , symbolSites
+  , symbolDemands
+  , deepSymbolDemands
   ) where
 
 import Prelude
@@ -210,3 +215,70 @@ unsuppliedParams libs = everywhereIn case _ of
   unsupplied supplied path = case Array.head path of
     Nothing -> false
     Just root -> not (Set.member root supplied)
+
+-- Constraints -------------------------------------------------------------------
+
+-- | Every constraint name this program can emit from its own AST
+-- | (v3-symbols §7). Answerable statically because a `constraint(...)`'s
+-- | name is a static string, like an action's event and key.
+constraintKinds :: Program -> Set String
+constraintKinds = everywhereIn case _ of
+  Constrain name _ -> Set.singleton name
+  _ -> Set.empty
+
+-- | Every constraint name this program can emit, following imports — the
+-- | question a host actually wants answered before it decides whether it
+-- | supports a template (v3-symbols §7: "lets a host decide ... before
+-- | running it"). Over-approximates like `deepActionKeys`: a kind emitted
+-- | only under a `Branch` arm no context will select is still reported, and
+-- | a missing library contributes nothing rather than failing.
+deepConstraintKinds :: Map String Program -> Program -> Set String
+deepConstraintKinds libs prog = go Set.empty (programRoot prog)
+  where
+  go seen (Import name params) =
+    let
+      fromParams = foldMap (go seen) (Array.mapMaybe suppliedExpr params)
+    in
+      if Set.member name seen then fromParams
+      else fromParams <> maybe Set.empty (go (Set.insert name seen) <<< programRoot) (Map.lookup name libs)
+  go seen e = ownKind e <> foldMap (go seen) (subExprs e)
+
+  ownKind (Constrain name _) = Set.singleton name
+  ownKind _ = Set.empty
+
+  suppliedExpr (Tuple _ (PExpr e)) = Just e
+  suppliedExpr _ = Nothing
+
+-- Symbols -------------------------------------------------------------------
+
+-- | The `?(k)` allocation sites this program contains (v3-symbols §7) —
+-- | sites, not keys, since the number of symbols a site produces is a
+-- | runtime fact (one per `map` iteration, say) but the number of sites is
+-- | not.
+-- |
+-- | This is also the static counterpart of `AllocationInLibrary` (§6): a
+-- | program with a non-empty `symbolSites` cannot serve as a library, which
+-- | is exactly the check `Tramaj.Eval.runLibrary` makes before evaluating
+-- | one.
+symbolSites :: Program -> Set Int
+symbolSites = everywhereIn case _ of
+  Alloc site _ -> Set.singleton site
+  _ -> Set.empty
+
+-- | Every context path this program declares symbolic with `?ctx.…` (§7),
+-- | directly — the demand form's counterpart of `contextHoles`.
+symbolDemands :: Program -> Set (Array String)
+symbolDemands = everywhereIn case _ of
+  Demand path -> Set.singleton path
+  _ -> Set.empty
+
+-- | Demands bubbled up through every library this program imports, the way
+-- | `deepContextHoles` bubbles up `ctx(...)` holes — the counterpart of
+-- | ref §9's `unsuppliedParams` for this feature (§7): since only the root
+-- | may allocate, knowing which paths the libraries beneath will discuss
+-- | symbolically *is* the whole planning problem, answered without running
+-- | anything.
+deepSymbolDemands :: Map String Program -> Program -> Set (Array String)
+deepSymbolDemands libs prog =
+  symbolDemands prog
+    <> foldMap (maybe Set.empty symbolDemands <<< flip Map.lookup libs) (transitiveImportNames libs prog)

@@ -1,0 +1,11 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": 1,
+  "symbols": [],
+  "constraints": [
+    {"name": "gte", "arguments": [10, 0]},
+    {"name": "gte", "arguments": [20, 0]},
+    {"name": "gte", "arguments": [30, 0]}
+  ]
+}

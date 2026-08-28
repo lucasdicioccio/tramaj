@@ -1,0 +1,5 @@
+{
+  "name": "a demand supplied concretely reads as an ordinary value, in either mode",
+  "kind": "expression",
+  "mode": "symbolic"
+}

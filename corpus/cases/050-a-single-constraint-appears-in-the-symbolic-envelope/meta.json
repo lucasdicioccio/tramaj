@@ -1,0 +1,5 @@
+{
+  "name": "a single constraint appears in the symbolic envelope",
+  "kind": "expression",
+  "mode": "symbolic"
+}

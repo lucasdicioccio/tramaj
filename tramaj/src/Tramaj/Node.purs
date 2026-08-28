@@ -206,19 +206,21 @@ reqAnnotations fields = do
 
 -- | Rewrites every action reachable in a tree, leaving everything else —
 -- | tags, ordinary attributes, element value slots, child order, and every
--- | annotation map — untouched. The traversal is effectful in `Either` so
--- | a rewrite that can fail (`adapt-actions`'s optional payload closure)
--- | reports where it failed rather than being forced to succeed.
+-- | annotation map — untouched. Polymorphic in the applicative so a caller
+-- | that only fails (`Either`) and one that also accumulates something
+-- | alongside its result (v3-symbols constraint emission) can share this
+-- | one traversal.
 mapActions
-  :: forall e
-   . (String -> String -> Json -> Either e NodeAttribute)
+  :: forall f
+   . Applicative f
+  => (String -> String -> Json -> f NodeAttribute)
   -> Node
-  -> Either e Node
-mapActions _ n@(NText _ _) = Right n
+  -> f Node
+mapActions _ n@(NText _ _) = pure n
 mapActions f (NElement tag attrs value children anns) =
   NElement tag <$> traverse step attrs <@> value <*> traverse (mapActions f) children <@> anns
   where
-  step a@(NAttr _ _) = Right a
+  step a@(NAttr _ _) = pure a
   step (NAction event key payload) = f event key payload
 mapActions f (NFragment children anns) =
   NFragment <$> traverse (mapActions f) children <@> anns

@@ -257,6 +257,7 @@ objectLit = lexeme $ do
     explicitEntry :: P (Text, Expr)
     explicitEntry = do
       k <- objectKey
+      _ <- reservedKeyRefused k
       _ <- symbol ":"
       v <- expr
       pure (k, v)
@@ -269,6 +270,17 @@ objectLit = lexeme $ do
 objectKey :: P Text
 objectKey = staticString <|> identifier
 
+-- | @"$sym"@ and @"$type"@ are reserved across the value domain (v3-symbols
+-- \S5.3, v4-types \S0): the tag a symbolic or typed envelope uses to mark a
+-- value that is not an ordinary object. An object literal spelling either as
+-- a key is a parse error in every profile, not just the symbolic one, so a
+-- program's legality never depends on which profile runs it.
+reservedKeyRefused :: Text -> P ()
+reservedKeyRefused k
+  | k `elem` (["$sym", "$type"] :: [Text]) =
+      fail ("\"" <> T.unpack k <> "\" is a reserved key and cannot be used as an object key")
+  | otherwise = pure ()
+
 -- Expressions ------------------------------------------------------------
 
 pathExpr :: P Expr
@@ -276,6 +288,33 @@ pathExpr = lexeme $ do
   _ <- char '$'
   (root, fields) <- pathTail
   pure (Path root fields)
+
+-- | @?(key)@ (v3-symbols \S1.2): allocates a symbol. The site is a placeholder
+-- here -- 'Tramaj.Ast.numberAllocs' assigns the real one once the whole
+-- program has been parsed, so it does not depend on this parser's own
+-- traversal order. A projection following it, as in @?(key).field@, is an
+-- ordinary field-access suffix, the same mechanism a call result uses.
+allocExpr :: P Expr
+allocExpr = try $ do
+  _ <- char '?'
+  _ <- symbol "("
+  keyExpr <- expr
+  _ <- char ')'
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Alloc 0 keyExpr) segs)
+
+-- | @?ctx.a.b@ (\S1.3): the path MUST be rooted at @ctx@ -- unlike an
+-- ordinary read, an unsupplied demand allocates at the root rather than
+-- failing, so the language needs to tell the two apart before evaluating
+-- anything.
+demandExpr :: P Expr
+demandExpr = lexeme $ try $ do
+  _ <- char '?'
+  root <- rawIdent
+  if root == "ctx"
+    then Demand <$> many (char '.' *> rawIdent)
+    else fail "a demand must be rooted at ctx, as in ?ctx.path"
 
 -- | @name(args)@ or @$name(args)@ -- the two spellings mean the same thing.
 -- The callee may be a dotted path, so a function reached through an import's
@@ -320,7 +359,7 @@ specialForm = do
   name <- try $ do
     _ <- optional (char '$')
     n <- identifier
-    if n `elem` (["map", "filter", "scan", "fold", "branch", "import", "adapt-actions"] :: [Text])
+    if n `elem` (["map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint"] :: [Text])
       then pure n
       else fail "not a special form"
   base <- case name of
@@ -331,6 +370,7 @@ specialForm = do
     "branch" -> branchShape
     "import" -> importShape
     "adapt-actions" -> adaptActionsShape
+    "constraint" -> constraintShape
     _ -> fail "unreachable: name already checked against the recognized special-form set"
   segs <- fieldAccessSuffix
   skipSpaces
@@ -374,6 +414,19 @@ specialForm = do
       _ <- symbol ","
       v <- expr
       pure (p, v)
+
+    -- | @constraint(name, arg1, arg2, ...)@ (v3-symbols \S2.1): a static
+    -- string name, like an action's event and key, followed by any number of
+    -- ordinary expressions -- zero included, since the language fixes no
+    -- signature for any name.
+    constraintShape :: P Expr
+    constraintShape = do
+      _ <- symbol "("
+      name <- staticString
+      args <- many (try (symbol "," *> expr))
+      _ <- optional (symbol ",")
+      _ <- char ')'
+      pure (Constrain name args)
 
     -- | @import("name", {param: expr, other: ctx(path)})@. The name is a
     -- static literal, and the parameters are a dedicated production rather
@@ -587,6 +640,8 @@ operand =
     <|> specialForm
     <|> call
     <|> pathExpr
+    <|> allocExpr
+    <|> demandExpr
     <|> documentExpr
     <|> stringLit
     <|> numberLit
@@ -605,8 +660,22 @@ binding = try $ do
   e <- expr
   pure (name, e)
 
--- | A program is a sequence of bindings and a root expression. Which kind of
--- program it is follows from the root's own form -- a document root is
+-- | @!expr@ (v3-symbols \S2.2): the fourth statement leader, joining @.@,
+-- @$@ and @\@@. A statement position only -- it may not appear inside an
+-- expression, so there is no operand form for it.
+emission :: P Expr
+emission = try $ do
+  _ <- char '!'
+  expr
+
+-- | One statement of the surface grammar: a binding or an emission, in the
+-- order the source wrote them -- what 'Ast.stmts' rebuilds into the
+-- 'Let'\/'Emit' chain.
+statement :: P Stmt
+statement = (uncurry SLet <$> binding) <|> (SEmit <$> emission)
+
+-- | A program is a sequence of statements and a root expression. Which kind
+-- of program it is follows from the root's own form -- a document root is
 -- exactly one written as a document -- so there is no mode to declare and no
 -- separate entry point to pick.
 parseProgram :: Text -> Either (ParseErrorBundle Text Void) Program
@@ -615,15 +684,15 @@ parseProgram = runParser program ""
     program :: P Program
     program = do
       skipSpaces
-      bindings <- many binding
+      statements <- many statement
       root <- expr
       skipSpaces
       eof
-      let body = lets bindings root
+      let programBody = numberAllocs (stmts statements root)
       pure $ case root of
-        Element {} -> DocumentProgram body
-        Fragment {} -> DocumentProgram body
-        _ -> ExpressionProgram body
+        Element {} -> DocumentProgram programBody
+        Fragment {} -> DocumentProgram programBody
+        _ -> ExpressionProgram programBody
 
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
-parseExpr = runParser (skipSpaces *> expr <* eof) ""
+parseExpr = runParser (numberAllocs <$> (skipSpaces *> expr <* eof)) ""

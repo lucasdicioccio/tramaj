@@ -24,9 +24,9 @@ import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Test.Corpus (runCorpus)
-import Tramaj.Analysis (contextHoles, contextReads, deepActionKeys, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames, unsuppliedParams)
+import Tramaj.Analysis (constraintKinds, contextHoles, contextReads, deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, unsuppliedParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program)
-import Tramaj.Eval (EvalError(..), LibraryTable, Output(..), evalProgram)
+import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
 
@@ -208,6 +208,7 @@ libs = Map.fromFoldable (map (\(Tuple n src) -> Tuple n (unsafeParse src)) sourc
     , Tuple "loopy" ".div(import(\"loopy\", {}).rendered)"
     , Tuple "needs" "@p=import(\"button\", {name: ctx(inner.name)})\n$p({}).rendered"
     , Tuple "row" ".tr(action(\"on-click\", \"select\", {}), import(\"button\", {}).rendered)"
+    , Tuple "typed" "!constraint(\"has-type\", $ctx, \"Deployment\")\n1"
     ]
 
 -- | A fixture that does not parse is a bug in the fixture, not a test
@@ -326,14 +327,14 @@ runLibraryChecks = do
 
   rejectsWithLibs label template = do
     program <- mustParse label template
-    case evalProgram libs jsonNull program of
+    case evalProgram Concrete libs jsonNull program of
       Left _ -> pure unit
       Right _ -> throw ("expected an eval error for " <> label)
 
   failsWithLibs f = do
     ctx <- mustParseJson (f.label <> " (ctx)") f.ctx
     program <- mustParse f.label f.template
-    case evalProgram libs ctx program of
+    case evalProgram Concrete libs ctx program of
       Left err | err == f.expected -> pure unit
       Left err -> throw (f.label <> ": expected " <> show f.expected <> ", got " <> show err)
       Right _ -> throw ("expected an eval error for " <> f.label)
@@ -399,6 +400,45 @@ runAnalysisChecks = do
     (map (\(Tuple name missing) -> Tuple name (Set.toUnfoldable missing :: Array (Array String)))
       (unsuppliedParams libs (unsafeParse "import(\"nope\", {}).rendered")))
     [ Tuple "nope" [] ]
+  check "every constraint name a program can emit"
+    (Set.toUnfoldable (constraintKinds (unsafeParse "!constraint(\"gte\", 1, 0)\n!constraint(\"lte\", 1, 10)\n1")))
+    [ "gte", "lte" ]
+  check "a kind emitted only under an unreached branch arm, since the analysis approximates upward"
+    (Set.toUnfoldable (constraintKinds (unsafeParse "!branch(constraint(\"never\"), true, 1)\n1")))
+    [ "never" ]
+  check "none in a program that emits nothing"
+    (Set.toUnfoldable (constraintKinds (unsafeParse "1")))
+    ([] :: Array String)
+  check "a library's constraints are not reached without the table"
+    (Set.toUnfoldable (constraintKinds (unsafeParse "import(\"typed\", {}).rendered")))
+    ([] :: Array String)
+  check "a library's constraints are reached with the table"
+    (Set.toUnfoldable (deepConstraintKinds libs (unsafeParse "import(\"typed\", {}).rendered")))
+    [ "has-type" ]
+  check "a cycle terminates for constraint kinds too"
+    (Set.toUnfoldable (deepConstraintKinds libs (unsafeParse ".div(import(\"loopy\", {}).rendered)")))
+    ([] :: Array String)
+  check "every allocation site a program contains"
+    (Set.toUnfoldable (symbolSites (unsafeParse "[?(\"a\"), ?(\"b\")]")))
+    [ 0, 1 ]
+  check "none in a program that allocates nothing"
+    (Set.toUnfoldable (symbolSites (unsafeParse "1")))
+    ([] :: Array Int)
+  check "a site inside a lambda"
+    (Set.toUnfoldable (symbolSites (unsafeParse "map($ctx.xs, (x) => ?($x))")))
+    [ 0 ]
+  check "every ?ctx.path demand directly"
+    (Set.toUnfoldable (symbolDemands (unsafeParse "[?ctx.a, ?ctx.b.c]")))
+    [ [ "a" ], [ "b", "c" ] ]
+  check "none in a program with no demand"
+    (Set.toUnfoldable (symbolDemands (unsafeParse "$ctx.a")))
+    ([] :: Array (Array String))
+  check "does not reach into a library on its own"
+    (Set.toUnfoldable (symbolDemands (unsafeParse "import(\"withDemand\", {}).rendered")))
+    ([] :: Array (Array String))
+  check "bubbles up demands from an imported library"
+    (Set.toUnfoldable (deepSymbolDemands (Map.insert "withDemand" (unsafeParse "?ctx.threshold") libs) (unsafeParse "import(\"withDemand\", {}).rendered")))
+    [ [ "threshold" ] ]
   log "ok - static analyses"
   where
   check :: forall a. Eq a => Show a => String -> a -> a -> Effect Unit
@@ -472,7 +512,7 @@ okWithLibs f = do
   ctx <- mustParseJson (f.label <> " (ctx)") f.ctx
   expected <- mustParseJson (f.label <> " (expected)") f.expected
   program <- mustParse f.label f.template
-  case evalProgram libs ctx program of
+  case evalProgram Concrete libs ctx program of
     Left err -> throw (f.label <> ": eval failed: " <> show err)
     Right output -> do
       let

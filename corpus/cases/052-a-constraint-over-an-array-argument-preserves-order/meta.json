@@ -1,0 +1,5 @@
+{
+  "name": "a constraint's array argument preserves order",
+  "kind": "expression",
+  "mode": "symbolic"
+}

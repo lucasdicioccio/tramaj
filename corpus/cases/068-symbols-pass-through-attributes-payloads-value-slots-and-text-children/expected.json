@@ -1,0 +1,23 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "document",
+  "root": {
+    "type": "element",
+    "tag": "div",
+    "attributes": [
+      {"kind": "attribute", "name": "class", "value": {"$sym": "#0:\"replicas\"", "path": []}},
+      {"kind": "action", "event": "on-click", "key": "save", "payload": {"r": {"$sym": "#0:\"replicas\"", "path": []}}}
+    ],
+    "value": {"$sym": "#0:\"replicas\"", "path": []},
+    "children": [
+      {"type": "text", "value": "Deploy ", "annotations": {}},
+      {"type": "text", "value": {"$sym": "#0:\"replicas\"", "path": []}, "annotations": {}},
+      {"type": "text", "value": " replicas", "annotations": {}}
+    ],
+    "annotations": {}
+  },
+  "symbols": [
+    {"id": "#0:\"replicas\"", "origin": {"kind": "alloc", "site": 0, "key": "replicas"}, "binding": "r"}
+  ],
+  "constraints": []
+}

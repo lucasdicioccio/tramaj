@@ -1,0 +1,7 @@
+{
+  "name": "str of a symbol is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete"
+}

@@ -1,0 +1,7 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "document",
+  "root": {"type":"element","tag":"div","attributes":[],"value":null,"children":[{"type":"element","tag":"p","attributes":[],"value":null,"children":[{"type":"text","value":"Hello","annotations":{}}],"annotations":{}}],"annotations":{}},
+  "symbols": [],
+  "constraints": []
+}

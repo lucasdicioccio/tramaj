@@ -1,0 +1,7 @@
+{
+  "name": "a constraint value cannot cross a JSON boundary as a program root",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

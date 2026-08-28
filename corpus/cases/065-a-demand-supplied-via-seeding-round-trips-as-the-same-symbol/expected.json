@@ -1,0 +1,7 @@
+{
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$sym": "#ctx.replicas", "path": []},
+  "symbols": [],
+  "constraints": []
+}
