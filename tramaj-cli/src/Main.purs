@@ -4,11 +4,15 @@
 -- | `--lib name=path` flags register a host-supplied `LibraryTable`,
 -- | letting the template use `import(name, ...)` against files on disk.
 -- |
--- | A document-rooted program prints the normative `specs/node-json.md`
--- | representation; an expression-rooted one prints the plain JSON value it
--- | evaluated to. Which it is follows from what the program's root produced,
--- | so there is no mode flag — and libraries need no mode detection either,
--- | since v2 has one `parseProgram` covering both.
+-- | `--mode concrete|symbolic` (default `concrete`) selects what
+-- | `runProgram` produces: concrete mode prints exactly what earlier
+-- | versions of this CLI always did — the normative `specs/node-json.md`
+-- | representation for a document-rooted program, or the plain JSON value
+-- | for an expression-rooted one. Symbolic mode prints the whole
+-- | v3-symbols §5.2 envelope (`format`/`kind`/`root`/`symbols`/
+-- | `constraints`) instead. Mode is a host choice, not a template
+-- | property, so it never affects which libraries load or how — a library
+-- | can never allocate regardless of mode (v3-symbols §1.4).
 -- |
 -- | Deliberately depends on `tramaj` only, not `tramaj-halogen` —
 -- | this never folds to real Halogen output, so it doesn't need a DOM/
@@ -31,29 +35,28 @@ import Effect.Class.Console (log, error)
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Sync (readTextFile)
 import Node.Process (argv, exit')
-import Tramaj.Eval (LibraryTable, Mode(Concrete), Output(..), evalProgram)
+import Tramaj.Eval (LibraryTable, Mode(..), runProgram)
 import Tramaj.Ast (Program)
-import Tramaj.Node (nodeToJson)
 import Tramaj.Parser (parseProgram)
 
 usage :: String
-usage = "usage: tramaj-cli [--lib name=path ...] <template-file> <context-json-file>"
+usage = "usage: tramaj-cli [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>"
 
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
   case parseArgs args of
     Left err -> die (err <> "\n" <> usage)
-    Right { libSpecs, positional } -> case positional of
-      [ templatePath, ctxPath ] -> run libSpecs templatePath ctxPath
+    Right { libSpecs, mode, positional } -> case positional of
+      [ templatePath, ctxPath ] -> run libSpecs mode templatePath ctxPath
       _ -> die usage
 
--- | Splits `argv` into `--lib name=path` pairs (order preserved, repeatable)
--- | and every other token, which must be exactly the two positional
--- | arguments (template file, context JSON file) once every `--lib` pair is
--- | removed.
-parseArgs :: Array String -> Either String { libSpecs :: Array (Tuple String String), positional :: Array String }
-parseArgs = go { libSpecs: [], positional: [] }
+-- | Splits `argv` into `--lib name=path` pairs (order preserved,
+-- | repeatable), an optional `--mode`, and every other token, which must
+-- | be exactly the two positional arguments (template file, context JSON
+-- | file) once those are removed.
+parseArgs :: Array String -> Either String { libSpecs :: Array (Tuple String String), mode :: Mode, positional :: Array String }
+parseArgs = go { libSpecs: [], mode: Concrete, positional: [] }
   where
   go acc argsList = case uncons argsList of
     Nothing -> Right acc
@@ -62,6 +65,11 @@ parseArgs = go { libSpecs: [], positional: [] }
       Just { head: spec, tail: rest' } -> case splitOnFirst "=" spec of
         Nothing -> Left ("--lib expects name=path, got: " <> spec)
         Just (Tuple name path) -> go (acc { libSpecs = Array.snoc acc.libSpecs (Tuple name path) }) rest'
+    Just { head: "--mode", tail: rest } -> case uncons rest of
+      Nothing -> Left "--mode expects a following concrete|symbolic argument"
+      Just { head: "concrete", tail: rest' } -> go (acc { mode = Concrete }) rest'
+      Just { head: "symbolic", tail: rest' } -> go (acc { mode = Symbolic }) rest'
+      Just { head: other, tail: _ } -> Left ("--mode expects concrete|symbolic, got: " <> other)
     Just { head, tail: rest } -> go (acc { positional = Array.snoc acc.positional head }) rest
 
   splitOnFirst :: String -> String -> Maybe (Tuple String String)
@@ -69,8 +77,8 @@ parseArgs = go { libSpecs: [], positional: [] }
     Nothing -> Nothing
     Just i -> Just (Tuple (Str.take i s) (Str.drop (i + 1) s))
 
-run :: Array (Tuple String String) -> String -> String -> Effect Unit
-run libSpecs templatePath ctxPath = do
+run :: Array (Tuple String String) -> Mode -> String -> String -> Effect Unit
+run libSpecs mode templatePath ctxPath = do
   libsResult <- loadLibraries libSpecs
   case libsResult of
     Left err -> die err
@@ -81,10 +89,9 @@ run libSpecs templatePath ctxPath = do
         Left err -> die ("invalid JSON context (" <> ctxPath <> "): " <> err)
         Right ctxJson -> case parseProgram templateSrc of
           Left err -> die ("parse error (" <> templatePath <> "): " <> show err)
-          Right program -> case evalProgram Concrete libs ctxJson program of
+          Right program -> case runProgram mode libs ctxJson program of
             Left err -> die ("eval error: " <> show err)
-            Right (ONode node) -> log (stringify (nodeToJson node))
-            Right (OValue value) -> log (stringify value)
+            Right result -> log (stringify result)
 
 -- | Reads and parses each `--lib name=path` file into a `LibraryTable`.
 -- | No mode detection: v1 had to try the element-rooted parser and fall

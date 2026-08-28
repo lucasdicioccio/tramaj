@@ -7,10 +7,15 @@
 -- | `import` as a library, keyed by its tab name — see
 -- | `buildLibraryTable`.
 -- |
--- | v2 removed this playground's mode switch. A program's kind is decided
--- | by its own root — a document if it is written as one — so there was
--- | nothing left for the reader to choose, and a tab that used to be
--- | mis-set is now simply impossible.
+-- | v2 removed this playground's mode switch, since a program's kind
+-- | (document vs. value) is decided by its own root. v3 brings a mode
+-- | switch back for a different axis — concrete vs. symbolic
+-- | (v3-symbols §5) — which is a genuine host choice, not something the
+-- | template's own text decides: a "Symbolic mode" checkbox next to the
+-- | JSON context. Symbolic mode adds the envelope's `"symbols"`/
+-- | `"constraints"` tables below; the document/value panels are otherwise
+-- | unchanged, since `Tramaj.Halogen.renderScalar` already renders a
+-- | symbol placeholder wherever a concrete scalar used to be.
 -- |
 -- | It exists to exercise the whole pipeline end to end in one place:
 -- | `Tramaj.Parser` -> `Tramaj.Eval` -> `Tramaj.Halogen`'s
@@ -25,7 +30,7 @@ module Playground.Main (main) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify, stringifyWithIndent)
+import Data.Argonaut.Core (Json, stringify, stringifyWithIndent, toArray, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (null, reverse)
 import Data.Array as Array
@@ -36,6 +41,7 @@ import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Foreign.Object as Object
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
@@ -43,9 +49,9 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (LibraryTable, Mode(Concrete), Output(..), evalProgram)
-import Tramaj.Halogen (foldToHalogen, validateAttrNames)
-import Tramaj.Node (Node, nodeToJson)
+import Tramaj.Eval (LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
+import Tramaj.Halogen (foldToHalogen, renderConstraintTable, renderSymbolTable, validateAttrNames)
+import Tramaj.Node (Node, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseProgram)
 
 main :: Effect Unit
@@ -78,6 +84,11 @@ type State =
   -- rendered output; newest last, rendered newest-first. Only a program
   -- that produced a document can dispatch anything, since only a document
   -- is folded to Halogen HTML.
+  , mode :: Mode
+  -- ^ Concrete (default) or symbolic (v3-symbols §5) — a host choice, not
+  -- read off the template. Only affects the active tab's own evaluation;
+  -- a library can never allocate regardless of mode, so imported tabs are
+  -- unaffected either way.
   }
 
 data Action
@@ -87,6 +98,7 @@ data Action
   | AddTab
   | RemoveTab Int
   | SetJsonInput String
+  | SetMode Mode
   | ActionFired String Json
   | ClearActionLog
 
@@ -141,15 +153,54 @@ initialState =
             """@item-count=cardinality($ctx.items)
 {"count": $item-count, "titles": map($ctx.items, (item) => $item.title)}"""
         }
+      , { name: "constraints-demo"
+        , source:
+            """-- Turn on "Symbolic mode" (top right) to see this tab's holes and
+-- facts listed in the Symbols/Constraints tables below, instead of plain
+-- values. In concrete mode ?("replicas") has nothing to become, so this
+-- errors with SymbolsUnavailable -- that's the language saying the
+-- template needs a solver (or a seeded value), not a plain render.
+@replicas=?("replicas")
+!constraint("gte", $replicas, 1)
+!constraint("lte", $replicas, 10)
+-- ?ctx.zone reads $ctx.zone like an ordinary path when it's supplied (see
+-- "zone" in the shared JSON context) -- only an UNSUPPLIED demand mints a
+-- symbol, and only at the root. Try deleting "zone" from the context
+-- while symbolic mode is on: this becomes its own allocated symbol too.
+@zone=?ctx.zone
+!constraint("allowed-zone", $zone, "eu")
+!constraint("allowed-zone", $zone, "us")
+-- $replicas is an ordinary value being passed here, so it crosses into
+-- "sized" with its identity intact -- the library's own !constraint below
+-- is collected only once .rendered is actually read off $sizing.
+@sizing=import("sized", {count: $replicas})
+.div(
+  "data-replicas": $replicas,
+  .p("Deploy ", $replicas, " replicas in zone ", $zone),
+  $sizing.rendered
+)"""
+        }
+      , { name: "sized"
+        , source:
+            """-- A library's $ctx is the parameters it was given -- here, whatever
+-- constraints-demo passed as "count", symbol or concrete. This constraint
+-- is emitted (and, in symbolic mode, collected) only when a field is read
+-- off this library's import -- .rendered here, .vals would do it too.
+!constraint("multiple-of", $ctx.count, 5)
+.p("(sized in steps of 5)")
+"""
+        }
       ]
   , activeTab: 0
   , jsonInput:
       -- Carries what every default tab reads, not just the active one, so
       -- selecting a library tab shows it rendering instead of a
       -- PathNotFound for the parameter its importer would have supplied.
-      -- row-kind is the one the main tab actually reads, through ctx(...).
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item"}"""
+      -- row-kind is the one the main tab actually reads, through ctx(...);
+      -- zone is the one constraints-demo reads, through ?ctx.zone.
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu"}"""
   , actionLog: []
+  , mode: Concrete
   }
 
 handleAction :: forall output. Action -> H.HalogenM State Action () output Aff Unit
@@ -170,6 +221,7 @@ handleAction = case _ of
         , activeTab = clampActive (Array.length s.tabs - 1) (if i <= s.activeTab then s.activeTab - 1 else s.activeTab)
         }
   SetJsonInput json -> H.modify_ _ { jsonInput = json }
+  SetMode mode -> H.modify_ _ { mode = mode }
   ActionFired key payload -> H.modify_ \s -> s { actionLog = s.actionLog <> [ { key, payload } ] }
   ClearActionLog -> H.modify_ _ { actionLog = [] }
   where
@@ -223,7 +275,19 @@ render state =
                 ]
             ]
         , HH.div [ HP.class_ (HH.ClassName "card") ]
-            [ HH.h2_ [ HH.text "JSON context" ]
+            [ HH.div [ HP.class_ (HH.ClassName "row") ]
+                [ HH.h2_ [ HH.text "JSON context" ]
+                , HH.label_
+                    [ HH.input
+                        [ HP.type_ HP.InputCheckbox
+                        , HP.checked (state.mode == Symbolic)
+                        , HE.onChecked \checked -> SetMode (if checked then Symbolic else Concrete)
+                        ]
+                    , HH.text " Symbolic mode"
+                    ]
+                ]
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "Symbolic mode wraps the result in the v3-symbols envelope and lists its symbols/constraints below. To try a symbol concretely, edit this context by hand and switch back — there is no in-place hole filling here." ]
             , HH.textarea
                 [ HP.class_ (HH.ClassName "input")
                 , HP.rows 16
@@ -243,6 +307,20 @@ render state =
         , HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "Rendered" ]
             , HH.div [ HP.class_ (HH.ClassName "rendered") ] (renderOutput state)
+            ]
+        ]
+    , HH.div [ HP.class_ (HH.ClassName "cols") ]
+        [ HH.div [ HP.class_ (HH.ClassName "card") ]
+            [ HH.h2_ [ HH.text "Symbols" ]
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "The symbol table from the v3-symbols §5.2 envelope — always empty in concrete mode." ]
+            , renderSymbols state
+            ]
+        , HH.div [ HP.class_ (HH.ClassName "card") ]
+            [ HH.h2_ [ HH.text "Constraints" ]
+            , HH.p [ HP.class_ (HH.ClassName "hint") ]
+                [ HH.text "Every constraint the program emitted, deduplicated — always empty in concrete mode." ]
+            , renderConstraints state
             ]
         ]
     , HH.div [ HP.class_ (HH.ClassName "card") ]
@@ -311,9 +389,9 @@ kindHint :: State -> H.ComponentHTML Action () Aff
 kindHint state =
   HH.p [ HP.class_ (HH.ClassName "hint") ]
     [ HH.text case computeResult state of
-        Right (ResultNode _) ->
+        Right { output: ResultNode _ } ->
           "This program's root is a document — folded to real Halogen HTML on the right."
-        Right (ResultValue _) ->
+        Right { output: ResultValue _ } ->
           "This program's root is an ordinary expression — it evaluates to a JSON value, with no document tree involved."
         Left _ ->
           "A program's kind follows from its root: write .tag(...) or .(...) for a document, anything else for a plain value."
@@ -327,10 +405,31 @@ data EvalResult
   = ResultNode Node
   | ResultValue Json
 
--- | Shared by 'renderOutput' and 'renderAst' so both panels reflect one
--- | parse/eval result rather than each re-running the pipeline and
--- | risking disagreement mid-edit.
-computeResult :: State -> Either String EvalResult
+-- | `computeResult`'s full outcome: the root result plus whatever the
+-- | envelope carried alongside it — `[]` for both in concrete mode, since
+-- | that mode discards emissions entirely (v3-symbols §5.1).
+type EnvelopeResult =
+  { output :: EvalResult
+  , symbols :: Array Json
+  , constraints :: Array Json
+  }
+
+-- | Shared by 'renderOutput', 'renderAst', 'renderSymbols' and
+-- | 'renderConstraints' so every panel reflects one parse/eval result
+-- | rather than each re-running the pipeline and risking disagreement
+-- | mid-edit.
+-- |
+-- | Simple implementation, deliberately: this re-decodes the envelope's
+-- | own JSON wire format (`Data.Argonaut` lookups + `nodeFromJson`) rather
+-- | than consuming typed data, because `Tramaj.Eval` does not currently
+-- | export its `Emissions`/`SymbolEntry` types. Given more time, the
+-- | better shape is for `Tramaj.Eval` to export those (or a function
+-- | returning `{ output :: Output, symbols :: Array SymbolEntry,
+-- | constraints :: Array Value }` directly), so a host consumes typed
+-- | data instead of re-parsing the JSON it just produced — this module
+-- | would then only need to convert `SymbolEntry`/`Value` to `Json` for
+-- | display, not guess at the envelope's shape.
+computeResult :: State -> Either String EnvelopeResult
 computeResult state = case jsonParser state.jsonInput of
   Left err -> Left ("Invalid JSON: " <> err)
   Right ctx ->
@@ -340,10 +439,30 @@ computeResult state = case jsonParser state.jsonInput of
     in
       case parseProgram activeTab.source of
         Left err -> Left ("Template parse error: " <> show err)
-        Right program -> case evalProgram Concrete libs ctx program of
-          Left err -> Left ("Template eval error: " <> show err)
-          Right (ONode node) -> Right (ResultNode node)
-          Right (OValue value) -> Right (ResultValue value)
+        Right program -> case state.mode of
+          Concrete -> case evalProgram Concrete libs ctx program of
+            Left err -> Left ("Template eval error: " <> show err)
+            Right (ONode node) -> Right { output: ResultNode node, symbols: [], constraints: [] }
+            Right (OValue value) -> Right { output: ResultValue value, symbols: [], constraints: [] }
+          Symbolic -> case runProgram Symbolic libs ctx program of
+            Left err -> Left ("Template eval error: " <> show err)
+            Right envelope -> decodeEnvelope envelope
+
+  where
+  decodeEnvelope :: Json -> Either String EnvelopeResult
+  decodeEnvelope envelope = case toObject envelope of
+    Nothing -> Left "Malformed symbolic envelope: not an object"
+    Just obj ->
+      let
+        symbols = fromMaybe [] (Object.lookup "symbols" obj >>= toArray)
+        constraints = fromMaybe [] (Object.lookup "constraints" obj >>= toArray)
+      in
+        case Object.lookup "kind" obj >>= toString, Object.lookup "root" obj of
+          Just "document", Just root -> case nodeFromJson root of
+            Left err -> Left ("Malformed symbolic envelope root: " <> err)
+            Right node -> Right { output: ResultNode node, symbols, constraints }
+          Just "expression", Just root -> Right { output: ResultValue root, symbols, constraints }
+          _, _ -> Left "Malformed symbolic envelope: missing \"kind\"/\"root\""
 
 -- | Returns an `Array` because `foldToHalogen` does: a document rooted at
 -- | a fragment is several siblings with no wrapper, and inventing one here
@@ -351,7 +470,7 @@ computeResult state = case jsonParser state.jsonInput of
 renderOutput :: State -> Array (H.ComponentHTML Action () Aff)
 renderOutput state = case computeResult state of
   Left err -> [ renderError err ]
-  Right (ResultNode node) -> case validateAttrNames node of
+  Right { output: ResultNode node } -> case validateAttrNames node of
     [] -> foldToHalogen dispatchAction node
     invalid ->
       [ renderError
@@ -363,7 +482,7 @@ renderOutput state = case computeResult state of
   -- A plain value has no document tree to fold: its "rendered" form is
   -- just the value, pretty-printed and wrapped in a `<code>` tag (inside a
   -- `<pre>` so the indentation survives HTML's whitespace collapsing).
-  Right (ResultValue value) ->
+  Right { output: ResultValue value } ->
     [ HH.pre [ HP.class_ (HH.ClassName "ref") ]
         [ HH.code_ [ HH.text (stringifyWithIndent 2 value) ] ]
     ]
@@ -371,8 +490,18 @@ renderOutput state = case computeResult state of
 renderAst :: State -> H.ComponentHTML Action () Aff
 renderAst state = case computeResult state of
   Left err -> renderError err
-  Right (ResultNode node) -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 (nodeToJson node)) ]
-  Right (ResultValue value) -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 value) ]
+  Right { output: ResultNode node } -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 (nodeToJson node)) ]
+  Right { output: ResultValue value } -> HH.pre [ HP.class_ (HH.ClassName "ref") ] [ HH.text (stringifyWithIndent 2 value) ]
+
+renderSymbols :: State -> H.ComponentHTML Action () Aff
+renderSymbols state = case computeResult state of
+  Left _ -> HH.p [ HP.class_ (HH.ClassName "empty") ] [ HH.text "N/A — see the error above." ]
+  Right { symbols } -> renderSymbolTable symbols
+
+renderConstraints :: State -> H.ComponentHTML Action () Aff
+renderConstraints state = case computeResult state of
+  Left _ -> HH.p [ HP.class_ (HH.ClassName "empty") ] [ HH.text "N/A — see the error above." ]
+  Right { constraints } -> renderConstraintTable constraints
 
 -- | The demo dispatcher: every `action(...)` click becomes a real
 -- | Halogen action appended to the log. A read-only host would pass
@@ -543,6 +672,58 @@ ACTIONS
   ignored. Applied to an import that has not run, it is queued and runs
   on that import's result.
 
+SYMBOLS AND CONSTRAINTS (v3, symbolic mode only — see the checkbox above
+the JSON context)
+  ?(key)             allocates a symbol: opaque data standing in for a
+                     value neither you nor the host has yet. key is any
+                     expression and must itself be concrete; it is what
+                     distinguishes this symbol from its neighbors —
+                     ?("replicas") for one, (s) => ?($s.name) for one per
+                     service in a map.
+  ?ctx.path          reads $ctx.path exactly like an ordinary read WHEN
+                     SUPPLIED. Only an UNSUPPLIED demand mints a symbol,
+                     and only at the program's root — the same read inside
+                     an imported tab, left unsupplied, is that tab's own
+                     PathNotFound, same as $ctx.path would be.
+  A symbol may be bound, passed around, put in an array/object, an
+  attribute, a payload, a value slot or a text child, and projected with
+  $s.field (which never fails — the field is a question for whoever owns
+  the symbol's meaning, not the language). It may NOT be used anywhere the
+  language would need to know something about it: a branch condition,
+  map/filter/scan/fold's collection, string interpolation, eq/lt/lte/
+  gt/gte, cardinality/has/lookup, <>, or another allocation's key. Each of
+  those is NotConcrete instead of an answer.
+
+  constraint(name, arg, ...)
+                     builds a fact: a static name plus any number of
+                     ordinary expressions (unbounded arity, so a global
+                     constraint over a whole array is exactly as
+                     expressible as a binary one). The language assigns no
+                     meaning to name — that's host vocabulary, exactly
+                     like an action's event type.
+  !expr              emits: collects constraint(...) values out of expr
+                     into the program's constraint list. An array
+                     collects each element recursively, so !map(...) reads
+                     naturally. A statement leader, like @ — legal only
+                     above the root, never inside an expression.
+  Two constraints with the same name and equal arguments are one fact,
+  kept at its first position. In concrete mode, ! still evaluates its
+  expression but discards the result — a constraint-annotated library
+  works as an ordinary one there. In symbolic mode this playground lists
+  every symbol allocated and every constraint emitted, deduplicated, in
+  the tables below the rendered output; a symbol appearing in the
+  rendered tree or an argument shows as its id with any projected path,
+  e.g. #0:"replicas".zone.
+
+  A library's own ! statements are collected exactly like the root's, but
+  only once a field (.rendered or .vals) is actually read off its import
+  — see constraints-demo importing "sized" for a library emitting a fact
+  about a symbol passed in from its caller, unchanged identity and all.
+
+  Mode is a host choice (the checkbox above), never a template property:
+  concrete mode has no way to represent a symbol at all, so allocating or
+  minting one there is SymbolsUnavailable rather than a value.
+
 STRINGS AND str
   Interpolation lowers to concat over str(...), so str decides what lands
   in the output:
@@ -593,5 +774,11 @@ ERRORS you may see
   ConcatMismatch   <> over two different types
   UnknownLibrary   an import name with no tab of that name
   ImportCycle      a tab importing itself, directly or through another
+  NotConcrete      a symbol where the language needs to know something
+                   concrete about it (see SYMBOLS AND CONSTRAINTS above)
+  AllocationInLibrary  a tab used as a library contains ?(key) itself —
+                   only the root may allocate
+  SymbolsUnavailable  a symbol would have to be minted in concrete mode —
+                   switch on "Symbolic mode" instead
 
 Full reference: specs/reference.md. Output format: specs/node-json.md."""
