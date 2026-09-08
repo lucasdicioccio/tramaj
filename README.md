@@ -31,11 +31,12 @@ opaque, structured action to an element — the language recognises the syntax
 but assigns it no meaning, leaving the host to map the key onto a real event
 handler.
 
-## v2
+## Language at a glance
 
-v2 is expression-oriented: documents *are* values, so an element or fragment
-can be bound, passed to a lambda, and returned from one — which is what makes
-the JSX-children pattern work without a separate template-value category.
+Tramaj is expression-oriented: documents *are* values, so an element or
+fragment can be bound, passed to a lambda, and returned from one — which is
+what makes the JSX-children pattern work without a separate template-value
+category.
 
 ```
 @kids=.(.p("one"), .p("two"))            -- a fragment, as an ordinary value
@@ -45,31 +46,48 @@ the JSX-children pattern work without a separate template-value category.
 .main($panel("Deployment", $kids))
 ```
 
-Also new in v2: a normative JSON interchange format for the evaluated document
-([`specs/node-json.md`](specs/node-json.md)) in which scalars stay scalars and
-an element may carry many actions; `a <> b` concatenation over strings, arrays
-and objects; `--` comments to the end of the line, which v1 refused outright;
-imports whose parameters may arrive in three ways — an expression, a
-`ctx(path)` hole marking a read of the importing program's own context, or
-omission, saturated later by calling the import; action adaptation restricted
-to a static prefix; and static analyses that answer what a program imports,
-what actions it can emit, what context it reads and which import parameters
-are still unsupplied — without evaluating it.
+The core features that shape everyday templates: a normative JSON interchange
+format for the evaluated document ([`specs/node-json.md`](specs/node-json.md))
+in which scalars stay scalars and an element may carry many actions;
+`a <> b` concatenation over strings, arrays and objects; `--` comments to the
+end of the line; imports whose parameters may arrive in three ways — an
+expression, a `ctx(path)` hole marking a read of the importing program's own
+context, or omission, saturated later by calling the import; action adaptation
+restricted to a static prefix; and static analyses that answer what a program
+imports, what actions it can emit, what context it reads and which import
+parameters are still unsupplied — without evaluating it.
 
-**[`specs/reference.md`](specs/reference.md) is the reference** — the language
-as implemented: core AST, values, evaluation rules, surface syntax and its
-desugarings, imports, actions, builtins, and what is deliberately left
+v3 adds symbolic values and constraints. `?(key)` allocates an opaque symbol,
+`!constraint(name, ...)` emits a constraint, and evaluation can run in
+`Symbolic` mode to produce an envelope of root value, symbols and constraints
+for a host solver rather than a finished document
+([`specs/v3-symbols.md`](specs/v3-symbols.md)).
+
+v4 adds a nominal type algebra: type declarations, type parameters through
+imports, typed annotations like `@x : T = e`, and `!type-constraint(...)` for
+static type-level constraints. Types are resolved and erased before
+evaluation; Tramaj fixes type identity, but a separate checker decides whether
+the values satisfy it ([`specs/v4-types.md`](specs/v4-types.md)).
+
+**[`specs/reference.md`](specs/reference.md) is the reference** — the baseline
+language as implemented: core AST, values, evaluation rules, surface syntax and
+its desugarings, imports, actions, builtins, and what is deliberately left
 implementation-defined. Start there.
 
-Alongside it, three more current documents: [`specs/node-json.md`](specs/node-json.md)
+The shipped extensions live in their own normative documents:
+[`specs/v3-symbols.md`](specs/v3-symbols.md) for symbolic values and
+constraints, and [`specs/v4-types.md`](specs/v4-types.md) for the type
+algebra and typed annotations.
+
+Alongside those, three more current documents: [`specs/node-json.md`](specs/node-json.md)
 is normative for the output wire format, [`specs/laws.md`](specs/laws.md) states
 the properties the language is held to, and
 [`specs/decisions.md`](specs/decisions.md) records which reading won wherever
 the design drafts contradicted each other.
 
-Everything else lives in [`specs/archive/`](specs/archive) — the v2 design
-drafts and the whole v1 reference and design record. It is kept for the
-reasoning in it, not because any of it is current; see
+Everything else lives in [`specs/archive/`](specs/archive) — the v1, v2, v3
+and v4 design drafts and earlier reference and design records. It is kept for
+the reasoning in it, not because any of it is current; see
 [that directory's README](specs/archive/README.md) for what each file was and
 what replaced it.
 
@@ -207,16 +225,25 @@ source-repository-package
 
 ## Roadmap to a stable release
 
-"v2" above names the second iteration of the *language*; no package here has
-had a stable release yet. Assume anything can still change.
+No package here has had a stable release yet. The language has gone through
+four iterations: v1 (the original block/template split), v2 (expression-oriented
+documents, static analyses and the normative Node JSON format), v3 (symbolic
+values and constraints), and v4 (types and type constraints). Assume anything
+can still change.
 
-Done in the second iteration:
+Done:
 
+- expression-oriented documents: elements and fragments are ordinary values;
 - syntax for combining and constructing records — `a <> b` over strings,
   arrays and objects, plus object shorthand and bare keys;
+- `--` comments to the end of the line;
 - the restrictions that make imports, action keys and adaptation statically
   analysable, and the analyses that read them;
-- a normative output format both implementations must encode and decode.
+- a normative output format both implementations must encode and decode;
+- symbolic values (`?(key)`), constraints (`!constraint(...)`) and symbolic
+  output mode ([`specs/v3-symbols.md`](specs/v3-symbols.md));
+- nominal types, type parameters through imports, typed annotations and
+  `!type-constraint(...)` ([`specs/v4-types.md`](specs/v4-types.md)).
 
 Still open:
 
@@ -225,12 +252,6 @@ Still open:
   (`specs/reference.md` §8), so it needs no change to the core AST;
 - a shared cross-implementation conformance corpus (see the known gap above);
 - more regression and compatibility tests before anything is called stable.
-
-Then: simple but effective typing. The AST is built to accept it — node
-annotations are the place derived type/domain information goes, and the
-semantics deliberately avoid equating "unknown" with `null`, so a
-constraint-aware evaluator can reuse the same AST rather than forking the
-language (`specs/reference.md` §14).
 
 
 ## Publishing
