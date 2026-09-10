@@ -41,10 +41,9 @@ attaches an opaque, structured action to an element — the language
 recognises the syntax but assigns it no meaning, leaving the host to map the
 key onto a real event handler.
 
-Read the [introduction article](first-article.html) for a tour of the
-language, or go straight to
+Go straight to
 [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md)
-on GitHub for the full spec.
+on GitHub for the full spec, or explore the site below.
 
 ## Explore
 
@@ -59,6 +58,8 @@ on GitHub for the full spec.
   to a server.
 - [**Getting started**](/howto-humans.html) — install the toolchain, write
   and run a first template.
+- [**Integrating tramaj**](/integrate-tramaj.html) — embedding it as a
+  library in PureScript, Haskell, JavaScript, or anything else.
 - [**For coding agents**](/howto-agents.html) — a dense syntax cheatsheet
   and fetch strategy for an LLM emitting tramaj templates.
 
