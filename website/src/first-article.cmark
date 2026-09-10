@@ -1,0 +1,120 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Published"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-10T01:00:00Z"
+,"title": "Introducing tramaj"
+}
+
+=base:topic.json
+{"topics":["tramaj", "language design"]
+,"keywords":["template language", "PureScript", "AST", "JSON"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+A tour of tramaj, a small template language for turning a JSON value into a document tree.
+
+=base:main-content.cmark
+
+# Introducing tramaj
+
+tramaj is a small template language for turning a JSON value into a document
+tree. It's meant to be comfortable to write by hand *and* easy for an LLM to
+emit: a HAML-like block syntax for structure, a `jq`-flavoured expression
+language for the data half, and a deliberately tiny builtin set.
+
+Rendering is decoupled from the language: evaluation produces a generic
+`Node` AST, and the host decides whether that becomes Halogen HTML, JSON, or
+anything else.
+
+## A template, piece by piece
+
+A template is an optional block of `@name=expr` bindings followed by a root
+expression:
+
+```
+@items=$ctx.items
+@n=cardinality($items)
+.div(class: "items",
+  .h1("Items"),
+  .p("there are `$n` of them"),
+  .ul(map($items, (i) => .li(action("on-click", "select", {"id": $i.id}), $i.name))))
+```
+
+Bindings are evaluated once, in order. Backtick-quoted `` `$n` `` interpolates
+a value into a string; a bare `$path` can be used directly as a child.
+`action(...)` attaches an opaque, structured action to an element — the
+language recognises the syntax but assigns it no meaning, leaving the host to
+map the key onto a real event handler.
+
+## Documents are values
+
+tramaj is expression-oriented: documents *are* values, so an element or
+fragment can be bound, passed to a lambda, and returned from one. That's what
+makes a JSX-children-style pattern work without a separate template-value
+category:
+
+```
+@kids=.(.p("one"), .p("two"))            -- a fragment, as an ordinary value
+@panel=(title, children) =>
+  .section(.h2($title), $children)
+
+.main($panel("Deployment", $kids))
+```
+
+## What ships today
+
+- A normative JSON interchange format for the evaluated document
+  ([`node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md))
+  in which scalars stay scalars and an element may carry many actions.
+- `a <> b` concatenation over strings, arrays and objects, and `--` comments
+  to the end of the line.
+- Imports whose parameters may arrive in three ways: an expression, a
+  `ctx(path)` hole marking a read of the importing program's own context, or
+  omission, saturated later by calling the import.
+- Action adaptation restricted to a static prefix.
+- Static analyses that answer what a program imports, what actions it can
+  emit, what context it reads, and which import parameters are still
+  unsupplied — without evaluating it.
+
+**v3** adds symbolic values and constraints: `?(key)` allocates an opaque
+symbol, `!constraint(name, ...)` emits a constraint, and evaluation can run in
+`Symbolic` mode to produce an envelope of root value, symbols and constraints
+for a host solver rather than a finished document
+([`v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md)).
+
+**v4** adds a nominal type algebra: type declarations, type parameters through
+imports, typed annotations like `@x : T = e`, and `!type-constraint(...)` for
+static type-level constraints. Types are resolved and erased before
+evaluation — tramaj fixes type identity, but a separate checker decides
+whether the values satisfy it
+([`v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md)).
+
+## Packages
+
+| Package | Language | What it is |
+|---|---|---|
+| `tramaj` | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`. No DOM, no Halogen — usable from any host. |
+| `tramaj-halogen` | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring each `action(...)` to the host's own `Action` type. Returns an *array*, since a fragment is several siblings with no wrapper. |
+| `tramaj-cli` | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
+
+Start with [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md)
+for the full language reference, or browse the
+[repository](https://github.com/lucasdicioccio/tramaj) for the source.
+
+=base:main-css.css
+
+@import "/css/dev.css";
+@import "/css/colors.css";
+@import "/css/article.css";
+@import "/css/navigation.css";

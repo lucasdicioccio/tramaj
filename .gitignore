@@ -18,6 +18,9 @@ tramaj-cli/dist/
 playground/dist/app.js
 playground/dist/app.js.map
 
+# Kitchen-Sink site build output. website/src/ is source and stays tracked.
+website/www/
+
 # Haskell / Cabal
 dist-newstyle/
 *.hi
