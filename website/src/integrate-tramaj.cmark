@@ -172,6 +172,10 @@ rendered document.
 This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.
 
+Native implementations for JavaScript, Python, and Rust specifically are
+wanted — see the [Roadmap](/roadmap.html) for what that would mean and
+where to start if you want to build one.
+
 =base:main-css.css
 
 @import "/css/dev.css";

@@ -62,6 +62,8 @@ on GitHub for the full spec, or explore the site below.
   library in PureScript, Haskell, JavaScript, or anything else.
 - [**For coding agents**](/howto-agents.html) — a dense syntax cheatsheet
   and fetch strategy for an LLM emitting tramaj templates.
+- [**Roadmap**](/roadmap.html) — where the implementations stand, and the
+  native JS, Python, and Rust implementations that are wanted next.
 
 <script src="js/topicgraph.js"></script>
 

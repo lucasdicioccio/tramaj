@@ -1,0 +1,124 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-10T01:00:00Z"
+,"title": "Roadmap"
+}
+
+=base:topic.json
+{"topics":["roadmap"]
+,"keywords":["JavaScript", "Python", "Rust", "native implementation", "conformance corpus"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next.
+
+=base:main-content.cmark
+
+# Roadmap
+
+No package in this repository has had a stable release yet, and the
+language itself is still settling — see the
+[repository README](https://github.com/lucasdicioccio/tramaj#roadmap-to-a-stable-release)
+for where the language grammar stands. This page is about something
+narrower: which *implementations* of tramaj exist, and which are wanted
+next.
+
+## Where things stand today
+
+Two independent implementations target the same grammar and are checked
+against a shared, language-neutral
+[conformance corpus](https://github.com/lucasdicioccio/tramaj/tree/main/corpus) —
+template/context/expected-output triples that both must reproduce
+byte-for-byte, per case, in both `concrete` and `symbolic` evaluation modes.
+That's a deliberately strong bar: a case belongs in the corpus only if two
+independently written implementations can run it identically.
+
+<table>
+<tr><th>Implementation</th><th>Language</th><th>Status</th></tr>
+<tr><td><code>tramaj</code></td><td>PureScript</td><td>reference implementation, checked against the corpus</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>independent port, checked against the same corpus</td></tr>
+</table>
+
+Neither is published to a package registry yet (see the README's
+"Publishing" section) — both are used today as workspace/source
+dependencies. See [Integrating tramaj](/integrate-tramaj.html) for what's
+actually usable from each right now, including the fold each one does or
+doesn't ship.
+
+## Desired: native implementations for JS, Python, and Rust
+
+For a host in JavaScript, Python, or Rust, [Integrating tramaj](/integrate-tramaj.html)
+currently recommends shelling out to `tramaj-cli` and writing a fold over
+its JSON output — a real, usable path, but a subprocess boundary rather
+than a native library. A native implementation in each of these languages
+is desired, so that hosts in these ecosystems get the same thing PureScript
+and Haskell hosts already have: an in-process parser and evaluator, with no
+subprocess and no JSON round-trip required just to get a `Node`.
+
+<table>
+<tr><th>Language</th><th>Why it's wanted</th></tr>
+<tr><td>JavaScript / TypeScript</td><td>an installable npm package usable directly in a browser or Node host, in place of shelling out to <code>tramaj-cli</code> or compiling a PureScript wrapper</td></tr>
+<tr><td>Python</td><td>native use from data pipelines, notebooks, and backend services already written in Python, without a Node/PureScript toolchain as a runtime dependency</td></tr>
+<tr><td>Rust</td><td>a dependency-light, embeddable core for performance-sensitive or WASM-targeted hosts</td></tr>
+</table>
+
+None of these exist yet — this is a wishlist, not a schedule. There's no
+committed timeline or assigned owner for any of the three.
+
+## What "done" looks like for a new implementation
+
+`tramaj-hs` is the template to follow, since it's the one implementation
+that was added *after* the language had already settled on a normative
+spec and output format. A new implementation is considered on par with the
+existing two once it:
+
+- implements the grammar and evaluation rules in
+  [`reference.md`](/reference-language.html), including the static
+  restrictions that make imports, action keys, and `ctx(...)` paths
+  analyzable without evaluation (see [Properties](/properties.html));
+- encodes and decodes the `Node` AST exactly per
+  [`node-json.md`](/reference-node-json.html), including the round-trip
+  guarantee (`decode(encode(n)) == n`);
+- passes every case in the
+  [conformance corpus](https://github.com/lucasdicioccio/tramaj/tree/main/corpus),
+  in both `concrete` and `symbolic` mode, byte-for-byte against
+  `expected.json`;
+- optionally, but ideally: a fold analogous to `tramaj-halogen`'s
+  `foldToHalogen` for at least one popular rendering target in that
+  ecosystem (e.g. a DOM fold for JS, a common Python templating output for
+  Python).
+
+The v3 (`?`/`!`, [`v3-symbols.md`](/reference-v3-symbols.html)) and v4
+(`%`, [`v4-types.md`](/reference-v4-types.html)) extensions are both
+shipped and part of the same conformance bar — a new implementation isn't
+considered complete while targeting only the v2 core.
+
+## Contributing an implementation
+
+If you're taking on one of these, the corpus is the fastest way to find out
+what you got wrong: it's meant to be run against a from-scratch
+implementation just as it's run against the two that exist, and a case
+that byte-for-byte matches both `tramaj` and `tramaj-hs` today is a strong
+signal your evaluation semantics agree with theirs. Open an issue on the
+[repository](https://github.com/lucasdicioccio/tramaj) before investing
+heavily in one — coordinating on which language is being worked on avoids
+duplicate effort.
+
+=base:main-css.css
+
+@import "/css/dev.css";
+@import "/css/colors.css";
+@import "/css/article.css";
+@import "/css/navigation.css";
