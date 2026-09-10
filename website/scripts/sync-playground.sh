@@ -22,10 +22,17 @@ cp playground/dist/index.html website/src/tramaj-playground.html
 cp playground/dist/style.css website/src/tramaj-playground.css
 
 # Kitchen-Sink places .css/.js source files under /css/ and /js/ in the
-# built site (by extension), regardless of their original location.
+# built site (by extension), regardless of their original location. This
+# file is copied verbatim into www/ as a static asset (see
+# website/src/playground.cmark), bypassing Kitchen-Sink's templating and
+# root-relative-link rewriting entirely, so the references must be relative
+# rather than root-absolute: the page and the css/js/ directories always
+# land as siblings, so a relative path resolves correctly under any
+# basePath (e.g. the "/tramaj" prefix used in production), not just at the
+# site root.
 sed -i \
-  -e 's#href="style.css"#href="/css/tramaj-playground.css"#' \
-  -e 's#src="app.js"#src="/js/tramaj-playground-app.js"#' \
+  -e 's#href="style.css"#href="css/tramaj-playground.css"#' \
+  -e 's#src="app.js"#src="js/tramaj-playground-app.js"#' \
   website/src/tramaj-playground.html
 
 echo "==> wrote website/src/tramaj-playground.{html,css} and tramaj-playground-app.js"

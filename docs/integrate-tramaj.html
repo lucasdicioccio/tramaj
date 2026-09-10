@@ -3,7 +3,7 @@
 <ol>
 <li><strong>Evaluate</strong> — parse a template and run it against a JSON context to get
 a <code>Node</code>: the normative, host-agnostic document tree
-(<a href="/reference-node-json.html"><code>node-json.md</code></a>).
+(<a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a>).
 </li>
 <li><strong>Fold</strong> — walk that <code>Node</code> and turn it into whatever your host actually
 renders: real DOM, a UI framework’s virtual tree, another markup
@@ -11,7 +11,7 @@ language, a config file.
 </li>
 </ol>
 <p>Nothing about <code>Node</code> or the evaluator knows about HTML, a browser, or any
-particular UI framework (see <a href="/properties.html">Properties</a>) — the fold is
+particular UI framework (see <a href="/tramaj/properties.html">Properties</a>) — the fold is
 always something <em>you</em> write for your host, even where this repository
 already ships one for you. Which of the four paths below applies depends
 only on what language your host is written in.</p>
@@ -36,10 +36,10 @@ parseProgram :: String -&gt; Either ParseError Program
 -- Tramaj.Eval
 runProgram :: Mode -&gt; LibraryTable -&gt; Json -&gt; Program -&gt; Either EvalError Json
 </code></pre>
-<p><code>Mode</code> is <code>Concrete</code> or <code>Symbolic</code> (<a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>);
+<p><code>Mode</code> is <code>Concrete</code> or <code>Symbolic</code> (<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>);
 <code>LibraryTable</code> supplies whatever the template’s <code>import(...)</code> calls need.
 <code>runProgram</code> gives you the evaluated document as JSON directly, already
-encoded per <a href="/reference-node-json.html"><code>node-json.md</code></a>. If you need the
+encoded per <a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a>. If you need the
 <code>Node</code> value itself rather than its JSON encoding — to fold it without a
 round-trip through JSON — <code>evalProgramWithEmissions</code> is the lower-level
 entry point that stops one step earlier.</p>
@@ -88,7 +88,7 @@ not a library you <code>require</code>/<code>import</code> and call into; the pl
 is likewise an app, not a library. The realistic path for a plain JS or
 Node host today is the same one open to any other language: run
 <code>tramaj-cli</code> as a subprocess and parse its JSON output. See
-<a href="/howto-humans.html">Getting started</a> for the exact CLI invocations.</p>
+<a href="/tramaj/howto-humans.html">Getting started</a> for the exact CLI invocations.</p>
 <h3 id="any-other-language">Any other language</h3>
 <p>For a host in a language with no PureScript or Haskell interop story —
 Python, Go, Rust, whatever — there are two options:</p>
@@ -96,7 +96,7 @@ Python, Go, Rust, whatever — there are two options:</p>
 language, the way <code>tramaj-hs</code> ports the PureScript original. Worth it only
 if you need to <em>evaluate</em> templates natively (e.g. embedding evaluation in
 a process that can’t shell out, or needs it to run in-process for
-performance). <a href="/reference-language.html"><code>reference.md</code></a> is the full
+performance). <a href="/tramaj/reference-language.html"><code>reference.md</code></a> is the full
 grammar and evaluation semantics to implement against, and the conformance
 corpus (<code>corpus/cases/</code> in the repository — template + context + expected
 output triples) is what both existing implementations are held to; a third
@@ -105,7 +105,7 @@ implementation should be checked against the same corpus.</p>
 most hosts this is the pragmatic choice: don’t reimplement the parser or
 evaluator at all. Shell out to <code>tramaj-cli</code>:</p>
 <div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="ex">tramaj-cli</span> template.tramaj context.json</span></code></pre></div></div><p>which prints the evaluated <code>Node</code> as JSON on stdout, exactly per
-<a href="/reference-node-json.html"><code>node-json.md</code></a>. Your host only needs to write
+<a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a>. Your host only needs to write
 the <em>fold</em> — parse that JSON, case on whether each node is text, an
 element, or a fragment, recurse into children, and decide what each
 element’s <code>action(...)</code> entries mean in your host — the same shape as
@@ -113,11 +113,11 @@ element’s <code>action(...)</code> entries mean in your host — the same shap
 native <code>Node</code> value. <code>tramaj-cli</code>’s <code>analyze</code> subcommands
 (<code>imports</code>/<code>actions</code>/<code>holes</code>/<code>unsupplied</code>/<code>constraints</code>/<code>symbols</code>/<code>types</code>)
 are available the same way, without a context file, if your host wants the
-static-analysis facts from <a href="/properties.html">Properties</a> rather than a
+static-analysis facts from <a href="/tramaj/properties.html">Properties</a> rather than a
 rendered document.</p>
 <p>This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.</p>
 <p>Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the <a href="/roadmap.html">Roadmap</a> for what that would mean and
+wanted — see the <a href="/tramaj/roadmap.html">Roadmap</a> for what that would mean and
 where to start if you want to build one.</p>
 </section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

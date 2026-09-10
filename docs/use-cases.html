@@ -8,7 +8,7 @@ it. That shape shows up in a few recurring situations.</p>
 <em>and</em> easy for an LLM to emit. A <code>jq</code>-flavoured expression half handles the
 data, a HAML-like block syntax handles structure, and the builtin set stays
 small enough that neither a person nor a model has to hold much in their
-head to use it correctly. This site itself is one instance of that — <a href="/reference.html">static
+head to use it correctly. This site itself is one instance of that — <a href="/tramaj/reference.html">static
 site pre-processing, the way Kitchen-Sink itself does it</a>.</p>
 <h3 id="templating-a-real-ui-not-just-markup">Templating a real UI, not just markup</h3>
 <p><code>tramaj-halogen</code> folds an evaluated <code>Node</code> into <code>Halogen.HTML</code>, wiring each
@@ -20,18 +20,18 @@ drive a different UI framework by pairing it with a different fold.</p>
 <h3 id="documents-an-llm-can-emit-and-a-host-can-trust">Documents an LLM can emit and a host can trust</h3>
 <p>Because imports, action keys, and context reads are all static positions —
 literal strings, never computed — a host can run the static analyses in
-<a href="/reference-language.html"><code>Tramaj.Analysis</code></a> over a model-generated template
+<a href="/tramaj/reference-language.html"><code>Tramaj.Analysis</code></a> over a model-generated template
 <em>before</em> evaluating it: what does it import, what actions can it possibly
 emit, what context does it read, which import parameters are still
 unsupplied. That turns “an LLM wrote this template” from a trust problem
-into an inspectable one. See <a href="/properties.html">Properties</a> for why this
+into an inspectable one. See <a href="/tramaj/properties.html">Properties</a> for why this
 holds.</p>
 <h3 id="constraint-driven-generation">Constraint-driven generation</h3>
 <p>v3 adds symbolic values (<code>?(key)</code>) and constraints (<code>!constraint(name, ...)</code>). Running evaluation in <code>Symbolic</code> mode produces an envelope of root
 value, symbols, and constraints instead of a finished document — useful when
 the actual values should come from a solver, a form the user hasn’t filled
 in yet, or a search process, rather than being supplied up front. See
-<a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
 <h3 id="typed-template-contracts">Typed template contracts</h3>
 <p>v4 adds a nominal type algebra on top of that: type declarations, type
 parameters threaded through imports, and <code>@x : T = e</code> annotations that are
@@ -40,9 +40,9 @@ resolved and erased before evaluation. tramaj fixes what a type <em>is</em>
 checker decides whether the values flowing through a template actually
 satisfy it. That’s useful wherever a template is a contract between two
 teams or two systems — e.g. a component library whose consumers should be
-checked against its declared shape. See <a href="/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
+checked against its declared shape. See <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
 <h3 id="try-it">Try it</h3>
-<p>The <a href="/playground.html">playground</a> runs all of the above in the browser —
+<p>The <a href="/tramaj/playground.html">playground</a> runs all of the above in the browser —
 tabs-as-importable-libraries, live AST/render panels, an action log, and a
 symbolic-mode toggle — with nothing sent to a server.</p>
 </section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

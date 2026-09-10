@@ -8,7 +8,7 @@ it. That shape shows up in a few recurring situations.&lt;/p&gt;
 &lt;em&gt;and&lt;/em&gt; easy for an LLM to emit. A &lt;code&gt;jq&lt;/code&gt;-flavoured expression half handles the
 data, a HAML-like block syntax handles structure, and the builtin set stays
 small enough that neither a person nor a model has to hold much in their
-head to use it correctly. This site itself is one instance of that — &lt;a href="/reference.html"&gt;static
+head to use it correctly. This site itself is one instance of that — &lt;a href="/tramaj/reference.html"&gt;static
 site pre-processing, the way Kitchen-Sink itself does it&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="templating-a-real-ui-not-just-markup"&gt;Templating a real UI, not just markup&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-halogen&lt;/code&gt; folds an evaluated &lt;code&gt;Node&lt;/code&gt; into &lt;code&gt;Halogen.HTML&lt;/code&gt;, wiring each
@@ -20,18 +20,18 @@ drive a different UI framework by pairing it with a different fold.&lt;/p&gt;
 &lt;h3 id="documents-an-llm-can-emit-and-a-host-can-trust"&gt;Documents an LLM can emit and a host can trust&lt;/h3&gt;
 &lt;p&gt;Because imports, action keys, and context reads are all static positions —
 literal strings, never computed — a host can run the static analyses in
-&lt;a href="/reference-language.html"&gt;&lt;code&gt;Tramaj.Analysis&lt;/code&gt;&lt;/a&gt; over a model-generated template
+&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;Tramaj.Analysis&lt;/code&gt;&lt;/a&gt; over a model-generated template
 &lt;em&gt;before&lt;/em&gt; evaluating it: what does it import, what actions can it possibly
 emit, what context does it read, which import parameters are still
 unsupplied. That turns “an LLM wrote this template” from a trust problem
-into an inspectable one. See &lt;a href="/properties.html"&gt;Properties&lt;/a&gt; for why this
+into an inspectable one. See &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt; for why this
 holds.&lt;/p&gt;
 &lt;h3 id="constraint-driven-generation"&gt;Constraint-driven generation&lt;/h3&gt;
 &lt;p&gt;v3 adds symbolic values (&lt;code&gt;?(key)&lt;/code&gt;) and constraints (&lt;code&gt;!constraint(name, ...)&lt;/code&gt;). Running evaluation in &lt;code&gt;Symbolic&lt;/code&gt; mode produces an envelope of root
 value, symbols, and constraints instead of a finished document — useful when
 the actual values should come from a solver, a form the user hasn’t filled
 in yet, or a search process, rather than being supplied up front. See
-&lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="typed-template-contracts"&gt;Typed template contracts&lt;/h3&gt;
 &lt;p&gt;v4 adds a nominal type algebra on top of that: type declarations, type
 parameters threaded through imports, and &lt;code&gt;@x : T = e&lt;/code&gt; annotations that are
@@ -40,9 +40,9 @@ resolved and erased before evaluation. tramaj fixes what a type &lt;em&gt;is&lt;
 checker decides whether the values flowing through a template actually
 satisfy it. That’s useful wherever a template is a contract between two
 teams or two systems — e.g. a component library whose consumers should be
-checked against its declared shape. See &lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+checked against its declared shape. See &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="try-it"&gt;Try it&lt;/h3&gt;
-&lt;p&gt;The &lt;a href="/playground.html"&gt;playground&lt;/a&gt; runs all of the above in the browser —
+&lt;p&gt;The &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt; runs all of the above in the browser —
 tabs-as-importable-libraries, live AST/render panels, an action log, and a
 symbolic-mode toggle — with nothing sent to a server.&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/use-cases.html" rel="alternate"/><summary type="text">A small functional language for composing values and documents — where it fits.</summary></entry></feed>

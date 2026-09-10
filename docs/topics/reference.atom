@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-09-10T13:23:07Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-09-10T21:32:11Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--normative-node-json-representation"&gt;Tramaj — Normative Node JSON representation&lt;/h2&gt;
 &lt;p&gt;The evaluated &lt;code&gt;Node&lt;/code&gt; AST is the portable interchange boundary between Tramaj
 implementations and their hosts. This document defines its &lt;strong&gt;normative&lt;/strong&gt; JSON
@@ -109,7 +109,7 @@ preserve them across every node-to-node transformation they perform —
 &lt;p&gt;A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
 job; on the wire the representation is explicit, so that a missing field is a bug
 rather than a silent &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-09-10T13:23:07Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-09-10T21:32:11Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v3--symbolic-values-and-constraints"&gt;Tramaj v3 — Symbolic values and constraints&lt;/h2&gt;
 &lt;p&gt;This document is &lt;strong&gt;normative&lt;/strong&gt; for the symbolic extension. It builds on
 &lt;code&gt;reference.md&lt;/code&gt;, which remains normative for everything else; section numbers
@@ -117,7 +117,7 @@ written as &lt;em&gt;(ref §n)&lt;/em&gt; point there. &lt;code&gt;node-json.md&
 normative for the &lt;code&gt;Node&lt;/code&gt; encoding, which v3 wraps rather than alters.&lt;/p&gt;
 &lt;p&gt;Types are &lt;strong&gt;not&lt;/strong&gt; in v3. Nominal types, type declarations, imported type
 namespaces and typed annotations are drafted separately in
-&lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;. v3 is complete and implementable without them,
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;. v3 is complete and implementable without them,
 and §9 says how far it gets on its own.&lt;/p&gt;
 &lt;p&gt;Status: frozen as a design. Not implemented in either &lt;code&gt;tramaj/&lt;/code&gt; or
 &lt;code&gt;tramaj-hs/&lt;/code&gt;.&lt;/p&gt;
@@ -694,10 +694,10 @@ host’s vocabulary rather than the language’s.
 not just variables.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-09-10T13:23:07Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-09-10T21:32:11Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v4--types-draft"&gt;Tramaj v4 — Types (draft)&lt;/h2&gt;
 &lt;p&gt;Status: &lt;strong&gt;draft, not frozen, implemented.&lt;/strong&gt; Split out of the v3 design so
-that &lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
+that &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
 type questions. The design itself is still not settled — the gate in
 roadmap-to-v4’s Part II was crossed by explicit choice (“no host yet, proceed
 anyway”), not by a host actually hurt by a plain-string &lt;code&gt;has-type&lt;/code&gt; argument,
@@ -1126,7 +1126,7 @@ what &lt;code&gt;!type-constraint&lt;/code&gt; is likely to be abused into expre
 abuse becomes common the honest fix is a former, not a constraint name.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-09-10T13:23:07Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-09-10T21:32:11Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--language-reference"&gt;Tramaj — Language Reference&lt;/h2&gt;
 &lt;p&gt;This is the reference for the language &lt;strong&gt;as implemented&lt;/strong&gt;. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -1257,7 +1257,7 @@ them through unchanged.
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;Serialization — including the strict decoding rules — is specified in
-&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h3 id="5-surface-syntax"&gt;5. Surface syntax&lt;/h3&gt;
 &lt;p&gt;Three leader characters: &lt;code&gt;.&lt;/code&gt; builds a document, &lt;code&gt;$&lt;/code&gt; reads a name, &lt;code&gt;@&lt;/code&gt; defines
@@ -1573,9 +1573,9 @@ such a value inline at all; it has to arrive through &lt;code&gt;$ctx&lt;/code&g
 annotations are where derived type/domain information goes, and the
 semantics avoid equating “unknown” with &lt;code&gt;null&lt;/code&gt;, so a constraint-aware
 evaluator can reuse this AST rather than forking the language. The symbolic
-and constraint half of that is specified in &lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;
+and constraint half of that is specified in &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;
 and implemented in both hosts; nominal types are specified in
-&lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt; — still a draft, not frozen, but implemented in
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt; — still a draft, not frozen, but implemented in
 both hosts through roadmap-to-v4 Phase 15 (tooling included: both the CLI
 and the browser playground surface the &lt;code&gt;&amp;quot;types&amp;quot;&lt;/code&gt;/&lt;code&gt;&amp;quot;type-constraints&amp;quot;&lt;/code&gt;
 envelope fields). v4 shipped as a &lt;strong&gt;minor&lt;/strong&gt; bump — &lt;code&gt;type X = ...&lt;/code&gt;
@@ -1590,18 +1590,18 @@ affected (roadmap-to-v4 Phase 15’s version decision).
 — the repository is always the canonical source, and may be ahead of what’s
 published here.&lt;/p&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;a href="/reference-language.html"&gt;&lt;strong&gt;Language reference&lt;/strong&gt;&lt;/a&gt; — core AST, values,
+&lt;li&gt;&lt;a href="/tramaj/reference-language.html"&gt;&lt;strong&gt;Language reference&lt;/strong&gt;&lt;/a&gt; — core AST, values,
 evaluation rules, surface syntax and its desugarings, imports, actions,
 builtins, and what’s implementation-defined. Start here.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/reference-node-json.html"&gt;&lt;strong&gt;Node JSON representation&lt;/strong&gt;&lt;/a&gt; — the normative
+&lt;li&gt;&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;strong&gt;Node JSON representation&lt;/strong&gt;&lt;/a&gt; — the normative
 wire format for the evaluated &lt;code&gt;Node&lt;/code&gt; AST.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/reference-v3-symbols.html"&gt;&lt;strong&gt;v3 — Symbolic values and constraints&lt;/strong&gt;&lt;/a&gt; —
+&lt;li&gt;&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;strong&gt;v3 — Symbolic values and constraints&lt;/strong&gt;&lt;/a&gt; —
 &lt;code&gt;?(key)&lt;/code&gt; allocation, &lt;code&gt;!constraint(name, ...)&lt;/code&gt;, and the &lt;code&gt;Symbolic&lt;/code&gt;
 evaluation mode.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/reference-v4-types.html"&gt;&lt;strong&gt;v4 — Types&lt;/strong&gt;&lt;/a&gt; — the nominal type algebra,
+&lt;li&gt;&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;strong&gt;v4 — Types&lt;/strong&gt;&lt;/a&gt; — the nominal type algebra,
 type parameters through imports, and typed annotations.
 &lt;/li&gt;
 &lt;/ul&gt;
@@ -1610,7 +1610,7 @@ they’re development history rather than language reference:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/laws.md"&gt;&lt;code&gt;laws.md&lt;/code&gt;&lt;/a&gt;
 — the design invariants, rewritten in prose on the
-&lt;a href="/properties.html"&gt;Properties&lt;/a&gt; page.
+&lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt; page.
 &lt;/li&gt;
 &lt;li&gt;&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"&gt;&lt;code&gt;decisions.md&lt;/code&gt;&lt;/a&gt;
 — the resolved-conflicts log: which reading won wherever the design drafts

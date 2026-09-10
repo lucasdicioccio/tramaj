@@ -20,11 +20,11 @@ independently written implementations can run it identically.</p>
 </table>
 <p>Neither is published to a package registry yet (see the README’s
 “Publishing” section) — both are used today as workspace/source
-dependencies. See <a href="/integrate-tramaj.html">Integrating tramaj</a> for what’s
+dependencies. See <a href="/tramaj/integrate-tramaj.html">Integrating tramaj</a> for what’s
 actually usable from each right now, including the fold each one does or
 doesn’t ship.</p>
 <h3 id="desired-native-implementations-for-js-python-and-rust">Desired: native implementations for JS, Python, and Rust</h3>
-<p>For a host in JavaScript, Python, or Rust, <a href="/integrate-tramaj.html">Integrating tramaj</a>
+<p>For a host in JavaScript, Python, or Rust, <a href="/tramaj/integrate-tramaj.html">Integrating tramaj</a>
 currently recommends shelling out to <code>tramaj-cli</code> and writing a fold over
 its JSON output — a real, usable path, but a subprocess boundary rather
 than a native library. A native implementation in each of these languages
@@ -46,12 +46,12 @@ spec and output format. A new implementation is considered on par with the
 existing two once it:</p>
 <ul>
 <li>implements the grammar and evaluation rules in
-<a href="/reference-language.html"><code>reference.md</code></a>, including the static
+<a href="/tramaj/reference-language.html"><code>reference.md</code></a>, including the static
 restrictions that make imports, action keys, and <code>ctx(...)</code> paths
-analyzable without evaluation (see <a href="/properties.html">Properties</a>);
+analyzable without evaluation (see <a href="/tramaj/properties.html">Properties</a>);
 </li>
 <li>encodes and decodes the <code>Node</code> AST exactly per
-<a href="/reference-node-json.html"><code>node-json.md</code></a>, including the round-trip
+<a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a>, including the round-trip
 guarantee (<code>decode(encode(n)) == n</code>);
 </li>
 <li>passes every case in the
@@ -65,8 +65,8 @@ ecosystem (e.g. a DOM fold for JS, a common Python templating output for
 Python).
 </li>
 </ul>
-<p>The v3 (<code>?</code>/<code>!</code>, <a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>) and v4
-(<code>%</code>, <a href="/reference-v4-types.html"><code>v4-types.md</code></a>) extensions are both
+<p>The v3 (<code>?</code>/<code>!</code>, <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>) and v4
+(<code>%</code>, <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>) extensions are both
 shipped and part of the same conformance bar — a new implementation isn’t
 considered complete while targeting only the v2 core.</p>
 <h3 id="contributing-an-implementation">Contributing an implementation</h3>

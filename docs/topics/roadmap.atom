@@ -20,11 +20,11 @@ independently written implementations can run it identically.&lt;/p&gt;
 &lt;/table&gt;
 &lt;p&gt;Neither is published to a package registry yet (see the README’s
 “Publishing” section) — both are used today as workspace/source
-dependencies. See &lt;a href="/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for what’s
+dependencies. See &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for what’s
 actually usable from each right now, including the fold each one does or
 doesn’t ship.&lt;/p&gt;
 &lt;h3 id="desired-native-implementations-for-js-python-and-rust"&gt;Desired: native implementations for JS, Python, and Rust&lt;/h3&gt;
-&lt;p&gt;For a host in JavaScript, Python, or Rust, &lt;a href="/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt;
+&lt;p&gt;For a host in JavaScript, Python, or Rust, &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt;
 currently recommends shelling out to &lt;code&gt;tramaj-cli&lt;/code&gt; and writing a fold over
 its JSON output — a real, usable path, but a subprocess boundary rather
 than a native library. A native implementation in each of these languages
@@ -46,12 +46,12 @@ spec and output format. A new implementation is considered on par with the
 existing two once it:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;implements the grammar and evaluation rules in
-&lt;a href="/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt;, including the static
+&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt;, including the static
 restrictions that make imports, action keys, and &lt;code&gt;ctx(...)&lt;/code&gt; paths
-analyzable without evaluation (see &lt;a href="/properties.html"&gt;Properties&lt;/a&gt;);
+analyzable without evaluation (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;);
 &lt;/li&gt;
 &lt;li&gt;encodes and decodes the &lt;code&gt;Node&lt;/code&gt; AST exactly per
-&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;, including the round-trip
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;, including the round-trip
 guarantee (&lt;code&gt;decode(encode(n)) == n&lt;/code&gt;);
 &lt;/li&gt;
 &lt;li&gt;passes every case in the
@@ -65,8 +65,8 @@ ecosystem (e.g. a DOM fold for JS, a common Python templating output for
 Python).
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;The v3 (&lt;code&gt;?&lt;/code&gt;/&lt;code&gt;!&lt;/code&gt;, &lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;) and v4
-(&lt;code&gt;%&lt;/code&gt;, &lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;) extensions are both
+&lt;p&gt;The v3 (&lt;code&gt;?&lt;/code&gt;/&lt;code&gt;!&lt;/code&gt;, &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;) and v4
+(&lt;code&gt;%&lt;/code&gt;, &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;) extensions are both
 shipped and part of the same conformance bar — a new implementation isn’t
 considered complete while targeting only the v2 core.&lt;/p&gt;
 &lt;h3 id="contributing-an-implementation"&gt;Contributing an implementation&lt;/h3&gt;

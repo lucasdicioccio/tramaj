@@ -3,7 +3,7 @@
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;Evaluate&lt;/strong&gt; — parse a template and run it against a JSON context to get
 a &lt;code&gt;Node&lt;/code&gt;: the normative, host-agnostic document tree
-(&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;).
+(&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;).
 &lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Fold&lt;/strong&gt; — walk that &lt;code&gt;Node&lt;/code&gt; and turn it into whatever your host actually
 renders: real DOM, a UI framework’s virtual tree, another markup
@@ -11,7 +11,7 @@ language, a config file.
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;Nothing about &lt;code&gt;Node&lt;/code&gt; or the evaluator knows about HTML, a browser, or any
-particular UI framework (see &lt;a href="/properties.html"&gt;Properties&lt;/a&gt;) — the fold is
+particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;) — the fold is
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
 already ships one for you. Which of the four paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
@@ -36,10 +36,10 @@ parseProgram :: String -&amp;gt; Either ParseError Program
 -- Tramaj.Eval
 runProgram :: Mode -&amp;gt; LibraryTable -&amp;gt; Json -&amp;gt; Program -&amp;gt; Either EvalError Json
 &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;Concrete&lt;/code&gt; or &lt;code&gt;Symbolic&lt;/code&gt; (&lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
+&lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;Concrete&lt;/code&gt; or &lt;code&gt;Symbolic&lt;/code&gt; (&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
 &lt;code&gt;LibraryTable&lt;/code&gt; supplies whatever the template’s &lt;code&gt;import(...)&lt;/code&gt; calls need.
 &lt;code&gt;runProgram&lt;/code&gt; gives you the evaluated document as JSON directly, already
-encoded per &lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. If you need the
+encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. If you need the
 &lt;code&gt;Node&lt;/code&gt; value itself rather than its JSON encoding — to fold it without a
 round-trip through JSON — &lt;code&gt;evalProgramWithEmissions&lt;/code&gt; is the lower-level
 entry point that stops one step earlier.&lt;/p&gt;
@@ -88,7 +88,7 @@ not a library you &lt;code&gt;require&lt;/code&gt;/&lt;code&gt;import&lt;/code&g
 is likewise an app, not a library. The realistic path for a plain JS or
 Node host today is the same one open to any other language: run
 &lt;code&gt;tramaj-cli&lt;/code&gt; as a subprocess and parse its JSON output. See
-&lt;a href="/howto-humans.html"&gt;Getting started&lt;/a&gt; for the exact CLI invocations.&lt;/p&gt;
+&lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for the exact CLI invocations.&lt;/p&gt;
 &lt;h3 id="any-other-language"&gt;Any other language&lt;/h3&gt;
 &lt;p&gt;For a host in a language with no PureScript or Haskell interop story —
 Python, Go, Rust, whatever — there are two options:&lt;/p&gt;
@@ -96,7 +96,7 @@ Python, Go, Rust, whatever — there are two options:&lt;/p&gt;
 language, the way &lt;code&gt;tramaj-hs&lt;/code&gt; ports the PureScript original. Worth it only
 if you need to &lt;em&gt;evaluate&lt;/em&gt; templates natively (e.g. embedding evaluation in
 a process that can’t shell out, or needs it to run in-process for
-performance). &lt;a href="/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; is the full
+performance). &lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; is the full
 grammar and evaluation semantics to implement against, and the conformance
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; in the repository — template + context + expected
 output triples) is what both existing implementations are held to; a third
@@ -105,7 +105,7 @@ implementation should be checked against the same corpus.&lt;/p&gt;
 most hosts this is the pragmatic choice: don’t reimplement the parser or
 evaluator at all. Shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-cli&lt;/span&gt; template.tramaj context.json&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;which prints the evaluated &lt;code&gt;Node&lt;/code&gt; as JSON on stdout, exactly per
-&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. Your host only needs to write
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. Your host only needs to write
 the &lt;em&gt;fold&lt;/em&gt; — parse that JSON, case on whether each node is text, an
 element, or a fragment, recurse into children, and decide what each
 element’s &lt;code&gt;action(...)&lt;/code&gt; entries mean in your host — the same shape as
@@ -113,11 +113,11 @@ element’s &lt;code&gt;action(...)&lt;/code&gt; entries mean in your host — t
 native &lt;code&gt;Node&lt;/code&gt; value. &lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommands
 (&lt;code&gt;imports&lt;/code&gt;/&lt;code&gt;actions&lt;/code&gt;/&lt;code&gt;holes&lt;/code&gt;/&lt;code&gt;unsupplied&lt;/code&gt;/&lt;code&gt;constraints&lt;/code&gt;/&lt;code&gt;symbols&lt;/code&gt;/&lt;code&gt;types&lt;/code&gt;)
 are available the same way, without a context file, if your host wants the
-static-analysis facts from &lt;a href="/properties.html"&gt;Properties&lt;/a&gt; rather than a
+static-analysis facts from &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt; rather than a
 rendered document.&lt;/p&gt;
 &lt;p&gt;This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.&lt;/p&gt;
 &lt;p&gt;Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the &lt;a href="/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and
+wanted — see the &lt;a href="/tramaj/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and
 where to start if you want to build one.&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html" rel="alternate"/><summary type="text">Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.</summary></entry></feed>

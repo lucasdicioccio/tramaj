@@ -24,7 +24,7 @@ in the repository is a conformance corpus: each case is a
 &lt;code&gt;libs/*.tramaj&lt;/code&gt;) that both implementations must satisfy — treat these as
 runnable, ground-truth examples rather than prose.
 &lt;/li&gt;
-&lt;li&gt;See also &lt;a href="/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
+&lt;li&gt;See also &lt;a href="/tramaj/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary &lt;code&gt;.txt&lt;/code&gt; files under &lt;code&gt;/raw/&lt;/code&gt;, so
 this isn’t at the conventional &lt;code&gt;/llms.txt&lt;/code&gt; root path).
 &lt;/li&gt;
@@ -75,13 +75,13 @@ constraint. Running in &lt;code&gt;Symbolic&lt;/code&gt; mode (a host choice, no
 template declares) wraps the result in a &lt;code&gt;tramaj/symbolic/1&lt;/code&gt; envelope of
 root value, symbols, and constraints instead of a finished document — use
 this when the actual values should come from a solver rather than be
-supplied up front. Full grammar: &lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+supplied up front. Full grammar: &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="v4--types-draft-implemented"&gt;v4 — types (draft, implemented)&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;@x : T = e&lt;/code&gt; desugars to &lt;code&gt;@x=e&lt;/code&gt; plus a &lt;code&gt;has-type&lt;/code&gt; constraint carrying &lt;code&gt;T&lt;/code&gt;’s
 canonical id. Types are resolved and erased before evaluation — tramaj fixes
 type &lt;em&gt;identity&lt;/em&gt; (canonical ids, string equality), a separate host checker
 decides whether values actually satisfy it. Type parameters thread through
-imports. Full grammar: &lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+imports. Full grammar: &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="static-analyses-available-without-evaluating"&gt;Static analyses available without evaluating&lt;/h3&gt;
 &lt;p&gt;Because imports, action keys, adaptation prefixes, and &lt;code&gt;ctx(...)&lt;/code&gt; paths are
 all literal strings in the syntax, these can all be answered by walking the
@@ -99,7 +99,7 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommand exposes these directly — see
-&lt;a href="/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
+&lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
 generating a template and want to
 self-check it before handing it to a host, running &lt;code&gt;analyze&lt;/code&gt; on it is
 cheaper and more reliable than re-deriving these properties by re-reading

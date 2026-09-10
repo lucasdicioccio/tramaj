@@ -14,7 +14,7 @@ and folding a &lt;code&gt;Node&lt;/code&gt; into Halogen HTML, JSON, or anything
 the host’s decision.&lt;/p&gt;
 &lt;h3 id="portable-at-the-boundary"&gt;Portable at the boundary&lt;/h3&gt;
 &lt;p&gt;Evaluation produces a generic &lt;code&gt;Node&lt;/code&gt; AST with a normative JSON encoding
-(&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;): scalars stay scalars, and an
+(&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;): scalars stay scalars, and an
 element may carry many opaque, structured actions rather than being tied to
 one host’s event model. That boundary is what lets two independent
 implementations — a PureScript one and a Haskell one — target the same
@@ -39,7 +39,7 @@ what makes a rendered document reproducible, cacheable, and safe to diff.&lt;/p&
 &lt;p&gt;Put together, these properties mean a host can accept a tramaj template from
 an untrusted or automated source — a CMS, a design tool, an LLM — and know,
 without running it, what it can possibly do to the page or app it’s
-embedded in. See &lt;a href="/use-cases.html"&gt;Use cases&lt;/a&gt; for what that looks like in
-practice, or the &lt;a href="/reference.html"&gt;Reference&lt;/a&gt; for the full specification
+embedded in. See &lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a&gt; for what that looks like in
+practice, or the &lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt; for the full specification
 these properties are drawn from.&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/properties.html" rel="alternate"/><summary type="text">The invariants tramaj is held to: portability, cheap static analysis, and determinism.</summary></entry></feed>

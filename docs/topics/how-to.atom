@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/howto-humans.html</id><title type="text">Getting started with tramaj</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="getting-started-with-tramaj"&gt;Getting started with tramaj&lt;/h2&gt;
 &lt;p&gt;This is a practical walkthrough. For the language’s core ideas, see the
-overview on the &lt;a href="/"&gt;home page&lt;/a&gt;; for the full grammar, see the
-&lt;a href="/reference.html"&gt;Reference&lt;/a&gt;.&lt;/p&gt;
+overview on the &lt;a href="/tramaj/"&gt;home page&lt;/a&gt;; for the full grammar, see the
+&lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="the-fastest-way-in-the-playground"&gt;The fastest way in: the playground&lt;/h3&gt;
-&lt;p&gt;Before installing anything, try the &lt;a href="/playground.html"&gt;playground&lt;/a&gt; — it runs
+&lt;p&gt;Before installing anything, try the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt; — it runs
 entirely in the browser, needs no setup, and shows the same panels described
 below (evaluated AST, rendered HTML, action log).&lt;/p&gt;
 &lt;h3 id="installing-the-toolchain"&gt;Installing the toolchain&lt;/h3&gt;
@@ -22,7 +22,7 @@ also needs &lt;code&gt;esbuild&lt;/code&gt;, which is a devDependency of the rep
 &lt;p&gt;and a context to evaluate it against, &lt;code&gt;hello.json&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="fu"&gt;{&lt;/span&gt;&lt;span class="dt"&gt;&amp;quot;items&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="ot"&gt;[&lt;/span&gt;&lt;span class="st"&gt;&amp;quot;a&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;,&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;b&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;,&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;c&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;]&lt;/span&gt;&lt;span class="fu"&gt;}&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;h3 id="running-it"&gt;Running it&lt;/h3&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;spago&lt;/span&gt; run &lt;span class="at"&gt;-p&lt;/span&gt; tramaj-cli &lt;span class="at"&gt;--args&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;hello.tramaj hello.json&amp;quot;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;This prints the evaluated &lt;code&gt;Node&lt;/code&gt; AST as JSON — a &lt;code&gt;p&lt;/code&gt; element wrapping the
-text &lt;code&gt;there are 3 item(s)&lt;/code&gt;. See &lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;
+text &lt;code&gt;there are 3 item(s)&lt;/code&gt;. See &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;
 for what that JSON shape means, or fold it into real HTML by rendering it
 through a host like &lt;code&gt;tramaj-halogen&lt;/code&gt;.&lt;/p&gt;
 &lt;h3 id="splitting-a-template-into-libraries"&gt;Splitting a template into libraries&lt;/h3&gt;
@@ -31,7 +31,7 @@ with &lt;code&gt;--lib name=path&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;spago&lt;/span&gt; run &lt;span class="at"&gt;-p&lt;/span&gt; tramaj-cli &lt;span class="at"&gt;--args&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;--lib greeter=greeter.tramaj hello.tramaj hello.json&amp;quot;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;Repeat &lt;code&gt;--lib&lt;/code&gt; for as many libraries as the template’s imports need.&lt;/p&gt;
 &lt;h3 id="inspecting-a-template-without-running-it"&gt;Inspecting a template without running it&lt;/h3&gt;
 &lt;p&gt;Because imports, action keys, and context reads are all static positions
-(see &lt;a href="/properties.html"&gt;Properties&lt;/a&gt;), the CLI can answer questions about a
+(see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;), the CLI can answer questions about a
 template without a context file at all:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;node&lt;/span&gt; tramaj-cli/dist/tramaj-cli.js analyze imports hello.tramaj&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;node&lt;/span&gt; tramaj-cli/dist/tramaj-cli.js analyze actions hello.tramaj&lt;/span&gt;
@@ -41,21 +41,21 @@ template without a context file at all:&lt;/p&gt;
 &lt;h3 id="embedding-in-a-real-host"&gt;Embedding in a real host&lt;/h3&gt;
 &lt;p&gt;Running templates from the command line is one thing; wiring them into an
 actual application is another — see
-&lt;a href="/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for the four paths (PureScript,
+&lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for the four paths (PureScript,
 Haskell, JavaScript, or any other language) and what each one actually
 looks like.&lt;/p&gt;
 &lt;h3 id="where-to-go-next"&gt;Where to go next&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;a href="/use-cases.html"&gt;Use cases&lt;/a&gt; for where this fits alongside other
+&lt;li&gt;&lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a&gt; for where this fits alongside other
 templating approaches.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/reference.html"&gt;Reference&lt;/a&gt; for the full grammar, builtins, and the v3/v4
+&lt;li&gt;&lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt; for the full grammar, builtins, and the v3/v4
 extensions.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for embedding it in a host
+&lt;li&gt;&lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for embedding it in a host
 application.
 &lt;/li&gt;
-&lt;li&gt;&lt;a href="/howto-agents.html"&gt;For coding agents&lt;/a&gt; if you’re setting an LLM loose on
+&lt;li&gt;&lt;a href="/tramaj/howto-agents.html"&gt;For coding agents&lt;/a&gt; if you’re setting an LLM loose on
 tramaj templates rather than writing them by hand.
 &lt;/li&gt;
 &lt;/ul&gt;
@@ -64,7 +64,7 @@ tramaj templates rather than writing them by hand.
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;Evaluate&lt;/strong&gt; — parse a template and run it against a JSON context to get
 a &lt;code&gt;Node&lt;/code&gt;: the normative, host-agnostic document tree
-(&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;).
+(&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;).
 &lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Fold&lt;/strong&gt; — walk that &lt;code&gt;Node&lt;/code&gt; and turn it into whatever your host actually
 renders: real DOM, a UI framework’s virtual tree, another markup
@@ -72,7 +72,7 @@ language, a config file.
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;Nothing about &lt;code&gt;Node&lt;/code&gt; or the evaluator knows about HTML, a browser, or any
-particular UI framework (see &lt;a href="/properties.html"&gt;Properties&lt;/a&gt;) — the fold is
+particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;) — the fold is
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
 already ships one for you. Which of the four paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
@@ -97,10 +97,10 @@ parseProgram :: String -&amp;gt; Either ParseError Program
 -- Tramaj.Eval
 runProgram :: Mode -&amp;gt; LibraryTable -&amp;gt; Json -&amp;gt; Program -&amp;gt; Either EvalError Json
 &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;Concrete&lt;/code&gt; or &lt;code&gt;Symbolic&lt;/code&gt; (&lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
+&lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;Concrete&lt;/code&gt; or &lt;code&gt;Symbolic&lt;/code&gt; (&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
 &lt;code&gt;LibraryTable&lt;/code&gt; supplies whatever the template’s &lt;code&gt;import(...)&lt;/code&gt; calls need.
 &lt;code&gt;runProgram&lt;/code&gt; gives you the evaluated document as JSON directly, already
-encoded per &lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. If you need the
+encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. If you need the
 &lt;code&gt;Node&lt;/code&gt; value itself rather than its JSON encoding — to fold it without a
 round-trip through JSON — &lt;code&gt;evalProgramWithEmissions&lt;/code&gt; is the lower-level
 entry point that stops one step earlier.&lt;/p&gt;
@@ -149,7 +149,7 @@ not a library you &lt;code&gt;require&lt;/code&gt;/&lt;code&gt;import&lt;/code&g
 is likewise an app, not a library. The realistic path for a plain JS or
 Node host today is the same one open to any other language: run
 &lt;code&gt;tramaj-cli&lt;/code&gt; as a subprocess and parse its JSON output. See
-&lt;a href="/howto-humans.html"&gt;Getting started&lt;/a&gt; for the exact CLI invocations.&lt;/p&gt;
+&lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for the exact CLI invocations.&lt;/p&gt;
 &lt;h3 id="any-other-language"&gt;Any other language&lt;/h3&gt;
 &lt;p&gt;For a host in a language with no PureScript or Haskell interop story —
 Python, Go, Rust, whatever — there are two options:&lt;/p&gt;
@@ -157,7 +157,7 @@ Python, Go, Rust, whatever — there are two options:&lt;/p&gt;
 language, the way &lt;code&gt;tramaj-hs&lt;/code&gt; ports the PureScript original. Worth it only
 if you need to &lt;em&gt;evaluate&lt;/em&gt; templates natively (e.g. embedding evaluation in
 a process that can’t shell out, or needs it to run in-process for
-performance). &lt;a href="/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; is the full
+performance). &lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; is the full
 grammar and evaluation semantics to implement against, and the conformance
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; in the repository — template + context + expected
 output triples) is what both existing implementations are held to; a third
@@ -166,7 +166,7 @@ implementation should be checked against the same corpus.&lt;/p&gt;
 most hosts this is the pragmatic choice: don’t reimplement the parser or
 evaluator at all. Shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-cli&lt;/span&gt; template.tramaj context.json&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;which prints the evaluated &lt;code&gt;Node&lt;/code&gt; as JSON on stdout, exactly per
-&lt;a href="/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. Your host only needs to write
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. Your host only needs to write
 the &lt;em&gt;fold&lt;/em&gt; — parse that JSON, case on whether each node is text, an
 element, or a fragment, recurse into children, and decide what each
 element’s &lt;code&gt;action(...)&lt;/code&gt; entries mean in your host — the same shape as
@@ -174,12 +174,12 @@ element’s &lt;code&gt;action(...)&lt;/code&gt; entries mean in your host — t
 native &lt;code&gt;Node&lt;/code&gt; value. &lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommands
 (&lt;code&gt;imports&lt;/code&gt;/&lt;code&gt;actions&lt;/code&gt;/&lt;code&gt;holes&lt;/code&gt;/&lt;code&gt;unsupplied&lt;/code&gt;/&lt;code&gt;constraints&lt;/code&gt;/&lt;code&gt;symbols&lt;/code&gt;/&lt;code&gt;types&lt;/code&gt;)
 are available the same way, without a context file, if your host wants the
-static-analysis facts from &lt;a href="/properties.html"&gt;Properties&lt;/a&gt; rather than a
+static-analysis facts from &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt; rather than a
 rendered document.&lt;/p&gt;
 &lt;p&gt;This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.&lt;/p&gt;
 &lt;p&gt;Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the &lt;a href="/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and
+wanted — see the &lt;a href="/tramaj/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and
 where to start if you want to build one.&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html" rel="alternate"/><summary type="text">Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/howto-agents.html</id><title type="text">tramaj for coding agents</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-for-coding-agents"&gt;tramaj for coding agents&lt;/h2&gt;
 &lt;p&gt;tramaj was designed to be as easy for a model to emit correctly as for a
@@ -207,7 +207,7 @@ in the repository is a conformance corpus: each case is a
 &lt;code&gt;libs/*.tramaj&lt;/code&gt;) that both implementations must satisfy — treat these as
 runnable, ground-truth examples rather than prose.
 &lt;/li&gt;
-&lt;li&gt;See also &lt;a href="/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
+&lt;li&gt;See also &lt;a href="/tramaj/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary &lt;code&gt;.txt&lt;/code&gt; files under &lt;code&gt;/raw/&lt;/code&gt;, so
 this isn’t at the conventional &lt;code&gt;/llms.txt&lt;/code&gt; root path).
 &lt;/li&gt;
@@ -258,13 +258,13 @@ constraint. Running in &lt;code&gt;Symbolic&lt;/code&gt; mode (a host choice, no
 template declares) wraps the result in a &lt;code&gt;tramaj/symbolic/1&lt;/code&gt; envelope of
 root value, symbols, and constraints instead of a finished document — use
 this when the actual values should come from a solver rather than be
-supplied up front. Full grammar: &lt;a href="/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+supplied up front. Full grammar: &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="v4--types-draft-implemented"&gt;v4 — types (draft, implemented)&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;@x : T = e&lt;/code&gt; desugars to &lt;code&gt;@x=e&lt;/code&gt; plus a &lt;code&gt;has-type&lt;/code&gt; constraint carrying &lt;code&gt;T&lt;/code&gt;’s
 canonical id. Types are resolved and erased before evaluation — tramaj fixes
 type &lt;em&gt;identity&lt;/em&gt; (canonical ids, string equality), a separate host checker
 decides whether values actually satisfy it. Type parameters thread through
-imports. Full grammar: &lt;a href="/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+imports. Full grammar: &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="static-analyses-available-without-evaluating"&gt;Static analyses available without evaluating&lt;/h3&gt;
 &lt;p&gt;Because imports, action keys, adaptation prefixes, and &lt;code&gt;ctx(...)&lt;/code&gt; paths are
 all literal strings in the syntax, these can all be answered by walking the
@@ -282,7 +282,7 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommand exposes these directly — see
-&lt;a href="/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
+&lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
 generating a template and want to
 self-check it before handing it to a host, running &lt;code&gt;analyze&lt;/code&gt; on it is
 cheaper and more reliable than re-deriving these properties by re-reading

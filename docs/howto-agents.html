@@ -24,7 +24,7 @@ in the repository is a conformance corpus: each case is a
 <code>libs/*.tramaj</code>) that both implementations must satisfy — treat these as
 runnable, ground-truth examples rather than prose.
 </li>
-<li>See also <a href="/raw/llms.txt"><code>llms.txt</code></a> for a short machine-readable index of
+<li>See also <a href="/tramaj/raw/llms.txt"><code>llms.txt</code></a> for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary <code>.txt</code> files under <code>/raw/</code>, so
 this isn’t at the conventional <code>/llms.txt</code> root path).
 </li>
@@ -75,13 +75,13 @@ constraint. Running in <code>Symbolic</code> mode (a host choice, not something 
 template declares) wraps the result in a <code>tramaj/symbolic/1</code> envelope of
 root value, symbols, and constraints instead of a finished document — use
 this when the actual values should come from a solver rather than be
-supplied up front. Full grammar: <a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
+supplied up front. Full grammar: <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
 <h3 id="v4--types-draft-implemented">v4 — types (draft, implemented)</h3>
 <p><code>@x : T = e</code> desugars to <code>@x=e</code> plus a <code>has-type</code> constraint carrying <code>T</code>’s
 canonical id. Types are resolved and erased before evaluation — tramaj fixes
 type <em>identity</em> (canonical ids, string equality), a separate host checker
 decides whether values actually satisfy it. Type parameters thread through
-imports. Full grammar: <a href="/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
+imports. Full grammar: <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
 <h3 id="static-analyses-available-without-evaluating">Static analyses available without evaluating</h3>
 <p>Because imports, action keys, adaptation prefixes, and <code>ctx(...)</code> paths are
 all literal strings in the syntax, these can all be answered by walking the
@@ -99,7 +99,7 @@ AST — no context, no evaluation:</p>
 </li>
 </ul>
 <p><code>tramaj-cli</code>’s <code>analyze</code> subcommand exposes these directly — see
-<a href="/howto-humans.html">Getting started</a> for exact invocations. If you’re
+<a href="/tramaj/howto-humans.html">Getting started</a> for exact invocations. If you’re
 generating a template and want to
 self-check it before handing it to a host, running <code>analyze</code> on it is
 cheaper and more reliable than re-deriving these properties by re-reading

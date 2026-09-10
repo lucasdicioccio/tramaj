@@ -59,12 +59,15 @@ sync_one() {
       "$src" \
       | python3 "$(dirname "$0")/md_tables_to_html.py"
     echo
-    echo '=base:main-css.css'
-    echo
-    echo '@import "/css/dev.css";'
-    echo '@import "/css/colors.css";'
-    echo '@import "/css/article.css";'
-    echo '@import "/css/navigation.css";'
+    echo '=base:main-css.tramaj-json'
+    echo '{ "format": "css"'
+    echo ', "contents":'
+    echo '  [ "@import \"`$ctx.pathPrefix`/css/dev.css\";"'
+    echo '  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"'
+    echo '  , "@import \"`$ctx.pathPrefix`/css/article.css\";"'
+    echo '  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"'
+    echo '  ]'
+    echo '}'
   } > "$out"
 
   echo "==> wrote $out"

@@ -215,6 +215,21 @@ cabal build all
 cabal test unit
 ```
 
+## Website
+
+The site in [`website/`](website) is a [Kitchen-Sink](https://kitchensink-tech.github.io/)
+project; `website/src/` is the source, `docs/` is what GitHub Pages serves.
+To regenerate it:
+
+```bash
+./website/scripts/sync-playground.sh    # bundles playground/ into a static tramaj-playground.* page
+kitchen-sink produce --srcDir website/src --outDir docs/
+```
+
+Run `sync-playground.sh` first whenever the playground or the core language
+changes — it writes the mechanical, gitignored bundle that `kitchen-sink
+produce` then reads from `website/src/`.
+
 ## Consuming from your own project
 
 Neither half is published to a registry yet (see *Publishing* below). Depend on
