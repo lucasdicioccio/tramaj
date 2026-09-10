@@ -1,5 +1,6 @@
 { "title": "tramaj"
-, "publishURL": "https://lucasdicioccio.github.io/tramaj"
+, "publishURL": "https://lucasdicioccio.github.io"
+, "basePath": "/tramaj"
 , "twitterLogin": "lucasdicioccio"
 , "commands": []
 , "api": {"tag":"NoProxying"}

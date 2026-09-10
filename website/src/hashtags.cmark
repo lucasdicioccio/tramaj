@@ -2,11 +2,14 @@
 {"layout":"hashtags"
 }
 
-=base:main-css.css
-@import "/css/dev.css";
-@import "/css/colors.css";
-@import "/css/articles-listing.css";
-@import "/css/topics.css";
-@import "/css/navigation.css";
-
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/articles-listing.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/topics.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  ]
+}
 

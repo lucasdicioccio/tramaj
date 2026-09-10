@@ -116,9 +116,14 @@ signal your evaluation semantics agree with theirs. Open an issue on the
 heavily in one — coordinating on which language is being worked on avoids
 duplicate effort.
 
-=base:main-css.css
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  ]
+}
 
-@import "/css/dev.css";
-@import "/css/colors.css";
-@import "/css/article.css";
-@import "/css/navigation.css";
