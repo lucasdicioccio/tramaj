@@ -1,0 +1,166 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Published"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-10T01:00:00Z"
+,"title": "tramaj for coding agents"
+}
+
+=base:topic.json
+{"topics":["how-to", "agents"]
+,"keywords":["LLM", "coding agent", "grammar", "cheatsheet"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates.
+
+=base:main-content.cmark
+
+# tramaj for coding agents
+
+tramaj was designed to be as easy for a model to emit correctly as for a
+person to write by hand — a small builtin set, one expression grammar, and
+no template/expression phase split to keep track of. This page is a dense
+cheatsheet plus a fetch strategy for getting the full grammar when the
+summary below isn't enough.
+
+## Fetch the canonical source first
+
+Don't rely on prose alone for anything you're about to emit — pull the
+normative text:
+
+- Every page on this site is also served as plain text at
+  `/text/<page-name>.cmark.text` (e.g. `/text/reference-language.cmark.text`)
+  — no HTML to strip.
+- The specs themselves are the ultimate source of truth, on GitHub:
+  [`reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md),
+  [`node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md),
+  [`v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md),
+  [`v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md).
+- [`corpus/cases/`](https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases)
+  in the repository is a conformance corpus: each case is a
+  `template.tramaj` + `ctx.json` + `expected.json` triple (plus optional
+  `libs/*.tramaj`) that both implementations must satisfy — treat these as
+  runnable, ground-truth examples rather than prose.
+- See also [`llms.txt`](/raw/llms.txt) for a short machine-readable index of
+  the above (Kitchen-Sink serves arbitrary `.txt` files under `/raw/`, so
+  this isn't at the conventional `/llms.txt` root path).
+
+## Leaders — what each sigil means
+
+| Leader | Meaning |
+|---|---|
+| `.` | document: `.tag(...)` element, or `.(...)` fragment |
+| `$` | read a binding or path |
+| `@` | define a binding (`@name=expr`) |
+| `!` | emit a constraint, statement position (`!constraint(name, ...)`) |
+| `?` | symbolic allocation/demand, v3 (`?(key)`) |
+| `%` | type hole, v4 |
+| `--` | line comment, to end of line |
+
+## Shape of a program
+
+```
+@n=cardinality($ctx.items)
+.p("there are `$n` item(s)")
+```
+
+An optional block of `@name=expr` bindings, evaluated once each in order,
+followed by one root expression. Backtick-quoted `` `$expr` `` interpolates
+into a string; a bare `$path` can be a child directly. `a <> b` concatenates
+strings, arrays, and objects.
+
+## Documents are ordinary values
+
+There is no separate "template value" type — an element or fragment can be
+bound, passed to a function, and returned from one:
+
+```
+@kids=.(.p("one"), .p("two"))
+@panel=(title, children) => .section(.h2($title), $children)
+
+.main($panel("Deployment", $kids))
+```
+
+## Actions are opaque to the language
+
+`action("on-click", "select", {"id": $i.id})` attaches structured data to an
+element. The language does not interpret it — a host decides what the key
+means. Action keys and adaptation prefixes must be literal strings, never
+computed, which is what keeps "what actions can this template emit"
+statically answerable.
+
+## Imports
+
+`import(...)` pulls in another program as a library. Parameters can arrive
+as an expression, as a `ctx(path)` hole (a static marker that the *importing*
+program's own context gets read at that point), or be omitted and supplied
+later by calling the import. Imports are lazy — nothing runs until
+`.rendered` or `.vals` is read on the result.
+
+## v3 — symbols and constraints (frozen, implemented)
+
+`?(key)` allocates an opaque symbol; only the root program may do this
+(libraries raise `AllocationInLibrary`). `!constraint(name, ...)` emits a
+constraint. Running in `Symbolic` mode (a host choice, not something the
+template declares) wraps the result in a `tramaj/symbolic/1` envelope of
+root value, symbols, and constraints instead of a finished document — use
+this when the actual values should come from a solver rather than be
+supplied up front. Full grammar: [`v3-symbols.md`](/reference-v3-symbols.html).
+
+## v4 — types (draft, implemented)
+
+`@x : T = e` desugars to `@x=e` plus a `has-type` constraint carrying `T`'s
+canonical id. Types are resolved and erased before evaluation — tramaj fixes
+type *identity* (canonical ids, string equality), a separate host checker
+decides whether values actually satisfy it. Type parameters thread through
+imports. Full grammar: [`v4-types.md`](/reference-v4-types.html).
+
+## Static analyses available without evaluating
+
+Because imports, action keys, adaptation prefixes, and `ctx(...)` paths are
+all literal strings in the syntax, these can all be answered by walking the
+AST — no context, no evaluation:
+
+- what a program imports, and with what parameters
+- what actions it can possibly emit
+- what context paths it reads (`ctx(...)` holes)
+- which import parameters are still unsupplied
+- (v3/v4) what constraints and symbols/types it introduces
+
+`tramaj-cli`'s `analyze` subcommand exposes these directly — see
+[Getting started](/howto-humans.html) for exact invocations. If you're
+generating a template and want to
+self-check it before handing it to a host, running `analyze` on it is
+cheaper and more reliable than re-deriving these properties by re-reading
+your own output.
+
+## Common pitfalls
+
+- Don't compute an import name, action key, or `ctx(...)` path from an
+  expression — these must be literal strings; the grammar doesn't allow
+  otherwise.
+- Bindings are visible only *after* their declaration, in order — not
+  mutually recursive.
+- A library (something loaded via `import`) may not call `?(key)` — only the
+  root program may allocate symbols.
+- Evaluation order is unconstrained outside of binding precedence: don't
+  write templates that rely on side-effect ordering, because there isn't
+  one — evaluation is meant to be referentially transparent.
+
+=base:main-css.css
+
+@import "/css/dev.css";
+@import "/css/colors.css";
+@import "/css/article.css";
+@import "/css/navigation.css";

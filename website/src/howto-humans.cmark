@@ -1,0 +1,142 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Published"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-10T01:00:00Z"
+,"title": "Getting started with tramaj"
+}
+
+=base:topic.json
+{"topics":["how-to"]
+,"keywords":["getting started", "tramaj-cli", "install", "tutorial"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Write a first template, run it, and see where to go from there.
+
+=base:main-content.cmark
+
+# Getting started with tramaj
+
+This is a practical walkthrough. For a conceptual tour of the language, see
+[Introducing tramaj](/first-article.html); for the full grammar, see the
+[Reference](/reference.html).
+
+## The fastest way in: the playground
+
+Before installing anything, try the [playground](/playground.html) — it runs
+entirely in the browser, needs no setup, and shows the same panels described
+below (evaluated AST, rendered HTML, action log).
+
+## Installing the toolchain
+
+tramaj's PureScript packages are one [Spago](https://github.com/purescript/spago)
+workspace. You need `purs` and `spago` on your `PATH`:
+
+```bash
+npm install -g purescript spago
+```
+
+Anything that bundles a browser or Node bundle — the playground and the CLI —
+also needs `esbuild`, which is a devDependency of the repo root:
+
+```bash
+git clone https://github.com/lucasdicioccio/tramaj.git
+cd tramaj
+npm install
+export PATH="$PWD/node_modules/.bin:$PATH"
+```
+
+## Writing a first template
+
+Create `hello.tramaj`:
+
+```
+@n=cardinality($ctx.items)
+.p("there are `$n` item(s)")
+```
+
+and a context to evaluate it against, `hello.json`:
+
+```json
+{"items": ["a", "b", "c"]}
+```
+
+## Running it
+
+```bash
+spago run -p tramaj-cli --args "hello.tramaj hello.json"
+```
+
+This prints the evaluated `Node` AST as JSON — a `p` element wrapping the
+text `there are 3 item(s)`. See [`node-json.md`](/reference-node-json.html)
+for what that JSON shape means, or fold it into real HTML by rendering it
+through a host like `tramaj-halogen`.
+
+## Splitting a template into libraries
+
+A template can `import(...)` another template as a library. Pass each one
+with `--lib name=path`:
+
+```bash
+spago run -p tramaj-cli --args "--lib greeter=greeter.tramaj hello.tramaj hello.json"
+```
+
+Repeat `--lib` for as many libraries as the template's imports need.
+
+## Inspecting a template without running it
+
+Because imports, action keys, and context reads are all static positions
+(see [Properties](/properties.html)), the CLI can answer questions about a
+template without a context file at all:
+
+```bash
+node tramaj-cli/dist/tramaj-cli.js analyze imports hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze actions hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze holes hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze unsupplied hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze all hello.tramaj
+```
+
+(These need a bundled CLI first: `spago bundle -p tramaj-cli --platform node
+--outfile dist/tramaj-cli.js`, run from `tramaj-cli/`.)
+
+## Embedding in a real UI
+
+If your host is a [Halogen](https://github.com/purescript-halogen/purescript-halogen)
+app, `tramaj-halogen`'s `foldToHalogen` turns an evaluated `Node` into
+`Halogen.HTML`, wiring each `action(...)` in the template to your own
+`Action` type. The [playground's own source](https://github.com/lucasdicioccio/tramaj/blob/main/playground/src/Playground/Main.purs)
+is the reference example of a host that does this for real, interactive
+clicks rather than just rendering.
+
+If your host is something else entirely — a different UI framework, a
+non-HTML document format — write your own fold over the `Node` AST; the
+format is small and normative on purpose (see
+[`node-json.md`](/reference-node-json.html)).
+
+## Where to go next
+
+- [Use cases](/use-cases.html) for where this fits alongside other
+  templating approaches.
+- [Reference](/reference.html) for the full grammar, builtins, and the v3/v4
+  extensions.
+- [For coding agents](/howto-agents.html) if you're setting an LLM loose on
+  tramaj templates rather than writing them by hand.
+
+=base:main-css.css
+
+@import "/css/dev.css";
+@import "/css/colors.css";
+@import "/css/article.css";
+@import "/css/navigation.css";

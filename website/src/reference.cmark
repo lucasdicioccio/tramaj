@@ -1,0 +1,66 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Published"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-10T01:00:00Z"
+,"title": "Reference"
+}
+
+=base:topic.json
+{"topics":["reference"]
+,"keywords":["specification", "grammar", "builtins"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+The tramaj specification: language reference, wire format, and the shipped v3/v4 extensions.
+
+=base:main-content.cmark
+
+# Reference
+
+These pages are generated straight from the specs in the
+[tramaj repository](https://github.com/lucasdicioccio/tramaj/tree/main/specs)
+— the repository is always the canonical source, and may be ahead of what's
+published here.
+
+- [**Language reference**](/reference-language.html) — core AST, values,
+  evaluation rules, surface syntax and its desugarings, imports, actions,
+  builtins, and what's implementation-defined. Start here.
+- [**Node JSON representation**](/reference-node-json.html) — the normative
+  wire format for the evaluated `Node` AST.
+- [**v3 — Symbolic values and constraints**](/reference-v3-symbols.html) —
+  `?(key)` allocation, `!constraint(name, ...)`, and the `Symbolic`
+  evaluation mode.
+- [**v4 — Types**](/reference-v4-types.html) — the nominal type algebra,
+  type parameters through imports, and typed annotations.
+
+Two more documents exist only in the repository, not mirrored here since
+they're development history rather than language reference:
+
+- [`laws.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/laws.md)
+  — the design invariants, rewritten in prose on the
+  [Properties](/properties.html) page.
+- [`decisions.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md)
+  — the resolved-conflicts log: which reading won wherever the design drafts
+  disagreed, and why.
+
+Earlier, superseded design drafts live under
+[`specs/archive/`](https://github.com/lucasdicioccio/tramaj/tree/main/specs/archive),
+kept for the reasoning in them rather than as current documentation.
+
+=base:main-css.css
+
+@import "/css/dev.css";
+@import "/css/colors.css";
+@import "/css/article.css";
+@import "/css/navigation.css";

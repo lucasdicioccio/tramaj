@@ -15,7 +15,16 @@ those sections into a full site.
 
 ## Next steps
 
-Run the dev server, which rebuilds on file changes:
+Before producing or serving the site, regenerate the two mechanical bits of
+content that live outside this directory (both write into `src/` and are
+gitignored there — see `scripts/`):
+
+```
+./scripts/sync-reference.sh    # mirrors specs/*.md into reference-*.cmark
+./scripts/sync-playground.sh   # bundles playground/ into a static tramaj-playground.* page
+```
+
+Then run the dev server, which rebuilds on file changes:
 
 ```
 kitchen-sink serve --srcDir src --outputDir www --servMode DEV --httpPort 7655

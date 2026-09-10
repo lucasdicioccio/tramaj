@@ -46,7 +46,7 @@ jobs:
         run: spago test -p templating
 
       - name: Bundle the playground
-        run: spago bundle -p templating-playground
+        run: spago bundle -p tramaj-playground
 
       - name: Bundle the CLI and render a template
         run: |

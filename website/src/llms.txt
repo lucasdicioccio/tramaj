@@ -1,0 +1,24 @@
+tramaj — a small template language for turning a JSON value into a document tree.
+
+Overview: https://lucasdicioccio.github.io/tramaj/
+For coding agents: https://lucasdicioccio.github.io/tramaj/howto-agents.html
+Getting started (humans): https://lucasdicioccio.github.io/tramaj/howto-humans.html
+Properties: https://lucasdicioccio.github.io/tramaj/properties.html
+Use cases: https://lucasdicioccio.github.io/tramaj/use-cases.html
+Interactive playground: https://lucasdicioccio.github.io/tramaj/playground.html
+
+Specs (canonical source, on GitHub):
+- Language reference: https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md
+- Node JSON representation: https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md
+- v3, symbolic values and constraints: https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md
+- v4, types: https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md
+- Design laws: https://github.com/lucasdicioccio/tramaj/blob/main/specs/laws.md
+- Design decisions log: https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md
+
+Conformance corpus (runnable examples): https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases
+
+Every article on this site is also served as plain text, at
+/text/<page-name>.cmark.text (e.g. /text/reference-language.cmark.text) —
+fetch that instead of the HTML when you only need the content.
+
+Source repository: https://github.com/lucasdicioccio/tramaj

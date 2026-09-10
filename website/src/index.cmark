@@ -46,6 +46,22 @@ language, or go straight to
 [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md)
 on GitHub for the full spec.
 
+## Explore
+
+- [**Properties**](/properties.html) — the invariants tramaj is held to:
+  portability, cheap static analysis, determinism.
+- [**Use cases**](/use-cases.html) — where a small document-composing
+  language fits: static sites, real UIs, LLM-generated templates,
+  constraint-driven and typed generation.
+- [**Reference**](/reference.html) — the language specification, the `Node`
+  wire format, and the v3/v4 extensions.
+- [**Playground**](/playground.html) — try it in the browser, nothing sent
+  to a server.
+- [**Getting started**](/howto-humans.html) — install the toolchain, write
+  and run a first template.
+- [**For coding agents**](/howto-agents.html) — a dense syntax cheatsheet
+  and fetch strategy for an LLM emitting tramaj templates.
+
 <script src="js/topicgraph.js"></script>
 
 =base:main-css.css

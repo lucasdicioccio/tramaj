@@ -21,6 +21,19 @@ playground/dist/app.js.map
 # Kitchen-Sink site build output. website/src/ is source and stays tracked.
 website/www/
 
+# Playground bundle copied into the website by
+# website/scripts/sync-playground.sh — mechanical output, not source.
+website/src/tramaj-playground.html
+website/src/tramaj-playground-app.js
+website/src/tramaj-playground.css
+
+# Reference pages generated from specs/*.md by
+# website/scripts/sync-reference.sh — mechanical output, not source.
+website/src/reference-language.cmark
+website/src/reference-node-json.cmark
+website/src/reference-v3-symbols.cmark
+website/src/reference-v4-types.cmark
+
 # Haskell / Cabal
 dist-newstyle/
 *.hi
