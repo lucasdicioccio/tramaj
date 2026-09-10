@@ -28,7 +28,7 @@ sync_one() {
   {
     echo '=base:build-info.json'
     echo '{"layout":"article"'
-    echo ',"publicationStatus":"Published"'
+    echo ',"publicationStatus":"Public"'
     echo '}'
     echo
     echo '=base:preamble.json'
