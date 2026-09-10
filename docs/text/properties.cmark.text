@@ -1,0 +1,25 @@
+# Properties of tramaj
+
+tramaj is small on purpose. A handful of invariants are what make that smallness pay off — they're what let a host embed the language without trusting it, and what let an LLM emit templates without a feedback loop to check them against.
+
+## Small core
+
+The whole language is one expression grammar: bindings, HAML-like elements, `jq`-flavoured paths and calls, and a deliberately tiny builtin set. There is no separate template phase and no macro system — an element or a fragment is an ordinary value, so composing documents is just composing expressions. Nothing about the identity of the language depends on HTML, a browser, or any particular UI framework: the core (`tramaj/`) has no DOM dependency at all, and folding a `Node` into Halogen HTML, JSON, or anything else is entirely the host's decision.
+
+## Portable at the boundary
+
+Evaluation produces a generic `Node` AST with a normative JSON encoding ([`node-json.md`](/reference-node-json.html )): scalars stay scalars, and an element may carry many opaque, structured actions rather than being tied to one host's event model. That boundary is what lets two independent implementations — a PureScript one and a Haskell one — target the same grammar and share a conformance corpus, and it's what lets a host system receive a rendered document as data rather than as a blob of host-specific markup.
+
+## Cheap to analyze statically
+
+Import names, action keys, action-adaptation prefixes, and `ctx(path)` reads are all literal strings in the syntax — never the result of evaluating an expression. That's a deliberate restriction, not an oversight: it means a tool can answer "what does this program import," "what actions can it emit," "what context does it read," and "which import parameters are still unsupplied" by walking the AST, with no evaluation step and no need to run untrusted input to find out what it does.
+
+## Deterministic
+
+Templates are referentially transparent — the same bindings evaluated against the same context values always produce the same result. Evaluation order is unconstrained outside of binding precedence, so a host is free to parallelize or reorder work, but never free to change the answer. This is what makes a rendered document reproducible, cacheable, and safe to diff.
+
+## What this buys you in practice
+
+Put together, these properties mean a host can accept a tramaj template from an untrusted or automated source — a CMS, a design tool, an LLM — and know, without running it, what it can possibly do to the page or app it's embedded in. See [Use cases](/use-cases.html ) for what that looks like in practice, or the [Reference](/reference.html ) for the full specification these properties are drawn from.
+
+

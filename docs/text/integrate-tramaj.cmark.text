@@ -1,0 +1,81 @@
+# Integrating tramaj into a host
+
+Every integration has the same two moving parts, regardless of language:
+
+- .1 **Evaluate** — parse a template and run it against a JSON context to get a `Node`: the normative, host-agnostic document tree ([`node-json.md`](/reference-node-json.html )).
+
+- .1 **Fold** — walk that `Node` and turn it into whatever your host actually renders: real DOM, a UI framework's virtual tree, another markup language, a config file.
+
+
+Nothing about `Node` or the evaluator knows about HTML, a browser, or any particular UI framework (see [Properties](/properties.html )) — the fold is always something _you_ write for your host, even where this repository already ships one for you. Which of the four paths below applies depends only on what language your host is written in.
+
+```html
+<table>
+<tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
+<tr><td>PureScript</td><td>depend on <code>tramaj</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
+<tr><td>Haskell</td><td>depend on <code>tramaj-hs</code> directly</td><td>write your own — none shipped yet</td></tr>
+<tr><td>JavaScript / Node</td><td>shell out to <code>tramaj-cli</code></td><td>write your own, over its JSON</td></tr>
+<tr><td>anything else</td><td>shell out to <code>tramaj-cli</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
+</table>
+```
+
+## PureScript — import as a library, fold with `tramaj-halogen`
+
+`tramaj`, `tramaj-halogen`, `tramaj-cli`, and `playground` are members of one [Spago](https://github.com/purescript/spago ) workspace rooted at this repository. A new PureScript package placed as a subdirectory of the workspace, with `tramaj` (and `tramaj-halogen` if you're rendering through Halogen) listed in its `spago.yaml` dependencies, is picked up by Spago's workspace discovery with no registry publishing step needed.
+
+The core API:
+
+```
+-- Tramaj.Parser
+parseProgram :: String -> Either ParseError Program
+
+-- Tramaj.Eval
+runProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Json
+```
+
+`Mode` is `Concrete` or `Symbolic` ([`v3-symbols.md`](/reference-v3-symbols.html )); `LibraryTable` supplies whatever the template's `import(...)` calls need. `runProgram` gives you the evaluated document as JSON directly, already encoded per [`node-json.md`](/reference-node-json.html ). If you need the `Node` value itself rather than its JSON encoding — to fold it without a round-trip through JSON — `evalProgramWithEmissions` is the lower-level entry point that stops one step earlier.
+
+If your host renders through [Halogen](https://github.com/purescript-halogen/purescript-halogen ), don't write a fold at all — `tramaj-halogen` already has one:
+
+```
+-- Tramaj.Halogen
+foldToHalogen
+  :: forall action slots m
+   . (String -> String -> Json -> Maybe action)
+  -> Node
+  -> Array (ComponentHTML action slots m)
+```
+
+The first argument is a `dispatch` function: event type, action key, and JSON payload in, an optional host action out. A read-only host supplies `\_ _ _ -> Nothing`. The result is an `Array`, not a single element, because a fragment contributes several siblings with no wrapper element. Call `validateAttrNames` on the `Node` first — attribute names aren't validated by the fold itself.
+
+[`playground/src/Playground/Main.purs`](https://github.com/lucasdicioccio/tramaj/blob/main/playground/src/Playground/Main.purs ) is the canonical worked example of the whole pipeline — `Tramaj.Parser` → `Tramaj.Eval` → `Tramaj.Halogen.foldToHalogen` — including `dispatchAction`, which turns `action(...)` clicks into real Halogen actions for an _interactive_ host (a read-only host just passes `const Nothing` instead).
+
+## Haskell — the library exists, the fold doesn't yet
+
+`tramaj-hs` is an independent Haskell port, built on megaparsec and aeson, that targets the same grammar as the PureScript `tramaj` and shares its conformance corpus. It's a normal Cabal library exposing `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`, and `Tramaj.Types` — so a Haskell host can depend on it directly (as a `source-repository-package` or path dependency; it isn't published to Hackage), the same way a PureScript host depends on `tramaj`.
+
+What it does _not_ have yet is a `tramaj-halogen` equivalent — no fold to Lucid, Blaze, or any other Haskell HTML/UI library ships in this repository. A Haskell host gets the parser, the evaluator, and the `Node` JSON encoding (kept in lockstep with the PureScript `Tramaj.Node`); writing the fold to your actual rendering library is on you. The shape to follow is `tramaj-halogen`'s: case on `Text`/`Element`/`Fragment`, recurse into children, and decide what an `action(...)` payload means in your host.
+
+## JavaScript / Node — shell out to `tramaj-cli`
+
+There's no FFI boundary or documented JS-facing module for `Tramaj.Parser`/ `Tramaj.Eval` today — the core has no JS entrypoint of its own. `tramaj-cli`'s Spago bundle produces a standalone executable (`spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js`), not a library you `require`/`import` and call into; the playground's bundle is likewise an app, not a library. The realistic path for a plain JS or Node host today is the same one open to any other language: run `tramaj-cli` as a subprocess and parse its JSON output. See [Getting started](/howto-humans.html ) for the exact CLI invocations.
+
+## Any other language
+
+For a host in a language with no PureScript or Haskell interop story — Python, Go, Rust, whatever — there are two options:
+
+**(a) Full reimplementation.** Port the parser and evaluator to your language, the way `tramaj-hs` ports the PureScript original. Worth it only if you need to _evaluate_ templates natively (e.g. embedding evaluation in a process that can't shell out, or needs it to run in-process for performance). [`reference.md`](/reference-language.html ) is the full grammar and evaluation semantics to implement against, and the conformance corpus (`corpus/cases/` in the repository — template + context + expected output triples) is what both existing implementations are held to; a third implementation should be checked against the same corpus.
+
+**(b) Partial implementation, starting from `tramaj-cli`'s output.** For most hosts this is the pragmatic choice: don't reimplement the parser or evaluator at all. Shell out to `tramaj-cli`:
+
+```bash
+tramaj-cli template.tramaj context.json
+```
+
+which prints the evaluated `Node` as JSON on stdout, exactly per [`node-json.md`](/reference-node-json.html ). Your host only needs to write the _fold_ — parse that JSON, case on whether each node is text, an element, or a fragment, recurse into children, and decide what each element's `action(...)` entries mean in your host — the same shape as `tramaj-halogen`'s fold, just written against decoded JSON instead of a native `Node` value. `tramaj-cli`'s `analyze` subcommands (`imports`/`actions`/`holes`/`unsupplied`/`constraints`/`symbols`/`types`) are available the same way, without a context file, if your host wants the static-analysis facts from [Properties](/properties.html ) rather than a rendered document.
+
+This is also the fastest way to prototype an integration in any language before deciding whether a full reimplementation is ever worth it.
+
+Native implementations for JavaScript, Python, and Rust specifically are wanted — see the [Roadmap](/roadmap.html ) for what that would mean and where to start if you want to build one.
+
+

@@ -1,0 +1,45 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Properties of tramaj</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/properties.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="properties, determinism, static analysis, portability, small core"><meta name="description" content="The invariants tramaj is held to: portability, cheap static analysis, and determinism."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Properties of tramaj"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="The invariants tramaj is held to: portability, cheap static analysis, and determinism."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Properties of tramaj"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/properties.html"><meta property="og:description" content="The invariants tramaj is held to: portability, cheap static analysis, and determinism."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/json/properties.cmark.json"><meta name="ks:article_text" content="/text/properties.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"The invariants tramaj is held to: portability, cheap static analysis, and determinism.","headline":"Properties of tramaj","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/properties.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="properties"><meta name="article:tag" content="determinism"><meta name="article:tag" content="static analysis"><meta name="article:tag" content="portability"><meta name="article:tag" content="small core"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Properties of tramaj</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 393 words, 0 code snippets, 3 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/topics/properties.html"><span class="topic-name">properties</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="properties-of-tramaj">Properties of tramaj</h2>
+<p>tramaj is small on purpose. A handful of invariants are what make that
+smallness pay off — they’re what let a host embed the language without
+trusting it, and what let an LLM emit templates without a feedback loop to
+check them against.</p>
+<h3 id="small-core">Small core</h3>
+<p>The whole language is one expression grammar: bindings, HAML-like elements,
+<code>jq</code>-flavoured paths and calls, and a deliberately tiny builtin set. There is
+no separate template phase and no macro system — an element or a fragment is
+an ordinary value, so composing documents is just composing expressions.
+Nothing about the identity of the language depends on HTML, a browser, or any
+particular UI framework: the core (<code>tramaj/</code>) has no DOM dependency at all,
+and folding a <code>Node</code> into Halogen HTML, JSON, or anything else is entirely
+the host’s decision.</p>
+<h3 id="portable-at-the-boundary">Portable at the boundary</h3>
+<p>Evaluation produces a generic <code>Node</code> AST with a normative JSON encoding
+(<a href="/reference-node-json.html"><code>node-json.md</code></a>): scalars stay scalars, and an
+element may carry many opaque, structured actions rather than being tied to
+one host’s event model. That boundary is what lets two independent
+implementations — a PureScript one and a Haskell one — target the same
+grammar and share a conformance corpus, and it’s what lets a host system
+receive a rendered document as data rather than as a blob of host-specific
+markup.</p>
+<h3 id="cheap-to-analyze-statically">Cheap to analyze statically</h3>
+<p>Import names, action keys, action-adaptation prefixes, and <code>ctx(path)</code> reads
+are all literal strings in the syntax — never the result of evaluating an
+expression. That’s a deliberate restriction, not an oversight: it means a
+tool can answer “what does this program import,” “what actions can it
+emit,” “what context does it read,” and “which import parameters are still
+unsupplied” by walking the AST, with no evaluation step and no need to run
+untrusted input to find out what it does.</p>
+<h3 id="deterministic">Deterministic</h3>
+<p>Templates are referentially transparent — the same bindings evaluated
+against the same context values always produce the same result. Evaluation
+order is unconstrained outside of binding precedence, so a host is free to
+parallelize or reorder work, but never free to change the answer. This is
+what makes a rendered document reproducible, cacheable, and safe to diff.</p>
+<h3 id="what-this-buys-you-in-practice">What this buys you in practice</h3>
+<p>Put together, these properties mean a host can accept a tramaj template from
+an untrusted or automated source — a CMS, a design tool, an LLM — and know,
+without running it, what it can possibly do to the page or app it’s
+embedded in. See <a href="/use-cases.html">Use cases</a> for what that looks like in
+practice, or the <a href="/reference.html">Reference</a> for the full specification
+these properties are drawn from.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

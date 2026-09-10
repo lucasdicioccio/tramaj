@@ -1,0 +1,48 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - What tramaj is for</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/use-cases.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="use-cases, static sites, Halogen, LLM-generated UI, constraints, types"><meta name="description" content="A small functional language for composing values and documents — where it fits."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - What tramaj is for"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="A small functional language for composing values and documents — where it fits."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - What tramaj is for"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/use-cases.html"><meta property="og:description" content="A small functional language for composing values and documents — where it fits."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/json/use-cases.cmark.json"><meta name="ks:article_text" content="/text/use-cases.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"A small functional language for composing values and documents — where it fits.","headline":"What tramaj is for","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/use-cases.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="use-cases"><meta name="article:tag" content="static sites"><meta name="article:tag" content="Halogen"><meta name="article:tag" content="LLM-generated UI"><meta name="article:tag" content="constraints"><meta name="article:tag" content="types"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>What tramaj is for</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 428 words, 0 code snippets, 6 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/topics/use-cases.html"><span class="topic-name">use-cases</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="what-tramaj-is-for">What tramaj is for</h2>
+<p>tramaj is a small functional language for composing values and documents. A
+program evaluates against a JSON-like context and produces either an
+ordinary value or a generic document tree — the host decides what to do with
+it. That shape shows up in a few recurring situations.</p>
+<h3 id="turning-json-into-markup-safely">Turning JSON into markup, safely</h3>
+<p>The original motivation: templates that are comfortable to write by hand
+<em>and</em> easy for an LLM to emit. A <code>jq</code>-flavoured expression half handles the
+data, a HAML-like block syntax handles structure, and the builtin set stays
+small enough that neither a person nor a model has to hold much in their
+head to use it correctly. This site itself is one instance of that — <a href="/reference.html">static
+site pre-processing, the way Kitchen-Sink itself does it</a>.</p>
+<h3 id="templating-a-real-ui-not-just-markup">Templating a real UI, not just markup</h3>
+<p><code>tramaj-halogen</code> folds an evaluated <code>Node</code> into <code>Halogen.HTML</code>, wiring each
+<code>action(...)</code> in the template to the host’s own <code>Action</code> type. Because
+actions are opaque structured data rather than host-specific event handlers,
+a template can describe <em>what</em> should happen (“on-click, select, id: 42”)
+without knowing <em>how</em> the host will react to it — the same template could
+drive a different UI framework by pairing it with a different fold.</p>
+<h3 id="documents-an-llm-can-emit-and-a-host-can-trust">Documents an LLM can emit and a host can trust</h3>
+<p>Because imports, action keys, and context reads are all static positions —
+literal strings, never computed — a host can run the static analyses in
+<a href="/reference-language.html"><code>Tramaj.Analysis</code></a> over a model-generated template
+<em>before</em> evaluating it: what does it import, what actions can it possibly
+emit, what context does it read, which import parameters are still
+unsupplied. That turns “an LLM wrote this template” from a trust problem
+into an inspectable one. See <a href="/properties.html">Properties</a> for why this
+holds.</p>
+<h3 id="constraint-driven-generation">Constraint-driven generation</h3>
+<p>v3 adds symbolic values (<code>?(key)</code>) and constraints (<code>!constraint(name, ...)</code>). Running evaluation in <code>Symbolic</code> mode produces an envelope of root
+value, symbols, and constraints instead of a finished document — useful when
+the actual values should come from a solver, a form the user hasn’t filled
+in yet, or a search process, rather than being supplied up front. See
+<a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
+<h3 id="typed-template-contracts">Typed template contracts</h3>
+<p>v4 adds a nominal type algebra on top of that: type declarations, type
+parameters threaded through imports, and <code>@x : T = e</code> annotations that are
+resolved and erased before evaluation. tramaj fixes what a type <em>is</em>
+(identity is structural string equality over canonical ids); a separate host
+checker decides whether the values flowing through a template actually
+satisfy it. That’s useful wherever a template is a contract between two
+teams or two systems — e.g. a component library whose consumers should be
+checked against its declared shape. See <a href="/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
+<h3 id="try-it">Try it</h3>
+<p>The <a href="/playground.html">playground</a> runs all of the above in the browser —
+tabs-as-importable-libraries, live AST/render panels, an action log, and a
+symbolic-mode toggle — with nothing sent to a server.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

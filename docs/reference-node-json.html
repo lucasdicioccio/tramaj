@@ -1,0 +1,112 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj — Normative Node JSON representation</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj — Normative Node JSON representation"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj — Normative Node JSON representation"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-node-json.html"><meta property="og:description" content="Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-09-10T13:23:07Z"><meta name="article:modified_time" content="2026-09-10T13:23:07Z"><meta name="ks:article_json" content="/json/reference-node-json.cmark.json"><meta name="ks:article_text" content="/text/reference-node-json.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T13:23:07Z","datePublished":"2026-09-10T13:23:07Z","description":"Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.","headline":"Tramaj — Normative Node JSON representation","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-node-json.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Tramaj — Normative Node JSON representation</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 525 words, 5 code snippets, 0 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/reference.html">‹</a></span><a class="topic-link" href="/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">2/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/reference-v3-symbols.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"><code>specs/node-json.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<h2 id="tramaj--normative-node-json-representation">Tramaj — Normative Node JSON representation</h2>
+<p>The evaluated <code>Node</code> AST is the portable interchange boundary between Tramaj
+implementations and their hosts. This document defines its <strong>normative</strong> JSON
+representation.</p>
+<p>An implementation MAY use any internal representation of nodes, but a conforming
+implementation MUST be able to produce and consume the representation below
+without loss: <code>decode(encode(n))</code> MUST yield a node equal to <code>n</code>.</p>
+<p>Object key ordering is not semantically significant and MUST NOT be relied upon.</p>
+<h3 id="node-ast">Node AST</h3>
+<pre><code class="language-text">Annotations = Map&lt;String, JSON&gt;
+
+Node
+  = Text
+      value: Value
+      annotations: Annotations
+
+  | Element
+      tag: String
+      attributes: List&lt;NodeAttribute&gt;
+      value: Value
+      children: List&lt;Node&gt;
+      annotations: Annotations
+
+  | Fragment
+      children: List&lt;Node&gt;
+      annotations: Annotations
+
+NodeAttribute
+  = Attribute
+      name: String
+      value: Value
+
+  | Action
+      event: String
+      key: String
+      payload: Value
+</code></pre>
+<p><code>Value</code> is the ordinary JSON value domain — <code>null</code>, boolean, number, string,
+array, object. It is <em>not</em> a <code>Node</code>: a document tree never nests through an
+attribute value, an element value slot, or an action payload.</p>
+<p><code>Text</code> carries a <code>Value</code>, not a <code>String</code>, so scalars survive evaluation without
+implicit conversion: <code>.p($ctx.count)</code> with <code>count = 3</code> produces a text node whose
+value is the number <code>3</code>, not the string <code>&quot;3&quot;</code>. A host that wants a string renders
+one; the interchange format does not decide that for it.</p>
+<p><code>Element</code> carries a <code>value</code> slot alongside its children, for hosts whose target
+format attaches a body value to a tagged node (a scalar leaf in YAML/HCL, a
+configuration value, an editor model). It defaults to <code>null</code> when a template does
+not set one.</p>
+<p><code>Fragment</code> is an ordered sequence of siblings introducing no wrapper element. It
+is a real node in this representation; a host MAY flatten fragments when folding
+into its own target.</p>
+<h3 id="json-encoding">JSON encoding</h3>
+<p>Every object carries a discriminator: <code>&quot;type&quot;</code> for nodes, <code>&quot;kind&quot;</code> for attributes.
+Every field listed is REQUIRED — including <code>&quot;annotations&quot;</code>, which is <code>{}</code> when a
+node has none, and <code>&quot;value&quot;</code>, which is <code>null</code> when an element has no value slot.
+An encoder MUST emit all of them; a decoder MUST reject an object missing any.</p>
+<h4 id="text">Text</h4>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;text&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span> <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}}</span></span></code></pre></div></div><div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;text&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;hello&quot;</span><span class="fu">,</span> <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}}</span></span></code></pre></div></div><h4 id="element">Element</h4>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;element&quot;</span><span class="fu">,</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tag&quot;</span><span class="fu">:</span> <span class="st">&quot;button&quot;</span><span class="fu">,</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;attributes&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;attribute&quot;</span><span class="fu">,</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;class&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;primary&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;action&quot;</span><span class="fu">,</span> <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;on-click&quot;</span><span class="fu">,</span> <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;deploy&quot;</span><span class="fu">,</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;payload&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;deployment&quot;</span><span class="fu">:</span> <span class="st">&quot;web&quot;</span><span class="fu">}}</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;children&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="11"><a href="#11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;text&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;Deploy&quot;</span><span class="fu">,</span> <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}}</span></span>
+<span id="12"><a href="#12" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}</span></span>
+<span id="14"><a href="#14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div></div><p><code>attributes</code> is an ordered list, not a map: an element may carry any number of
+attributes and any number of actions, and their source order is preserved.
+Ordinary attributes and actions share one list because both are attribute-position
+constructs; a host reading only one kind filters on <code>&quot;kind&quot;</code>.</p>
+<p>An attribute <code>name</code> may repeat. The representation does not deduplicate; a host
+decides what a repeated name means for its target.</p>
+<h4 id="fragment">Fragment</h4>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;fragment&quot;</span><span class="fu">,</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;children&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;text&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;one&quot;</span><span class="fu">,</span> <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}}</span><span class="ot">,</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;text&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;two&quot;</span><span class="fu">,</span> <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}}</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="fu">{}</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div></div><h3 id="annotations">Annotations</h3>
+<p><code>annotations</code> is a JSON object mapping annotation keys to arbitrary JSON.</p>
+<p>The core language assigns no meaning to any key or value. Annotations are the
+extension point for types, domains and constraints, provenance, host metadata, and
+optimization hints.</p>
+<p>Unknown annotations MUST NOT affect core semantics, and implementations MUST
+preserve them across every node-to-node transformation they perform —
+<code>adapt-actions</code> in particular copies a node’s annotations through unchanged.</p>
+<h3 id="decoding">Decoding</h3>
+<p>A decoder MUST reject:</p>
+<ul>
+<li>an object with no <code>&quot;type&quot;</code>, or a <code>&quot;type&quot;</code> outside <code>{text, element, fragment}</code>;
+</li>
+<li>an attribute with no <code>&quot;kind&quot;</code>, or a <code>&quot;kind&quot;</code> outside <code>{attribute, action}</code>;
+</li>
+<li>any object missing a field required for its discriminator;
+</li>
+<li>a non-string <code>tag</code>, <code>name</code>, <code>event</code>, or <code>key</code>;
+</li>
+<li>a non-array <code>attributes</code> or <code>children</code>, or a non-object <code>annotations</code>.
+</li>
+</ul>
+<p>A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
+job; on the wire the representation is explicit, so that a missing field is a bug
+rather than a silent <code>null</code>.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

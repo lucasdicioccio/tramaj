@@ -1,0 +1,13 @@
+https://lucasdicioccio.github.io/tramaj/reference-language.html
+https://lucasdicioccio.github.io/tramaj/reference-v4-types.html
+https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html
+https://lucasdicioccio.github.io/tramaj/howto-agents.html
+https://lucasdicioccio.github.io/tramaj/playground.html
+https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html
+https://lucasdicioccio.github.io/tramaj/roadmap.html
+https://lucasdicioccio.github.io/tramaj/howto-humans.html
+https://lucasdicioccio.github.io/tramaj/reference-node-json.html
+https://lucasdicioccio.github.io/tramaj/reference.html
+https://lucasdicioccio.github.io/tramaj/index.html
+https://lucasdicioccio.github.io/tramaj/properties.html
+https://lucasdicioccio.github.io/tramaj/use-cases.html

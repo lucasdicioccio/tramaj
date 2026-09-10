@@ -1,0 +1,81 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Roadmap</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/roadmap.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="roadmap, JavaScript, Python, Rust, native implementation, conformance corpus"><meta name="description" content="Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Roadmap"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Roadmap"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/roadmap.html"><meta property="og:description" content="Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/json/roadmap.cmark.json"><meta name="ks:article_text" content="/text/roadmap.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next.","headline":"Roadmap","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/roadmap.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="roadmap"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="Python"><meta name="article:tag" content="Rust"><meta name="article:tag" content="native implementation"><meta name="article:tag" content="conformance corpus"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Roadmap</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 452 words, 0 code snippets, 11 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/topics/roadmap.html"><span class="topic-name">roadmap</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="roadmap">Roadmap</h2>
+<p>No package in this repository has had a stable release yet, and the
+language itself is still settling — see the
+<a href="https://github.com/lucasdicioccio/tramaj#roadmap-to-a-stable-release">repository README</a>
+for where the language grammar stands. This page is about something
+narrower: which <em>implementations</em> of tramaj exist, and which are wanted
+next.</p>
+<h3 id="where-things-stand-today">Where things stand today</h3>
+<p>Two independent implementations target the same grammar and are checked
+against a shared, language-neutral
+<a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus">conformance corpus</a> —
+template/context/expected-output triples that both must reproduce
+byte-for-byte, per case, in both <code>concrete</code> and <code>symbolic</code> evaluation modes.
+That’s a deliberately strong bar: a case belongs in the corpus only if two
+independently written implementations can run it identically.</p>
+<table>
+<tr><th>Implementation</th><th>Language</th><th>Status</th></tr>
+<tr><td><code>tramaj</code></td><td>PureScript</td><td>reference implementation, checked against the corpus</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>independent port, checked against the same corpus</td></tr>
+</table>
+<p>Neither is published to a package registry yet (see the README’s
+“Publishing” section) — both are used today as workspace/source
+dependencies. See <a href="/integrate-tramaj.html">Integrating tramaj</a> for what’s
+actually usable from each right now, including the fold each one does or
+doesn’t ship.</p>
+<h3 id="desired-native-implementations-for-js-python-and-rust">Desired: native implementations for JS, Python, and Rust</h3>
+<p>For a host in JavaScript, Python, or Rust, <a href="/integrate-tramaj.html">Integrating tramaj</a>
+currently recommends shelling out to <code>tramaj-cli</code> and writing a fold over
+its JSON output — a real, usable path, but a subprocess boundary rather
+than a native library. A native implementation in each of these languages
+is desired, so that hosts in these ecosystems get the same thing PureScript
+and Haskell hosts already have: an in-process parser and evaluator, with no
+subprocess and no JSON round-trip required just to get a <code>Node</code>.</p>
+<table>
+<tr><th>Language</th><th>Why it's wanted</th></tr>
+<tr><td>JavaScript / TypeScript</td><td>an installable npm package usable directly in a browser or Node host, in place of shelling out to <code>tramaj-cli</code> or compiling a PureScript wrapper</td></tr>
+<tr><td>Python</td><td>native use from data pipelines, notebooks, and backend services already written in Python, without a Node/PureScript toolchain as a runtime dependency</td></tr>
+<tr><td>Rust</td><td>a dependency-light, embeddable core for performance-sensitive or WASM-targeted hosts</td></tr>
+</table>
+<p>None of these exist yet — this is a wishlist, not a schedule. There’s no
+committed timeline or assigned owner for any of the three.</p>
+<h3 id="what-done-looks-like-for-a-new-implementation">What “done” looks like for a new implementation</h3>
+<p><code>tramaj-hs</code> is the template to follow, since it’s the one implementation
+that was added <em>after</em> the language had already settled on a normative
+spec and output format. A new implementation is considered on par with the
+existing two once it:</p>
+<ul>
+<li>implements the grammar and evaluation rules in
+<a href="/reference-language.html"><code>reference.md</code></a>, including the static
+restrictions that make imports, action keys, and <code>ctx(...)</code> paths
+analyzable without evaluation (see <a href="/properties.html">Properties</a>);
+</li>
+<li>encodes and decodes the <code>Node</code> AST exactly per
+<a href="/reference-node-json.html"><code>node-json.md</code></a>, including the round-trip
+guarantee (<code>decode(encode(n)) == n</code>);
+</li>
+<li>passes every case in the
+<a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus">conformance corpus</a>,
+in both <code>concrete</code> and <code>symbolic</code> mode, byte-for-byte against
+<code>expected.json</code>;
+</li>
+<li>optionally, but ideally: a fold analogous to <code>tramaj-halogen</code>’s
+<code>foldToHalogen</code> for at least one popular rendering target in that
+ecosystem (e.g. a DOM fold for JS, a common Python templating output for
+Python).
+</li>
+</ul>
+<p>The v3 (<code>?</code>/<code>!</code>, <a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>) and v4
+(<code>%</code>, <a href="/reference-v4-types.html"><code>v4-types.md</code></a>) extensions are both
+shipped and part of the same conformance bar — a new implementation isn’t
+considered complete while targeting only the v2 core.</p>
+<h3 id="contributing-an-implementation">Contributing an implementation</h3>
+<p>If you’re taking on one of these, the corpus is the fastest way to find out
+what you got wrong: it’s meant to be run against a from-scratch
+implementation just as it’s run against the two that exist, and a case
+that byte-for-byte matches both <code>tramaj</code> and <code>tramaj-hs</code> today is a strong
+signal your evaluation semantics agree with theirs. Open an issue on the
+<a href="https://github.com/lucasdicioccio/tramaj">repository</a> before investing
+heavily in one — coordinating on which language is being worked on avoids
+duplicate effort.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

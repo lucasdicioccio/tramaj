@@ -1,0 +1,29 @@
+# What tramaj is for
+
+tramaj is a small functional language for composing values and documents. A program evaluates against a JSON-like context and produces either an ordinary value or a generic document tree — the host decides what to do with it. That shape shows up in a few recurring situations.
+
+## Turning JSON into markup, safely
+
+The original motivation: templates that are comfortable to write by hand _and_ easy for an LLM to emit. A `jq`-flavoured expression half handles the data, a HAML-like block syntax handles structure, and the builtin set stays small enough that neither a person nor a model has to hold much in their head to use it correctly. This site itself is one instance of that — [static site pre-processing, the way Kitchen-Sink itself does it](/reference.html ).
+
+## Templating a real UI, not just markup
+
+`tramaj-halogen` folds an evaluated `Node` into `Halogen.HTML`, wiring each `action(...)` in the template to the host's own `Action` type. Because actions are opaque structured data rather than host-specific event handlers, a template can describe _what_ should happen ("on-click, select, id: 42") without knowing _how_ the host will react to it — the same template could drive a different UI framework by pairing it with a different fold.
+
+## Documents an LLM can emit and a host can trust
+
+Because imports, action keys, and context reads are all static positions — literal strings, never computed — a host can run the static analyses in [`Tramaj.Analysis`](/reference-language.html ) over a model-generated template _before_ evaluating it: what does it import, what actions can it possibly emit, what context does it read, which import parameters are still unsupplied. That turns "an LLM wrote this template" from a trust problem into an inspectable one. See [Properties](/properties.html ) for why this holds.
+
+## Constraint-driven generation
+
+v3 adds symbolic values (`?(key)`) and constraints (`!constraint(name, ...)`). Running evaluation in `Symbolic` mode produces an envelope of root value, symbols, and constraints instead of a finished document — useful when the actual values should come from a solver, a form the user hasn't filled in yet, or a search process, rather than being supplied up front. See [`v3-symbols.md`](/reference-v3-symbols.html ).
+
+## Typed template contracts
+
+v4 adds a nominal type algebra on top of that: type declarations, type parameters threaded through imports, and `@x : T = e` annotations that are resolved and erased before evaluation. tramaj fixes what a type _is_ (identity is structural string equality over canonical ids); a separate host checker decides whether the values flowing through a template actually satisfy it. That's useful wherever a template is a contract between two teams or two systems — e.g. a component library whose consumers should be checked against its declared shape. See [`v4-types.md`](/reference-v4-types.html ).
+
+## Try it
+
+The [playground](/playground.html ) runs all of the above in the browser — tabs-as-importable-libraries, live AST/render panels, an action log, and a symbolic-mode toggle — with nothing sent to a server.
+
+

@@ -1,0 +1,433 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v4 — Types (draft)</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v4 — Types (draft)"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v4 — Types (draft)"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html"><meta property="og:description" content="Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-09-10T13:23:07Z"><meta name="article:modified_time" content="2026-09-10T13:23:07Z"><meta name="ks:article_json" content="/json/reference-v4-types.cmark.json"><meta name="ks:article_text" content="/text/reference-v4-types.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T13:23:07Z","datePublished":"2026-09-10T13:23:07Z","description":"Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.","headline":"Tramaj v4 — Types (draft)","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v4-types.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Tramaj v4 — Types (draft)</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 3019 words, 14 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/reference-v3-symbols.html">‹</a></span><a class="topic-link" href="/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">4/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/reference-language.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"><code>specs/v4-types.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<h2 id="tramaj-v4--types-draft">Tramaj v4 — Types (draft)</h2>
+<p>Status: <strong>draft, not frozen, implemented.</strong> Split out of the v3 design so
+that <a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a> could be frozen without waiting on the
+type questions. The design itself is still not settled — the gate in
+roadmap-to-v4’s Part II was crossed by explicit choice (“no host yet, proceed
+anyway”), not by a host actually hurt by a plain-string <code>has-type</code> argument,
+so the six items in §11 remain open and this document remains a draft that
+could still change under real use. What follows §11 is nonetheless
+implemented, byte-identically, in both hosts (roadmap-to-v4 Phases 8-14):
+parsing, resolution and canonical identity, type parameters through imports,
+annotation erasure, <code>!type-constraint</code>, the <code>&quot;types&quot;</code>/<code>&quot;type-constraints&quot;</code>
+output lists, and the static analyses in §9.</p>
+<p>v3 is complete without this document. A constraint argument may be any JSON
+value, so a v3 program can already say <code>!constraint(&quot;has-type&quot;, $d, &quot;Deployment&quot;)</code> and a host may give that whatever meaning it likes. What v4
+adds is everything that string cannot do: <strong>resolution</strong>, so a name means a
+declaration rather than itself; <strong>parameterisation</strong>, so a library can export
+a type it does not fully know; <strong>an algebra</strong>, so types can be built rather
+than only named; and <strong>identity</strong>, so two spellings of the same type are the
+same type.</p>
+<p>The thesis is unchanged from v3 §0 — <em>Tramaj fixes positions and identity; the
+host owns vocabulary and meaning.</em> So v4 still contains <strong>no typechecker</strong>. It
+resolves references, normalises type expressions, collects declarations and
+constraints, and refuses to leave a hole unfilled. It checks nothing against
+anything. The phase order is the point:</p>
+<pre><code class="language-text">parse  -&gt;  analyse  -&gt;  evaluate  -&gt;  someone else checks
+           ^ types live entirely here      ^ a-priori accepted, may be rejected
+</code></pre>
+<p>A program that reaches evaluation has a complete, resolved, hole-free set of
+types. Whether those types are <em>true</em> of the values is a question for a
+checker that runs on the concrete output, and Tramaj never asks it.</p>
+<hr />
+<h3 id="0-two-realms">0. Two realms</h3>
+<p>v3 gave values a leader for “supplied from outside”: <code>?</code>. Types get their own,
+<code>%</code>, and the two realms stay separate.</p>
+<table>
+<tr><th></th><th>values</th><th>types</th></tr>
+<tr><td>leader</td><td><code>?</code></td><td><code>%</code></td></tr>
+<tr><td>supplied by</td><td>the <strong>host</strong>, after evaluation</td><td>the <strong>caller</strong>, before evaluation</td></tr>
+<tr><td>identity</td><td>allocation site + key (v3 §1.4)</td><td>the normal form (§3)</td></tr>
+<tr><td>may remain open</td><td>yes — that is the output</td><td><strong>no</strong> — unfilled is an error (§4)</td></tr>
+<tr><td>constraints</td><td><code>!constraint(...)</code>, evaluated</td><td><code>!type-constraint(...)</code>, static (§5)</td></tr>
+<tr><td>lives until</td><td>the host resolves it</td><td>erased before evaluation (§7)</td></tr>
+</table>
+<p>The asymmetry in row three is the whole reason they are separate. A symbol is
+<em>meant</em> to survive into the output — an unresolved symbol is the deliverable.
+A type is not: it is scaffolding for a checker, and scaffolding with a gap in
+it is a bug, not a product.</p>
+<p>Unifying the two — symbolic types constrained the way symbolic values are, so
+that a host could <em>choose</em> a type the way it chooses a value — is a research
+direction, noted in §11 and deliberately not taken here.</p>
+<hr />
+<h3 id="1-the-algebra">1. The algebra</h3>
+<pre><code class="language-text">TypeExpr
+  = Prim     name: String                              -- string number bool null document
+  | Array    element: TypeExpr                         -- [T]
+  | Record   fields: Map&lt;String, TypeExpr&gt;             -- { a : T, b : U }
+  | Union    arms:   Map&lt;String, Optional&lt;TypeExpr&gt;&gt;   -- | A T | B U | C
+  | Ref      library: String, name: String,            -- a declaration, with its
+             arguments: Map&lt;String, TypeExpr&gt;          --   type arguments
+  | Var      path: List&lt;String&gt;                        -- %ctx.a.b  -- a hole
+</code></pre>
+<p>Six constructors, closed. There is no function type, no type-level
+abstraction, and no way for a type to depend on a value.</p>
+<p><strong>The primitives are exactly the value domain’s own shapes</strong> and nothing else.
+<code>string</code>, <code>number</code>, <code>bool</code>, <code>null</code> and <code>document</code> are what ref §3 already
+fixes, so Tramaj can be said to know them without learning anything new.
+<code>Int</code> is deliberately absent: numbers are doubles and their precision past
+2^53 is implementation-defined (ref §13), so an integer type is a host-side
+refinement of <code>number</code>, not a language primitive. Building it in would oblige
+both implementations to agree on a boundary the value domain does not have.</p>
+<h4 id="11-declarations">1.1 Declarations</h4>
+<pre><code>type Point   = { x : number, y : number }
+type Shape   = | Circle { r : number } | Square { s : number }
+type UserId  = string
+type Message = { to : string, payload : %ctx.payload }
+</code></pre>
+<ul>
+<li><strong>Declarations are nominal.</strong> <code>type UserId = string</code> does not make <code>UserId</code>
+and <code>string</code> the same type; it declares a new one whose definition is
+<code>string</code>. Newtyping is therefore not a separate feature — it is what a
+declaration <em>is</em>, and <code>type OrderId = string</code> is a different type from
+<code>UserId</code> for the reason a Haskeller expects.
+</li>
+<li>Nominal identity is <strong><code>(library, name)</code> plus arguments</strong> (§3), where
+<code>library</code> is the host table key, not the binding. <code>@a=import(&quot;foo&quot;,{})</code> and
+<code>@b=import(&quot;foo&quot;,{})</code> give <code>$a.types.Card</code> and <code>$b.types.Card</code> the same
+identity, because they <em>are</em> the same type. Since import names are table
+keys, aliasing is impossible.
+</li>
+<li>Records and unions are <strong>structural</strong> where they appear anonymously, and get
+nominal identity only by being the definition of a declaration. <code>{x: number}</code> written in two annotations is one type; <code>Point</code> and <code>Vec2</code> with
+identical bodies are two.
+</li>
+<li>A union arm may carry a payload or not. <code>| Dev | Staging | Prod</code> is an
+enum — the case that matters most, because a hole of that type is a
+variable with a finite domain, which is precisely what a solver can search
+and a form renderer can render.
+</li>
+</ul>
+<h4 id="12-what-tramaj-does-not-say-about-a-union">1.2 What Tramaj does not say about a union</h4>
+<p>Nothing about how a value inhabits an arm. Tramaj declares the arms; whether
+the host reads a <code>&quot;tag&quot;</code> field, a wrapper object, or a discriminating shape is
+the host’s convention, on the same footing as what an action key means. This
+is the one place the thesis has real teeth: the language could mandate a
+discriminator field, but it could not enforce one — the values come from
+<code>$ctx</code> or from a solver — so mandating it would buy an opinion without the
+means to back it.</p>
+<hr />
+<h3 id="2-type-parameters-are-import-parameters">2. Type parameters are import parameters</h3>
+<p>This is the load-bearing decision. A library is parameterised over types the
+same way it is parameterised over values: through its context.</p>
+<pre><code>-- library &quot;message&quot;
+type Envelope = { to : string, payload : %ctx.payload }
+</code></pre>
+<p><code>%ctx.payload</code> is a <strong>type variable</strong>: the type named <code>payload</code> in this
+library’s context. The importer supplies it in the ordinary params record,
+marked with <code>%</code> because a type is not a value:</p>
+<pre><code>@msg = import(&quot;message&quot;, {payload: %Json})
+@m : $msg.types.Envelope = ?(&quot;m&quot;)
+</code></pre>
+<p>Everything the import machinery already does applies unchanged:</p>
+<ul>
+<li><strong>Partial application</strong> (ref §7c). <code>@msg = import(&quot;message&quot;, {})</code> is a
+partial import whose <code>Envelope</code> is a <em>partial</em> type. Saturating the import
+saturates the type. “Three partially-applied arguments for one and two for
+the other” falls out of a mechanism that already exists, rather than from a
+type-level arity discipline.
+</li>
+<li><strong>Deferral.</strong> <code>import(&quot;inner&quot;, {payload: %ctx.payload})</code> forwards <em>this</em>
+library’s type variable to the inner one — the exact type-level reading of
+<code>ctx(path)</code>, and the answer to §6’s question.
+</li>
+<li><strong><code>unsuppliedParams</code></strong> (ref §9) already computes what is missing; §9 below
+adds the type-side split.
+</li>
+</ul>
+<p>So there is no new parameterisation mechanism, no type-level lambda, no arity
+to check, and no second notion of “partially applied”. There is also,
+consequently, <strong>no higher-kinded anything</strong> — a library is not a type, it
+cannot be passed, and <code>%ctx.f</code> cannot be applied to arguments. Tramaj is
+about constructing values; this is the ceiling and it is a deliberate one.</p>
+<h4 id="21-the-two-channels-share-one-record">2.1 The two channels share one record</h4>
+<p>Syntactically there is one params record; semantically there are two channels,
+split statically by the <code>%</code>. An entry written <code>%T</code> is a type argument, and
+<code>typeParams</code> (§9) — the <code>%ctx.*</code> paths a library’s declarations mention — says
+which keys those are. It is an error for the same key to be read as both, so
+the two namespaces do not overlap in practice even though they share a
+record.</p>
+<p>The alternative, a second record on <code>import</code>, was rejected: it would duplicate
+partial application, deferral and the unsupplied analysis at the type level,
+and change the arity of the one form every program uses.</p>
+<hr />
+<h3 id="3-identity-is-a-canonical-string">3. Identity is a canonical string</h3>
+<p>Two types are the same type iff their <strong>canonical ids</strong> are equal — that is,
+type equality is string equality, and no unifier, subsumption order or
+occurs-check exists anywhere in the language.</p>
+<p>The normal form resolves every <code>Ref</code> to its <code>(library, name)</code> and every
+argument recursively, sorts record fields, union arms and argument maps by
+name, and <strong>stops at declaration boundaries</strong> — a <code>Ref</code> is rendered as its
+name and arguments, never as its expansion. That last clause is what makes
+<code>type Tree = | Leaf | Node { l : Tree, r : Tree }</code> terminate: recursion is
+compared nominally, structure only within a body.</p>
+<pre><code class="language-text">id     ::= prim | &quot;[&quot; id &quot;]&quot; | record | union | ref | var
+ref    ::= library &quot;:&quot; name  [ &quot;[&quot; name &quot;=&quot; id (&quot;,&quot; name &quot;=&quot; id)* &quot;]&quot; ]
+record ::= &quot;{&quot; name &quot;:&quot; id (&quot;,&quot; name &quot;:&quot; id)* &quot;}&quot;
+union  ::= &quot;|&quot; name [ &quot; &quot; id ] (&quot;|&quot; name [ &quot; &quot; id ])*
+var    ::= &quot;%&quot; path
+</code></pre>
+<pre><code class="language-text">number
+[string]
+{x:number,y:number}
+message:Envelope[payload=json:Value]
+list:T[elem=message:Envelope[payload=json:Value]]
+message:Envelope[payload=%ctx.p]        -- partial
+</code></pre>
+<p><code>list:T[elem=number]</code> written in two libraries a thousand lines apart is one
+string, hence one type. That is the whole of the equality story, and it is why
+type arguments need no allocation the way symbols do: a symbol’s two
+instantiations are genuinely two variables, whereas <code>List[Int]</code> and
+<code>List[Int]</code> are genuinely one type.</p>
+<p>Canonicalisation must be <strong>injective</strong>, for the reason v3 §1.4 gives about
+allocation keys: distinct types must not collide in one string. Sorting is
+therefore total and the grammar above is unambiguous.</p>
+<hr />
+<h3 id="4-partial-types">4. Partial types</h3>
+<p>A type is <strong>partial</strong> if its normal form contains a <code>Var</code>. Partial types are
+entirely legal while they are being built — that is what a parameterised
+library exports — and are an <strong>error in the root program</strong>:</p>
+<pre><code class="language-text">PartialType  the root's type &lt;id&gt; still contains the variable &lt;path&gt;
+</code></pre>
+<p>This is the exact type-level analogue of ref §7’s rule that an import may be
+partial but must be saturated before it runs, and it is reported the same
+way — statically, by analysis, before anything is evaluated. It is what makes
+<code>%</code> safe: unlike <code>?</code>, a <code>%</code> cannot leak into the output, because a program
+with one left over does not run.</p>
+<p>The consequence worth stating: no partial order over types is needed. Two
+partial types are compared by the same string equality as any others, holes
+included; nothing ever asks whether one type is <em>more</em> applied than another,
+because nothing may ship a partial type to a host that would care.</p>
+<hr />
+<h3 id="5-constraints-on-types">5. Constraints on types</h3>
+<p>A template may constrain a type it does not define:</p>
+<pre><code>type Envelope = { to : string, payload : %ctx.payload }
+
+!type-constraint(&quot;has-default&quot;, %ctx.payload)
+!type-constraint(&quot;serializable&quot;, %ctx.payload, &quot;json&quot;)
+</code></pre>
+<p><code>!type-constraint</code> is the type realm’s sibling of v3’s <code>!constraint</code>, and it
+means exactly what that means: <em>this fact is asserted; someone downstream
+discharges it.</em> Tramaj checks nothing — it does not know what <code>has-default</code>
+is, any more than it knows what an action key means. It takes a static name
+and a list of arguments, each of which is a type expression (<code>%</code>-marked, §2)
+or a literal scalar.</p>
+<p><strong>It is variadic and its arity is unbounded</strong>, for the reason v3 §2.1 gives:
+the language fixes no signature because it knows no names, so arity belongs to
+the host’s vocabulary alongside the name. A zero-argument
+<code>!type-constraint(&quot;closed-world&quot;)</code> is legal, and so is an n-ary relation over
+many types at once — the type-level counterpart of a global constraint:</p>
+<pre><code>!type-constraint(&quot;disjoint&quot;, %ctx.a, %ctx.b, %ctx.c)
+!type-constraint(&quot;coercible-to&quot;, %ctx.payload, %Json, &quot;lossy&quot;)
+</code></pre>
+<p>Argument order is significant and preserved, and is part of the canonical
+rendering the deduplication below compares on.</p>
+<pre><code class="language-text">statement = &quot;@&quot; name &quot;=&quot; expr           -- ref
+          | &quot;!&quot; expr                    -- v3 §2.2, a value constraint
+          | &quot;!&quot; &quot;type-constraint&quot; &quot;(&quot; ... &quot;)&quot;   -- v4, a type constraint
+</code></pre>
+<p>Instantiation follows substitution. When <code>message</code> is imported with
+<code>{payload: %Json}</code>, the collected constraint is
+<code>has-default(json:Value)</code> — the variable is gone, and the host is asked a
+question about a concrete type. Constraints are deduplicated by their
+canonical rendering, as v3 §4 deduplicates value constraints and for the same
+reason.</p>
+<h4 id="51-one-leader-two-phases-told-apart-by-the-form-name">5.1 One leader, two phases, told apart by the form name</h4>
+<p><code>!</code> means <em>emit a fact</em>, and that is true of both forms. What differs is the
+realm, and the realm is legible in the form name rather than in the leader —
+which is the same trick <code>ctx(path)</code> plays in ref §7, where a static form sits
+in the middle of an ordinary expression and is enumerable precisely because
+the form name is a fixed word.</p>
+<p>The consequences are worth stating, because they are not the ones a reader
+would assume from the leader alone:</p>
+<ul>
+<li><strong>A <code>!type-constraint</code> is resolved, not evaluated.</strong> Its arguments are type
+expressions in the static grammar. The analyser collects it by walking the
+AST; the evaluator never sees one, exactly as it never sees the type in an
+annotation (§7).
+</li>
+<li><strong>It is a statement, not a declaration.</strong> It lives in the statement chain
+with the bindings and the value constraints, so the declaration block of §1
+stays purely declarative. It may be written anywhere a statement may.
+</li>
+<li><strong>Its position affects nothing but source order.</strong> Since it is erased before
+evaluation, it cannot observe or affect a binding, and moving it up or down
+the statement list changes only where it lands in <code>&quot;type-constraints&quot;</code>
+before deduplication.
+</li>
+<li>In the core AST it is <code>TypeEmit name: String, arguments: List&lt;TypeExpr | Scalar&gt;</code>, a sibling of v3’s <code>Emit</code> that the evaluator’s statement fold skips.
+</li>
+</ul>
+<p>The one thing this costs is that <code>!</code> no longer implies “evaluated”. That was
+never load-bearing — <code>!</code> implies “this contributes to the output envelope”,
+which remains exactly true — and the form name is a static position, so a
+reader and an analyser can both tell which realm a statement is in by looking
+at one word.</p>
+<hr />
+<h3 id="6-supplying-versus-asserting">6. Supplying versus asserting</h3>
+<p>How does a user force a type variable to be <em>replaced</em> rather than
+symbolically equated? The two operations are already different things, and
+only one of them is Tramaj’s:</p>
+<table>
+<tr><th></th><th>written</th><th>what Tramaj does</th><th>when</th></tr>
+<tr><td><strong>supply</strong></td><td><code>import("m", {payload: %Json})</code></td><td>substitutes; the variable is gone</td><td>analysis</td></tr>
+<tr><td><strong>forward</strong></td><td><code>import("m", {payload: %ctx.payload})</code></td><td>substitutes one variable for another; still a hole</td><td>analysis</td></tr>
+<tr><td><strong>assert</strong></td><td><code>!type-constraint("eq", %ctx.payload, %Json)</code></td><td>collects the fact; the hole remains a hole</td><td>never</td></tr>
+</table>
+<p>Substitution is structural and Tramaj performs it. Assertion is a fact and
+Tramaj only carries it. Tramaj will <strong>never</strong> solve an assertion into a
+substitution — that would be a unifier, and a unifier is the beginning of the
+checker both documents refuse to build. If you want the type replaced, supply
+it; the <code>PartialType</code> error of §4 is what guarantees you cannot forget to.</p>
+<p>The parallel to <code>ctx(path)</code> is exact: forwarding is deferral, supplying is the
+literal. The syntax already distinguishes them, because <code>%ctx.p</code> and <code>%T</code> are
+different expressions.</p>
+<hr />
+<h3 id="7-annotations-and-how-types-reach-the-value-realm">7. Annotations, and how types reach the value realm</h3>
+<pre><code>@d : Deployment          = ?(&quot;d&quot;)
+@n : string              = $ctx.name
+@m : $msg.types.Envelope = ?(&quot;m&quot;)
+</code></pre>
+<p><code>@x : T = e</code> is <strong>sugar</strong> for the binding plus a v3 emission:</p>
+<pre><code class="language-text">@x = e
+!constraint(&quot;has-type&quot;, $x, {&quot;$type&quot;: &quot;&lt;canonical id of T&gt;&quot;})
+</code></pre>
+<p>The type is <strong>erased at analysis time</strong> into the opaque tag v3 §5.3 already
+reserved. By the time the evaluator runs there is no type left in the
+program — only an inert object with a <code>&quot;$type&quot;</code> key, which is data like any
+other. So:</p>
+<ul>
+<li><code>Value</code> gains no constructor. <code>str</code>, <code>map</code>, <code>eq</code> and the whole <code>NotConcrete</code>
+table of v3 §1.5 are untouched.
+</li>
+<li>A type reference is still not a value, and cannot be computed, branched on,
+or built at runtime.
+</li>
+<li>The host looks the id up in the <code>&quot;types&quot;</code> table (§8) and has the definition
+in hand without parsing Tramaj source.
+</li>
+</ul>
+<p>An annotation whose type is partial is the <code>PartialType</code> error of §4 — which
+is why erasure is safe: nothing ambiguous can be erased.</p>
+<p>A <code>has-type</code> on a symbol is the useful case: it tells the host the domain of a
+hole it is about to fill, which for an enum union is a finite one. A
+<code>has-type</code> on a concrete value is a claim a checker can verify against the
+output. Tramaj distinguishes neither; both are emitted the same way.</p>
+<hr />
+<h3 id="8-output">8. Output</h3>
+<p>The v3 §5.2 envelope gains two lists, and the value domain gains the second
+tagged shape v3 reserved.</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;format&quot;</span><span class="fu">:</span> <span class="st">&quot;tramaj/symbolic/1&quot;</span><span class="fu">,</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;document&quot;</span><span class="fu">,</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;root&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;...&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span> <span class="fu">},</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;symbols&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">m</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;alloc&quot;</span><span class="fu">,</span> <span class="dt">&quot;site&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span> <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;m&quot;</span><span class="fu">},</span> <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="st">&quot;m&quot;</span><span class="fu">}</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;constraints&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;has-type&quot;</span><span class="fu">,</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">m</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[]</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="11"><a href="#11" aria-hidden="true" tabindex="-1"></a>                   <span class="fu">{</span><span class="dt">&quot;$type&quot;</span><span class="fu">:</span> <span class="st">&quot;message:Envelope[payload=json:Value]&quot;</span><span class="fu">}</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="12"><a href="#12" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;types&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="14"><a href="#14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;message:Envelope[payload=json:Value]&quot;</span><span class="fu">,</span></span>
+<span id="15"><a href="#15" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;definition&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;record&quot;</span><span class="fu">,</span></span>
+<span id="16"><a href="#16" aria-hidden="true" tabindex="-1"></a>                    <span class="dt">&quot;fields&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;payload&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;ref&quot;</span><span class="fu">,</span> <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;json:Value&quot;</span><span class="fu">}}</span><span class="ot">,</span></span>
+<span id="17"><a href="#17" aria-hidden="true" tabindex="-1"></a>                               <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;to&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;prim&quot;</span><span class="fu">,</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;string&quot;</span><span class="fu">}}</span><span class="ot">]</span><span class="fu">}}</span><span class="ot">,</span></span>
+<span id="18"><a href="#18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;json:Value&quot;</span><span class="fu">,</span> <span class="dt">&quot;definition&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;...&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span><span class="fu">}}</span></span>
+<span id="19"><a href="#19" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="20"><a href="#20" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type-constraints&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="21"><a href="#21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;has-default&quot;</span><span class="fu">,</span> <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">&quot;$type&quot;</span><span class="fu">:</span> <span class="st">&quot;json:Value&quot;</span><span class="fu">}</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="22"><a href="#22" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="23"><a href="#23" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div></div><ul>
+<li><code>&quot;types&quot;</code> is the <strong>transitive closure</strong> of every type the program
+references: a record’s field types, a union’s payloads, and theirs. The
+closure is what a host actually needs to interpret a <code>has-type</code>; the direct
+set is merely cheaper to compute. Cycles are cut by the ids, since a <code>Ref</code>
+is never expanded (§3).
+</li>
+<li><strong>A constraint goes in the list of its subject’s realm.</strong> <code>has-type</code> relates
+a <em>value</em> to a type, so it is a v3 constraint carrying an erased <code>$type</code>
+argument; <code>has-default</code> relates a type to nothing else, so it is a type
+constraint. That is the rule, not an accident of which syntax produced it.
+</li>
+<li>Both lists are <code>[]</code> for a program with no types, so a v3 consumer reading a
+v4 envelope sees nothing new, and the format version does not change.
+</li>
+<li>Concrete mode (v3 §5.1) emits plain JSON as before. Types are erased, so a
+concrete-mode run of a typed program is byte-identical to the same program
+with the annotations deleted — which is the honest meaning of erasure.
+</li>
+</ul>
+<hr />
+<h3 id="9-static-analysis">9. Static analysis</h3>
+<table>
+<tr><th>function</th><th>answers</th></tr>
+<tr><td><code>typeDeclarations</code></td><td>which types a program declares</td></tr>
+<tr><td><code>typeReferences</code> / <code>deepTypeReferences</code></td><td>which it refers to, normalised</td></tr>
+<tr><td><code>typeParams</code></td><td>which <code>%ctx.*</code> variables its declarations read — its type-level parameter list</td></tr>
+<tr><td><code>unsuppliedTypeParams</code></td><td>per import, the type params its library needs that the import does not supply</td></tr>
+<tr><td><code>typeConstraints</code> / <code>deepTypeConstraints</code></td><td>which type-level facts it asserts</td></tr>
+</table>
+<p><code>typeParams</code> is to types what <code>contextReads</code> is to values, and
+<code>unsuppliedTypeParams</code> is the type half of ref §9’s <code>unsuppliedParams</code> — the
+same subtraction, over the keys the <code>%</code> marks.</p>
+<p>Resolution follows imports through the library table with the same cycle
+cutting ref §9’s deep analyses use, and <strong>no library is evaluated</strong>: the table
+holds parsed programs, so all of this is an AST walk. Unresolvable references
+are reported rather than passed through, on the same footing as an import name
+the table does not resolve.</p>
+<p><code>$lib.types.X</code> is not a runtime field read. It is resolved statically, which
+means <code>lib</code> must be bound <em>directly</em> to an <code>import(...)</code> in the enclosing
+binding chain; an import reached through a lambda, an array, or a later
+saturating call cannot be resolved, and that is an analysis error.</p>
+<hr />
+<h3 id="10-errors">10. Errors</h3>
+<table>
+<tr><th>error</th><th>when</th></tr>
+<tr><td><code>UnresolvedType</code></td><td>a name resolves to no declaration and no primitive</td></tr>
+<tr><td><code>PartialType</code></td><td>the root ships a type still containing a <code>%</code> variable (§4)</td></tr>
+<tr><td><code>TypeParamCollision</code></td><td>a params key is read both as <code>$ctx.k</code> and as <code>%ctx.k</code></td></tr>
+<tr><td><code>NotStaticallyResolvable</code></td><td><code>$lib.types.X</code> where <code>lib</code> is not bound directly to an import</td></tr>
+<tr><td><code>TypeCycle</code></td><td>a declaration's <em>arguments</em> cycle (a recursive body does not)</td></tr>
+</table>
+<p>All five are analysis errors. No new evaluation error exists, because by
+evaluation time there are no types.</p>
+<hr />
+<h3 id="11-open">11. Open</h3>
+<ol>
+<li><strong><code>alias X = T</code></strong>, transparent rather than nominal. Nominal is the right
+default and gives newtyping for free (§1.1); transparency is occasionally
+what you want for a host schema that is structural. Cheap to add, easy to
+regret, so: not until something needs it.
+</li>
+<li><strong>Application sugar.</strong> <code>list:T[elem=number]</code> is spelled today as an import
+plus a field read, which is verbose for what a Haskeller writes <code>List Int</code>.
+A sugar <code>%list.T[elem: number]</code> desugaring to a fresh wiring would be safe
+— identity is structural, so a sugared and a spelled-out application are
+the same type — but it is sugar, and should follow a real complaint.
+</li>
+<li><strong>The <code>Program</code> change.</strong> Adding a declaration block breaks
+<code>DocumentProgram Expr | ExpressionProgram Expr</code> and every host that
+pattern-matches it. This remains the only breaking AST change across v3 and
+v4, and it is worth confirming exported types are wanted before paying it.
+</li>
+<li><strong>Type-directed projection.</strong> With declarations in hand, <code>$d.replicas</code>
+could carry a resolved field type into the constraint that mentions it. v3
+deliberately computes nothing for a projection (v3 §1.6), and moving that
+into the language is the first step toward the typechecker both documents
+refuse to build.
+</li>
+<li><strong>Unifying the realms.</strong> A <em>symbolic</em> type — a <code>?</code>-style hole in the type
+realm, constrained rather than supplied, that a host resolves alongside the
+symbols — would collapse §0’s table into one mechanism. It also collapses
+the erasure of §7, since a type that survives to the host cannot be erased
+before evaluation, and it reopens the question of which realm is resolved
+first. Research, not v4.
+</li>
+<li><strong>Row polymorphism</strong>, for “a record with at least these fields”. This is
+what <code>!type-constraint</code> is likely to be abused into expressing, and if that
+abuse becomes common the honest fix is a former, not a constraint name.
+</li>
+</ol>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

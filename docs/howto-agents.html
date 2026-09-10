@@ -1,0 +1,124 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - tramaj for coding agents</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, agents, LLM, coding agent, grammar, cheatsheet"><meta name="description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - tramaj for coding agents"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - tramaj for coding agents"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><meta property="og:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/json/howto-agents.cmark.json"><meta name="ks:article_text" content="/text/howto-agents.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates.","headline":"tramaj for coding agents","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/howto-agents.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="agents"><meta name="article:tag" content="LLM"><meta name="article:tag" content="coding agent"><meta name="article:tag" content="grammar"><meta name="article:tag" content="cheatsheet"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>tramaj for coding agents</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 631 words, 2 code snippets, 9 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/integrate-tramaj.html">‹</a></span><a class="topic-link" href="/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">3/3</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/topics/agents.html"><span class="topic-name">agents</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="tramaj-for-coding-agents">tramaj for coding agents</h2>
+<p>tramaj was designed to be as easy for a model to emit correctly as for a
+person to write by hand — a small builtin set, one expression grammar, and
+no template/expression phase split to keep track of. This page is a dense
+cheatsheet plus a fetch strategy for getting the full grammar when the
+summary below isn’t enough.</p>
+<h3 id="fetch-the-canonical-source-first">Fetch the canonical source first</h3>
+<p>Don’t rely on prose alone for anything you’re about to emit — pull the
+normative text:</p>
+<ul>
+<li>Every page on this site is also served as plain text at
+<code>/text/&lt;page-name&gt;.cmark.text</code> (e.g. <code>/text/reference-language.cmark.text</code>)
+— no HTML to strip.
+</li>
+<li>The specs themselves are the ultimate source of truth, on GitHub:
+<a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"><code>reference.md</code></a>,
+<a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"><code>node-json.md</code></a>,
+<a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>v3-symbols.md</code></a>,
+<a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"><code>v4-types.md</code></a>.
+</li>
+<li><a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases"><code>corpus/cases/</code></a>
+in the repository is a conformance corpus: each case is a
+<code>template.tramaj</code> + <code>ctx.json</code> + <code>expected.json</code> triple (plus optional
+<code>libs/*.tramaj</code>) that both implementations must satisfy — treat these as
+runnable, ground-truth examples rather than prose.
+</li>
+<li>See also <a href="/raw/llms.txt"><code>llms.txt</code></a> for a short machine-readable index of
+the above (Kitchen-Sink serves arbitrary <code>.txt</code> files under <code>/raw/</code>, so
+this isn’t at the conventional <code>/llms.txt</code> root path).
+</li>
+</ul>
+<h3 id="leaders--what-each-sigil-means">Leaders — what each sigil means</h3>
+<table>
+<tr><th>Leader</th><th>Meaning</th></tr>
+<tr><td><code>.</code></td><td>document: <code>.tag(...)</code> element, or <code>.(...)</code> fragment</td></tr>
+<tr><td><code>$</code></td><td>read a binding or path</td></tr>
+<tr><td><code>@</code></td><td>define a binding (<code>@name=expr</code>)</td></tr>
+<tr><td><code>!</code></td><td>emit a constraint, statement position (<code>!constraint(name, ...)</code>)</td></tr>
+<tr><td><code>?</code></td><td>symbolic allocation/demand, v3 (<code>?(key)</code>)</td></tr>
+<tr><td><code>%</code></td><td>type hole, v4</td></tr>
+<tr><td><code>--</code></td><td>line comment, to end of line</td></tr>
+</table>
+<h3 id="shape-of-a-program">Shape of a program</h3>
+<pre><code>@n=cardinality($ctx.items)
+.p(&quot;there are `$n` item(s)&quot;)
+</code></pre>
+<p>An optional block of <code>@name=expr</code> bindings, evaluated once each in order,
+followed by one root expression. Backtick-quoted <code>`$expr`</code> interpolates
+into a string; a bare <code>$path</code> can be a child directly. <code>a &lt;&gt; b</code> concatenates
+strings, arrays, and objects.</p>
+<h3 id="documents-are-ordinary-values">Documents are ordinary values</h3>
+<p>There is no separate “template value” type — an element or fragment can be
+bound, passed to a function, and returned from one:</p>
+<pre><code>@kids=.(.p(&quot;one&quot;), .p(&quot;two&quot;))
+@panel=(title, children) =&gt; .section(.h2($title), $children)
+
+.main($panel(&quot;Deployment&quot;, $kids))
+</code></pre>
+<h3 id="actions-are-opaque-to-the-language">Actions are opaque to the language</h3>
+<p><code>action(&quot;on-click&quot;, &quot;select&quot;, {&quot;id&quot;: $i.id})</code> attaches structured data to an
+element. The language does not interpret it — a host decides what the key
+means. Action keys and adaptation prefixes must be literal strings, never
+computed, which is what keeps “what actions can this template emit”
+statically answerable.</p>
+<h3 id="imports">Imports</h3>
+<p><code>import(...)</code> pulls in another program as a library. Parameters can arrive
+as an expression, as a <code>ctx(path)</code> hole (a static marker that the <em>importing</em>
+program’s own context gets read at that point), or be omitted and supplied
+later by calling the import. Imports are lazy — nothing runs until
+<code>.rendered</code> or <code>.vals</code> is read on the result.</p>
+<h3 id="v3--symbols-and-constraints-frozen-implemented">v3 — symbols and constraints (frozen, implemented)</h3>
+<p><code>?(key)</code> allocates an opaque symbol; only the root program may do this
+(libraries raise <code>AllocationInLibrary</code>). <code>!constraint(name, ...)</code> emits a
+constraint. Running in <code>Symbolic</code> mode (a host choice, not something the
+template declares) wraps the result in a <code>tramaj/symbolic/1</code> envelope of
+root value, symbols, and constraints instead of a finished document — use
+this when the actual values should come from a solver rather than be
+supplied up front. Full grammar: <a href="/reference-v3-symbols.html"><code>v3-symbols.md</code></a>.</p>
+<h3 id="v4--types-draft-implemented">v4 — types (draft, implemented)</h3>
+<p><code>@x : T = e</code> desugars to <code>@x=e</code> plus a <code>has-type</code> constraint carrying <code>T</code>’s
+canonical id. Types are resolved and erased before evaluation — tramaj fixes
+type <em>identity</em> (canonical ids, string equality), a separate host checker
+decides whether values actually satisfy it. Type parameters thread through
+imports. Full grammar: <a href="/reference-v4-types.html"><code>v4-types.md</code></a>.</p>
+<h3 id="static-analyses-available-without-evaluating">Static analyses available without evaluating</h3>
+<p>Because imports, action keys, adaptation prefixes, and <code>ctx(...)</code> paths are
+all literal strings in the syntax, these can all be answered by walking the
+AST — no context, no evaluation:</p>
+<ul>
+<li>what a program imports, and with what parameters
+</li>
+<li>what actions it can possibly emit
+</li>
+<li>what context paths it reads (<code>ctx(...)</code> holes)
+</li>
+<li>which import parameters are still unsupplied
+</li>
+<li>(v3/v4) what constraints and symbols/types it introduces
+</li>
+</ul>
+<p><code>tramaj-cli</code>’s <code>analyze</code> subcommand exposes these directly — see
+<a href="/howto-humans.html">Getting started</a> for exact invocations. If you’re
+generating a template and want to
+self-check it before handing it to a host, running <code>analyze</code> on it is
+cheaper and more reliable than re-deriving these properties by re-reading
+your own output.</p>
+<h3 id="common-pitfalls">Common pitfalls</h3>
+<ul>
+<li>Don’t compute an import name, action key, or <code>ctx(...)</code> path from an
+expression — these must be literal strings; the grammar doesn’t allow
+otherwise.
+</li>
+<li>Bindings are visible only <em>after</em> their declaration, in order — not
+mutually recursive.
+</li>
+<li>A library (something loaded via <code>import</code>) may not call <code>?(key)</code> — only the
+root program may allocate symbols.
+</li>
+<li>Evaluation order is unconstrained outside of binding precedence: don’t
+write templates that rely on side-effect ordering, because there isn’t
+one — evaluation is meant to be referentially transparent.
+</li>
+</ul>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

@@ -1,0 +1,88 @@
+# Getting started with tramaj
+
+This is a practical walkthrough. For the language's core ideas, see the overview on the [home page](/ ); for the full grammar, see the [Reference](/reference.html ).
+
+## The fastest way in: the playground
+
+Before installing anything, try the [playground](/playground.html ) — it runs entirely in the browser, needs no setup, and shows the same panels described below (evaluated AST, rendered HTML, action log).
+
+## Installing the toolchain
+
+tramaj's PureScript packages are one [Spago](https://github.com/purescript/spago ) workspace. You need `purs` and `spago` on your `PATH`:
+
+```bash
+npm install -g purescript spago
+```
+
+Anything that bundles a browser or Node bundle — the playground and the CLI — also needs `esbuild`, which is a devDependency of the repo root:
+
+```bash
+git clone https://github.com/lucasdicioccio/tramaj.git
+cd tramaj
+npm install
+export PATH="$PWD/node_modules/.bin:$PATH"
+```
+
+## Writing a first template
+
+Create `hello.tramaj`:
+
+```
+@n=cardinality($ctx.items)
+.p("there are `$n` item(s)")
+```
+
+and a context to evaluate it against, `hello.json`:
+
+```json
+{"items": ["a", "b", "c"]}
+```
+
+## Running it
+
+```bash
+spago run -p tramaj-cli --args "hello.tramaj hello.json"
+```
+
+This prints the evaluated `Node` AST as JSON — a `p` element wrapping the text `there are 3 item(s)`. See [`node-json.md`](/reference-node-json.html ) for what that JSON shape means, or fold it into real HTML by rendering it through a host like `tramaj-halogen`.
+
+## Splitting a template into libraries
+
+A template can `import(...)` another template as a library. Pass each one with `--lib name=path`:
+
+```bash
+spago run -p tramaj-cli --args "--lib greeter=greeter.tramaj hello.tramaj hello.json"
+```
+
+Repeat `--lib` for as many libraries as the template's imports need.
+
+## Inspecting a template without running it
+
+Because imports, action keys, and context reads are all static positions (see [Properties](/properties.html )), the CLI can answer questions about a template without a context file at all:
+
+```bash
+node tramaj-cli/dist/tramaj-cli.js analyze imports hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze actions hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze holes hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze unsupplied hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze all hello.tramaj
+```
+
+(These need a bundled CLI first: `spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js`, run from `tramaj-cli/`.)
+
+## Embedding in a real host
+
+Running templates from the command line is one thing; wiring them into an actual application is another — see [Integrating tramaj](/integrate-tramaj.html ) for the four paths (PureScript, Haskell, JavaScript, or any other language) and what each one actually looks like.
+
+## Where to go next
+
+- [Use cases](/use-cases.html ) for where this fits alongside other templating approaches.
+
+- [Reference](/reference.html ) for the full grammar, builtins, and the v3/v4 extensions.
+
+- [Integrating tramaj](/integrate-tramaj.html ) for embedding it in a host application.
+
+- [For coding agents](/howto-agents.html ) if you're setting an LLM loose on tramaj templates rather than writing them by hand.
+
+
+

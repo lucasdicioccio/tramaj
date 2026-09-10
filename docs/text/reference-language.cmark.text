@@ -1,0 +1,439 @@
+_Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md ) — the repository is the canonical source, and may be ahead of this page._
+
+# Tramaj — Language Reference
+
+This is the reference for the language **as implemented**. Where the earlier drafts disagree with each other or with this document, this document wins; `decisions.md` records which reading of those drafts was taken and why, and the drafts themselves are in [`archive/`](archive ). `node-json.md` is normative for the output wire format and is not repeated in full here.
+
+Two implementations are held to this document: `tramaj/` (PureScript) and `tramaj-hs/` (Haskell). Anything below marked _implementation-defined_ is where they are permitted to differ; everything else they must not.
+
+-----------------------------
+
+## 1. Shape of the language
+
+Tramaj is expression-oriented. There is one expression language, and **documents are values**: an element or a fragment is an ordinary expression result that can be bound, passed to a lambda, returned from one, or stored in an array.
+
+```
+  surface syntax
+        │  parse + desugar
+        ▼
+    core AST  ──────────────┐
+        │  evaluate         │  analyse (no evaluation)
+        ▼                   ▼
+      Value           imports / action keys / context holes
+        │
+        └── Node ──► normative JSON ──► host fold (HTML, YAML, HCL, UI, …)
+```
+
+The core AST is deliberately smaller than the surface. Conveniences are lowered into it (§8) rather than given constructors of their own.
+
+-----------------------------
+
+## 2. Core AST
+
+```text
+Program
+  = DocumentProgram Expr
+  | ExpressionProgram Expr
+
+Expr
+  = Path         root: String, fields: List<String>
+  | FieldAccess  target: Expr, fields: List<String>
+  | Call         function: Expr, arguments: List<Expr>
+  | Lambda       parameters: List<String>, body: Expr
+  | Let          name: String, value: Expr, body: Expr
+  | StringLit    String
+  | NumberLit    Number
+  | BoolLit      Boolean
+  | NullLit
+  | ArrayLit     elements: List<Expr>
+  | ObjectLit    fields: List<(String, Expr)>
+  | Element      tag: String, attributes: List<Attribute>,
+                 value: Expr, children: List<Expr>
+  | Fragment     children: List<Expr>
+  | Branch       condition: Expr, then: Expr, else: Expr
+  | Map          collection: Expr, function: Expr
+  | Filter       collection: Expr, function: Expr
+  | Scan         collection: Expr, initial: Expr, function: Expr
+  | Fold         collection: Expr, initial: Expr, function: Expr
+  | Concat       left: Expr, right: Expr
+  | Import       name: String, parameters: List<(String, ParamValue)>
+  | AdaptActions target: Expr, adaptation: ActionAdaptation,
+                 function: Optional<Expr>
+
+ParamValue
+  = PExpr        Expr                 -- any expression, evaluated at the import
+  | PFromContext path: List<String>   -- read from the importing program's $ctx
+
+Attribute
+  = Attr         name: String, value: Expr
+  | ActionAttr   event: String, key: String, payload: Expr
+
+ActionAdaptation
+  = Identity
+  | Prefix       String
+```
+
+**Every static position is a `String`, not an `Expr`**: an import's name, an action's event and key, an adaptation's prefix, a `ctx(...)` parameter's path. That is what makes §9's analyses possible, and the grammar refuses anything else in those positions — the restriction is enforced at parse time, not checked later at evaluation time.
+
+There is no partial-import constructor, and partiality is not visible in the syntax at all: an import is unsaturated when the library reads a parameter nobody has supplied yet, which is a fact about two programs, not about this one (§7).
+
+-----------------------------
+
+## 3. Values
+
+```text
+Value
+  = Null | Boolean | Number | String
+  | Array   List<Value>
+  | Object  Map<String, Value>
+  | Node                        -- a document
+  | Closure                     -- a lambda, with its captured environment
+  | Builtin                     -- a builtin, referenced but not yet called
+  | ImportResult                -- {rendered, vals}, once the library has run
+  | Import                      -- an import wired up but not yet run
+```
+
+Arrays and objects hold `Value`s, **not** JSON — so a document can travel inside a structure. That is what makes the JSX-children pattern work without a separate "template value" category.
+
+JSON is required only at the boundaries where a document would be meaningless: an attribute value, an action payload, an element's value slot, and an expression program's result. A closure, a builtin, an import result, an import that has not run, or a document reaching one of those positions is an error, not a silent serialization.
+
+-----------------------------
+
+## 4. Node (output)
+
+```text
+Node
+  = Text      value: Value,  annotations: Annotations
+  | Element   tag: String, attributes: List<NodeAttribute>,
+              value: Value, children: List<Node>, annotations: Annotations
+  | Fragment  children: List<Node>, annotations: Annotations
+
+NodeAttribute
+  = Attribute name: String, value: Value
+  | Action    event: String, key: String, payload: Value
+
+Annotations = Map<String, JSON>
+```
+
+- The text leaf carries a **`Value`**, so a scalar child keeps its type: `.td($ctx.count)` yields the number `3`, not `"3"`. How that becomes characters is the host's decision.
+
+- `Element` carries a **value slot** alongside its children, for targets that attach a body value to a tagged node. It is `null` unless set.
+
+- `attributes` is an ordered list, so an element may carry **any number** of attributes and actions, and duplicate names are preserved, not merged.
+
+- Annotations have no core meaning. They are the extension point for types, domains, provenance and host metadata, and every transformation must carry them through unchanged.
+
+
+Serialization — including the strict decoding rules — is specified in [`node-json.md`](/reference-node-json.html ).
+
+-----------------------------
+
+## 5. Surface syntax
+
+Three leader characters: `.` builds a document, `$` reads a name, `@` defines one.
+
+```
+@count=cardinality($ctx.items)          -- bindings, one per line
+@panel=(title, kids) => .section(.h2($title), $kids)
+
+.div(class: "panel",                    -- attribute position first
+     action("on-click", "save", {"id": $ctx.id}),
+     value($ctx.raw),
+     .h1("Title"),                      -- then children
+     .( .p("a"), .p("b") ),             -- a fragment: tagless element
+     map($ctx.items, (i) => .li($i.name)),
+     branch(.p("none"), gt($count, 0), .p("some")))
+```
+
+```html
+<table>
+<tr><th>Form</th><th>Meaning</th></tr>
+<tr><td><code>$name</code>, <code>$name.a.b</code></td><td>read a binding, then static field access</td></tr>
+<tr><td><code>name(args)</code>, <code>$name(args)</code></td><td>a call; the two spellings are identical</td></tr>
+<tr><td><code>$lib.vals.fn(1)</code></td><td>the callee may be a dotted path</td></tr>
+<tr><td><code>f(x).rendered</code></td><td>field access on a call's result</td></tr>
+<tr><td><code>"text"</code>, <code>"n: `$x`"</code></td><td>string literal, backtick interpolation</td></tr>
+<tr><td><code>123</code>, <code>1.5</code></td><td>number literal — <strong>no</strong> leading <code>-</code> and <strong>no</strong> exponent</td></tr>
+<tr><td><code>true</code>, <code>false</code>, <code>null</code></td><td>keyword literals</td></tr>
+<tr><td><code>[a, b]</code></td><td>array literal</td></tr>
+<tr><td><code>{"k": v}</code>, <code>{k: v}</code>, <code>{foo}</code></td><td>object literal; keys may be bare; <code>{foo}</code> is shorthand for <code>{"foo": $foo}</code></td></tr>
+<tr><td><code>(x, y) =&gt; expr</code></td><td>lambda</td></tr>
+<tr><td><code>(expr)</code></td><td>grouping</td></tr>
+<tr><td><code>-- text</code></td><td>a comment, to the end of the line</td></tr>
+<tr><td><code>a &lt;&gt; b</code></td><td>concat — the only infix operator, left-associative, lowest precedence</td></tr>
+<tr><td><code>.tag(...)</code></td><td>element</td></tr>
+<tr><td><code>.(...)</code></td><td>fragment</td></tr>
+<tr><td><code>value(expr)</code></td><td>element value slot; at most one, attribute position</td></tr>
+<tr><td><code>action("event", "key", payload)</code></td><td>action; attribute position, any number</td></tr>
+<tr><td><code>map/filter(coll, fn)</code>, <code>scan/fold(coll, init, fn)</code></td><td>array primitives</td></tr>
+<tr><td><code>branch(fallback, p1, v1, …)</code></td><td>conditional</td></tr>
+<tr><td><code>import("name", {k: expr, j: ctx(path)})</code></td><td>import; a parameter may also be left out and supplied later</td></tr>
+<tr><td><code>adapt-actions(node, prefix("ns:") \| identity [, fn])</code></td><td>action adaptation</td></tr>
+</table>
+```
+
+Names — bindings, path segments, tags, bare keys — start with a letter and may contain letters, digits, `_` and internal `-`. _Internal_ is enforced, not merely advised: a hyphen belongs to the name only when another name character follows it, so a name never ends in one and `$x-- note` reads as `x` followed by a comment. Whitespace is insignificant except as a separator, with one exception: a field-access `.` must directly follow the `)` it applies to, so `f()` on one line and `.div(...)` on the next are two separate things.
+
+**Comments.** `--` begins a comment that runs to the end of the line. There is no block form and no nesting, so a comment cannot be left unterminated and a second `--` inside one is simply more comment. A comment is legal wherever a space is — above the bindings, trailing one, between an element's arguments, after the root — and is discarded together with the whitespace around it, so it reaches neither the core AST nor §9's analyses. Inside a string literal `--` is ordinary text: a string body is read character by character and never passes through this rule.
+
+Being whitespace, a comment does not join the lines it sits between: `f() -- note` followed by `.div(...)` on the next line is two separate things, exactly as the uncommented version is.
+
+**Attribute position before children.** Attributes, `action(...)` and `value(...)` must all precede any child; a child first is a parse error.
+
+**Static positions reject interpolation.** A backtick inside an import name, action event/key, adaptation prefix or object key is a parse error rather than a literal backtick — someone writing `import("lib-`$x`")` means interpolation, and that position cannot be computed.
+
+**A malformed special form is a parse error.** Name recognition backtracks; the shape does not. `action("on-click", $computed, {})` fails to parse rather than quietly becoming a call to an unbound function named `action`.
+
+### Program kind
+
+A program is bindings followed by a root expression. `parseProgram` reports `DocumentProgram` if the root is written as a document (`.tag(...)` or `.(...)`) and `ExpressionProgram` otherwise. That is a syntactic classification; what evaluation actually produces is decided at runtime (§6).
+
+-----------------------------
+
+## 6. Evaluation
+
+Evaluation is eager and deterministic, with exactly one exception (`Branch`). Aside from binding order, no evaluation order is prescribed.
+
+**Bindings.** `@name=expr` lines lower to nested `Let`s, so a binding may reference `$ctx` and any earlier binding, never a later one. A binding's value is inserted only _after_ it is evaluated, which is why **there is no recursion**: a lambda cannot call itself by its own binding name.
+
+**Closures** capture the environment where the lambda is evaluated. Builtins are ordinary values in the initial environment, so one can be passed by reference: `map($ctx.flags, $not)`.
+
+**Branch** evaluates its condition, then _only_ the selected arm. Errors in an unreached arm never surface. This holds in every position — there is no separate eager form. The condition must be a boolean.
+
+**Elements** evaluate attributes, then the value slot, then children, in source order.
+
+**Children coercion** is the one rule the document side adds:
+
+```html
+<table>
+<tr><th>child value</th><th>contributes</th></tr>
+<tr><td>a document</td><td>itself, as one child</td></tr>
+<tr><td>an array</td><td>each element, recursively — this is how <code>map(...)</code> repeats children</td></tr>
+<tr><td>anything else JSON-able</td><td>one text node carrying that value unconverted</td></tr>
+<tr><td>a closure / builtin / import result / unrun import</td><td>an error</td></tr>
+</table>
+```
+
+So an array in child position is a _sibling sequence_, not one value. An array wanted as data belongs in an attribute or the value slot.
+
+**Concat** (`a <> b`) is a monoid over three types, with no coercion:
+
+```
+String × String → String      ""   identity
+Array  × Array  → Array       []
+Object × Object → Object      {}   right-biased on key collision
+```
+
+Mixed types are an error. Object key order is not semantically significant.
+
+**`str`, and string interpolation.** `"n: `$x`"` lowers to `Concat` over `str(...)`, so `str` decides what interpolation puts in the output. Its rendering is normative:
+
+```html
+<table>
+<tr><th>value</th><th>renders as</th></tr>
+<tr><td>string</td><td>itself, raw</td></tr>
+<tr><td><code>null</code></td><td><code>""</code></td></tr>
+<tr><td>boolean</td><td><code>true</code> / <code>false</code></td></tr>
+<tr><td>number</td><td>exactly as ECMAScript's <code>Number::toString</code> — <code>3</code>, <code>1.5</code>, <code>0.05</code>, <code>100000000000</code>, <code>1e+21</code>, <code>1e-7</code></td></tr>
+<tr><td>array / object</td><td>compact JSON, <strong>keys sorted</strong>, numbers by the same rule, strings JSON-quoted</td></tr>
+</table>
+```
+
+Keys are sorted because key order is not semantically significant, so it must not be observable here either. Both implementations must produce these character for character.
+
+-----------------------------
+
+## 7. Imports
+
+```
+import("deployment", {
+  name:     "web",              -- (a) an expression, evaluated here
+  replicas: ctx(spec.replicas)  -- (b) this program's $ctx.spec.replicas
+})                              -- (c) anything not listed: supplied later
+```
+
+Three ways to supply a parameter, and the third is not writing it down.
+
+**(a)** Any expression. It is evaluated where the import is written, like every other argument in the language.
+
+**(b)** `ctx(path)` reads the _importing_ program's own context, also where the import is written. It means exactly what `$ctx.spec.replicas` means, and a path the context lacks is the same `PathNotFound` — the two forms are interchangeable at runtime and the evaluator makes no distinction between them.
+
+The distinction is entirely static. `ctx(path)` puts the path in a static position in the AST, where §9's `contextHoles` can enumerate it directly; the same read spelled `$ctx.spec.replicas` is an ordinary path buried in an arbitrary expression, indistinguishable from every other read. Writing `ctx(...)` is how an author says _this is a hole — count it_, and it costs the ability to compute the value, which is the point.
+
+**(c)** A parameter the import does not mention is supplied later, by calling the import with an object of more parameters. Merging is right-biased, like `<>` on objects, so a later call overrides an earlier value for the same name.
+
+```
+@panel=import("panel", {})
+@half=$panel({"name": "web"})
+$half({"replicas": 2}).rendered
+```
+
+An import runs **when a field is read off it** — `.rendered` or `.vals` — never where it is written. Everything before that is accumulation, which is what lets one wired-up import serve a whole `map`, each iteration adding its own parameter:
+
+```
+@row=import("row", {kind: ctx(row-kind)})
+.ul(map($ctx.items, (item) => $row({"title": $item.title}).rendered))
+```
+
+A run import exposes `.rendered` (whatever its root evaluated to — a document or an ordinary value) and `.vals` (its own top-level bindings). Using the import itself where a value is expected is an error: it has not run, so it has nothing to serialize.
+
+A library is evaluated against its parameters as its own fresh `$ctx` — a library's `$ctx` _is_ its parameter object, which is why a library reads `$ctx.title` for the parameter `title`, and why a `ctx(...)` hole inside a library is a hole in what its importer must pass. Import names are resolved by a host-supplied table; where a library came from is not the language's business. Re-entering a library already being evaluated is reported as a cycle, not run.
+
+Nothing checks that the parameters are _enough_ before running a library, because nothing in the import knows what enough would be. A library that reads a path nobody supplied fails with its own `PathNotFound`, wrapped in an `InLibrary` naming the library that raised it:
+
+```
+import("panel", {"name": "web"}).rendered
+  -- InLibrary "panel" (PathNotFound ["ctx", "replicas"])
+```
+
+The static counterpart is §9's `unsuppliedParams`, which answers the same question without running anything.
+
+**Known limitation:** an import or `adapt-actions` result cannot be called directly — `import("x", {...})({...})` is a parse error. Bind it first, as the examples above do. Only field access is available as a postfix on a call.
+
+-----------------------------
+
+## 8. Desugaring
+
+The parser lowers each of these; none has a core constructor.
+
+```html
+<table>
+<tr><th>surface</th><th>core</th></tr>
+<tr><td><code>@a=1</code> <code>@b=$a</code> <code>root</code></td><td><code>Let "a" 1 (Let "b" $a root)</code></td></tr>
+<tr><td><code>"n: </code> + <code>`$x`</code> + <code>!"</code></td><td><code>Concat (Concat "n: " (str $x)) "!"</code></td></tr>
+<tr><td><code>"a\nb"</code></td><td>one <code>StringLit</code> with a real newline</td></tr>
+<tr><td><code>{foo, bar: 1}</code></td><td><code>ObjectLit [("foo", Path foo), ("bar", 1)]</code></td></tr>
+<tr><td><code>branch(f, p1, v1, p2, v2)</code></td><td><code>Branch p1 v1 (Branch p2 v2 f)</code></td></tr>
+<tr><td><code>a &lt;&gt; b &lt;&gt; c</code></td><td><code>Concat (Concat a b) c</code></td></tr>
+<tr><td><code>.div()</code></td><td><code>Element "div" [] NullLit []</code></td></tr>
+</table>
+```
+
+Escape sequences:
+
+```
+\n  \t  \r  \\  \"  \`  \0  \u{1F600}
+```
+
+`\u{...}` is braced, so an astral code point needs no surrogate pair.
+
+_Deferred:_ destructuring in `let` and lambda parameters. It is pure desugaring and needs no change to the core AST.
+
+-----------------------------
+
+## 9. Static analysis
+
+All of these answer from the AST alone — no context, no library evaluation, no host code. The three the laws ask for each have a deep variant that follows imports through a library table and cuts cycles.
+
+```html
+<table>
+<tr><th>function</th><th>answers</th></tr>
+<tr><td><code>staticImportNames</code> / <code>transitiveImportNames</code></td><td>which libraries this program depends on</td></tr>
+<tr><td><code>staticActionKeys</code> / <code>deepActionKeys</code></td><td>which action keys it can emit</td></tr>
+<tr><td><code>contextHoles</code> / <code>deepContextHoles</code></td><td>which context paths it declares as holes with <code>ctx(...)</code></td></tr>
+<tr><td><code>contextReads</code></td><td>every path it reads from its own context, <code>$ctx.a</code> and <code>ctx(a)</code> alike</td></tr>
+<tr><td><code>unsuppliedParams</code></td><td>per import, the paths its library reads that the import does not supply</td></tr>
+</table>
+```
+
+`contextReads` of a library is the shape of the parameter object it expects, since a library's context is its parameters. `unsuppliedParams` is that set minus what each import supplies — the parameters still to be saturated by a later call (§7), computed without running anything. It attributes a read to a parameter by the read's first segment, and stops at the library's own reads rather than following that library's imports, whose parameters it supplies itself.
+
+`staticActionKeys` **applies** adaptation rather than ignoring it, using the same function the evaluator does: `adapt-actions(x, prefix("user:"))` over `{save, delete}` yields `{user:save, user:delete}`. That is the payoff of restricting adaptation to identity-or-prefix.
+
+These are over-approximations: keys under a `Branch` arm that a given context will never select are still reported, and so is a parameter a library reads only in such an arm. A name that is imported but missing from the table is reported too — an unresolvable dependency is what a caller wants to hear about — though it contributes no unsupplied parameters, since what it needs is unknowable rather than nothing.
+
+-----------------------------
+
+## 10. Actions and adaptation
+
+```
+action("on-click", "deploy", {"deployment": $ctx.name})
+```
+
+The event and key are literals; only the payload is computed. The language assigns meaning to neither — the event _vocabulary_ is the host's, and what is fixed is the position, not the words allowed in it.
+
+```
+adapt-actions(node, prefix("deployment:"))
+adapt-actions(node, identity)
+adapt-actions(node, prefix("ns:"), fn)
+```
+
+Prefixes every action key in the subtree, reaching through imported programs and supplied fragments. Adaptations compose the obvious way — `a:` then `b:` gives `b:a:key` — with no "already adapted" state. Applied to an import that has not run, the adaptation is queued and runs on its result.
+
+The optional `fn` sees each _already-prefixed_ action and may change only its event type and payload; a `key` it returns is ignored. Letting it win would put the action vocabulary back beyond static reach, which is the whole point of the restriction.
+
+-----------------------------
+
+## 11. Builtins
+
+The vocabulary is fixed, not user-extensible.
+
+```html
+<table>
+<tr><th>builtin</th><th>notes</th></tr>
+<tr><td><code>cardinality(x)</code>, <code>count(x)</code></td><td>array or object size</td></tr>
+<tr><td><code>str(x)</code></td><td>§6's rendering; what interpolation uses</td></tr>
+<tr><td><code>not(b)</code></td><td></td></tr>
+<tr><td><code>and(…)</code>, <code>or(…)</code></td><td>variadic, including zero arguments (<code>and()</code> is <code>true</code>, <code>or()</code> is <code>false</code>)</td></tr>
+<tr><td><code>eq(a, b)</code></td><td>deep equality; no cross-type coercion, so <code>eq(1, "1")</code> is <code>false</code></td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code></td><td>numbers only</td></tr>
+<tr><td><code>has(container, key)</code></td><td>tolerant: a missing key, out-of-range index or wrong-shaped container answers <code>false</code></td></tr>
+<tr><td><code>lookup(container, key, fallback)</code></td><td>dynamic access; the fallback is mandatory, so this never errors</td></tr>
+<tr><td><code>map</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td>also core constructors — see below</td></tr>
+<tr><td><code>concat(…)</code></td><td>variadic array join; every argument must be an array</td></tr>
+<tr><td><code>append(arr, item)</code></td><td>adds one element; an array item is added whole, not spliced</td></tr>
+</table>
+```
+
+`scan` is `scanl`, not `scanl1`: its output starts with the seed and is one longer than the input. `fold` takes the same `(acc, item)` step and returns only the final accumulator.
+
+**There is no arithmetic.** No `+`, `-`, `*`, and no numeric builtins beyond the comparisons above — a template compares and selects, it does not compute. Numbers reach a program through `$ctx`, a literal, or a host-supplied library.
+
+`map`/`filter`/`scan`/`fold` are core constructors rather than builtins because their function argument needs a fresh binding per element. `branch` is a core constructor because it must leave an arm unevaluated, which no builtin can do.
+
+-----------------------------
+
+## 12. Errors
+
+```html
+<table>
+<tr><th>error</th><th>when</th></tr>
+<tr><td><code>UnboundName</code></td><td>a name that is not bound and not a builtin</td></tr>
+<tr><td><code>PathNotFound</code></td><td>a field the value does not have; carries the path as written</td></tr>
+<tr><td><code>TypeMismatch</code></td><td>wrong type, wrong arity, a non-callable callee, a value that cannot cross a JSON boundary</td></tr>
+<tr><td><code>ConcatMismatch</code></td><td><code>&lt;&gt;</code> over two different types</td></tr>
+<tr><td><code>UnknownLibrary</code></td><td>an import name the host table does not resolve</td></tr>
+<tr><td><code>ImportCycle</code></td><td>a library re-entered while already being evaluated</td></tr>
+<tr><td><code>InLibrary</code></td><td>wraps whatever an imported library failed with, naming that library; nests through a chain of imports</td></tr>
+</table>
+```
+
+-----------------------------
+
+## 13. Implementation-defined
+
+Programs must not depend on any of these.
+
+- **Object key order**, in values and in the serialized `Node`. `str` is the exception: it sorts, so it is deterministic.
+
+- **Evaluation order**, beyond binding order and `Branch`'s laziness.
+
+- **Error message text.** The error _kinds_ above are stable; their prose is not.
+
+- **Number precision.** Numbers are doubles. Beyond 2^53 integers are not exact, and `str` renders whatever double survived.
+
+
+-----------------------------
+
+## 14. Open
+
+- Destructuring (§8).
+
+- Calling a call's result directly (§7).
+
+- Negative and exponent number literals — `-1` and `1e5` are parse errors today. With no arithmetic in the language (§11) there is no way to write such a value inline at all; it has to arrive through `$ctx` or a library.
+
+- Types, domains and constraints. The AST is built to accept them: node annotations are where derived type/domain information goes, and the semantics avoid equating "unknown" with `null`, so a constraint-aware evaluator can reuse this AST rather than forking the language. The symbolic and constraint half of that is specified in [`v3-symbols.md`](/reference-v3-symbols.html ) and implemented in both hosts; nominal types are specified in [`v4-types.md`](/reference-v4-types.html ) — still a draft, not frozen, but implemented in both hosts through roadmap-to-v4 Phase 15 (tooling included: both the CLI and the browser playground surface the `"types"`/`"type-constraints"` envelope fields). v4 shipped as a **minor** bump — `type X = ...` declarations and `@x : T = e` annotations both fit inside the existing `Let`/`Emit` chain, so `Program`'s own shape (`DocumentProgram | ExpressionProgram`) never changed and no host that pattern-matches it is affected (roadmap-to-v4 Phase 15's version decision).
+
+
+

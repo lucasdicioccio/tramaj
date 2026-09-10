@@ -1,0 +1,49 @@
+```html
+<p align="center">
+  <img src="/images/lockup-horizontal.png" alt="tramaj" width="420">
+</p>
+```
+
+# tramaj
+
+A small template language for turning a JSON value into a document tree.
+
+Templates are meant to be comfortable to write by hand _and_ easy for an LLM to emit: a HAML-like block syntax for structure, a `jq`-flavoured expression language for the data half, and a deliberately tiny builtin set. Rendering is decoupled from the language — evaluation produces a generic `Node` AST, and it is the host that decides whether that becomes Halogen HTML, JSON, or anything else.
+
+```
+@items=$ctx.items
+@n=cardinality($items)
+.div(class: "items",
+  .h1("Items"),
+  .p("there are `$n` of them"),
+  .ul(map($items, (i) => .li(action("on-click", "select", {"id": $i.id}), $i.name))))
+```
+
+Bindings are evaluated once, in order. ``$n`` interpolates into a string; a bare `$path` can be used directly as a child. `action(...)` attaches an opaque, structured action to an element — the language recognises the syntax but assigns it no meaning, leaving the host to map the key onto a real event handler.
+
+Go straight to [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md ) on GitHub for the full spec, or explore the site below.
+
+## Explore
+
+- [**Properties**](/properties.html ) — the invariants tramaj is held to: portability, cheap static analysis, determinism.
+
+- [**Use cases**](/use-cases.html ) — where a small document-composing language fits: static sites, real UIs, LLM-generated templates, constraint-driven and typed generation.
+
+- [**Reference**](/reference.html ) — the language specification, the `Node` wire format, and the v3/v4 extensions.
+
+- [**Playground**](/playground.html ) — try it in the browser, nothing sent to a server.
+
+- [**Getting started**](/howto-humans.html ) — install the toolchain, write and run a first template.
+
+- [**Integrating tramaj**](/integrate-tramaj.html ) — embedding it as a library in PureScript, Haskell, JavaScript, or anything else.
+
+- [**For coding agents**](/howto-agents.html ) — a dense syntax cheatsheet and fetch strategy for an LLM emitting tramaj templates.
+
+- [**Roadmap**](/roadmap.html ) — where the implementations stand, and the native JS, Python, and Rust implementations that are wanted next.
+
+
+```html
+<script src="js/topicgraph.js"></script>
+```
+
+

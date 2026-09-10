@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/playground.html</id><title type="text">tramaj playground</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;This is the same playground built from the
+&lt;a href="https://github.com/lucasdicioccio/tramaj"&gt;tramaj&lt;/a&gt; repository’s PureScript
+sources, published here as a static bundle so it can be tried without a
+local build. It parses and evaluates tramaj templates in the browser —
+nothing is sent to a server. Tabs act as importable libraries for each
+other; toggle “Symbolic mode” to see the v3 envelope instead of a finished
+document.&lt;/p&gt;
+&lt;p&gt;See &lt;a href="/howto-humans.html"&gt;Getting started&lt;/a&gt; for running the same language
+from the command line, or &lt;a href="/use-cases.html"&gt;Use cases&lt;/a&gt; for where it fits.&lt;/p&gt;
+&lt;iframe class="playground-frame" src="/tramaj-playground.html" title="tramaj playground"&gt;&lt;/iframe&gt;
+&lt;p&gt;If the embedded frame does not load, open the
+&lt;a href="/tramaj-playground.html"&gt;playground&lt;/a&gt; directly.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/playground.html" rel="alternate"/><summary type="text">An in-browser playground for tramaj — edit a template and a JSON context, see it evaluated live.</summary></entry></feed>

@@ -1,0 +1,586 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-09-10T13:23:07Z"><meta name="article:modified_time" content="2026-09-10T13:23:07Z"><meta name="ks:article_json" content="/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T13:23:07Z","datePublished":"2026-09-10T13:23:07Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/css/dev.css";@import "/css/colors.css";@import "/css/article.css";@import "/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/">home</a><div id="search-box"><script type="text/javascript" src="/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 3649 words, 18 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/reference-node-json.html">‹</a></span><a class="topic-link" href="/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<h2 id="tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</h2>
+<p>This document is <strong>normative</strong> for the symbolic extension. It builds on
+<code>reference.md</code>, which remains normative for everything else; section numbers
+written as <em>(ref §n)</em> point there. <code>node-json.md</code> is unchanged and remains
+normative for the <code>Node</code> encoding, which v3 wraps rather than alters.</p>
+<p>Types are <strong>not</strong> in v3. Nominal types, type declarations, imported type
+namespaces and typed annotations are drafted separately in
+<a href="/reference-v4-types.html"><code>v4-types.md</code></a>. v3 is complete and implementable without them,
+and §9 says how far it gets on its own.</p>
+<p>Status: frozen as a design. Not implemented in either <code>tramaj/</code> or
+<code>tramaj-hs/</code>.</p>
+<hr />
+<h3 id="0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</h3>
+<p>Three things: an expression <code>?</code> that introduces a <strong>symbol</strong>, a statement <code>!</code>
+that emits a <strong>constraint</strong>, and an output mode that carries both.</p>
+<p>Everything follows one rule the language already applies to actions and import
+names:</p>
+<blockquote>
+<p><strong>Tramaj fixes positions and identity. The host owns vocabulary and meaning.</strong></p>
+</blockquote>
+<p>An action’s event and key are static positions; what <code>&quot;on-click&quot;</code> means is the
+host’s business (ref §10). v3 says the same of symbolic variables and
+constraints:</p>
+<table>
+<tr><th>the language guarantees</th><th>the host decides</th></tr>
+<tr><td>a symbolic variable exists, and <em>which</em> one it is</td><td>what it stands for</td></tr>
+<tr><td>a constraint was emitted, with these arguments</td><td>what <code>"gte"</code> means, and how to solve it</td></tr>
+<tr><td>the set of constraint kinds a program can emit, statically</td><td>whether it supports them</td></tr>
+</table>
+<p>Tramaj therefore solves nothing and checks nothing. It evaluates as far as it
+can and serializes what it could not resolve, so that a host fold may run a
+solver, render a form, ask a user, or refuse a template whose constraint
+vocabulary it does not implement.</p>
+<hr />
+<h3 id="1-symbols">1. Symbols</h3>
+<h4 id="11-the-value">1.1 The value</h4>
+<pre><code class="language-text">Value
+  = ... as in ref §3 ...
+  | Symbol  id: SymbolId, path: List&lt;String&gt;
+</code></pre>
+<p>A <code>Symbol</code> with an empty <code>path</code> is an <strong>allocation</strong>; one with a non-empty
+path is a <strong>projection</strong> of an allocation (§1.6). A symbol is opaque to the
+language: nothing inspects it, and nothing but §1.6’s projection derives a new
+one from it.</p>
+<h4 id="12-key--allocation">1.2 <code>?(key)</code> — allocation</h4>
+<pre><code>@primary = ?(&quot;primary&quot;)
+@ports   = map($ctx.services, (s) =&gt; ?($s.name))
+</code></pre>
+<p><code>?(expr)</code> allocates. The argument is an ordinary expression, evaluated where
+it is written, and MUST evaluate to a concrete JSON value; a symbol used as a
+key is <code>NotConcrete</code>.</p>
+<p>There is <strong>no keyless form.</strong> A symbol always says what distinguishes it from
+its neighbours, so the question “did this mean one variable or many?” is
+always answered in the source:</p>
+<pre><code>map($ctx.services, (s) =&gt; ?($s.name))   -- one symbol per service
+map($ctx.services, (s) =&gt; ?(&quot;port&quot;))    -- one symbol, shared by every service
+</code></pre>
+<p>Both are legal and mean what they say. A constant key is a constant symbol.
+What v3 refuses is the version where the author writes nothing and the
+language guesses.</p>
+<h4 id="13-ctxpath--demand">1.3 <code>?ctx.path</code> — demand</h4>
+<pre><code>@replicas = ?ctx.replicas
+</code></pre>
+<p><code>?ctx.a.b</code> evaluates to <code>$ctx.a.b</code> and declares <em>this is a value I intend to
+discuss symbolically</em>. The path MUST be rooted at <code>ctx</code>.</p>
+<p><strong>At runtime it means exactly what <code>$ctx.a.b</code> means.</strong> Whatever the caller
+supplied — a number, a symbol, an object — is what it produces. The
+distinction is entirely static, and it is the same trade <code>ctx(path)</code> already
+makes for import parameters (ref §7): a path in a static position is a demand
+an analyzer can enumerate, where the same read buried in an arbitrary
+expression is not.</p>
+<p>An unsupplied demand:</p>
+<ul>
+<li><strong>in the root program</strong>, allocates the symbol <code>#</code> + the path (§1.4). The
+root’s caller is the host, the host declined to supply, and the root runs
+once, so it may allocate.
+</li>
+<li><strong>in a library</strong>, is <code>PathNotFound</code>, wrapped in <code>InLibrary</code> naming the
+library — the same error an ordinary unsupplied read already produces
+(ref §7).
+</li>
+</ul>
+<h4 id="14-identity">1.4 Identity</h4>
+<blockquote>
+<p><strong>Only a root program may allocate. A library MUST NOT</strong>, because the root
+runs exactly once and a library does not.</p>
+</blockquote>
+<p><code>AllocationInLibrary</code> is raised when a program containing <code>?(k)</code> is loaded as
+a library. The check is <strong>lexical</strong>: it is about where the <code>?</code> is written, not
+where it is evaluated, so a closure created in the root and applied inside a
+library still allocates in the root, which is where its <code>?</code> is written.</p>
+<p>A <code>SymbolId</code> is a string, formed as follows and identical in every conforming
+implementation:</p>
+<table>
+<tr><th>form</th><th>id</th></tr>
+<tr><td><code>?(k)</code>, the <em>n</em>-th <code>?</code> in the program's source</td><td><code>#</code> <em>n</em> <code>:</code> canon(<em>k</em>)</td></tr>
+<tr><td><code>?ctx.a.b</code>, unsupplied at the root</td><td><code>#ctx.a.b</code></td></tr>
+</table>
+<ul>
+<li><em>n</em> is assigned by the parser: the <code>?(k)</code> occurrences of one program are
+numbered <code>0, 1, 2, …</code> in source order. It belongs to the core AST for the
+same reason a binding’s name does — it <em>is</em> the variable’s identity, not
+source trivia.
+</li>
+<li><strong>canon</strong> is compact JSON with object keys sorted, numbers rendered by
+ref §6’s <code>str</code> rule, and strings JSON-quoted. It agrees with <code>str</code> on arrays
+and objects and differs at the top level for strings, where <code>str</code> renders
+raw. The difference is required: canon MUST be injective, and <code>str(3)</code> and
+<code>str(&quot;3&quot;)</code> are the same characters.
+</li>
+<li>The two forms cannot collide: an allocation id continues with a digit, a
+demand id with <code>ctx</code>. A path segment cannot contain <code>.</code> (ref §5), so the
+demand form is unambiguous.
+</li>
+</ul>
+<p>Identity is a function of the program text and of one value the author chose.
+It does not depend on evaluation order, so two implementations agree on symbol
+ids by construction rather than by agreeing on a traversal.</p>
+<p>The site is part of the id, as well as the key, so that two independent
+<code>?(&quot;replicas&quot;)</code> in different places are different variables. A key names a
+distinction, not a variable.</p>
+<h4 id="15-what-may-be-done-with-a-symbol">1.5 What may be done with a symbol</h4>
+<blockquote>
+<p><strong>Control flow and structure must be concrete. Only data may be symbolic.</strong></p>
+</blockquote>
+<p>A symbol is data. It may be bound, passed to a lambda, returned from one,
+stored in an array or object, and placed in an attribute, an action payload,
+an element value slot or a text child. Everything that would require the
+language to <em>know</em> something about it is an error:</p>
+<table>
+<tr><th>expression</th><th>result</th></tr>
+<tr><td><code>$s</code>, <code>[$s]</code>, <code>{k: $s}</code></td><td>fine — a symbol is a value</td></tr>
+<tr><td><code>.p($s)</code>, <code>.div(class: $s)</code>, <code>action(e, k, {r: $s})</code></td><td>fine — §5.2 carries it</td></tr>
+<tr><td><code>$s.field</code></td><td>a projection (§1.6) — <strong>the one exception</strong></td></tr>
+<tr><td><code>branch($s, …)</code></td><td><code>NotConcrete</code> — no arm can be selected</td></tr>
+<tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
+<tr><td><code>eq</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> on anything <em>containing</em> a symbol</td><td><code>NotConcrete</code></td></tr>
+<tr><td><code>str($s)</code>, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
+<tr><td><code>cardinality($s)</code>, <code>has($s, k)</code>, <code>lookup($s, k, d)</code></td><td><code>NotConcrete</code></td></tr>
+<tr><td><code>$s &lt;&gt; x</code></td><td><code>NotConcrete</code></td></tr>
+</table>
+<p><code>has</code> and <code>lookup</code> are called out because both are deliberately <em>tolerant</em>
+today — <code>has</code> answers <code>false</code> for a wrong-shaped container and <code>lookup</code> never
+errors. Neither may answer about a symbol: a tolerant <code>false</code> would be a lie,
+and <code>lookup</code>’s fallback would silently discard the symbol.</p>
+<p>Consequence worth stating: v3 can constrain the elements of a list whose
+length is known, and cannot constrain a list whose length is symbolic. That is
+the ceiling, and it is where a real symbolic evaluator would have to begin.
+Declining to go there is what keeps <code>map</code> free of any <code>if value is Symbol</code>
+branch — no evaluator rule in ref §6 changes, and no builtin learns a new
+case beyond refusing.</p>
+<h4 id="16-projection">1.6 Projection</h4>
+<p><code>$s.field</code> reads nothing. It produces a symbol with the same <code>id</code> and the path
+extended:</p>
+<pre><code class="language-text">Symbol &quot;#0:\&quot;d\&quot;&quot; []            -- $d
+Symbol &quot;#0:\&quot;d\&quot;&quot; [&quot;replicas&quot;]  -- $d.replicas
+Symbol &quot;#0:\&quot;d\&quot;&quot; [&quot;a&quot;,&quot;b&quot;]     -- $d.a.b
+</code></pre>
+<p>A projection is never rejected. <code>PathNotFound</code> is for a concrete value that
+demonstrably lacks a field; a symbol demonstrably lacks nothing, and whether
+the thing it stands for has that field is a question for whoever owns its
+meaning.</p>
+<p>Projections do not appear in the symbol table (§5.2); they are references to
+the allocation they project from.</p>
+<h4 id="17-symbols-in-structures">1.7 Symbols in structures</h4>
+<p><strong>A concrete structure containing symbols is not special.</strong> <code>[?(&quot;a&quot;), ?(&quot;b&quot;)]</code>
+is an ordinary two-element array that happens to hold symbols. The spine is
+concrete, so everything structural works: <code>cardinality</code> counts, <code>map</code>
+iterates, a field read returns the symbol it finds, <code>&lt;&gt;</code> merges. Only the
+operations that <em>inspect</em> a value refuse.</p>
+<pre><code>@ports = map($ctx.services, (s) =&gt; ?($s.name))
+!map($ports, (p) =&gt; constraint(&quot;gte&quot;, $p, 1024))
+.ul(map($ports, (p) =&gt; .li($p)))
+</code></pre>
+<p>is legal end to end.</p>
+<p><strong>A symbol that is itself structured is the ceiling.</strong> <code>$d.replicas</code> projects
+fine; <code>map($d.items, f)</code> is <code>NotConcrete</code>, because the length is unknown. A
+symbol may <em>have</em> structure as far as its host-side meaning is concerned; the
+language cannot walk it.</p>
+<p>Two cases fall out of the same rule: a symbol cannot be an object key, because
+keys are static (ref §5) and nothing computes one; and a symbol inside an
+import’s parameters is an ordinary value being passed, so it crosses the
+boundary with its identity intact, which is §2.4’s mechanism.</p>
+<h4 id="18-symbols-in-text">1.8 Symbols in text</h4>
+<p><code>str</code> refuses symbols, so <code>&quot;Deploy `$r` replicas&quot;</code> is <code>NotConcrete</code>. The
+form to write instead:</p>
+<pre><code>.p(&quot;Deploy &quot;, $r, &quot; replicas&quot;)
+</code></pre>
+<p>Three children — two carrying strings, one carrying the symbol. This is what a
+form renderer needs anyway: it must put an input where the symbol is, and it
+cannot if the symbol has been flattened into the middle of a string. The
+concrete case is unaffected: if <code>$r</code> is a number, the same element produces
+the same three text children.</p>
+<p>Reconstructing a string from those pieces, if a downstream consumer wants one,
+is that consumer’s job. It has them in order and knows what its target does
+with them, which the language does not.</p>
+<hr />
+<h3 id="2-constraints">2. Constraints</h3>
+<h4 id="21-constraint">2.1 <code>constraint(...)</code></h4>
+<pre><code>constraint(&quot;gte&quot;, $d.replicas, 1)
+</code></pre>
+<p>A special form, not a builtin. The name MUST be a string literal with no
+interpolation, like an action’s event and key (ref §5) — that is what makes
+§7’s <code>constraintKinds</code> computable. The remaining arguments are ordinary
+expressions, evaluated where they are written.</p>
+<pre><code class="language-text">Value
+  = ...
+  | Constraint  name: String, arguments: List&lt;Value&gt;
+</code></pre>
+<p><strong>The form is variadic and its arity is unbounded.</strong> <code>constraint(name)</code> with
+no arguments is legal, and so is any number beyond. The language fixes no
+signature for any name, because the language knows no names: arity is part of
+the host’s vocabulary exactly as the name is, and a host that receives a
+<code>&quot;gte&quot;</code> with four arguments rejects it the same way it rejects a kind it does
+not implement. Nothing in §7 depends on arity — <code>constraintKinds</code> reports
+names, not signatures.</p>
+<p>This matters for <strong>global constraints</strong> in the MiniZinc sense, which are the
+reason to have a constraint list at all rather than a pile of binary
+comparisons. They are n-ary over whole collections, and they mix collections
+with scalars:</p>
+<pre><code>!constraint(&quot;all-different&quot;, $replicas)
+!constraint(&quot;cumulative&quot;, $starts, $durations, $demands, $capacity)
+!constraint(&quot;global-cardinality&quot;, $zones, [&quot;a&quot;, &quot;b&quot;], [$lo, $hi])
+</code></pre>
+<p>An argument may be an array (§1.7), so a global taking several arrays of
+symbols is expressible without any special form of its own; combined with
+unbounded arity, the whole family is reachable. <strong>Argument order is
+significant and preserved</strong> — position is how a global distinguishes its
+starts from its durations — and it is part of the canonical rendering §4
+deduplicates on.</p>
+<p>An argument may be any JSON value or any symbol. Anything else — a closure, a
+builtin, a node, an import — is the <code>TypeMismatch</code> the JSON boundary already
+raises, through the same code path.</p>
+<p>Note what this does <strong>not</strong> do: there is no restricted constraint-expression
+grammar and no quoting of argument syntax. <code>constraint(&quot;gt&quot;, $x, $ctx.threshold)</code> stores <code>10</code> when the threshold is concrete and stores a
+symbol when it is symbolic. Quoting the syntax instead would make every
+constraint produced by a loop identical, since <code>$item.replicas</code> is the same
+three words on every iteration.</p>
+<p>A <code>Constraint</code> is <strong>not data</strong>. It MUST NOT cross a JSON boundary: not an
+attribute, a payload, an element value slot, a text child, or an expression
+program’s root. The only construct that may consume one is <code>!</code>.</p>
+<h4 id="22---emission">2.2 <code>!</code> — emission</h4>
+<p><code>!</code> is a fourth leader character, joining <code>.</code>, <code>$</code> and <code>@</code>. A program is a
+sequence of <strong>statements</strong> followed by a root expression:</p>
+<pre><code class="language-text">statement = &quot;@&quot; name &quot;=&quot; expr        -- binding, as today
+          | &quot;!&quot; expr                 -- emission
+program   = statement* expr
+</code></pre>
+<p><code>!</code> is a statement leader only. It may not appear inside an expression.</p>
+<pre><code>@d   = ?(&quot;d&quot;)
+@min = 1
+
+!constraint(&quot;gte&quot;, $d.replicas, $min)
+!constraint(&quot;lte&quot;, $d.replicas, 10)
+!map($ctx.zones, (z) =&gt; constraint(&quot;allowed-zone&quot;, $d.zone, $z))
+
+.Deployment(name: $d.name, replicas: $d.replicas)
+</code></pre>
+<p><code>!expr</code> evaluates <code>expr</code> and collects from it by exactly the coercion table
+children already use (ref §6):</p>
+<table>
+<tr><th>value</th><th>contributes</th></tr>
+<tr><td>a constraint</td><td>itself, one</td></tr>
+<tr><td>an array</td><td>each element, recursively</td></tr>
+<tr><td>anything else</td><td><code>TypeMismatch</code></td></tr>
+</table>
+<p>which is why <code>!map(...)</code> reads naturally: an array <em>is</em> a sequence, in the
+constraint set as much as in a child list.</p>
+<ul>
+<li>A statement sees earlier bindings and not later ones, exactly as a binding
+does.
+</li>
+<li><code>!branch(c, …)</code> collects only from the selected arm. <code>Branch</code> is lazy in
+every position (ref §6) and the unselected arm’s constraints do not exist.
+</li>
+<li>A <code>Constraint</code> value never reached by a <code>!</code> is discarded. That is the honest
+consequence of constraints being values, and the price of the
+<code>@cs = map(...)</code> / <code>!$cs</code> split that makes them worth having.
+</li>
+</ul>
+<h4 id="23-constraints-from-libraries">2.3 Constraints from libraries</h4>
+<p>A library’s emissions are collected into the same flat list as the root’s. A
+library is where most constraints will be written, since it is the thing that
+knows what its own parameters mean.</p>
+<p>A library runs when a field is read off its import (ref §7), so its
+constraints are collected at that point, not where the import is written.</p>
+<h4 id="24-who-supplies-a-symbol">2.4 Who supplies a symbol</h4>
+<p>Nothing bubbles at runtime. A library declares a demand; its caller decides
+what to put there:</p>
+<pre><code>@a = ?(&quot;a&quot;)
+@b = ?(&quot;b&quot;)
+import(&quot;deployment&quot;, {replicas: $a})      -- this one
+import(&quot;deployment&quot;, {replicas: $a})      -- and this one share a variable
+import(&quot;deployment&quot;, {replicas: $b})      -- this one has its own
+import(&quot;deployment&quot;, {replicas: 3})       -- and this one is concrete
+</code></pre>
+<p>Symbols are ordinary values, so passing one preserves its identity; no
+mechanism beyond that is required. The <em>demand</em> bubbles statically instead,
+through <code>deepSymbolDemands</code> (§7), which tells a root author how many symbols
+to allocate and where to pass them without running anything.</p>
+<hr />
+<h3 id="3-core-ast">3. Core AST</h3>
+<pre><code class="language-text">Expr
+  = ... as in ref §2 ...
+  | Alloc      site: Int, key: Expr                 -- ?(k)
+  | Demand     path: List&lt;String&gt;                   -- ?ctx.a.b
+  | Constrain  name: String, arguments: List&lt;Expr&gt;  -- constraint(...)
+  | Emit       constraint: Expr, body: Expr         -- !expr
+</code></pre>
+<p><code>Emit</code> nests into the chain that bindings already lower to, so</p>
+<pre><code>@a=1
+!c
+root
+</code></pre>
+<p>is <code>Let &quot;a&quot; 1 (Emit c root)</code>. The “earlier bindings only” rule therefore needs
+no separate statement machinery, and <code>Program</code> is unchanged from ref §2 —
+still <code>DocumentProgram Expr | ExpressionProgram Expr</code>.</p>
+<p><code>Emit</code> is representable anywhere an expression is, but the parser produces it
+only at statement position.</p>
+<hr />
+<h3 id="4-evaluation">4. Evaluation</h3>
+<p>Evaluation produces a value <strong>and</strong> an emission record:</p>
+<pre><code class="language-text">Emissions
+  symbols     : List&lt;SymbolEntry&gt;   -- allocations, first-occurrence order, deduplicated by id
+  constraints : List&lt;Constraint&gt;    -- emission order, deduplicated
+</code></pre>
+<p>This is a monoidal output, not mutable state: it is deterministic, it is
+threaded through evaluation rather than written to, and it gives <code>Branch</code> the
+right behaviour for free.</p>
+<p><strong>Evaluation order is prescribed.</strong> ref §13 leaves evaluation order
+implementation-defined beyond binding order and <code>Branch</code>. v3 removes that
+freedom: every implementation MUST evaluate call arguments, array literal
+elements, object literal fields and special-form arguments in <strong>source
+order</strong>, in addition to the orders ref §6 already fixes for elements.</p>
+<p>This is required, not stylistic. <code>laws.md</code> demands that evaluation be
+deterministic in the result, and in v3 the emission list is part of the
+result. It costs nothing: no conforming program could depend on the freedom
+being removed, since ref §13 already forbade depending on it. It also makes
+error reporting deterministic, which is a free improvement.</p>
+<p><strong>Deduplication.</strong> Two constraints with the same name and equal arguments are
+one constraint, kept at the position of the first. Constraints are declarative
+facts; asserting one twice says nothing more than asserting it once. This also
+makes it unobservable whether an implementation runs a library once or twice
+for two field reads on the same import, which ref §7 does not specify.</p>
+<p>Allocations are deduplicated by <code>SymbolId</code> the same way, so <code>?(&quot;port&quot;)</code>
+reached from every element of a <code>map</code> produces one symbol table entry.</p>
+<hr />
+<h3 id="5-modes">5. Modes</h3>
+<p>An interpreter takes a <strong>mode</strong>. It is a host parameter, not a property of the
+program: a host declares what it can read, rather than discovering it from
+whichever template it was handed. Which mode a template <em>needs</em> is a static
+question — <code>symbolSites</code> and <code>deepSymbolDemands</code> (§7) answer it without
+running anything.</p>
+<h4 id="51-concrete-mode">5.1 Concrete mode</h4>
+<p>Output is exactly what ref §1 describes: Node JSON for a document program, a
+plain JSON value for an expression program. Byte for byte, unchanged. An
+expression program still pipes into <code>jq</code>; a Node-JSON host still receives Node
+JSON and nothing else.</p>
+<p>In concrete mode a symbol cannot exist:</p>
+<table>
+<tr><th>form</th><th>concrete mode</th></tr>
+<tr><td><code>?(key)</code></td><td><code>SymbolsUnavailable</code></td></tr>
+<tr><td><code>?ctx.path</code>, supplied</td><td>the value the caller supplied; no symbol involved</td></tr>
+<tr><td><code>?ctx.path</code>, unsupplied at the root</td><td><code>SymbolsUnavailable</code> — that is the same minting</td></tr>
+<tr><td><code>!expr</code></td><td>evaluated; the constraints are discarded</td></tr>
+<tr><td><code>{"$sym": …}</code> arriving in the context</td><td>rejected by the decoder (§5.3)</td></tr>
+</table>
+<p>Two of those rows are load-bearing:</p>
+<ul>
+<li><strong>A library written against <code>?ctx.path</code> runs in both modes.</strong> Only <em>minting</em>
+needs symbolic mode; reading a demand the caller satisfied concretely is an
+ordinary read. That is what makes a constraint-annotated library dual-use
+rather than symbolic-only, and it is the reason the demand form is what
+libraries should be written with.
+</li>
+<li><strong><code>!</code> is allowed and discarded</strong>, not refused. A constraint over values the
+caller supplied concretely is a checkable fact about a document that is
+otherwise perfectly correct; refusing would make every annotated library
+unusable in the half of its settings that do not care. The host has said it
+does not consume constraints, and <code>deepConstraintKinds</code> (§7) is there for
+the host that would rather refuse the template up front.
+</li>
+</ul>
+<p>So concrete mode is the language of <code>reference.md</code> exactly, plus one rule
+about <code>!</code> and two refusals.</p>
+<h4 id="52-symbolic-mode">5.2 Symbolic mode</h4>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;format&quot;</span><span class="fu">:</span> <span class="st">&quot;tramaj/symbolic/1&quot;</span><span class="fu">,</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;document&quot;</span><span class="fu">,</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;root&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;element&quot;</span><span class="fu">,</span> <span class="dt">&quot;tag&quot;</span><span class="fu">:</span> <span class="st">&quot;Deployment&quot;</span><span class="fu">,</span> <span class="dt">&quot;...&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span> <span class="fu">},</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;symbols&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;alloc&quot;</span><span class="fu">,</span> <span class="dt">&quot;site&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span> <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;d&quot;</span><span class="fu">},</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="st">&quot;d&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;#2:</span><span class="ch">\&quot;</span><span class="st">web</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;alloc&quot;</span><span class="fu">,</span> <span class="dt">&quot;site&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;web&quot;</span><span class="fu">},</span></span>
+<span id="11"><a href="#11" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="12"><a href="#12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;#ctx.threshold&quot;</span><span class="fu">,</span></span>
+<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;demand&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;ctx&quot;</span><span class="ot">,</span> <span class="st">&quot;threshold&quot;</span><span class="ot">]</span><span class="fu">},</span></span>
+<span id="14"><a href="#14" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="st">&quot;t&quot;</span><span class="fu">}</span></span>
+<span id="15"><a href="#15" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="16"><a href="#16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;constraints&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="17"><a href="#17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;gte&quot;</span><span class="fu">,</span></span>
+<span id="18"><a href="#18" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;replicas&quot;</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span> <span class="dv">1</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="19"><a href="#19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;allowed-zone&quot;</span><span class="fu">,</span></span>
+<span id="20"><a href="#20" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;zone&quot;</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span> <span class="st">&quot;eu&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="21"><a href="#21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="22"><a href="#22" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div></div><ul>
+<li><code>&quot;kind&quot;</code> is <code>&quot;document&quot;</code> or <code>&quot;expression&quot;</code>. <code>&quot;root&quot;</code> is Node JSON or a plain
+value accordingly, and is byte-identical to what concrete mode would have
+produced whenever the program uses no symbols.
+</li>
+<li><strong>Within a mode the shape is stable.</strong> <code>&quot;symbols&quot;</code> and <code>&quot;constraints&quot;</code> are
+<code>[]</code> for a program that uses none, so a template growing its first <code>?</code> does
+not change the shape its host decodes. The shape changes when the host
+changes its mind, never when the template does.
+</li>
+<li>Only allocations appear in <code>&quot;symbols&quot;</code>, and every one of them was allocated
+by the root program, so the table is exactly as long as the author’s
+declarations.
+</li>
+<li>A symbol the host seeded (§5.4) arrives as a value and is echoed wherever it
+was used; the language has nothing to add about it, so it is not listed.
+</li>
+<li><code>&quot;binding&quot;</code> is the name the allocation was bound to, or <code>null</code>. It is
+provenance for humans. <code>&quot;origin&quot;</code> is the structured form of <code>&quot;id&quot;</code>, so a
+host never has to parse the id.
+</li>
+<li>Every field is REQUIRED. A decoder MUST reject an object missing any of
+them, and MUST NOT infer one from a default — the discipline <code>node-json.md</code>
+already sets.
+</li>
+</ul>
+<p>A host fold may then: run a solver over <code>&quot;constraints&quot;</code>; render an input for
+every symbol reachable in <code>&quot;root&quot;</code>; ask a user and re-run with the answers
+seeded into the context; or compare <code>constraints[].name</code> against what it
+implements and fail with an unsupported-kind error before doing anything else.</p>
+<h4 id="53-telling-a-symbol-from-an-object">5.3 Telling a symbol from an object</h4>
+<p><code>Value</code> in symbolic mode is JSON extended with one tagged shape, in the style
+<code>node-json.md</code> already uses to discriminate nodes by <code>&quot;type&quot;</code> and attributes
+by <code>&quot;kind&quot;</code>:</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;replicas&quot;</span><span class="ot">]</span><span class="fu">}</span></span></code></pre></div></div><p>Both fields are required. The ambiguity to rule out is a template, or a
+context, carrying a data object whose key is <code>&quot;$sym&quot;</code>. Neither can:</p>
+<ul>
+<li><strong>Object keys in Tramaj are always static.</strong> An object key is a quoted
+string literal or a bare identifier, and ref §5 forbids interpolation there,
+so nothing computes one. <code>{&quot;$sym&quot;: 1}</code> written in a program is a <strong>parse
+error</strong>, in the same family as <code>import(&quot;lib-`$x`&quot;)</code>.
+</li>
+<li><strong><code>&quot;$sym&quot;</code> and <code>&quot;$type&quot;</code> are reserved in the value domain in both modes</strong>,
+in programs and in contexts alike. A context carrying either key is rejected
+by the decoder: in symbolic mode unless it is a well-formed symbol
+reference, and in concrete mode always. One rule, so a program’s legality
+never depends on how a host runs it and a context does not change meaning
+when a host changes mode.
+</li>
+<li>Objects are otherwise built only by <code>&lt;&gt;</code>, which merges keys from objects
+that came from one of those two sources, so the sources are exhaustive.
+</li>
+</ul>
+<p><code>&quot;$type&quot;</code> is reserved by v3 but unused by it; it is v4’s (<code>v4-types.md</code>).
+Reserving it now costs two key names and avoids breaking the grammar later.</p>
+<p>The cost is those two names. The benefit is that the tag sits where a reader
+looks for it and plain JSON stays plain: <code>{&quot;replicas&quot;: 3}</code> remains
+<code>{&quot;replicas&quot;: 3}</code>, rather than the
+<code>{&quot;k&quot;:&quot;obj&quot;,&quot;v&quot;:{&quot;replicas&quot;:{&quot;k&quot;:&quot;num&quot;,&quot;v&quot;:3}}}</code> that a fully tagged value
+domain would cost every attribute of every document.</p>
+<h4 id="54-seeding">5.4 Seeding</h4>
+<p>In symbolic mode the input context accepts the same <code>{&quot;$sym&quot;: …}</code> shape the
+output emits, decoded recursively. A host that already knows about a variable
+— because a user is filling a form, or because a solver resolved half of them
+and the template is being re-run — supplies it as an ordinary context value,
+and <code>?ctx.path</code> reads it with no allocation. This is what makes the
+ask-a-user and re-solve loops work without the template changing.</p>
+<h4 id="55-profiles">5.5 Profiles</h4>
+<p>An implementation MAY implement the <strong>core profile</strong> only — the language of
+<code>reference.md</code>, concrete output, no symbolic extension — and remain
+conforming. It MUST reject <code>?</code> and <code>!</code> <strong>at parse time</strong> rather than ignore
+them, so that a symbolic template fails on it instead of quietly losing its
+holes and its constraints. §5.3’s reserved-key rule belongs to the core
+profile too, so that the two grammars agree.</p>
+<p>An implementation of the <strong>symbolic profile</strong> implements both modes.</p>
+<hr />
+<h3 id="6-errors">6. Errors</h3>
+<p>Three kinds join ref §12’s table.</p>
+<table>
+<tr><th>error</th><th>when</th></tr>
+<tr><td><code>NotConcrete</code></td><td>a symbolic value where the language requires a concrete one — §1.5's table, and a symbol used as an allocation key</td></tr>
+<tr><td><code>AllocationInLibrary</code></td><td>a program containing <code>?(k)</code> is loaded as a library (§1.4)</td></tr>
+<tr><td><code>SymbolsUnavailable</code></td><td>a symbol would have to be minted in concrete mode (§5.1)</td></tr>
+</table>
+<p><code>TypeMismatch</code> covers the rest: a constraint value crossing a JSON boundary,
+and a <code>!</code> over something that is neither a constraint nor an array of them. An
+unsupplied <code>?ctx.path</code> inside a library is the existing <code>PathNotFound</code>,
+<code>InLibrary</code>-wrapped.</p>
+<p><code>AllocationInLibrary</code> has a static counterpart: a program with a non-empty
+<code>symbolSites</code> cannot serve as a library, and a host building its library table
+SHOULD check that up front rather than discover it on whichever path happens
+to reach the <code>?</code>.</p>
+<p>Error message text remains implementation-defined (ref §13); the kinds are
+stable.</p>
+<hr />
+<h3 id="7-static-analysis">7. Static analysis</h3>
+<p>Answered from the AST alone — no context, no library evaluation, no host code
+— alongside ref §9’s existing entries.</p>
+<table>
+<tr><th>function</th><th>answers</th></tr>
+<tr><td><code>symbolSites</code></td><td>the <code>?(k)</code> allocation sites this program contains</td></tr>
+<tr><td><code>symbolDemands</code> / <code>deepSymbolDemands</code></td><td>which context paths it declares symbolic with <code>?ctx.…</code></td></tr>
+<tr><td><code>constraintKinds</code> / <code>deepConstraintKinds</code></td><td>which constraint names it can emit</td></tr>
+</table>
+<p>The deep variants follow imports through the library table with the same
+traversal and cycle cutting ref §9’s deep analyses already use.</p>
+<p>Two of these earn their keep immediately:</p>
+<ul>
+<li><code>deepConstraintKinds</code> lets a host decide whether it supports a template
+before running it — possible only because a constraint’s name is a static
+position.
+</li>
+<li><code>deepSymbolDemands</code> is the counterpart of ref §9’s <code>unsuppliedParams</code> for
+this feature. Since only the root allocates, knowing which paths the
+libraries beneath will discuss symbolically <em>is</em> the whole planning problem,
+and it is answered without running anything.
+</li>
+</ul>
+<p><code>symbolSites</code> reports sites, not keys, which are computed. The number of
+symbols is a runtime fact; the number of sites is not, and a site inside a
+<code>map</code> is exactly where a reader should look to see what distinguishes them.</p>
+<p>Like the existing analyses, these over-approximate: a kind emitted only under
+a <code>Branch</code> arm that no context will select is still reported.</p>
+<hr />
+<h3 id="8-conformance">8. Conformance</h3>
+<ul>
+<li><code>decode(encode(n))</code> on the envelope MUST preserve the semantic result,
+extending <code>node-json.md</code>’s round-trip invariant.
+</li>
+<li>Symbol ids are exact strings. Two conforming implementations MUST produce
+the same ids, the same symbol table order and the same constraint order for
+the same program and context — which is what §4’s prescribed evaluation
+order and §1.4’s structural identity exist to guarantee.
+</li>
+<li>The shared corpus <code>reference.md</code> §14 calls for is where that is proved. The
+astral-escape divergence recorded in <code>limitations</code> is the precedent for why
+neither implementation’s own suite would find a disagreement on its own.
+</li>
+</ul>
+<p>Suggested fixture families: allocation identity under <code>map</code>; a constant key
+under <code>map</code>; demand supplied concretely vs. symbolically vs. not at all;
+symbols in attributes, payloads, value slots and text children; <code>!</code> over a
+single constraint, an array, a nested array, and a <code>branch</code>; constraint
+deduplication; library-emitted constraints; concrete mode refusing a mint and
+discarding an emission; every row of §1.5’s table.</p>
+<hr />
+<h3 id="9-not-in-v3">9. Not in v3</h3>
+<table>
+<tr><th>left out</th><th>where it went</th></tr>
+<tr><td>nominal types, declarations, <code>.types</code>, typed annotations</td><td><code>v4-types.md</code></td></tr>
+<tr><td>any solver, domain or propagation</td><td>the host's, per §0</td></tr>
+<tr><td>a keyless <code>?</code></td><td>§1.2 — a symbol always says what distinguishes it</td></tr>
+<tr><td>allocation inside libraries, and any call-frame identity scheme</td><td>§1.4 — the root allocates, so identity is a site and a key</td></tr>
+<tr><td>symbolic strings, symbolic control flow</td><td>§1.5, §1.8</td></tr>
+<tr><td>an envelope around concrete output</td><td>§5.1 — an expression program's result must still pipe into <code>jq</code></td></tr>
+<tr><td>inferring the mode from the program</td><td>§5 — a template growing its first <code>?</code> would silently change the shape its host decodes</td></tr>
+</table>
+<p>v3 can still express typing informally, because a constraint argument may be
+any JSON value: <code>!constraint(&quot;has-type&quot;, $d, &quot;Deployment&quot;)</code> is an ordinary
+constraint carrying a string, and a host may give it whatever meaning it
+likes. What v4 adds is nominal identity, library-exported declarations and a
+namespace, so that two libraries’ <code>Card</code> are distinguishable and a type
+reference is resolved rather than spelled.</p>
+<p>Recorded as considered and declined, to be revisited only if practice asks:</p>
+<ol>
+<li><strong>A key on the demand form</strong>, <code>?ctx.threshold($s.name)</code>. Seeding (§5.4)
+covers the case a host drives and <code>?(key)</code> the case a template drives; this
+is worth it only if something needs both at once.
+</li>
+<li><strong>A <code>label</code> field on the symbol table entry.</strong>
+<code>!constraint(&quot;label&quot;, $x, &quot;Replicas&quot;)</code> already says it, and says it in the
+host’s vocabulary rather than the language’s.
+</li>
+<li><strong>Symbolic strings.</strong> §1.8 has the cost: the value domain would gain terms,
+not just variables.
+</li>
+</ol>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>
