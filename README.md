@@ -186,6 +186,28 @@ Repeat `--lib name=path` for as many libraries as a template's `import(...)`
 calls need. There is no mode to detect: a library is just a program, and what
 its root produces decides whether the CLI prints a document or a plain value.
 
+The CLI also has a static-analysis command that inspects a template without
+evaluating it and without a context file:
+
+```bash
+node tramaj-cli/dist/tramaj-cli.js analyze imports template.txt
+node tramaj-cli/dist/tramaj-cli.js analyze actions template.txt --lib greeter=greeter.txt
+node tramaj-cli/dist/tramaj-cli.js analyze holes template.txt
+node tramaj-cli/dist/tramaj-cli.js analyze unsupplied template.txt --lib greeter=greeter.txt
+node tramaj-cli/dist/tramaj-cli.js analyze constraints template.txt --lib greeter=greeter.txt
+node tramaj-cli/dist/tramaj-cli.js analyze symbols template.txt
+node tramaj-cli/dist/tramaj-cli.js analyze types template.txt --lib greeter=greeter.txt
+node tramaj-cli/dist/tramaj-cli.js analyze all template.txt --lib greeter=greeter.txt
+```
+
+Each subcommand prints JSON to stdout. The `types`, `constraints`, and `all`
+subcommands can fail with a type error (unresolved reference, partial type,
+type-parameter collision) on stderr and a non-zero exit code, just like an
+evaluate error.
+
+CLI integration tests live in `tramaj-cli/test/run.sh`; run them with
+`bash tramaj-cli/test/run.sh` (or `chmod +x tramaj-cli/test/run.sh && tramaj-cli/test/run.sh`).
+
 ### Haskell
 
 ```bash

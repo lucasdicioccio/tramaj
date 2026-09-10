@@ -196,3 +196,22 @@ closureAndConstraintSpec = describe "output: closure and type constraints" $ do
           prog
             "type Json = string\n!type-constraint(\"has-default\", %Json)\n!type-constraint(\"has-default\", %Json)\ntrue"
      in typeConstraints Map.empty p `shouldBe` Right [("has-default", [RCType (RRef Nothing "Json" [])])]
+
+  it "typeReferences collects the canonical ids of a program's own type-bearing positions" $
+    let p = prog "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue"
+     in typeReferences Map.empty p `shouldBe` Right (Set.fromList ["root:Json", "string"])
+
+  it "typeReferences resolves library-qualified references" $
+    let libs = Map.fromList [("message", prog "type Envelope = { to : string }\ntrue")]
+        p = prog "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue"
+     in typeReferences libs p `shouldBe` Right (Set.fromList ["\"message\":Envelope"])
+
+  it "deepTypeReferences follows transitively imported libraries" $
+    let libs = Map.fromList [("message", prog "type Envelope = { to : string }\ntrue")]
+        p = prog "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue"
+     in deepTypeReferences libs p `shouldBe` Right (Set.fromList ["\"message\":Envelope", "{to:string}"])
+
+  it "deepTypeConstraints bubbles up constraints from imported libraries" $
+    let libs = Map.fromList [("typed", prog "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue")]
+        p = prog "import(\"typed\", {}).rendered"
+     in deepTypeConstraints libs p `shouldBe` Right [("has-default", [RCType (RRef Nothing "Json" [])])]

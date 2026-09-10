@@ -26,7 +26,8 @@
             "show-spec",
             "read-file-range",
             "write-file-range",
-            "restore-file"
+            "restore-file",
+            "traverse-directory"
           ],
           "FileSandbox": {
             "fsbName": "code-access",

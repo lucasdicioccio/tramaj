@@ -32,8 +32,7 @@ import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), 
 import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
-import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError(..), canonicalId, checkTypeParamCollisions, requireClosed, resolveTypeExpr, typeClosure, typeConstraints)
-
+import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError(..), canonicalId, checkTypeParamCollisions, deepTypeConstraints, deepTypeReferences, requireClosed, resolveTypeExpr, typeClosure, typeConstraints, typeReferences)
 main :: Effect Unit
 main = do
   runCorpus
@@ -757,6 +756,42 @@ runTypeOutputChecks = do
     of
     Right [ Tuple "has-default" [ RCType (RRef Nothing "Json" []) ] ] -> pure unit
     other -> throw ("expected duplicate type constraints deduplicated to one, got: " <> show other)
+
+  case typeReferences Map.empty (unsafeParse "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue") of
+    Right refs
+      | Set.member "root:Json" refs && Set.member "string" refs -> pure unit
+    other -> throw ("expected typeReferences to contain root:Json and string, got: " <> show other)
+
+  let
+    refsLibs =
+      Map.fromFoldable
+        [ Tuple "message" (unsafeParse "type Envelope = { to : string }\ntrue")
+        ]
+    refsProg = unsafeParse "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue"
+  case typeReferences refsLibs refsProg of
+    Right refs
+      | Set.member "\"message\":Envelope" refs && Set.size refs == 1 -> pure unit
+    other -> throw ("expected typeReferences to contain the library-qualified Envelope, got: " <> show other)
+
+  let
+    deepRefsLibs =
+      Map.fromFoldable
+        [ Tuple "message" (unsafeParse "type Envelope = { to : string }\ntrue")
+        ]
+    deepRefsProg = unsafeParse "@msg=import(\"message\", {})\ntype T = $msg.types.Envelope\ntrue"
+  case deepTypeReferences deepRefsLibs deepRefsProg of
+    Right refs
+      | Set.member "\"message\":Envelope" refs && Set.member "{to:string}" refs -> pure unit
+    other -> throw ("expected deepTypeReferences to follow the import chain, got: " <> show other)
+  let
+    deepTcLibs =
+      Map.fromFoldable
+        [ Tuple "typed" (unsafeParse "type Json = string\n!type-constraint(\"has-default\", %Json)\ntrue")
+        ]
+    deepTcProg = unsafeParse "import(\"typed\", {}).rendered"
+  case deepTypeConstraints deepTcLibs deepTcProg of
+    Right [ Tuple "has-default" [ RCType (RRef Nothing "Json" []) ] ] -> pure unit
+    other -> throw ("expected deepTypeConstraints to bubble up the library's constraint, got: " <> show other)
 
   log "ok - type closure and type-constraint output"
 

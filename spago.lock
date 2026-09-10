@@ -132,13 +132,20 @@
         "core": {
           "dependencies": [
             "argonaut-core",
+            "arrays",
             "console",
             "effect",
+            "either",
+            "foreign-object",
+            "integers",
+            "maybe",
             "node-fs",
             "node-process",
+            "ordered-collections",
             "prelude",
             "strings",
-            "tramaj"
+            "tramaj",
+            "tuples"
           ],
           "build_plan": [
             "aff",
@@ -204,8 +211,21 @@
           ]
         },
         "test": {
-          "dependencies": [],
-          "build_plan": []
+          "dependencies": [
+            "exceptions"
+          ],
+          "build_plan": [
+            "control",
+            "effect",
+            "either",
+            "exceptions",
+            "invariant",
+            "maybe",
+            "newtype",
+            "prelude",
+            "safe-coerce",
+            "unsafe-coerce"
+          ]
         }
       },
       "tramaj-halogen": {

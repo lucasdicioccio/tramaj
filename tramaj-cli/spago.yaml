@@ -6,11 +6,22 @@ package:
   dependencies:
     - prelude
     - argonaut-core
+    - arrays
     - console
     - effect
+    - either
+    - integers
+    - maybe
     - node-fs
     - node-process
+    - ordered-collections
     - strings
     - tramaj
+    - tuples
+    - foreign-object
+  test:
+    main: Test.Cli.Main
+    dependencies:
+      - exceptions
   run:
     main: Main
