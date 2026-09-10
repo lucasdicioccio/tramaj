@@ -58,15 +58,17 @@ normative text:
 
 ## Leaders — what each sigil means
 
-| Leader | Meaning |
-|---|---|
-| `.` | document: `.tag(...)` element, or `.(...)` fragment |
-| `$` | read a binding or path |
-| `@` | define a binding (`@name=expr`) |
-| `!` | emit a constraint, statement position (`!constraint(name, ...)`) |
-| `?` | symbolic allocation/demand, v3 (`?(key)`) |
-| `%` | type hole, v4 |
-| `--` | line comment, to end of line |
+<table>
+<tr><th>Leader</th><th>Meaning</th></tr>
+<tr><td><code>.</code></td><td>document: <code>.tag(...)</code> element, or <code>.(...)</code> fragment</td></tr>
+<tr><td><code>$</code></td><td>read a binding or path</td></tr>
+<tr><td><code>@</code></td><td>define a binding (<code>@name=expr</code>)</td></tr>
+<tr><td><code>!</code></td><td>emit a constraint, statement position (<code>!constraint(name, ...)</code>)</td></tr>
+<tr><td><code>?</code></td><td>symbolic allocation/demand, v3 (<code>?(key)</code>)</td></tr>
+<tr><td><code>%</code></td><td>type hole, v4</td></tr>
+<tr><td><code>--</code></td><td>line comment, to end of line</td></tr>
+</table>
+
 
 ## Shape of a program
 

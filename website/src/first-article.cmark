@@ -102,11 +102,13 @@ whether the values satisfy it
 
 ## Packages
 
-| Package | Language | What it is |
-|---|---|---|
-| `tramaj` | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`. No DOM, no Halogen — usable from any host. |
-| `tramaj-halogen` | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring each `action(...)` to the host's own `Action` type. Returns an *array*, since a fragment is several siblings with no wrapper. |
-| `tramaj-cli` | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
+<table>
+<tr><th>Package</th><th>Language</th><th>What it is</th></tr>
+<tr><td><code>tramaj</code></td><td>PureScript</td><td>The core: <code>Tramaj.Ast</code>, <code>Tramaj.Parser</code>, <code>Tramaj.Eval</code>, <code>Tramaj.Node</code>, <code>Tramaj.Analysis</code>. No DOM, no Halogen — usable from any host.</td></tr>
+<tr><td><code>tramaj-halogen</code></td><td>PureScript</td><td><code>Tramaj.Halogen.foldToHalogen</code> — folds an evaluated <code>Node</code> into <code>Halogen.HTML</code>, wiring each <code>action(...)</code> to the host's own <code>Action</code> type. Returns an <em>array</em>, since a fragment is several siblings with no wrapper.</td></tr>
+<tr><td><code>tramaj-cli</code></td><td>PureScript</td><td>Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout.</td></tr>
+</table>
+
 
 Start with [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md)
 for the full language reference, or browse the

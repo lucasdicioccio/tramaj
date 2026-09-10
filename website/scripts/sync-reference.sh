@@ -56,7 +56,8 @@ sync_one() {
       -e 's#](node-json\.md)#](/reference-node-json.html)#g' \
       -e 's#](v3-symbols\.md)#](/reference-v3-symbols.html)#g' \
       -e 's#](v4-types\.md)#](/reference-v4-types.html)#g' \
-      "$src"
+      "$src" \
+      | python3 "$(dirname "$0")/md_tables_to_html.py"
     echo
     echo '=base:main-css.css'
     echo
