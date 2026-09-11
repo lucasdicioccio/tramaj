@@ -1,0 +1,93 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - What sets tramaj apart</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="properties, ctx, static analysis, imports, actions, JSX, Dhall, Jsonnet, CUE"><meta name="description" content="Not a new templating syntax — a document language whose imports, context reads, and emitted actions stay inspectable without running the program."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - What sets tramaj apart"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Not a new templating syntax — a document language whose imports, context reads, and emitted actions stay inspectable without running the program."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - What sets tramaj apart"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html"><meta property="og:description" content="Not a new templating syntax — a document language whose imports, context reads, and emitted actions stay inspectable without running the program."><meta name="article:published_time" content="2026-09-11T01:00:00Z"><meta name="article:modified_time" content="2026-09-11T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/what-sets-tramaj-apart.cmark.json"><meta name="ks:article_text" content="/tramaj/text/what-sets-tramaj-apart.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-11T01:00:00Z","datePublished":"2026-09-11T01:00:00Z","description":"Not a new templating syntax — a document language whose imports, context reads, and emitted actions stay inspectable without running the program.","headline":"What sets tramaj apart","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="properties"><meta name="article:tag" content="ctx"><meta name="article:tag" content="static analysis"><meta name="article:tag" content="imports"><meta name="article:tag" content="actions"><meta name="article:tag" content="JSX"><meta name="article:tag" content="Dhall"><meta name="article:tag" content="Jsonnet"><meta name="article:tag" content="CUE"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/">home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>What sets tramaj apart</h1><p>On <span>Fri, 11 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 706 words, 4 code snippets, 5 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/properties.html">‹</a></span><a class="topic-link" href="/tramaj/topics/properties.html"><span class="topic-name">properties</span><span class="topic-count">2/2</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="what-sets-tramaj-apart">What sets tramaj apart</h2>
+<p>Plenty of languages already do pieces of what tramaj does. JSX makes
+documents a value inside an expression language. Dhall and Nickel are
+typed, functional, importable configuration languages. Jsonnet generates
+structured data from a small functional core. CUE builds a schema out of
+constraints. Starlark restricts a language deliberately so tooling can
+reason about it. None of that is new by itself.</p>
+<p>What’s distinctive about tramaj is a specific combination: <strong>a document is
+an ordinary value in a small functional language, and the language is
+restricted in exactly the places needed to make a program’s external
+interface — what it imports, what context it reads, what actions it can
+emit — recoverable by walking the AST, without evaluating it.</strong> Most
+template systems optimize for how easily they generate output. tramaj
+optimizes for how much a host can know about a program before it runs.</p>
+<h3 id="a-document-is-just-a-value">A document is just a value</h3>
+<p>There’s one expression grammar. A document (an <code>Element</code> or <code>Fragment</code>) is
+a <code>Value</code>, exactly like a string or a number — it can be bound, passed to a
+lambda, returned from a function, collected by <code>map</code>, or handed to
+<code>import</code>. There’s no separate template phase sitting on top of a host
+language, the way JSX sits on top of JavaScript.</p>
+<pre><code>@row = import(&quot;row&quot;, {kind: ctx(row-kind)})
+.ul(
+  map($ctx.items, (item) =&gt; $row({&quot;title&quot;: $item.title}).rendered))
+</code></pre>
+<p>The array <code>map</code> returns is already a sequence of document children — “build
+a document” and “compute a value” are the same activity. See
+<a href="/tramaj/reference.html">Reference</a> for the full grammar.</p>
+<h3 id="ctx-is-a-declared-hole-not-just-a-read"><code>ctx(...)</code> is a declared hole, not just a read</h3>
+<p><code>$ctx.title</code> and <code>ctx(title)</code> are equivalent at runtime. They are not
+equivalent to static analysis. <code>$ctx.title</code> is a dynamic read that could, in
+principle, be buried behind arbitrary computation. <code>ctx(title)</code> is a literal
+path in the syntax — the author is declaring, in a form a tool can see
+without running anything, “this is a hole the caller is expected to fill.”</p>
+<p>That costs something: a <code>ctx(...)</code> path can’t be computed. It has to be
+written down. tramaj takes that trade deliberately, because it’s what turns
+“what does this template depend on” into a question a static pass can
+answer over an unmodified module — not just the top-level program, but a
+library sitting behind an <code>import</code>.</p>
+<h3 id="imports-accumulate-parameters-before-they-run">Imports accumulate parameters before they run</h3>
+<pre><code>@panel = import(&quot;panel&quot;, {})
+@half = $panel({&quot;name&quot;: &quot;web&quot;})
+$half({&quot;replicas&quot;: 2}).rendered
+</code></pre>
+<p>An import isn’t “load this module” — it’s a partially applied program.
+Each call supplies more parameters; nothing executes until <code>.rendered</code> or
+<code>.vals</code> is actually read. That gives a wired-once, specialized-per-item
+pattern for free:</p>
+<pre><code>@row = import(&quot;row&quot;, {kind: ctx(row-kind)})
+map($ctx.items, (item) =&gt; $row({&quot;title&quot;: $item.title}).rendered)
+</code></pre>
+<p>Because <code>contextReads</code> and <code>unsuppliedParams</code> are static analyses (see
+<a href="/tramaj/properties.html">Properties</a>), a host can diff what a library <em>expects</em>
+against what an import <em>supplies</em> — <code>title</code> supplied, <code>description</code> and
+<code>id</code> still open — without running the library. That’s close to an implicit
+interface for modules, without introducing a conventional module type
+system.</p>
+<h3 id="actions-are-a-statically-discoverable-vocabulary-not-an-escape-hatch">Actions are a statically discoverable vocabulary, not an escape hatch</h3>
+<p><code>action(&quot;on-click&quot;, &quot;deploy&quot;, {&quot;id&quot;: $ctx.id})</code> attaches an opaque,
+structured action to a node. The event and the key are literal strings; only
+the payload can be computed. <code>adapt-actions(node, prefix(&quot;deployment:&quot;))</code>
+can rewrite a subtree’s action keys under a fixed prefix, and the optional
+transform hook is allowed to touch the event and payload but never the key.</p>
+<p>That restriction exists for one reason: so <code>staticActionKeys(program)</code> stays
+answerable by walking the AST. A host embedding an untrusted or
+model-generated template can ask “what could this possibly do to my page or
+my system” — the full set of action keys it might ever emit — before a
+single line of it runs. See <a href="/tramaj/use-cases.html">Use cases</a> for what that
+buys in practice, and <a href="/tramaj/properties.html">Properties</a> for the determinism
+and portability guarantees underneath it.</p>
+<h3 id="the-shape-this-adds-up-to">The shape this adds up to</h3>
+<p>Put the three together and a tramaj program has a discoverable interface
+even though it’s an executable program:</p>
+<pre><code>              ┌──────────────────┐
+              │  tramaj program   │
+              └─────────┬─────────┘
+                         │
+       ┌─────────────────┼─────────────────┐
+       ▼                 ▼                 ▼
+   context holes     imports /         action keys
+   &amp; reads          unsupplied            it can
+                      params               emit
+</code></pre>
+<p>None of documents-as-values, static analysis, or restricted languages is
+new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory
+here, and tramaj doesn’t compete with Dhall’s type system or CUE’s
+unification. What’s specific to tramaj is treating the combination —
+<em>document composition</em> + <em>deferred, parameterized imports</em> + <em>a statically
+recoverable dependency and action vocabulary</em> — as the actual point,
+instead of a byproduct of “yet another way to generate markup.” That’s why
+<a href="/tramaj/properties.html">Properties</a> calls out cheap static analysis as an
+invariant, not a feature: it’s the thing the rest of the design exists to
+protect.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

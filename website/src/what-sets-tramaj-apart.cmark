@@ -1,0 +1,157 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-11T01:00:00Z"
+,"title": "What sets tramaj apart"
+}
+
+=base:topic.json
+{"topics":["properties"]
+,"keywords":["ctx", "static analysis", "imports", "actions", "JSX", "Dhall", "Jsonnet", "CUE"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Not a new templating syntax — a document language whose imports, context
+reads, and emitted actions stay inspectable without running the program.
+
+=base:main-content.cmark
+
+# What sets tramaj apart
+
+Plenty of languages already do pieces of what tramaj does. JSX makes
+documents a value inside an expression language. Dhall and Nickel are
+typed, functional, importable configuration languages. Jsonnet generates
+structured data from a small functional core. CUE builds a schema out of
+constraints. Starlark restricts a language deliberately so tooling can
+reason about it. None of that is new by itself.
+
+What's distinctive about tramaj is a specific combination: **a document is
+an ordinary value in a small functional language, and the language is
+restricted in exactly the places needed to make a program's external
+interface — what it imports, what context it reads, what actions it can
+emit — recoverable by walking the AST, without evaluating it.** Most
+template systems optimize for how easily they generate output. tramaj
+optimizes for how much a host can know about a program before it runs.
+
+## A document is just a value
+
+There's one expression grammar. A document (an `Element` or `Fragment`) is
+a `Value`, exactly like a string or a number — it can be bound, passed to a
+lambda, returned from a function, collected by `map`, or handed to
+`import`. There's no separate template phase sitting on top of a host
+language, the way JSX sits on top of JavaScript.
+
+```
+@row = import("row", {kind: ctx(row-kind)})
+.ul(
+  map($ctx.items, (item) => $row({"title": $item.title}).rendered))
+```
+
+The array `map` returns is already a sequence of document children — "build
+a document" and "compute a value" are the same activity. See
+[Reference](/reference.html) for the full grammar.
+
+## `ctx(...)` is a declared hole, not just a read
+
+`$ctx.title` and `ctx(title)` are equivalent at runtime. They are not
+equivalent to static analysis. `$ctx.title` is a dynamic read that could, in
+principle, be buried behind arbitrary computation. `ctx(title)` is a literal
+path in the syntax — the author is declaring, in a form a tool can see
+without running anything, "this is a hole the caller is expected to fill."
+
+That costs something: a `ctx(...)` path can't be computed. It has to be
+written down. tramaj takes that trade deliberately, because it's what turns
+"what does this template depend on" into a question a static pass can
+answer over an unmodified module — not just the top-level program, but a
+library sitting behind an `import`.
+
+## Imports accumulate parameters before they run
+
+```
+@panel = import("panel", {})
+@half = $panel({"name": "web"})
+$half({"replicas": 2}).rendered
+```
+
+An import isn't "load this module" — it's a partially applied program.
+Each call supplies more parameters; nothing executes until `.rendered` or
+`.vals` is actually read. That gives a wired-once, specialized-per-item
+pattern for free:
+
+```
+@row = import("row", {kind: ctx(row-kind)})
+map($ctx.items, (item) => $row({"title": $item.title}).rendered)
+```
+
+Because `contextReads` and `unsuppliedParams` are static analyses (see
+[Properties](/properties.html)), a host can diff what a library *expects*
+against what an import *supplies* — `title` supplied, `description` and
+`id` still open — without running the library. That's close to an implicit
+interface for modules, without introducing a conventional module type
+system.
+
+## Actions are a statically discoverable vocabulary, not an escape hatch
+
+`action("on-click", "deploy", {"id": $ctx.id})` attaches an opaque,
+structured action to a node. The event and the key are literal strings; only
+the payload can be computed. `adapt-actions(node, prefix("deployment:"))`
+can rewrite a subtree's action keys under a fixed prefix, and the optional
+transform hook is allowed to touch the event and payload but never the key.
+
+That restriction exists for one reason: so `staticActionKeys(program)` stays
+answerable by walking the AST. A host embedding an untrusted or
+model-generated template can ask "what could this possibly do to my page or
+my system" — the full set of action keys it might ever emit — before a
+single line of it runs. See [Use cases](/use-cases.html) for what that
+buys in practice, and [Properties](/properties.html) for the determinism
+and portability guarantees underneath it.
+
+## The shape this adds up to
+
+Put the three together and a tramaj program has a discoverable interface
+even though it's an executable program:
+
+```
+              ┌──────────────────┐
+              │  tramaj program   │
+              └─────────┬─────────┘
+                         │
+       ┌─────────────────┼─────────────────┐
+       ▼                 ▼                 ▼
+   context holes     imports /         action keys
+   & reads          unsupplied            it can
+                      params               emit
+```
+
+None of documents-as-values, static analysis, or restricted languages is
+new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory
+here, and tramaj doesn't compete with Dhall's type system or CUE's
+unification. What's specific to tramaj is treating the combination —
+*document composition* + *deferred, parameterized imports* + *a statically
+recoverable dependency and action vocabulary* — as the actual point,
+instead of a byproduct of "yet another way to generate markup." That's why
+[Properties](/properties.html) calls out cheap static analysis as an
+invariant, not a feature: it's the thing the rest of the design exists to
+protect.
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  ]
+}
