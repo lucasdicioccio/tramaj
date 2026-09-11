@@ -48,9 +48,10 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
+import Tramaj.Analysis.Card (programCard)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
-import Tramaj.Halogen (foldToHalogen, renderConstraintTable, renderSymbolTable, renderTypeConstraintTable, renderTypesTable, validateAttrNames)
+import Tramaj.Halogen (foldToHalogen, renderCard, renderConstraintTable, renderSymbolTable, renderTypeConstraintTable, renderTypesTable, validateAttrNames)
 import Tramaj.Node (Node, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseProgram)
 
@@ -353,6 +354,15 @@ render state =
                 ]
             ]
         ]
+    , HH.div [ HP.class_ (HH.ClassName "card") ]
+        [ HH.h2_ [ HH.text "Program card" ]
+        , HH.p [ HP.class_ (HH.ClassName "hint") ]
+            [ HH.text "What the active tab needs, reaches, and can emit — computed statically from its AST and the other tabs offered as imports, without evaluating it or the JSON context on the left. The same five fields "
+            , HH.code_ [ HH.text "tramaj-cli analyze card" ]
+            , HH.text " prints as JSON."
+            ]
+        , renderProgramCard state
+        ]
     , HH.div [ HP.class_ (HH.ClassName "cols") ]
         [ HH.div [ HP.class_ (HH.ClassName "card") ]
             [ HH.h2_ [ HH.text "AST" ]
@@ -560,6 +570,16 @@ renderOutput state = case computeResult state of
     [ HH.pre [ HP.class_ (HH.ClassName "ref") ]
         [ HH.code_ [ HH.text (stringifyWithIndent 2 value) ] ]
     ]
+
+-- | The active tab's static card — parsed and analyzed on its own, deep
+-- | over every other tab as its offered `LibraryTable`, entirely
+-- | independent of `computeResult`: it needs no JSON context and does not
+-- | care whether evaluation would succeed, since every field it shows is
+-- | answered by walking the AST.
+renderProgramCard :: State -> H.ComponentHTML Action () Aff
+renderProgramCard state = case parseProgram (activeTabOf state).source of
+  Left err -> renderError ("Template parse error: " <> show err)
+  Right program -> renderCard (programCard (buildLibraryTable state.tabs) program)
 
 renderAst :: State -> H.ComponentHTML Action () Aff
 renderAst state = case computeResult state of

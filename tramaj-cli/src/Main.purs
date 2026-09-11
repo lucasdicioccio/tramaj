@@ -39,6 +39,7 @@ import Node.Encoding (Encoding(UTF8))
 import Node.FS.Sync (readTextFile)
 import Node.Process (argv, exit')
 import Tramaj.Analysis (deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
+import Tramaj.Analysis.Card (Card, ProgramKind(..), programCard)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (LibraryTable, Mode(..), runProgram)
 import Tramaj.Parser (parseProgram)
@@ -56,12 +57,13 @@ data AnalyzeSubcommand
   | AnalyzeConstraints
   | AnalyzeSymbols
   | AnalyzeTypes
+  | AnalyzeCard
   | AnalyzeAll
 
 derive instance eqAnalyzeSubcommand :: Eq AnalyzeSubcommand
 
 usage :: String
-usage = "usage: tramaj-cli [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>\n       tramaj-cli analyze <imports|actions|holes|unsupplied|constraints|symbols|types|all> <template-file> [--lib name=path ...]"
+usage = "usage: tramaj-cli [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>\n       tramaj-cli analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]"
 
 main :: Effect Unit
 main = do
@@ -105,6 +107,7 @@ parseSubcommand "unsupplied" = Right AnalyzeUnsupplied
 parseSubcommand "constraints" = Right AnalyzeConstraints
 parseSubcommand "symbols" = Right AnalyzeSymbols
 parseSubcommand "types" = Right AnalyzeTypes
+parseSubcommand "card" = Right AnalyzeCard
 parseSubcommand "all" = Right AnalyzeAll
 parseSubcommand other = Left ("unknown analyze subcommand: " <> other)
 
@@ -198,6 +201,7 @@ analyzeToJson libs prog AnalyzeTypes = do
             ]
         )
     )
+analyzeToJson libs prog AnalyzeCard = Right (cardToJson (programCard libs prog))
 analyzeToJson libs prog AnalyzeAll = do
   constraintsBlock <- analyzeToJson libs prog AnalyzeConstraints
   typesBlock <- analyzeToJson libs prog AnalyzeTypes
@@ -274,6 +278,25 @@ typeConstraintsToJson = fromArray <<< map constraintEntry
           , Tuple "arguments" (fromArray (map resolvedConstraintArgToJson args))
           ]
       )
+
+cardToJson :: Card -> Json
+cardToJson c =
+  fromObject
+    ( Object.fromFoldable
+        [ Tuple "produces" (fromString (programKindToString c.produces))
+        , Tuple "requires" (pathSetToJson c.requires)
+        , Tuple "imports" (stringSetToJson c.imports)
+        , Tuple "emits" (stringSetToJson c.emits)
+        , Tuple "unsupplied" (unsuppliedParamsToJson c.unsupplied)
+        ]
+    )
+  where
+  programKindToString ProducesDocument = "document"
+  programKindToString ProducesValue = "value"
+
+  unsuppliedParamsToJson = fromArray <<< map entry
+  entry (Tuple name missing) =
+    fromObject (Object.fromFoldable [ Tuple "name" (fromString name), Tuple "params" (pathSetToJson missing) ])
 
 resolvedConstraintArgToJson :: ResolvedConstraintArg -> Json
 resolvedConstraintArgToJson (RCType rt) = fromObject (Object.fromFoldable [ Tuple "$type" (fromString (canonicalId rt)) ])

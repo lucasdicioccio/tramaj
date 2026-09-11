@@ -32,23 +32,27 @@ module Tramaj.Halogen
   , renderConstraintTable
   , renderTypesTable
   , renderTypeConstraintTable
+  , renderCard
   ) where
 
 import Prelude
 
 import Data.Argonaut.Core (Json, isNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
-import Data.Foldable (foldMap)
+import Data.Foldable (foldMap, intercalate)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Set as Set
 import Data.String (joinWith)
 import Data.String.CodeUnits (toCharArray)
 import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Halogen.HTML (ComponentHTML, ElemName(..))
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Tramaj.Analysis.Card (Card, ProgramKind(..))
 import Tramaj.Node (Node(..), NodeAttribute(..))
 import Web.HTML.Common (AttrName(..))
 
@@ -329,3 +333,62 @@ renderTypeConstraintTable entries =
   typeConstraintArgText a = case toObject a >>= Object.lookup "$type" >>= toString of
     Just tid -> tid
     Nothing -> renderScalar a
+
+-- Program card --------------------------------------------------------------
+
+-- | Renders a `Tramaj.Analysis.Card` — the same five-field summary
+-- | `tramaj-cli analyze card` prints as JSON — as a definition list: what
+-- | the program produces, what its own `$ctx` must supply, every library
+-- | it reaches, every action key it can emit, and which import sites still
+-- | leave one of their library's own parameters unsupplied.
+-- |
+-- | Unlike the symbol/constraint/type tables above, this doesn't decode a
+-- | JSON envelope — a host that already has the `Program` and the
+-- | `LibraryTable` (as the playground does, from its own tabs) calls
+-- | `Tramaj.Analysis.Card.programCard` directly and hands the typed result
+-- | here.
+renderCard :: forall action slots m. Card -> ComponentHTML action slots m
+renderCard c =
+  HH.dl [ HP.class_ (HH.ClassName "card-summary") ]
+    [ HH.dt_ [ HH.text "Produces" ]
+    , HH.dd_ [ HH.code_ [ HH.text (producesText c.produces) ] ]
+    , HH.dt_ [ HH.text "Requires" ]
+    , HH.dd_ [ pathList c.requires ]
+    , HH.dt_ [ HH.text "Imports" ]
+    , HH.dd_ [ stringList c.imports ]
+    , HH.dt_ [ HH.text "Emits" ]
+    , HH.dd_ [ stringList c.emits ]
+    , HH.dt_ [ HH.text "Unsupplied" ]
+    , HH.dd_ [ unsuppliedList c.unsupplied ]
+    ]
+  where
+  producesText ProducesDocument = "document"
+  producesText ProducesValue = "value"
+
+  dotted path = if Array.null path then "(whole context)" else joinWith "." path
+
+  pathList paths
+    | Set.isEmpty paths = emptyText
+    | otherwise = codeList (map dotted (Set.toUnfoldable paths))
+
+  stringList xs
+    | Set.isEmpty xs = emptyText
+    | otherwise = codeList (Set.toUnfoldable xs)
+
+  unsuppliedList entries
+    | Array.null entries = emptyText
+    | otherwise = HH.ul_ (map unsuppliedRow entries)
+
+  unsuppliedRow (Tuple name missing)
+    | Set.isEmpty missing = HH.li_ [ HH.code_ [ HH.text name ], HH.text ": —" ]
+    | otherwise =
+        HH.li_
+          [ HH.code_ [ HH.text name ]
+          , HH.text ": "
+          , codeList (map dotted (Set.toUnfoldable missing))
+          ]
+
+  codeList :: Array String -> ComponentHTML action slots m
+  codeList xs = HH.span_ (intercalate [ HH.text ", " ] (map (\x -> [ HH.code_ [ HH.text x ] ]) xs))
+
+  emptyText = HH.text "—"

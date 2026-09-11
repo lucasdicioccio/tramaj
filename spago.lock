@@ -237,9 +237,11 @@
             "halogen",
             "integers",
             "maybe",
+            "ordered-collections",
             "prelude",
             "strings",
-            "tramaj"
+            "tramaj",
+            "tuples"
           ],
           "build_plan": [
             "aff",

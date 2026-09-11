@@ -25,6 +25,7 @@ main = do
   testAnalyzeActions
   testAnalyzeConstraints
   testAnalyzeTypes
+  testAnalyzeCard
   log "All tramaj-cli analyze checks passed."
 
 parseProg :: String -> Program
@@ -114,3 +115,35 @@ testAnalyzeTypes = do
       refs <- expectObjectField "references" json
       expectArrayContainsString "Envelope" decls
       expectArrayContainsSubstring "\"typed\":Json" refs
+
+testAnalyzeCard :: Effect Unit
+testAnalyzeCard = do
+  let
+    root = parseProg "@b=import(\"button\", {label: ctx(label)})\n.div(action(\"on-click\", \"save\", {}), $ctx.title, $b.rendered)"
+    button = parseProg ".button(action(\"on-click\", \"deploy\", {}), \"`$ctx.label` `$ctx.confirm`\")"
+    libs = Map.fromFoldable [ Tuple "button" button ]
+  case analyzeToJson libs root AnalyzeCard of
+    Left err -> throw ("analyze card failed: " <> show err)
+    Right json -> do
+      produces <- expectObjectField "produces" json
+      requires <- expectObjectField "requires" json
+      imports <- expectObjectField "imports" json
+      emits <- expectObjectField "emits" json
+      unsupplied <- expectObjectField "unsupplied" json
+      case toString produces of
+        Just "document" -> pure unit
+        _ -> throw ("expected produces \"document\", got: " <> stringify produces)
+      unless (Str.contains (Str.Pattern "title") (stringify requires)) (throw ("expected requires to mention \"title\", got: " <> stringify requires))
+      unless (Str.contains (Str.Pattern "label") (stringify requires)) (throw ("expected requires to mention \"label\", got: " <> stringify requires))
+      expectArrayContainsString "button" imports
+      expectArrayContainsString "save" emits
+      expectArrayContainsString "deploy" emits
+      case toArray unsupplied of
+        Just [ entry ] -> do
+          name <- expectObjectField "name" entry
+          params <- expectObjectField "params" entry
+          case toString name of
+            Just "button" -> pure unit
+            _ -> throw ("expected unsupplied entry for \"button\", got: " <> stringify name)
+          unless (Str.contains (Str.Pattern "confirm") (stringify params)) (throw ("expected unsupplied params to mention \"confirm\", got: " <> stringify params))
+        _ -> throw ("expected exactly one unsupplied entry, got: " <> stringify unsupplied)

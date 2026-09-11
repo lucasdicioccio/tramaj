@@ -11,6 +11,8 @@ package:
     - arrays
     - integers
     - maybe
+    - ordered-collections
     - strings
+    - tuples
     - halogen
     - tramaj
