@@ -11,7 +11,7 @@
 
 =base:topic.json
 {"topics":["how-to", "integration"]
-,"keywords":["PureScript", "Haskell", "JavaScript", "fold", "tramaj-cli", "Node JSON"]
+,"keywords":["PureScript", "Haskell", "Rust", "JavaScript", "TypeScript", "React", "fold", "tramaj-cli", "Node JSON"]
 }
 
 =base:social.json
@@ -22,7 +22,7 @@
 }
 
 =base:summary.cmark
-Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.
+Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.
 
 =base:main-content.cmark
 
@@ -40,15 +40,16 @@ Every integration has the same two moving parts, regardless of language:
 Nothing about `Node` or the evaluator knows about HTML, a browser, or any
 particular UI framework (see [Properties](/properties.html)) — the fold is
 always something *you* write for your host, even where this repository
-already ships one for you. Which of the four paths below applies depends
+already ships one for you. Which of the five paths below applies depends
 only on what language your host is written in.
 
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
 <tr><td>PureScript</td><td>depend on <code>tramaj</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
 <tr><td>Haskell</td><td>depend on <code>tramaj-hs</code> directly</td><td>write your own — none shipped yet</td></tr>
-<tr><td>JavaScript / Node</td><td>shell out to <code>tramaj-cli</code></td><td>write your own, over its JSON</td></tr>
-<tr><td>anything else</td><td>shell out to <code>tramaj-cli</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
+<tr><td>Rust</td><td>depend on <code>tramaj-rs</code> directly, or shell out to <code>tramaj-cli-rs</code></td><td>write your own — none shipped yet</td></tr>
+<tr><td>JavaScript / TypeScript</td><td>depend on <code>tramaj-js</code> directly, or shell out to <code>tramaj-cli</code></td><td>reuse <code>tramaj-react</code>, or write your own</td></tr>
+<tr><td>anything else</td><td>shell out to <code>tramaj-cli</code> or <code>tramaj-cli-rs</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
 </table>
 
 ## PureScript — import as a library, fold with `tramaj-halogen`
@@ -122,22 +123,116 @@ the fold to your actual rendering library is on you. The shape to follow is
 `tramaj-halogen`'s: case on `Text`/`Element`/`Fragment`, recurse into
 children, and decide what an `action(...)` payload means in your host.
 
-## JavaScript / Node — shell out to `tramaj-cli`
+## Rust — the library exists, plus its own CLI
 
-There's no FFI boundary or documented JS-facing module for `Tramaj.Parser`/
-`Tramaj.Eval` today — the core has no JS entrypoint of its own.
-`tramaj-cli`'s Spago bundle produces a standalone executable
-(`spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js`),
-not a library you `require`/`import` and call into; the playground's bundle
-is likewise an app, not a library. The realistic path for a plain JS or
-Node host today is the same one open to any other language: run
-`tramaj-cli` as a subprocess and parse its JSON output. See
-[Getting started](/howto-humans.html) for the exact CLI invocations.
+`tramaj-rs` is an independent, hand-written Rust port of the same grammar
+and evaluation semantics as the PureScript `tramaj` and Haskell `tramaj-hs`,
+held to the same shared conformance corpus (`corpus/cases/` — full parity,
+including [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints
+and [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
+core language). It's a normal Cargo library crate — `tramaj_rs::{ast, parser,
+eval, node, analysis, types}` — depended on as a path or git dependency (not
+published to crates.io yet), the same way a PureScript host depends on
+`tramaj` or a Haskell host depends on `tramaj-hs`:
+
+```rust
+// tramaj_rs::parser
+pub fn parse_program(src: &str) -> Result<Program, ParseError>;
+
+// tramaj_rs::eval
+pub fn run_program(
+    mode: Mode,
+    libs: &LibraryTable,
+    ctx: &serde_json::Value,
+    program: &Program,
+) -> Result<serde_json::Value, EvalError>;
+```
+
+`run_program` gives you the evaluated result as JSON directly, already
+encoded per [`node-json.md`](/reference-node-json.html) when the program
+produces a document, or the concrete/symbolic envelope from
+[`v3-symbols.md`](/reference-v3-symbols.html) §5 otherwise — the same shape
+`runProgram` returns on the PureScript and Haskell sides. As with Haskell,
+there's no `tramaj-halogen` equivalent shipped yet: a Rust host gets the
+parser, evaluator, `Node` JSON codec, and static analysis, and writes its
+own fold following the same shape (case on `Text`/`Element`/`Fragment`,
+recurse into children, decide what an `action(...)` payload means in your
+host).
+
+Unlike the Haskell port, Rust also has a `tramaj-cli` equivalent —
+`tramaj-cli-rs` — mirroring `tramaj-cli`'s command surface field-for-field:
+the same `evaluate`/`analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all>`
+subcommands, the same `--lib name=path`/`--mode concrete|symbolic` flags,
+and the same JSON output shapes. If you'd rather shell out than link a Rust
+library into your host — including from a non-Rust host — `tramaj-cli-rs` is
+a drop-in alternative to `tramaj-cli` with no Node.js runtime required.
+
+## JavaScript / TypeScript — import as a library, fold with `tramaj-react`
+
+`tramaj-js` is an independent, hand-written TypeScript port of the same
+grammar and evaluation semantics as the PureScript `tramaj`, Haskell
+`tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance
+corpus (`corpus/cases/` — full parity, including
+[`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
+[`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
+core language). It's a normal npm package with no React or DOM dependency
+— a plain Node or browser host can depend on it the same way a PureScript
+host depends on `tramaj`:
+
+```typescript
+// parseProgram, tryParseProgram
+function parseProgram(src: string): Program; // throws ParseError
+
+// runProgram
+function runProgram(
+  mode: Mode,
+  libs: LibraryTable,
+  ctx: Json,
+  program: Program,
+): Json; // throws EvalError
+```
+
+`Mode` is `"concrete"` or `"symbolic"` ([`v3-symbols.md`](/reference-v3-symbols.html));
+`runProgram` gives you the evaluated result as JSON directly, already
+encoded per [`node-json.md`](/reference-node-json.html) when the program
+produces a document, or the concrete/symbolic envelope from
+[`v3-symbols.md`](/reference-v3-symbols.html) §5 otherwise — the same shape
+`runProgram` returns on the PureScript, Haskell, and Rust sides. `evalProgram`
+is the lower-level entry point if you want the `Node` value itself rather
+than its JSON encoding, to fold it without a round-trip through JSON.
+
+If your host renders through React, don't write a fold at all —
+`tramaj-react` already has one, the same shape as `tramaj-halogen`'s:
+
+```typescript
+type Dispatch = (
+  event: string,
+  key: string,
+  payload: Json,
+) => MouseEventHandler<Element> | undefined | null;
+
+function foldToReact(dispatch: Dispatch, node: Node): ReactNode[];
+```
+
+`dispatch` decides which `action(...)` entries become a real event handler
+— it inspects the event type itself (`foldToReact` doesn't), and returns
+`undefined`/`null` for ones it wants to ignore. Every action a `dispatch`
+call accepts is wired to `onClick`. The result is an array, not a single
+element, because a fragment contributes several siblings with no wrapper —
+splice it into your own container, `<>{foldToReact(dispatch, node)}</>`.
+Call `validateAttrNames` on the `Node` first, same caveat as
+`tramaj-halogen`: attribute names aren't validated by the fold itself.
+
+If you'd rather not add a JS dependency at all — or your host isn't Node —
+`tramaj-cli` (or `tramaj-cli-rs`) as a subprocess is still the same option
+open to any other language; see [Getting started](/howto-humans.html) for
+the exact CLI invocations, and *Any other language* below for the general
+shape of folding its JSON output by hand.
 
 ## Any other language
 
-For a host in a language with no PureScript or Haskell interop story —
-Python, Go, Rust, whatever — there are two options:
+For a host in a language with no PureScript, Haskell, Rust, or JavaScript
+interop story — Python, Go, whatever — there are two options:
 
 **(a) Full reimplementation.** Port the parser and evaluator to your
 language, the way `tramaj-hs` ports the PureScript original. Worth it only
@@ -172,9 +267,10 @@ rendered document.
 This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.
 
-Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the [Roadmap](/roadmap.html) for what that would mean and
-where to start if you want to build one.
+A native Python implementation specifically is wanted — see the
+[Roadmap](/roadmap.html) for what that would mean and where to start if you
+want to build one. (Rust and JavaScript now have one each: `tramaj-rs` and
+`tramaj-js`, above.)
 
 =base:main-css.tramaj-json
 { "format": "css"
