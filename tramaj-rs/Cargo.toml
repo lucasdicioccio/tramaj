@@ -1,0 +1,18 @@
+[package]
+name = "tramaj-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust parser/AST/evaluator for the Tramaj language (specs/reference.md), a hand-written port kept in agreement with tramaj/ and tramaj-hs/ via the shared corpus/ conformance suite."
+authors = ["Lucas DiCioccio <lucas.dicioccio@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/lucasdicioccio/templating-lang"
+
+[lib]
+name = "tramaj_rs"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = "1"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
