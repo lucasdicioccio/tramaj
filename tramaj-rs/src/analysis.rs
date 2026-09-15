@@ -454,3 +454,56 @@ pub fn type_param_collisions(prog: &Program) -> HashSet<String> {
     let tparams: HashSet<String> = type_params(prog).into_iter().filter_map(|p| p.into_iter().next()).collect();
     reads.intersection(&tparams).cloned().collect()
 }
+
+// Card ------------------------------------------------------------------------
+
+/// What a program's root evaluates to — named for display; carries the same
+/// information as which of `Program`'s two variants wraps it, decided by the
+/// parser from the root's own syntax, never by running anything. Rust
+/// counterpart of `Tramaj.Analysis.Card`'s `ProgramKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramKind {
+    ProducesDocument,
+    ProducesValue,
+}
+
+pub fn program_kind(prog: &Program) -> ProgramKind {
+    match prog {
+        Program::DocumentProgram(_) => ProgramKind::ProducesDocument,
+        Program::ExpressionProgram(_) => ProgramKind::ProducesValue,
+    }
+}
+
+/// A one-glance summary of a program's static interface, assembled from this
+/// module's own primitives rather than adding any new AST walk. Rust
+/// counterpart of `Tramaj.Analysis.Card`'s `Card`/`programCard` — see that
+/// module's doc comment for why `requires` is the shallow `context_reads`,
+/// not `deep_context_holes`: a card describes what running *this* program
+/// needs from its own caller, not the bubbled-up shape of every library
+/// underneath it.
+///
+/// Not part of the conformance corpus or the `node-json` wire format — this
+/// is a presentation-level composition, not a new primitive, so it has no
+/// PureScript/Haskell counterpart to keep in lockstep with the way this
+/// module's other functions do.
+pub struct Card {
+    pub produces: ProgramKind,
+    pub requires: HashSet<Vec<String>>,
+    pub imports: HashSet<String>,
+    pub emits: HashSet<String>,
+    pub unsupplied: Vec<(String, HashSet<Vec<String>>)>,
+}
+
+/// `libs` plays the same role it does throughout this module: the library
+/// table a host has so the *deep* fields — `imports`, `emits`, `unsupplied`
+/// — can follow `import(...)` sites rather than stopping at this program's
+/// own AST.
+pub fn program_card(libs: &HashMap<String, Program>, prog: &Program) -> Card {
+    Card {
+        produces: program_kind(prog),
+        requires: context_reads(prog),
+        imports: transitive_import_names(libs, prog),
+        emits: deep_action_keys(libs, prog),
+        unsupplied: unsupplied_params(libs, prog),
+    }
+}
