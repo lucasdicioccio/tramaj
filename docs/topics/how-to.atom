@@ -74,14 +74,15 @@ language, a config file.
 &lt;p&gt;Nothing about &lt;code&gt;Node&lt;/code&gt; or the evaluator knows about HTML, a browser, or any
 particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;) — the fold is
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
-already ships one for you. Which of the four paths below applies depends
+already ships one for you. Which of the five paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;Host language&lt;/th&gt;&lt;th&gt;Get the &lt;code&gt;Node&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Write the fold&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-hs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;JavaScript / Node&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own, over its JSON&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-rs&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-js&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-react&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
@@ -140,19 +141,92 @@ JSON encoding (kept in lockstep with the PureScript &lt;code&gt;Tramaj.Node&lt;/
 the fold to your actual rendering library is on you. The shape to follow is
 &lt;code&gt;tramaj-halogen&lt;/code&gt;’s: case on &lt;code&gt;Text&lt;/code&gt;/&lt;code&gt;Element&lt;/code&gt;/&lt;code&gt;Fragment&lt;/code&gt;, recurse into
 children, and decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host.&lt;/p&gt;
-&lt;h3 id="javascript--node--shell-out-to-tramaj-cli"&gt;JavaScript / Node — shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/h3&gt;
-&lt;p&gt;There’s no FFI boundary or documented JS-facing module for &lt;code&gt;Tramaj.Parser&lt;/code&gt;/
-&lt;code&gt;Tramaj.Eval&lt;/code&gt; today — the core has no JS entrypoint of its own.
-&lt;code&gt;tramaj-cli&lt;/code&gt;’s Spago bundle produces a standalone executable
-(&lt;code&gt;spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js&lt;/code&gt;),
-not a library you &lt;code&gt;require&lt;/code&gt;/&lt;code&gt;import&lt;/code&gt; and call into; the playground’s bundle
-is likewise an app, not a library. The realistic path for a plain JS or
-Node host today is the same one open to any other language: run
-&lt;code&gt;tramaj-cli&lt;/code&gt; as a subprocess and parse its JSON output. See
-&lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for the exact CLI invocations.&lt;/p&gt;
+&lt;h3 id="rust--the-library-exists-plus-its-own-cli"&gt;Rust — the library exists, plus its own CLI&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; is an independent, hand-written Rust port of the same grammar
+and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
+held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity,
+including &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
+and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
+core language). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
+published to crates.io yet), the same way a PureScript host depends on
+&lt;code&gt;tramaj&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse_program(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt; ParseError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::eval&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; run_program(&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    mode&lt;span class="op"&gt;:&lt;/span&gt; Mode&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    libs&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;LibraryTable&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    ctx&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="pp"&gt;serde_json::&lt;/span&gt;Value&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    program&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;&lt;span class="pp"&gt;serde_json::&lt;/span&gt;Value&lt;span class="op"&gt;,&lt;/span&gt; EvalError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;run_program&lt;/code&gt; gives you the evaluated result as JSON directly, already
+encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt; when the program
+produces a document, or the concrete/symbolic envelope from
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; §5 otherwise — the same shape
+&lt;code&gt;runProgram&lt;/code&gt; returns on the PureScript and Haskell sides. As with Haskell,
+there’s no &lt;code&gt;tramaj-halogen&lt;/code&gt; equivalent shipped yet: a Rust host gets the
+parser, evaluator, &lt;code&gt;Node&lt;/code&gt; JSON codec, and static analysis, and writes its
+own fold following the same shape (case on &lt;code&gt;Text&lt;/code&gt;/&lt;code&gt;Element&lt;/code&gt;/&lt;code&gt;Fragment&lt;/code&gt;,
+recurse into children, decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your
+host).&lt;/p&gt;
+&lt;p&gt;Unlike the Haskell port, Rust also has a &lt;code&gt;tramaj-cli&lt;/code&gt; equivalent —
+&lt;code&gt;tramaj-cli-rs&lt;/code&gt; — mirroring &lt;code&gt;tramaj-cli&lt;/code&gt;’s command surface field-for-field:
+the same &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze &amp;lt;imports|actions|holes|unsupplied|constraints|symbols|types|card|all&amp;gt;&lt;/code&gt;
+subcommands, the same &lt;code&gt;--lib name=path&lt;/code&gt;/&lt;code&gt;--mode concrete|symbolic&lt;/code&gt; flags,
+and the same JSON output shapes. If you’d rather shell out than link a Rust
+library into your host — including from a non-Rust host — &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is
+a drop-in alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required.&lt;/p&gt;
+&lt;h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react"&gt;JavaScript / TypeScript — import as a library, fold with &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;tramaj-js&lt;/code&gt; is an independent, hand-written TypeScript port of the same
+grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt;, Haskell
+&lt;code&gt;tramaj-hs&lt;/code&gt;, and Rust &lt;code&gt;tramaj-rs&lt;/code&gt;, held to the same shared conformance
+corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
+core language). It’s a normal npm package with no React or DOM dependency
+— a plain Node or browser host can depend on it the same way a PureScript
+host depends on &lt;code&gt;tramaj&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;function&lt;/span&gt; &lt;span class="fu"&gt;parseProgram&lt;/span&gt;(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;)&lt;span class="op"&gt;:&lt;/span&gt; Program&lt;span class="op"&gt;;&lt;/span&gt; &lt;span class="co"&gt;// throws ParseError&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// runProgram&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;function&lt;/span&gt; &lt;span class="fu"&gt;runProgram&lt;/span&gt;(&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  mode&lt;span class="op"&gt;:&lt;/span&gt; Mode&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  libs&lt;span class="op"&gt;:&lt;/span&gt; LibraryTable&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  ctx&lt;span class="op"&gt;:&lt;/span&gt; Json&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  program&lt;span class="op"&gt;:&lt;/span&gt; Program&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;)&lt;span class="op"&gt;:&lt;/span&gt; Json&lt;span class="op"&gt;;&lt;/span&gt; &lt;span class="co"&gt;// throws EvalError&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;&amp;quot;concrete&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;symbolic&amp;quot;&lt;/code&gt; (&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
+&lt;code&gt;runProgram&lt;/code&gt; gives you the evaluated result as JSON directly, already
+encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt; when the program
+produces a document, or the concrete/symbolic envelope from
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; §5 otherwise — the same shape
+&lt;code&gt;runProgram&lt;/code&gt; returns on the PureScript, Haskell, and Rust sides. &lt;code&gt;evalProgram&lt;/code&gt;
+is the lower-level entry point if you want the &lt;code&gt;Node&lt;/code&gt; value itself rather
+than its JSON encoding, to fold it without a round-trip through JSON.&lt;/p&gt;
+&lt;p&gt;If your host renders through React, don’t write a fold at all —
+&lt;code&gt;tramaj-react&lt;/code&gt; already has one, the same shape as &lt;code&gt;tramaj-halogen&lt;/code&gt;’s:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;type&lt;/span&gt; Dispatch &lt;span class="op"&gt;=&lt;/span&gt; (&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  event&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  key&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  payload&lt;span class="op"&gt;:&lt;/span&gt; Json&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;) &lt;span class="kw"&gt;=&amp;gt;&lt;/span&gt; MouseEventHandler&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;&lt;span class="bu"&gt;Element&lt;/span&gt;&lt;span class="op"&gt;&amp;gt;&lt;/span&gt; &lt;span class="op"&gt;|&lt;/span&gt; &lt;span class="kw"&gt;undefined&lt;/span&gt; &lt;span class="op"&gt;|&lt;/span&gt; &lt;span class="kw"&gt;null&lt;/span&gt;&lt;span class="op"&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;function&lt;/span&gt; &lt;span class="fu"&gt;foldToReact&lt;/span&gt;(dispatch&lt;span class="op"&gt;:&lt;/span&gt; Dispatch&lt;span class="op"&gt;,&lt;/span&gt; node&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="bu"&gt;Node&lt;/span&gt;)&lt;span class="op"&gt;:&lt;/span&gt; ReactNode[]&lt;span class="op"&gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;dispatch&lt;/code&gt; decides which &lt;code&gt;action(...)&lt;/code&gt; entries become a real event handler
+— it inspects the event type itself (&lt;code&gt;foldToReact&lt;/code&gt; doesn’t), and returns
+&lt;code&gt;undefined&lt;/code&gt;/&lt;code&gt;null&lt;/code&gt; for ones it wants to ignore. Every action a &lt;code&gt;dispatch&lt;/code&gt;
+call accepts is wired to &lt;code&gt;onClick&lt;/code&gt;. The result is an array, not a single
+element, because a fragment contributes several siblings with no wrapper —
+splice it into your own container, &lt;code&gt;&amp;lt;&amp;gt;{foldToReact(dispatch, node)}&amp;lt;/&amp;gt;&lt;/code&gt;.
+Call &lt;code&gt;validateAttrNames&lt;/code&gt; on the &lt;code&gt;Node&lt;/code&gt; first, same caveat as
+&lt;code&gt;tramaj-halogen&lt;/code&gt;: attribute names aren’t validated by the fold itself.&lt;/p&gt;
+&lt;p&gt;If you’d rather not add a JS dependency at all — or your host isn’t Node —
+&lt;code&gt;tramaj-cli&lt;/code&gt; (or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;) as a subprocess is still the same option
+open to any other language; see &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for
+the exact CLI invocations, and &lt;em&gt;Any other language&lt;/em&gt; below for the general
+shape of folding its JSON output by hand.&lt;/p&gt;
 &lt;h3 id="any-other-language"&gt;Any other language&lt;/h3&gt;
-&lt;p&gt;For a host in a language with no PureScript or Haskell interop story —
-Python, Go, Rust, whatever — there are two options:&lt;/p&gt;
+&lt;p&gt;For a host in a language with no PureScript, Haskell, Rust, or JavaScript
+interop story — Python, Go, whatever — there are two options:&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;(a) Full reimplementation.&lt;/strong&gt; Port the parser and evaluator to your
 language, the way &lt;code&gt;tramaj-hs&lt;/code&gt; ports the PureScript original. Worth it only
 if you need to &lt;em&gt;evaluate&lt;/em&gt; templates natively (e.g. embedding evaluation in
@@ -178,10 +252,11 @@ static-analysis facts from &lt;a href="/tramaj/properties.html"&gt;Properties&lt
 rendered document.&lt;/p&gt;
 &lt;p&gt;This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.&lt;/p&gt;
-&lt;p&gt;Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the &lt;a href="/tramaj/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and
-where to start if you want to build one.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html" rel="alternate"/><summary type="text">Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/howto-agents.html</id><title type="text">tramaj for coding agents</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-for-coding-agents"&gt;tramaj for coding agents&lt;/h2&gt;
+&lt;p&gt;A native Python implementation specifically is wanted — see the
+&lt;a href="/tramaj/roadmap.html"&gt;Roadmap&lt;/a&gt; for what that would mean and where to start if you
+want to build one. (Rust and JavaScript now have one each: &lt;code&gt;tramaj-rs&lt;/code&gt; and
+&lt;code&gt;tramaj-js&lt;/code&gt;, above.)&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html" rel="alternate"/><summary type="text">Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/howto-agents.html</id><title type="text">tramaj for coding agents</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-for-coding-agents"&gt;tramaj for coding agents&lt;/h2&gt;
 &lt;p&gt;tramaj was designed to be as easy for a model to emit correctly as for a
 person to write by hand — a small builtin set, one expression grammar, and
 no template/expression phase split to keep track of. This page is a dense

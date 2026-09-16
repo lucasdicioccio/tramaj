@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, JavaScript, fold, tramaj-cli, Node JSON"><meta name="description" content="Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"Four ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/">home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 864 words, 3 code snippets, 12 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">2/3</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, Rust, JavaScript, TypeScript, React, fold, tramaj-cli, Node JSON"><meta name="description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="Rust"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="TypeScript"><meta name="article:tag" content="React"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/">home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 1292 words, 6 code snippets, 21 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">2/3</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
 <p>Every integration has the same two moving parts, regardless of language:</p>
 <ol>
 <li><strong>Evaluate</strong> — parse a template and run it against a JSON context to get
@@ -13,14 +13,15 @@ language, a config file.
 <p>Nothing about <code>Node</code> or the evaluator knows about HTML, a browser, or any
 particular UI framework (see <a href="/tramaj/properties.html">Properties</a>) — the fold is
 always something <em>you</em> write for your host, even where this repository
-already ships one for you. Which of the four paths below applies depends
+already ships one for you. Which of the five paths below applies depends
 only on what language your host is written in.</p>
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
 <tr><td>PureScript</td><td>depend on <code>tramaj</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
 <tr><td>Haskell</td><td>depend on <code>tramaj-hs</code> directly</td><td>write your own — none shipped yet</td></tr>
-<tr><td>JavaScript / Node</td><td>shell out to <code>tramaj-cli</code></td><td>write your own, over its JSON</td></tr>
-<tr><td>anything else</td><td>shell out to <code>tramaj-cli</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
+<tr><td>Rust</td><td>depend on <code>tramaj-rs</code> directly, or shell out to <code>tramaj-cli-rs</code></td><td>write your own — none shipped yet</td></tr>
+<tr><td>JavaScript / TypeScript</td><td>depend on <code>tramaj-js</code> directly, or shell out to <code>tramaj-cli</code></td><td>reuse <code>tramaj-react</code>, or write your own</td></tr>
+<tr><td>anything else</td><td>shell out to <code>tramaj-cli</code> or <code>tramaj-cli-rs</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
 </table>
 <h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen">PureScript — import as a library, fold with <code>tramaj-halogen</code></h3>
 <p><code>tramaj</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, and <code>playground</code> are members of one
@@ -79,19 +80,92 @@ JSON encoding (kept in lockstep with the PureScript <code>Tramaj.Node</code>); w
 the fold to your actual rendering library is on you. The shape to follow is
 <code>tramaj-halogen</code>’s: case on <code>Text</code>/<code>Element</code>/<code>Fragment</code>, recurse into
 children, and decide what an <code>action(...)</code> payload means in your host.</p>
-<h3 id="javascript--node--shell-out-to-tramaj-cli">JavaScript / Node — shell out to <code>tramaj-cli</code></h3>
-<p>There’s no FFI boundary or documented JS-facing module for <code>Tramaj.Parser</code>/
-<code>Tramaj.Eval</code> today — the core has no JS entrypoint of its own.
-<code>tramaj-cli</code>’s Spago bundle produces a standalone executable
-(<code>spago bundle -p tramaj-cli --platform node --outfile dist/tramaj-cli.js</code>),
-not a library you <code>require</code>/<code>import</code> and call into; the playground’s bundle
-is likewise an app, not a library. The realistic path for a plain JS or
-Node host today is the same one open to any other language: run
-<code>tramaj-cli</code> as a subprocess and parse its JSON output. See
-<a href="/tramaj/howto-humans.html">Getting started</a> for the exact CLI invocations.</p>
+<h3 id="rust--the-library-exists-plus-its-own-cli">Rust — the library exists, plus its own CLI</h3>
+<p><code>tramaj-rs</code> is an independent, hand-written Rust port of the same grammar
+and evaluation semantics as the PureScript <code>tramaj</code> and Haskell <code>tramaj-hs</code>,
+held to the same shared conformance corpus (<code>corpus/cases/</code> — full parity,
+including <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints
+and <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types, not just the
+core language). It’s a normal Cargo library crate — <code>tramaj_rs::{ast, parser, eval, node, analysis, types}</code> — depended on as a path or git dependency (not
+published to crates.io yet), the same way a PureScript host depends on
+<code>tramaj</code> or a Haskell host depends on <code>tramaj-hs</code>:</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::parser</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> parse_program(src<span class="op">:</span> <span class="op">&amp;</span><span class="dt">str</span>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span>Program<span class="op">,</span> ParseError<span class="op">&gt;;</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::eval</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> run_program(</span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>    mode<span class="op">:</span> Mode<span class="op">,</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>    libs<span class="op">:</span> <span class="op">&amp;</span>LibraryTable<span class="op">,</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>    ctx<span class="op">:</span> <span class="op">&amp;</span><span class="pp">serde_json::</span>Value<span class="op">,</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>    program<span class="op">:</span> <span class="op">&amp;</span>Program<span class="op">,</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span><span class="pp">serde_json::</span>Value<span class="op">,</span> EvalError<span class="op">&gt;;</span></span></code></pre></div></div><p><code>run_program</code> gives you the evaluated result as JSON directly, already
+encoded per <a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a> when the program
+produces a document, or the concrete/symbolic envelope from
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a> §5 otherwise — the same shape
+<code>runProgram</code> returns on the PureScript and Haskell sides. As with Haskell,
+there’s no <code>tramaj-halogen</code> equivalent shipped yet: a Rust host gets the
+parser, evaluator, <code>Node</code> JSON codec, and static analysis, and writes its
+own fold following the same shape (case on <code>Text</code>/<code>Element</code>/<code>Fragment</code>,
+recurse into children, decide what an <code>action(...)</code> payload means in your
+host).</p>
+<p>Unlike the Haskell port, Rust also has a <code>tramaj-cli</code> equivalent —
+<code>tramaj-cli-rs</code> — mirroring <code>tramaj-cli</code>’s command surface field-for-field:
+the same <code>evaluate</code>/<code>analyze &lt;imports|actions|holes|unsupplied|constraints|symbols|types|card|all&gt;</code>
+subcommands, the same <code>--lib name=path</code>/<code>--mode concrete|symbolic</code> flags,
+and the same JSON output shapes. If you’d rather shell out than link a Rust
+library into your host — including from a non-Rust host — <code>tramaj-cli-rs</code> is
+a drop-in alternative to <code>tramaj-cli</code> with no Node.js runtime required.</p>
+<h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react">JavaScript / TypeScript — import as a library, fold with <code>tramaj-react</code></h3>
+<p><code>tramaj-js</code> is an independent, hand-written TypeScript port of the same
+grammar and evaluation semantics as the PureScript <code>tramaj</code>, Haskell
+<code>tramaj-hs</code>, and Rust <code>tramaj-rs</code>, held to the same shared conformance
+corpus (<code>corpus/cases/</code> — full parity, including
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints and
+<a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types, not just the
+core language). It’s a normal npm package with no React or DOM dependency
+— a plain Node or browser host can depend on it the same way a PureScript
+host depends on <code>tramaj</code>:</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="co">// parseProgram, tryParseProgram</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">parseProgram</span>(src<span class="op">:</span> <span class="dt">string</span>)<span class="op">:</span> Program<span class="op">;</span> <span class="co">// throws ParseError</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a><span class="co">// runProgram</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">runProgram</span>(</span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>  mode<span class="op">:</span> Mode<span class="op">,</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>  libs<span class="op">:</span> LibraryTable<span class="op">,</span></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>  ctx<span class="op">:</span> Json<span class="op">,</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>  program<span class="op">:</span> Program<span class="op">,</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>)<span class="op">:</span> Json<span class="op">;</span> <span class="co">// throws EvalError</span></span></code></pre></div></div><p><code>Mode</code> is <code>&quot;concrete&quot;</code> or <code>&quot;symbolic&quot;</code> (<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>);
+<code>runProgram</code> gives you the evaluated result as JSON directly, already
+encoded per <a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a> when the program
+produces a document, or the concrete/symbolic envelope from
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a> §5 otherwise — the same shape
+<code>runProgram</code> returns on the PureScript, Haskell, and Rust sides. <code>evalProgram</code>
+is the lower-level entry point if you want the <code>Node</code> value itself rather
+than its JSON encoding, to fold it without a round-trip through JSON.</p>
+<p>If your host renders through React, don’t write a fold at all —
+<code>tramaj-react</code> already has one, the same shape as <code>tramaj-halogen</code>’s:</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> Dispatch <span class="op">=</span> (</span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a>  event<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>  key<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>  payload<span class="op">:</span> Json<span class="op">,</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>) <span class="kw">=&gt;</span> MouseEventHandler<span class="op">&lt;</span><span class="bu">Element</span><span class="op">&gt;</span> <span class="op">|</span> <span class="kw">undefined</span> <span class="op">|</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">foldToReact</span>(dispatch<span class="op">:</span> Dispatch<span class="op">,</span> node<span class="op">:</span> <span class="bu">Node</span>)<span class="op">:</span> ReactNode[]<span class="op">;</span></span></code></pre></div></div><p><code>dispatch</code> decides which <code>action(...)</code> entries become a real event handler
+— it inspects the event type itself (<code>foldToReact</code> doesn’t), and returns
+<code>undefined</code>/<code>null</code> for ones it wants to ignore. Every action a <code>dispatch</code>
+call accepts is wired to <code>onClick</code>. The result is an array, not a single
+element, because a fragment contributes several siblings with no wrapper —
+splice it into your own container, <code>&lt;&gt;{foldToReact(dispatch, node)}&lt;/&gt;</code>.
+Call <code>validateAttrNames</code> on the <code>Node</code> first, same caveat as
+<code>tramaj-halogen</code>: attribute names aren’t validated by the fold itself.</p>
+<p>If you’d rather not add a JS dependency at all — or your host isn’t Node —
+<code>tramaj-cli</code> (or <code>tramaj-cli-rs</code>) as a subprocess is still the same option
+open to any other language; see <a href="/tramaj/howto-humans.html">Getting started</a> for
+the exact CLI invocations, and <em>Any other language</em> below for the general
+shape of folding its JSON output by hand.</p>
 <h3 id="any-other-language">Any other language</h3>
-<p>For a host in a language with no PureScript or Haskell interop story —
-Python, Go, Rust, whatever — there are two options:</p>
+<p>For a host in a language with no PureScript, Haskell, Rust, or JavaScript
+interop story — Python, Go, whatever — there are two options:</p>
 <p><strong>(a) Full reimplementation.</strong> Port the parser and evaluator to your
 language, the way <code>tramaj-hs</code> ports the PureScript original. Worth it only
 if you need to <em>evaluate</em> templates natively (e.g. embedding evaluation in
@@ -117,7 +191,8 @@ static-analysis facts from <a href="/tramaj/properties.html">Properties</a> rath
 rendered document.</p>
 <p>This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.</p>
-<p>Native implementations for JavaScript, Python, and Rust specifically are
-wanted — see the <a href="/tramaj/roadmap.html">Roadmap</a> for what that would mean and
-where to start if you want to build one.</p>
+<p>A native Python implementation specifically is wanted — see the
+<a href="/tramaj/roadmap.html">Roadmap</a> for what that would mean and where to start if you
+want to build one. (Rust and JavaScript now have one each: <code>tramaj-rs</code> and
+<code>tramaj-js</code>, above.)</p>
 </section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>
