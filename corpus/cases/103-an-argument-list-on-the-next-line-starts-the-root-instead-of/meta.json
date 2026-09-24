@@ -1,0 +1,5 @@
+{
+  "name": "an argument list on the next line starts the root instead of calling",
+  "kind": "expression",
+  "mode": "concrete"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "field accesses and argument lists chain in any order after a call",
+  "kind": "expression",
+  "mode": "concrete"
+}

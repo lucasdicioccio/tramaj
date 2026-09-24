@@ -1,0 +1,5 @@
+{
+  "name": "a chained call inside a binding stays in that binding",
+  "kind": "expression",
+  "mode": "concrete"
+}

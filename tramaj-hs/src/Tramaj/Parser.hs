@@ -24,9 +24,10 @@
 --   @map@ has matched, its shape is parsed without backtracking, so a
 --   malformed one is a hard parse error instead of silently falling through
 --   to a meaningless 'Call' that would only fail much later at eval time.
--- * A field-access suffix is parsed with no whitespace skipped before it, so
---   @f().rendered@ is a field access while @f()@ followed by a newline and
---   @.div(...)@ is two separate things.
+-- * A call suffix -- @.field@ or a further @(args)@ -- is parsed with no
+--   whitespace skipped before it, so @f().rendered@ is a field access and
+--   @f()(x)@ a call of the result, while @f()@ followed by a newline and
+--   @.div(...)@ or @(x)@ is two separate things.
 module Tramaj.Parser
   ( parseProgram
   , parseExpr
@@ -120,6 +121,21 @@ fieldAccessSuffix = many (try (char '.' *> rawIdent))
 applyFieldAccess :: Expr -> [Text] -> Expr
 applyFieldAccess base [] = base
 applyFieldAccess base segs = FieldAccess base segs
+
+-- | What may follow a call's closing @)@ (reference.md §5, /Call
+-- suffixes/): @.field@ segments and further @(args)@ lists, in any order,
+-- each directly attached -- like 'fieldAccessSuffix', nothing skips
+-- whitespace before them. Adjacent segments group into one 'FieldAccess';
+-- each argument list wraps everything to its left in a 'Call'. Once a @(@
+-- has matched, the argument list is parsed without backtracking.
+callSuffix :: Expr -> P Expr
+callSuffix base = do
+  segs <- fieldAccessSuffix
+  let e = applyFieldAccess base segs
+  moreArgs <- optional (char '(' *> skipSpaces *> sepEndBy expr (symbol ",") <* char ')')
+  case moreArgs of
+    Nothing -> pure e
+    Just args -> callSuffix (Call e args)
 
 -- | A double-quoted string with no interpolation: every statically-required
 -- position uses this, so what the source says is what the analysis sees.
@@ -352,9 +368,9 @@ call = try $ do
   _ <- symbol "("
   args <- sepEndBy expr (symbol ",")
   _ <- char ')'
-  segs <- fieldAccessSuffix
+  e <- callSuffix (Call (Path root fields) args)
   skipSpaces
-  pure (applyFieldAccess (Call (Path root fields) args) segs)
+  pure e
 
 lambdaExpr :: P Expr
 lambdaExpr = try $ do
@@ -397,9 +413,9 @@ specialForm = do
     "adapt-actions" -> adaptActionsShape
     "constraint" -> constraintShape
     _ -> fail "unreachable: name already checked against the recognized special-form set"
-  segs <- fieldAccessSuffix
+  e <- callSuffix base
   skipSpaces
-  pure (applyFieldAccess base segs)
+  pure e
   where
     binaryShape :: (Expr -> Expr -> Expr) -> P Expr
     binaryShape ctor = do
