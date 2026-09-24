@@ -44,7 +44,7 @@ import Data.Array.NonEmpty as NEA
 import Data.Enum (toEnum)
 import Data.Either (Either)
 import Data.Int as Int
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Number as Number
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
@@ -251,17 +251,35 @@ desugarString parts = case Array.uncons (map partExpr (coalesce parts)) of
 
 -- Literals ---------------------------------------------------------------
 
+-- | `["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]`, where a `_`
+-- | may sit between two digits (reference.md §5, *Number literals*). The
+-- | fraction and exponent are taken only when complete, so a stray `.`, `e`
+-- | or `_` is left for the caller to reject. The underscores are dropped
+-- | before the text reaches `Number.fromString`, which already refuses an
+-- | overflow to infinity; a zero is normalized so `-0` never escapes.
 numberLit :: P Expr
 numberLit = lexeme $ try do
-  intPart <- many1Chars digit
-  fracPart <- optionMaybe (try (char '.' *> many1Chars digit))
+  sign <- optionMaybe (char '-')
+  intPart <- digits
+  fracPart <- optionMaybe (try (char '.' *> digits))
+  expPart <- optionMaybe $ try do
+    _ <- char 'e' <|> char 'E'
+    expSign <- optionMaybe (char '+' <|> char '-')
+    expDigits <- digits
+    pure (if expSign == Just '-' then "-" <> expDigits else expDigits)
   let
-    fullStr = case fracPart of
-      Nothing -> intPart
-      Just frac -> intPart <> "." <> frac
+    fullStr = (if sign == Just '-' then "-" else "")
+      <> intPart
+      <> maybe "" ("." <> _) fracPart
+      <> maybe "" ("e" <> _) expPart
   case Number.fromString fullStr of
-    Just n -> pure (NumberLit n)
-    Nothing -> fail ("invalid number literal: " <> fullStr)
+    Just n -> pure (NumberLit (if n == 0.0 then 0.0 else n))
+    Nothing -> fail ("number literal out of range: " <> fullStr)
+  where
+  digits = do
+    first <- many1Chars digit
+    rest <- many (try (char '_' *> many1Chars digit))
+    pure (first <> Array.fold (Array.fromFoldable rest))
 
 -- | `true`/`false`/`null` matched as whole identifiers, so a longer name
 -- | merely starting with one (`truest`, `nullable`) is not chopped into a

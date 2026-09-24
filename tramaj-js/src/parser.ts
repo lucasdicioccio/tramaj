@@ -312,36 +312,70 @@ class P {
 
   // Literals ------------------------------------------------------------
 
+  /**
+   * `["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]`, where a `_` may
+   * sit between two digits (reference.md §5, *Number literals*). The fraction
+   * and exponent are taken only when complete, so a stray `.`, `e` or `_` is
+   * left for the caller to reject. An overflow to infinity is refused and a
+   * zero is normalized so `-0` never escapes.
+   */
   private numberLit(): Expr {
     return this.lexeme(() => {
-      let intPart = "";
-      for (;;) {
-        const c = this.peek();
-        if (c !== undefined && ASCII_DIGIT.test(c)) {
-          intPart += c;
-          this.advance();
-        } else break;
+      let full = "";
+      if (this.peek() === "-") {
+        this.advance();
+        full = "-";
       }
+      const intPart = this.digits();
       if (intPart === "") throw this.err("expected a digit");
-      let full = intPart;
-      const save = this.pos;
+      full += intPart;
+      let save = this.pos;
       if (this.peek() === ".") {
         this.advance();
-        let frac = "";
-        for (;;) {
-          const c = this.peek();
-          if (c !== undefined && ASCII_DIGIT.test(c)) {
-            frac += c;
-            this.advance();
-          } else break;
-        }
+        const frac = this.digits();
         if (frac === "") this.pos = save;
-        else full = `${full}.${frac}`;
+        else full += `.${frac}`;
+      }
+      save = this.pos;
+      const e = this.peek();
+      if (e === "e" || e === "E") {
+        this.advance();
+        let exp = "e";
+        const sign = this.peek();
+        if (sign === "+" || sign === "-") {
+          this.advance();
+          exp += sign;
+        }
+        const expDigits = this.digits();
+        if (expDigits === "") this.pos = save;
+        else full += exp + expDigits;
       }
       const n = Number(full);
       if (Number.isNaN(n)) throw this.err("invalid number literal");
-      return { t: "NumberLit", value: n };
+      if (!Number.isFinite(n)) throw this.err("number literal out of range");
+      return { t: "NumberLit", value: n === 0 ? 0 : n };
     });
+  }
+
+  /** `digit { ["_"] digit }` with the underscores dropped; `""` (consuming nothing) when no digit is next. */
+  private digits(): string {
+    let out = "";
+    const first = this.peek();
+    if (first === undefined || !ASCII_DIGIT.test(first)) return out;
+    for (;;) {
+      const c = this.peek();
+      if (c !== undefined && ASCII_DIGIT.test(c)) {
+        out += c;
+        this.advance();
+        continue;
+      }
+      const next = this.peekAt(1);
+      if (c === "_" && next !== undefined && ASCII_DIGIT.test(next)) {
+        this.advance();
+        continue;
+      }
+      return out;
+    }
   }
 
   private keywordLit(): Expr {

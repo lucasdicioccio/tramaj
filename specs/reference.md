@@ -177,7 +177,7 @@ one.
 | `$lib.vals.fn(1)` | the callee may be a dotted path |
 | `f(x).rendered` | field access on a call's result |
 | `"text"`, `` "n: `$x`" `` | string literal, backtick interpolation |
-| `123`, `1.5` | number literal — **no** leading `-` and **no** exponent |
+| `123`, `-1.5`, `1e5`, `1_000_000` | number literal; see *Number literals* below |
 | `true`, `false`, `null` | keyword literals |
 | `[a, b]` | array literal |
 | `{"k": v}`, `{k: v}`, `{foo}` | object literal; keys may be bare; `{foo}` is shorthand for `{"foo": $foo}` |
@@ -215,6 +215,28 @@ character and never passes through this rule.
 Being whitespace, a comment does not join the lines it sits between:
 `f() -- note` followed by `.div(...)` on the next line is two separate
 things, exactly as the uncommented version is.
+
+**Number literals.**
+
+```
+number = ["-"] digits ["." digits] [("e" | "E") ["+" | "-"] digits]
+digits = digit { ["_"] digit }
+```
+
+- The `-` is part of the literal, not an operator (there is no arithmetic,
+  §11), so it must touch the first digit: `- 1` is a parse error, and so is
+  a leading `+`. `--1` is a comment, like any other `--`.
+- A `_` separates digits for readability and means nothing: `1_000_000` is
+  `1000000`. It is allowed only *between two digits* — `1_`, `1__0`, `1_.5`,
+  `1._5` and `1e_5` are all parse errors — and may appear in the integer,
+  fraction and exponent parts alike (`0.000_001`, `1e1_0`).
+- Both parts around a `.` need at least one digit: `.5` and `5.` are not
+  numbers.
+- The literal denotes the double nearest to its decimal value (round to
+  nearest, ties to even). A literal too large for a double (`1e400`) is a
+  parse error rather than an infinity; one too small rounds to zero.
+- There is no negative zero: a literal that denotes zero is `0` whatever its
+  sign, so `-0` and `-1e-400` both evaluate to `0`.
 
 **Attribute position before children.** Attributes, `action(...)` and
 `value(...)` must all precede any child; a child first is a parse error.
@@ -534,9 +556,6 @@ Programs must not depend on any of these.
 
 - Destructuring (§8).
 - Calling a call's result directly (§7).
-- Negative and exponent number literals — `-1` and `1e5` are parse errors
-  today. With no arithmetic in the language (§11) there is no way to write
-  such a value inline at all; it has to arrive through `$ctx` or a library.
 - Types, domains and constraints. The AST is built to accept them: node
   annotations are where derived type/domain information goes, and the
   semantics avoid equating "unknown" with `null`, so a constraint-aware

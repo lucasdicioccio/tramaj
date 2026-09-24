@@ -1,0 +1,6 @@
+{
+  "name": "an exponent marker with no digits is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}
