@@ -214,14 +214,39 @@ desugarString parts = case map partExpr (coalesce parts) of
 
 -- Literals ---------------------------------------------------------------
 
+-- | @["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]@, where a @_@
+-- may sit between two digits (reference.md §5, /Number literals/). The
+-- fraction and exponent are taken only when complete, so a stray @.@, @e@
+-- or @_@ is left for the caller to reject. The underscores are dropped and
+-- the exponent's sign normalized before the text reaches 'reads'; an
+-- overflow to infinity is refused and a zero is normalized so @-0@ never
+-- escapes.
 numberLit :: P Expr
 numberLit = lexeme $ try $ do
-  intPart <- takeWhile1P (Just "digit") isDigit
-  fracPart <- optional (try (char '.' *> takeWhile1P (Just "digit") isDigit))
-  let fullStr = maybe intPart (\frac -> intPart <> "." <> frac) fracPart
+  sign <- optional (char '-')
+  intPart <- digits
+  fracPart <- optional (try (char '.' *> digits))
+  expPart <- optional $ try $ do
+    _ <- char 'e' <|> char 'E'
+    expSign <- optional (char '+' <|> char '-')
+    expDigits <- digits
+    pure (if expSign == Just '-' then "-" <> expDigits else expDigits)
+  let fullStr =
+        maybe "" (const "-") sign
+          <> intPart
+          <> maybe "" ("." <>) fracPart
+          <> maybe "" ("e" <>) expPart
   case reads (T.unpack fullStr) :: [(Double, String)] of
-    [(n, "")] -> pure (NumberLit n)
+    [(n, "")]
+      | isInfinite n -> fail ("number literal out of range: " <> T.unpack fullStr)
+      | n == 0 -> pure (NumberLit 0)
+      | otherwise -> pure (NumberLit n)
     _ -> fail ("invalid number literal: " <> T.unpack fullStr)
+  where
+    digits = do
+      first <- takeWhile1P (Just "digit") isDigit
+      rest <- many (try (char '_' *> takeWhile1P (Just "digit") isDigit))
+      pure (T.concat (first : rest))
 
 -- | @true@\/@false@\/@null@ matched as whole identifiers, so a longer name
 -- merely starting with one (@truest@, @nullable@) is not chopped into a

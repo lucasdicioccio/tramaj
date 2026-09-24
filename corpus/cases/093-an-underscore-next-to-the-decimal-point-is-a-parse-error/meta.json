@@ -1,0 +1,6 @@
+{
+  "name": "an underscore next to the decimal point is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "a non-dyadic fraction literal is emitted as its shortest round-tripping decimal, not its exact binary expansion",
+  "kind": "document",
+  "mode": "concrete"
+}

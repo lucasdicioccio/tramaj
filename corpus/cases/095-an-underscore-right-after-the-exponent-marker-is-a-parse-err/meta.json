@@ -1,0 +1,6 @@
+{
+  "name": "an underscore right after the exponent marker is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

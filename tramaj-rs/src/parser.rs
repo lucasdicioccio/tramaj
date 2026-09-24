@@ -341,44 +341,75 @@ impl P {
 
     // Literals ------------------------------------------------------------
 
+    /// `["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]`, where a `_`
+    /// may sit between two digits (reference.md §5, *Number literals*). The
+    /// fraction and exponent are taken only when complete, so a stray `.`,
+    /// `e` or `_` is left for the caller to reject. An overflow to infinity
+    /// is refused and a zero is normalized so `-0` never escapes.
     fn number_lit(&mut self) -> PResult<Expr> {
         self.lexeme(|p| {
-            let mut int_part = String::new();
-            while let Some(c) = p.peek() {
-                if c.is_ascii_digit() {
-                    int_part.push(c);
-                    p.advance();
-                } else {
-                    break;
-                }
+            let start = p.pos;
+            let mut full = String::new();
+            if p.peek() == Some('-') {
+                p.advance();
+                full.push('-');
             }
-            if int_part.is_empty() {
+            if !p.digits(&mut full) {
+                p.pos = start;
                 return Err(p.err("expected a digit"));
             }
-            let mut full = int_part.clone();
             let save = p.pos;
             if p.peek() == Some('.') {
                 p.advance();
-                let mut frac = String::new();
-                while let Some(c) = p.peek() {
-                    if c.is_ascii_digit() {
-                        frac.push(c);
-                        p.advance();
-                    } else {
-                        break;
-                    }
-                }
-                if frac.is_empty() {
-                    p.pos = save;
-                } else {
-                    full.push('.');
+                let mut frac = String::from(".");
+                if p.digits(&mut frac) {
                     full.push_str(&frac);
+                } else {
+                    p.pos = save;
                 }
             }
-            full.parse::<f64>()
-                .map(Expr::NumberLit)
-                .map_err(|_| p.err("invalid number literal"))
+            let save = p.pos;
+            if matches!(p.peek(), Some('e') | Some('E')) {
+                p.advance();
+                let mut exp = String::from("e");
+                if let Some(c @ ('+' | '-')) = p.peek() {
+                    p.advance();
+                    exp.push(c);
+                }
+                if p.digits(&mut exp) {
+                    full.push_str(&exp);
+                } else {
+                    p.pos = save;
+                }
+            }
+            match full.parse::<f64>() {
+                Ok(n) if n.is_infinite() => Err(p.err("number literal out of range")),
+                Ok(n) if n == 0.0 => Ok(Expr::NumberLit(0.0)),
+                Ok(n) => Ok(Expr::NumberLit(n)),
+                Err(_) => Err(p.err("invalid number literal")),
+            }
         })
+    }
+
+    /// `digit { ["_"] digit }`, appended to `out` with the underscores
+    /// dropped. Consumes nothing and answers `false` when no digit is next.
+    fn digits(&mut self, out: &mut String) -> bool {
+        match self.peek() {
+            Some(c) if c.is_ascii_digit() => {}
+            _ => return false,
+        }
+        loop {
+            match self.peek() {
+                Some(c) if c.is_ascii_digit() => {
+                    out.push(c);
+                    self.advance();
+                }
+                Some('_') if matches!(self.peek_at(1), Some(c) if c.is_ascii_digit()) => {
+                    self.advance();
+                }
+                _ => return true,
+            }
+        }
     }
 
     fn keyword_lit(&mut self) -> PResult<Expr> {

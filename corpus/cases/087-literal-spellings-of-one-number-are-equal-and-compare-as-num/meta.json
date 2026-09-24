@@ -1,0 +1,5 @@
+{
+  "name": "literal spellings of one number are equal and compare as numbers",
+  "kind": "expression",
+  "mode": "concrete"
+}

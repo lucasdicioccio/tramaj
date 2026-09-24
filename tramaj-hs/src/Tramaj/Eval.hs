@@ -36,7 +36,7 @@ import Data.List (foldl', sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes)
-import Data.Scientific (Scientific, toRealFloat)
+import Data.Scientific (Scientific, fromFloatDigits, toRealFloat)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -421,7 +421,7 @@ typeConstraintToJson (name, args) =
   where
     arg (RCType rt) = Object (KeyMap.fromList [("$type", String (canonicalId rt))])
     arg (RCScalarStr s) = String s
-    arg (RCScalarNum n) = Number (realToFrac n)
+    arg (RCScalarNum n) = Number (fromFloatDigits n)
     arg (RCScalarBool b) = Bool b
     arg RCScalarNull = Null
 
@@ -512,7 +512,7 @@ evalExpr ctx env (Let name valueExpr body) = do
   v <- evalBindable ctx env (Just name) valueExpr
   evalExpr ctx (Map.insert name v env) body
 evalExpr _ _ (StringLit s) = pure (VString s)
-evalExpr _ _ (NumberLit n) = pure (VNumber (realToFrac n))
+evalExpr _ _ (NumberLit n) = pure (VNumber (fromFloatDigits n))
 evalExpr _ _ (BoolLit b) = pure (VBool b)
 evalExpr _ _ NullLit = pure VNull
 evalExpr ctx env (ArrayLit elems) =

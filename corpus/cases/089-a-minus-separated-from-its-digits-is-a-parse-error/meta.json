@@ -1,0 +1,6 @@
+{
+  "name": "a minus separated from its digits is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

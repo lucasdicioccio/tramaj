@@ -1,0 +1,6 @@
+{
+  "name": "a trailing underscore in a number literal is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

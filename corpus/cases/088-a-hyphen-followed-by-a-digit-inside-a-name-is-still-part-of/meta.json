@@ -1,0 +1,5 @@
+{
+  "name": "a hyphen followed by a digit inside a name is still part of the name",
+  "kind": "expression",
+  "mode": "concrete"
+}

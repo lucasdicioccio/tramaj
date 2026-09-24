@@ -99,16 +99,13 @@ name doing a smuggled job. Wait for the abuse before building the fix.
 ## Adjacent — open before v3/v4, still open (reference.md §14)
 
 Not v3/v4-specific, but load-bearing context for anyone reading those specs
-looking for gaps: three items were open in the language before symbols or
+looking for gaps: two items were open in the language before symbols or
 types existed and remain untouched by either extension.
 
 - **Destructuring** (§8) — no binding-pattern sugar; every field read is an
   explicit path.
 - **Calling a call's result directly** (§7) — `f(x)(y)` is a parse error;
   a call's result must be bound before it's called again.
-- **Negative and exponent number literals** — `-1` and `1e5` don't parse.
-  With no arithmetic in the language, such a value can currently only
-  arrive through `$ctx` or a library, never be written inline.
 
 ---
 
