@@ -1,0 +1,5 @@
+{
+  "name": "a special form's result is callable like any call's",
+  "kind": "expression",
+  "mode": "concrete"
+}

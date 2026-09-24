@@ -230,6 +230,29 @@ impl P {
         }
     }
 
+    /// What may follow a call's closing `)` (reference.md §5, *Call
+    /// suffixes*): `.field` segments and further `(args)` lists, in any
+    /// order, each directly attached — like `field_access_suffix`, nothing
+    /// skips whitespace before them. Adjacent segments group into one
+    /// `FieldAccess`; each argument list wraps everything to its left in a
+    /// `Call`. Once a `(` has matched, the argument list is parsed without
+    /// backtracking.
+    fn call_suffix(&mut self, base: Expr) -> PResult<Expr> {
+        let mut e = base;
+        loop {
+            let segs = self.field_access_suffix();
+            e = Self::apply_field_access(e, segs);
+            if self.peek() != Some('(') {
+                return Ok(e);
+            }
+            self.advance();
+            self.skip_spaces();
+            let args = self.sep_end_by(",", Self::expr)?;
+            self.char_lit(')')?;
+            e = Expr::Call(Box::new(e), args);
+        }
+    }
+
     // Static strings ---------------------------------------------------------
 
     fn static_string(&mut self) -> PResult<String> {
@@ -553,12 +576,9 @@ impl P {
         self.symbol("(")?;
         let args = self.sep_end_by(",", Self::expr)?;
         self.char_lit(')')?;
-        let segs = self.field_access_suffix();
+        let e = self.call_suffix(Expr::Call(Box::new(Expr::Path(root, fields)), args))?;
         self.skip_spaces();
-        Ok(Self::apply_field_access(
-            Expr::Call(Box::new(Expr::Path(root, fields)), args),
-            segs,
-        ))
+        Ok(e)
     }
 
     fn lambda_expr(&mut self) -> PResult<Expr> {
@@ -619,9 +639,9 @@ impl P {
             "constraint" => self.constraint_shape()?,
             _ => unreachable!("name already checked against the recognized special-form set"),
         };
-        let segs = self.field_access_suffix();
+        let e = self.call_suffix(base)?;
         self.skip_spaces();
-        Ok(Self::apply_field_access(base, segs))
+        Ok(e)
     }
 
     fn binary_shape(&mut self) -> PResult<(Expr, Expr)> {

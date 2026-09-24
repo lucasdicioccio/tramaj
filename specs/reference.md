@@ -176,6 +176,7 @@ one.
 | `name(args)`, `$name(args)` | a call; the two spellings are identical |
 | `$lib.vals.fn(1)` | the callee may be a dotted path |
 | `f(x).rendered` | field access on a call's result |
+| `f(x)(y)`, `f(x).g(y)` | calling a call's result; field accesses and argument lists chain in any order |
 | `"text"`, `` "n: `$x`" `` | string literal, backtick interpolation |
 | `123`, `-1.5`, `1e5`, `1_000_000` | number literal; see *Number literals* below |
 | `true`, `false`, `null` | keyword literals |
@@ -199,9 +200,27 @@ may contain letters, digits, `_` and internal `-`. *Internal* is enforced,
 not merely advised: a hyphen belongs to the name only when another name
 character follows it, so a name never ends in one and `$x-- note` reads as
 `x` followed by a comment. Whitespace is insignificant except as a
-separator, with one exception: a field-access `.` must directly follow the
-`)` it applies to, so `f()` on one line and `.div(...)` on the next are two
-separate things.
+separator, with one exception: a field-access `.` or a further argument
+list's `(` must directly follow the `)` it applies to, so `f()` on one line
+and `.div(...)` or `(x)` on the next are two separate things.
+
+**Call suffixes.** After the `)` of a call — an ordinary call or a special
+form like `branch(...)` or `import(...)` — any sequence of `.field` segments
+and `(args)` lists may follow, each directly attached. Adjacent segments
+group into one `FieldAccess`, and each argument list wraps everything to its
+left in a `Call`:
+
+| surface | core |
+|---|---|
+| `f(x)(y)` | `Call (Call f [x]) [y]` |
+| `f(x).g(y).h` | `FieldAccess (Call (FieldAccess (Call f [x]) [g]) [y]) [h]` |
+| `f(x).a.b` | `FieldAccess (Call f [x]) [a, b]` |
+
+Only calls take the suffix: a grouped expression does not, so
+`((x) => $x)(1)` is still a parse error — bind the function first. Because
+bindings need no newline between them, `@a=f(1)(2)` is one binding whose
+value is `f(1)(2)`; before call suffixes it read as `@a=f(1)` followed by
+the root `(2)`, a spelling nobody means.
 
 **Comments.** `--` begins a comment that runs to the end of the line. There
 is no block form and no nesting, so a comment cannot be left unterminated
@@ -555,7 +574,6 @@ Programs must not depend on any of these.
 ## 14. Open
 
 - Destructuring (§8).
-- Calling a call's result directly (§7).
 - Types, domains and constraints. The AST is built to accept them: node
   annotations are where derived type/domain information goes, and the
   semantics avoid equating "unknown" with `null`, so a constraint-aware

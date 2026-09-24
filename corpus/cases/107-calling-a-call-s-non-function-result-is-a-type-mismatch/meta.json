@@ -1,0 +1,7 @@
+{
+  "name": "calling a call's non-function result is a type mismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

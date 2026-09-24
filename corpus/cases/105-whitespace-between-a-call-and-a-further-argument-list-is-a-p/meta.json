@@ -1,0 +1,6 @@
+{
+  "name": "whitespace between a call and a further argument list is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

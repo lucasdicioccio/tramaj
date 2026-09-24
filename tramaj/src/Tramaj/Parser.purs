@@ -25,9 +25,10 @@
 -- |   malformed one is a hard parse error instead of silently falling
 -- |   through to a meaningless `Call` that would only fail much later at
 -- |   eval time.
--- | * A field-access suffix is parsed with no whitespace skipped before it,
--- |   so `f().rendered` is a field access while `f()` followed by a newline
--- |   and `.div(...)` is two separate things.
+-- | * A call suffix — `.field` or a further `(args)` — is parsed with no
+-- |   whitespace skipped before it, so `f().rendered` is a field access and
+-- |   `f()(x)` a call of the result, while `f()` followed by a newline and
+-- |   `.div(...)` or `(x)` is two separate things.
 -- |
 -- | Kept in lockstep with `../tramaj-hs/src/Tramaj/Parser.hs`.
 module Tramaj.Parser
@@ -147,6 +148,26 @@ fieldAccessSuffix = Array.fromFoldable <$> many (try (char '.' *> rawIdent))
 
 applyFieldAccess :: Expr -> Array String -> Expr
 applyFieldAccess base segs = if Array.null segs then base else FieldAccess base segs
+
+-- | What may follow a call's closing `)` (reference.md §5, *Call
+-- | suffixes*): `.field` segments and further `(args)` lists, in any order,
+-- | each directly attached — like `fieldAccessSuffix`, nothing skips
+-- | whitespace before them. Adjacent segments group into one `FieldAccess`;
+-- | each argument list wraps everything to its left in a `Call`. Once a `(`
+-- | has matched, the argument list is parsed without backtracking.
+callSuffix :: Expr -> P Expr
+callSuffix base = do
+  let e = applyFieldAccess base
+  segs <- fieldAccessSuffix
+  moreArgs <- optionMaybe (char '(' *> skipSpaces *> argList)
+  case moreArgs of
+    Nothing -> pure (e segs)
+    Just args -> callSuffix (Call (e segs) args)
+  where
+  argList = do
+    args <- sepEndBy (defer \_ -> expr) (symbol ",")
+    _ <- char ')'
+    pure (Array.fromFoldable args)
 
 -- | A double-quoted string with no interpolation: every
 -- | statically-required position uses this, so what the source says is what
@@ -387,9 +408,9 @@ call = try do
   _ <- symbol "("
   args <- sepEndBy (defer \_ -> expr) (symbol ",")
   _ <- char ')'
-  segs <- fieldAccessSuffix
+  e <- callSuffix (Call (Path p.root p.fields) (Array.fromFoldable args))
   skipSpaces
-  pure (applyFieldAccess (Call (Path p.root p.fields) (Array.fromFoldable args)) segs)
+  pure e
 
 lambdaExpr :: P Expr
 lambdaExpr = try do
@@ -432,9 +453,9 @@ specialForm = do
     "import" -> importShape
     "constraint" -> constraintShape
     _ -> adaptActionsShape
-  segs <- fieldAccessSuffix
+  e <- callSuffix base
   skipSpaces
-  pure (applyFieldAccess base segs)
+  pure e
   where
   binaryShape :: (Expr -> Expr -> Expr) -> P Expr
   binaryShape ctor = do

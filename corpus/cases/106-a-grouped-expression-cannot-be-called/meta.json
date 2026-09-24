@@ -1,0 +1,6 @@
+{
+  "name": "a grouped expression cannot be called",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

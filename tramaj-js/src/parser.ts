@@ -202,6 +202,27 @@ class P {
     return segs.length === 0 ? base : { t: "FieldAccess", target: base, fields: segs };
   }
 
+  /**
+   * What may follow a call's closing `)` (reference.md §5, *Call suffixes*):
+   * `.field` segments and further `(args)` lists, in any order, each directly
+   * attached — like `fieldAccessSuffix`, nothing skips whitespace before
+   * them. Adjacent segments group into one `FieldAccess`; each argument list
+   * wraps everything to its left in a `Call`. Once a `(` has matched, the
+   * argument list is parsed without backtracking.
+   */
+  private callSuffix(base: Expr): Expr {
+    let e = base;
+    for (;;) {
+      e = P.applyFieldAccess(e, this.fieldAccessSuffix());
+      if (this.peek() !== "(") return e;
+      this.advance();
+      this.skipSpaces();
+      const args = this.sepEndBy(",", () => this.expr());
+      this.charLit(")");
+      e = { t: "Call", fn: e, args };
+    }
+  }
+
   // Static strings ---------------------------------------------------------
 
   private staticString(): string {
@@ -491,9 +512,9 @@ class P {
     this.symbol("(");
     const args = this.sepEndBy(",", () => this.expr());
     this.charLit(")");
-    const segs = this.fieldAccessSuffix();
+    const e = this.callSuffix({ t: "Call", fn: { t: "Path", root, fields }, args });
     this.skipSpaces();
-    return P.applyFieldAccess({ t: "Call", fn: { t: "Path", root, fields }, args }, segs);
+    return e;
   }
 
   private lambdaExpr(): Expr {
@@ -566,9 +587,9 @@ class P {
       default:
         throw this.err("unrecognized special form");
     }
-    const segs = this.fieldAccessSuffix();
+    const e = this.callSuffix(base);
     this.skipSpaces();
-    return P.applyFieldAccess(base, segs);
+    return e;
   }
 
   private binaryShape(): [Expr, Expr] {

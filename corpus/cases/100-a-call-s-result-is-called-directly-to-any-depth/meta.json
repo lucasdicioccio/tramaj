@@ -1,0 +1,5 @@
+{
+  "name": "a call's result is called directly, to any depth",
+  "kind": "expression",
+  "mode": "concrete"
+}
