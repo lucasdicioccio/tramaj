@@ -1,0 +1,62 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-halogen"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "PureScript", "tramaj-halogen", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-halogen`, the Halogen host: folds an evaluated Node into Halogen.HTML.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-halogen
+
+Release history of `tramaj-halogen`, the Halogen host: folds an evaluated Node into Halogen.HTML. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #purescript #tramaj-halogen
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-halogen"})
+.div(class: "changelog",
+  $version({
+      "version": "(none)",
+      "date": "unreleased",
+      "summary": "Consumed as a git dependency; no registry release yet.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "\`Tramaj.Halogen.foldToHalogen\`, wiring each \`action(...)\` to the host's own Action type."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}

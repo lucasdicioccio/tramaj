@@ -1,0 +1,9 @@
+=base:library.tramaj-lib version
+.section(class: "changelog-version", id: "v`$ctx.version`",
+  .h2(class: "changelog-heading",
+    .code("`$ctx.package`"), " `$ctx.version`",
+    .span(class: "changelog-date", "`$ctx.date`")),
+  .p(class: "changelog-summary", "`$ctx.summary`"),
+  .ul(class: "changelog-changes",
+    map($ctx.changes, (c) =>
+      .li(.span(class: "changelog-kind changelog-kind-`$c.kind`", "`$c.kind`"), " `$c.text`"))))

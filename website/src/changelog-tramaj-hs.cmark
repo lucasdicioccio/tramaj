@@ -1,0 +1,104 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-hs"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "Haskell", "tramaj-hs", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-hs`, the Haskell implementation, also the engine behind Kitchen-Sink's templating sections.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-hs
+
+Release history of `tramaj-hs`, the Haskell implementation, also the engine behind Kitchen-Sink's templating sections. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #haskell #tramaj-hs
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-hs"})
+.div(class: "changelog",
+  $version({
+      "version": "0.3.0.0",
+      "date": "date not recorded",
+      "summary": "Implements v2 of the language: a rewrite of the semantic core, not an extension of it.",
+      "changes": [
+          {
+              "kind": "changed",
+              "text": "Documents are expressions: \`Element\` and \`Fragment\` are ordinary \`Expr\` constructors; the separate template-phase AST and \`JsonProgram\` are gone."
+          },
+          {
+              "kind": "added",
+              "text": "\`Tramaj.Node\`, the normative interchange format, with an encoder and a strict decoder."
+          },
+          {
+              "kind": "added",
+              "text": "\`Tramaj.Analysis\`: static import names, action keys, context holes, context reads and unsupplied params, with deep variants."
+          },
+          {
+              "kind": "changed",
+              "text": "Imports take their parameters three ways (expression, \`ctx(path)\`, or later call); \`partial-import\` is gone."
+          },
+          {
+              "kind": "changed",
+              "text": "\`a <> b\` concatenation, lazy \`branch\`, \`adapt-actions\`, \`.(a, b)\` fragments, string escapes, object shorthand, builtins as values."
+          },
+          {
+              "kind": "fixed",
+              "text": "Malformed \`action(...)\`/\`value(...)\` in an element argument no longer backtracks into a meaningless \`Call\`; a backtick in a static string position is reported."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.2.0.0",
+      "date": "date not recorded",
+      "summary": "Adds a JSON-producing mode for hosts that want the data half of the language on its own.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "\`Tramaj.Ast.JsonProgram\`, \`Tramaj.Parser.parseJsonProgram\` and \`Tramaj.Eval.evalJsonProgram\`."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.1.0.0",
+      "date": "date not recorded",
+      "summary": "Initial release, extracted from the repository it was written in.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Ports the PureScript package's \`Tramaj.Ast\` / \`Tramaj.Parser\` / \`Tramaj.Eval\` to megaparsec + aeson."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}

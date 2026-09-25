@@ -1,0 +1,62 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-react"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "JavaScript", "tramaj-react", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-react`, the React host: folds a tramaj-js Node into React elements.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-react
+
+Release history of `tramaj-react`, the React host: folds a tramaj-js Node into React elements. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #javascript #tramaj-react
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-react"})
+.div(class: "changelog",
+  $version({
+      "version": "0.1.0",
+      "date": "unreleased",
+      "summary": "The React counterpart of tramaj-halogen, and the only package here that depends on react.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "\`foldToReact\` and \`validateAttrNames\`."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}
