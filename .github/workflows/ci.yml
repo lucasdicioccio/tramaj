@@ -1,9 +1,15 @@
 name: CI
 
+# Automatic runs are switched off for now to save GitHub Actions credit;
+# every job is kept so it can be run by hand from the Actions tab
+# ("Run workflow") and re-enabled all at once later by restoring
+#
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   purescript:
