@@ -1,0 +1,62 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-cli-rs"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "Rust", "tramaj-cli-rs", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-cli-rs`, the standalone Rust command-line interface over tramaj-rs.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-cli-rs
+
+Release history of `tramaj-cli-rs`, the standalone Rust command-line interface over tramaj-rs. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #rust #tramaj-cli-rs
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-cli-rs"})
+.div(class: "changelog",
+  $version({
+      "version": "0.1.0",
+      "date": "unreleased",
+      "summary": "Rust port of tramaj-cli's Main.purs over the tramaj-rs crate.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Template + JSON context evaluation and the \`analyze\` subcommands, as a single static binary."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}

@@ -1,0 +1,66 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "PureScript", "tramaj", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj`, the reference PureScript implementation: parser, evaluator, Node codec and analyses.
+
+=base:main-content.cmark
+
+# Changelog: tramaj
+
+Release history of `tramaj`, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #purescript #tramaj
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj"})
+.div(class: "changelog",
+  $version({
+      "version": "(none)",
+      "date": "unreleased",
+      "summary": "Consumed as a git dependency; no registry release yet.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Reference implementation of the language: parser, evaluator (concrete and symbolic modes), normative Node JSON codec and static analyses."
+          },
+          {
+              "kind": "added",
+              "text": "Conformance corpus under \`corpus/cases\`, shared with every other implementation."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}

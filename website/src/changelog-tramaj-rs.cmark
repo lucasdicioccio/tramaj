@@ -1,0 +1,66 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-rs"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "Rust", "tramaj-rs", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-rs`, the Rust implementation of the parser, evaluator and analyses.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-rs
+
+Release history of `tramaj-rs`, the Rust implementation of the parser, evaluator and analyses. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #rust #tramaj-rs
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-rs"})
+.div(class: "changelog",
+  $version({
+      "version": "0.1.0",
+      "date": "unreleased",
+      "summary": "Hand-written port kept in agreement with the other implementations through the shared conformance corpus.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Parser, AST, evaluator and static analyses, plus a program-card analysis."
+          },
+          {
+              "kind": "added",
+              "text": "Serde-based Node JSON codec."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}
