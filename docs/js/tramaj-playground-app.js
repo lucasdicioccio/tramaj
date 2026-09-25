@@ -1006,11 +1006,11 @@
   var eqTuple = function(dictEq) {
     var eq4 = eq(dictEq);
     return function(dictEq1) {
-      var eq15 = eq(dictEq1);
+      var eq16 = eq(dictEq1);
       return {
         eq: function(x) {
           return function(y) {
-            return eq4(x.value0)(y.value0) && eq15(x.value1)(y.value1);
+            return eq4(x.value0)(y.value0) && eq16(x.value1)(y.value1);
           };
         }
       };
@@ -31994,7 +31994,9 @@
   var bind16 = /* @__PURE__ */ bind(bindMaybe);
   var toEnum3 = /* @__PURE__ */ toEnum(boundedEnumCodePoint);
   var alt6 = /* @__PURE__ */ alt(altParserT);
+  var fold4 = /* @__PURE__ */ fold2(monoidString);
   var fromFoldable10 = /* @__PURE__ */ fromFoldable(foldableList);
+  var eq14 = /* @__PURE__ */ eq(/* @__PURE__ */ eqMaybe(eqChar));
   var elem3 = /* @__PURE__ */ elem2(eqString);
   var defer5 = /* @__PURE__ */ defer(lazyParserT);
   var fromFoldable23 = /* @__PURE__ */ fromFoldable(foldableNonEmptyList);
@@ -32064,7 +32066,7 @@
       return pure16(unit);
     }
     ;
-    throw new Error("Failed pattern match at Tramaj.Parser (line 320, column 1 - line 320, column 39): " + [k.constructor.name]);
+    throw new Error("Failed pattern match at Tramaj.Parser (line 338, column 1 - line 338, column 39): " + [k.constructor.name]);
   };
   var primNames = ["string", "number", "bool", "null", "document"];
   var lexeme = function(p2) {
@@ -32119,8 +32121,8 @@
   };
   var charsToString = fromCharArray;
   var many1Chars = function(p2) {
-    return map116(function($156) {
-      return charsToString(toArray2($156));
+    return map116(function($162) {
+      return charsToString(toArray2($162));
     })(map116(fromFoldable16)(many1(p2)));
   };
   var escapeSeq = /* @__PURE__ */ (function() {
@@ -32175,34 +32177,66 @@
     });
     return applySecond3($$char("\\"))(alt6(unicodeEscape)(simpleEscape));
   })();
-  var numberLit = /* @__PURE__ */ lexeme(/* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(/* @__PURE__ */ many1Chars(digit))(function(intPart) {
-    return bind10(optionMaybe($$try3(applySecond3($$char("."))(many1Chars(digit)))))(function(fracPart) {
-      var fullStr = (function() {
-        if (fracPart instanceof Nothing) {
-          return intPart;
-        }
-        ;
-        if (fracPart instanceof Just) {
-          return intPart + ("." + fracPart.value0);
-        }
-        ;
-        throw new Error("Failed pattern match at Tramaj.Parser (line 259, column 15 - line 261, column 42): " + [fracPart.constructor.name]);
-      })();
-      var v = fromString(fullStr);
-      if (v instanceof Just) {
-        return pure16(new NumberLit(v.value0));
-      }
-      ;
-      if (v instanceof Nothing) {
-        return fail2("invalid number literal: " + fullStr);
-      }
-      ;
-      throw new Error("Failed pattern match at Tramaj.Parser (line 262, column 3 - line 264, column 60): " + [v.constructor.name]);
+  var numberLit = /* @__PURE__ */ (function() {
+    var digits = bind10(many1Chars(digit))(function(first) {
+      return bind10(many($$try3(applySecond3($$char("_"))(many1Chars(digit)))))(function(rest) {
+        return pure16(first + fold4(fromFoldable10(rest)));
+      });
     });
-  })));
+    return lexeme($$try3(bind10(optionMaybe($$char("-")))(function(sign2) {
+      return bind10(digits)(function(intPart) {
+        return bind10(optionMaybe($$try3(applySecond3($$char("."))(digits))))(function(fracPart) {
+          return bind10(optionMaybe($$try3(bind10(alt6($$char("e"))($$char("E")))(function() {
+            return bind10(optionMaybe(alt6($$char("+"))($$char("-"))))(function(expSign) {
+              return bind10(digits)(function(expDigits) {
+                return pure16((function() {
+                  var $116 = eq14(expSign)(new Just("-"));
+                  if ($116) {
+                    return "-" + expDigits;
+                  }
+                  ;
+                  return expDigits;
+                })());
+              });
+            });
+          }))))(function(expPart) {
+            var fullStr = (function() {
+              var $117 = eq14(sign2)(new Just("-"));
+              if ($117) {
+                return "-";
+              }
+              ;
+              return "";
+            })() + (intPart + (maybe("")(function(v2) {
+              return "." + v2;
+            })(fracPart) + maybe("")(function(v2) {
+              return "e" + v2;
+            })(expPart)));
+            var v = fromString(fullStr);
+            if (v instanceof Just) {
+              return pure16(new NumberLit((function() {
+                var $119 = v.value0 === 0;
+                if ($119) {
+                  return 0;
+                }
+                ;
+                return v.value0;
+              })()));
+            }
+            ;
+            if (v instanceof Nothing) {
+              return fail2("number literal out of range: " + fullStr);
+            }
+            ;
+            throw new Error("Failed pattern match at Tramaj.Parser (line 275, column 3 - line 277, column 65): " + [v.constructor.name]);
+          });
+        });
+      });
+    })));
+  })();
   var manyChars = function(p2) {
-    return map116(function($157) {
-      return charsToString(fromFoldable10($157));
+    return map116(function($163) {
+      return charsToString(fromFoldable10($163));
     })(many(p2));
   };
   var rawIdent = /* @__PURE__ */ (function() {
@@ -32216,10 +32250,10 @@
   })();
   var demandExpr = /* @__PURE__ */ lexeme(/* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(/* @__PURE__ */ $$char("?"))(function() {
     return bind10(rawIdent)(function(root) {
-      var $115 = root === "ctx";
-      if ($115) {
-        return map116(function($158) {
-          return Demand.create(fromFoldable10($158));
+      var $121 = root === "ctx";
+      if ($121) {
+        return map116(function($164) {
+          return Demand.create(fromFoldable10($164));
         })(many(applySecond3($$char("."))(rawIdent)));
       }
       ;
@@ -32259,8 +32293,8 @@
   var typePrimOrRef = /* @__PURE__ */ (function() {
     var nameOrPrim = bind10(identifier)(function(name15) {
       return pure16((function() {
-        var $117 = elem3(name15)(primNames);
-        if ($117) {
+        var $123 = elem3(name15)(primNames);
+        if ($123) {
           return new TPrim(name15);
         }
         ;
@@ -32284,10 +32318,10 @@
   })();
   var typeVar = /* @__PURE__ */ lexeme(/* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(/* @__PURE__ */ $$char("%"))(function() {
     return bind10(rawIdent)(function(root) {
-      var $118 = root === "ctx";
-      if ($118) {
-        return map116(function($159) {
-          return TVar.create(fromFoldable10($159));
+      var $124 = root === "ctx";
+      if ($124) {
+        return map116(function($165) {
+          return TVar.create(fromFoldable10($165));
         })(many(applySecond3($$char("."))(rawIdent)));
       }
       ;
@@ -32297,7 +32331,7 @@
   var $lazy_typeArray = /* @__PURE__ */ $runtime_lazy12("typeArray", "Tramaj.Parser", function() {
     return bind10(symbol("["))(function() {
       return bind10(defer5(function(v) {
-        return $lazy_typeExpr(618);
+        return $lazy_typeExpr(636);
       }))(function(t) {
         return bind10(symbol("]"))(function() {
           return pure16(new TArray(t));
@@ -32307,19 +32341,19 @@
   });
   var $lazy_typeExpr = /* @__PURE__ */ $runtime_lazy12("typeExpr", "Tramaj.Parser", function() {
     return defer5(function(v) {
-      return alt6(typeVar)(alt6($lazy_typeUnion(571))(alt6($lazy_typeArray(571))(alt6($lazy_typeRecord(571))(typePrimOrRef))));
+      return alt6(typeVar)(alt6($lazy_typeUnion(589))(alt6($lazy_typeArray(589))(alt6($lazy_typeRecord(589))(typePrimOrRef))));
     });
   });
   var $lazy_typeExprPayload = /* @__PURE__ */ $runtime_lazy12("typeExprPayload", "Tramaj.Parser", function() {
     return defer5(function(v) {
-      return alt6(typeVar)(alt6($lazy_typeArray(584))($lazy_typeRecord(584)));
+      return alt6(typeVar)(alt6($lazy_typeArray(602))($lazy_typeRecord(602)));
     });
   });
   var $lazy_typeRecord = /* @__PURE__ */ $runtime_lazy12("typeRecord", "Tramaj.Parser", function() {
     var typeField = bind10(identifier)(function(k) {
       return bind10(symbol(":"))(function() {
         return bind10(defer5(function(v) {
-          return $lazy_typeExpr(640);
+          return $lazy_typeExpr(658);
         }))(function(t) {
           return pure16(new Tuple(k, t));
         });
@@ -32338,25 +32372,25 @@
   var $lazy_typeUnion = /* @__PURE__ */ $runtime_lazy12("typeUnion", "Tramaj.Parser", function() {
     var unionArm = bind10(identifier)(function(name15) {
       return bind10(optionMaybe(defer5(function(v) {
-        return $lazy_typeExprPayload(652);
+        return $lazy_typeExprPayload(670);
       })))(function(payload) {
         return pure16(new Tuple(name15, payload));
       });
     });
-    return map116(function($160) {
-      return TUnion.create(fromFoldable23($160));
+    return map116(function($166) {
+      return TUnion.create(fromFoldable23($166));
     })(many1(applySecond3(symbol("|"))(defer5(function(v) {
       return unionArm;
     }))));
   });
-  var typeArray = /* @__PURE__ */ $lazy_typeArray(615);
-  var typeExpr = /* @__PURE__ */ $lazy_typeExpr(570);
-  var typeRecord = /* @__PURE__ */ $lazy_typeRecord(622);
-  var typeUnion = /* @__PURE__ */ $lazy_typeUnion(646);
+  var typeArray = /* @__PURE__ */ $lazy_typeArray(633);
+  var typeExpr = /* @__PURE__ */ $lazy_typeExpr(588);
+  var typeRecord = /* @__PURE__ */ $lazy_typeRecord(640);
+  var typeUnion = /* @__PURE__ */ $lazy_typeUnion(664);
   var typeDeclStmt = /* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(identifier)(function(kw) {
     return discard6((function() {
-      var $119 = kw !== "type";
-      if ($119) {
+      var $125 = kw !== "type";
+      if ($125) {
         return fail2("not a type declaration");
       }
       ;
@@ -32373,10 +32407,10 @@
   }));
   var markedTypeExpr = /* @__PURE__ */ (function() {
     var ctxForward = lexeme($$try3(bind10(rawIdent)(function(root) {
-      var $120 = root === "ctx";
-      if ($120) {
-        return map116(function($161) {
-          return TVar.create(fromFoldable10($161));
+      var $126 = root === "ctx";
+      if ($126) {
+        return map116(function($167) {
+          return TVar.create(fromFoldable10($167));
         })(many(applySecond3($$char("."))(rawIdent)));
       }
       ;
@@ -32427,8 +32461,8 @@
   var typeEmission = /* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(/* @__PURE__ */ $$char("!"))(function() {
     return bind10(identifier)(function(kw) {
       return discard6((function() {
-        var $125 = kw !== "type-constraint";
-        if ($125) {
+        var $131 = kw !== "type-constraint";
+        if ($131) {
           return fail2("not a !type-constraint");
         }
         ;
@@ -32487,13 +32521,13 @@
             };
           };
         };
-        var $133 = (function(v) {
+        var $139 = (function(v) {
           return v.ok;
         })(foldl2(step4)({
           ok: true,
           seenChild: false
         })(args));
-        if ($133) {
+        if ($139) {
           return pure16(unit);
         }
         ;
@@ -32522,8 +32556,8 @@
   };
   var applyFieldAccess = function(base2) {
     return function(segs) {
-      var $138 = $$null(segs);
-      if ($138) {
+      var $144 = $$null(segs);
+      if ($144) {
         return base2;
       }
       ;
@@ -32537,7 +32571,7 @@
           return bind10(staticString)(function(key) {
             return bind10(symbol(","))(function() {
               return bind10(defer5(function(v) {
-                return $lazy_expr(832);
+                return $lazy_expr(850);
               }))(function(payload) {
                 return bind10(symbol(")"))(function() {
                   return pure16(new ActionAttr(event, key, payload));
@@ -32553,7 +32587,7 @@
     return $$try3(bind10($$char("?"))(function() {
       return bind10(symbol("("))(function() {
         return bind10(defer5(function(v) {
-          return $lazy_expr(344);
+          return $lazy_expr(362);
         }))(function(keyExpr) {
           return bind10($$char(")"))(function() {
             return bind10(fieldAccessSuffix)(function(segs) {
@@ -32569,7 +32603,7 @@
   var $lazy_arrayLit = /* @__PURE__ */ $runtime_lazy12("arrayLit", "Tramaj.Parser", function() {
     return lexeme(bind10(symbol("["))(function() {
       return bind10(sepEndBy(defer5(function(v) {
-        return $lazy_expr(281);
+        return $lazy_expr(299);
       }))(symbol(",")))(function(elems) {
         return bind10(symbol("]"))(function() {
           return pure16(new ArrayLit(fromFoldable10(elems)));
@@ -32580,20 +32614,20 @@
   var $lazy_attributePositionArg = /* @__PURE__ */ $runtime_lazy12("attributePositionArg", "Tramaj.Parser", function() {
     return bind10($$try3(bind10(identifier)(function(n) {
       return bind10(lookAhead($$char("(")))(function() {
-        var $139 = n === "action" || n === "value";
-        if ($139) {
+        var $145 = n === "action" || n === "value";
+        if ($145) {
           return pure16(n);
         }
         ;
         return fail2("not an action(...) or value(...) form");
       });
     })))(function(name15) {
-      var $140 = name15 === "action";
-      if ($140) {
-        return map116(EArgAttr.create)($lazy_actionShape(818));
+      var $146 = name15 === "action";
+      if ($146) {
+        return map116(EArgAttr.create)($lazy_actionShape(836));
       }
       ;
-      return map116(EArgValue.create)($lazy_valueShape(819));
+      return map116(EArgValue.create)($lazy_valueShape(837));
     });
   });
   var $lazy_call = /* @__PURE__ */ $runtime_lazy12("call", "Tramaj.Parser", function() {
@@ -32601,7 +32635,7 @@
       return bind10(pathTail)(function(p2) {
         return bind10(symbol("("))(function() {
           return bind10(sepEndBy(defer5(function(v) {
-            return $lazy_expr(370);
+            return $lazy_expr(388);
           }))(symbol(",")))(function(args) {
             return bind10($$char(")"))(function() {
               return bind10(fieldAccessSuffix)(function(segs) {
@@ -32618,7 +32652,7 @@
   var $lazy_documentExpr = /* @__PURE__ */ $runtime_lazy12("documentExpr", "Tramaj.Parser", function() {
     var fragmentShape = bind10(symbol("("))(function() {
       return bind10(sepEndBy(defer5(function(v) {
-        return $lazy_expr(744);
+        return $lazy_expr(762);
       }))(symbol(",")))(function(children2) {
         return bind10(symbol(")"))(function() {
           return pure16(new Fragment(fromFoldable10(children2)));
@@ -32629,7 +32663,7 @@
       return discard6(skipSpaces2)(function() {
         return bind10(symbol("("))(function() {
           return bind10(sepEndBy(defer5(function(v) {
-            return $lazy_elementArg(753);
+            return $lazy_elementArg(771);
           }))(symbol(",")))(function(args) {
             return bind10(symbol(")"))(function() {
               return buildElement(tag)(fromFoldable10(args));
@@ -32644,15 +32678,15 @@
   });
   var $lazy_elementArg = /* @__PURE__ */ $runtime_lazy12("elementArg", "Tramaj.Parser", function() {
     return defer5(function(v) {
-      return alt6($lazy_attributePositionArg(794))(alt6(map116(EArgAttr.create)($$try3($lazy_namedArg(795))))(map116(EArgChild.create)($lazy_expr(796))));
+      return alt6($lazy_attributePositionArg(812))(alt6(map116(EArgAttr.create)($$try3($lazy_namedArg(813))))(map116(EArgChild.create)($lazy_expr(814))));
     });
   });
   var $lazy_expr = /* @__PURE__ */ $runtime_lazy12("expr", "Tramaj.Parser", function() {
     return bind10(defer5(function(v) {
-      return $lazy_operand(857);
+      return $lazy_operand(875);
     }))(function(first) {
       return bind10(many($$try3(applySecond3(symbol("<>"))(defer5(function(v) {
-        return $lazy_operand(858);
+        return $lazy_operand(876);
       })))))(function(rest) {
         return pure16(foldl2(Concat.create)(first)(fromFoldable10(rest)));
       });
@@ -32664,7 +32698,7 @@
         return bind10(symbol(")"))(function() {
           return bind10(symbol("=>"))(function() {
             return bind10(defer5(function(v) {
-              return $lazy_expr(382);
+              return $lazy_expr(400);
             }))(function(body2) {
               return pure16(new Lambda(fromFoldable10(params), body2));
             });
@@ -32677,7 +32711,7 @@
     return bind10(objectKey)(function(name15) {
       return bind10(symbol(":"))(function() {
         return map116(Attr.create(name15))(defer5(function(v) {
-          return $lazy_expr(849);
+          return $lazy_expr(867);
         }));
       });
     });
@@ -32690,7 +32724,7 @@
       return bind10(reservedKeyRefused(k))(function() {
         return bind10(symbol(":"))(function() {
           return bind10(defer5(function(v) {
-            return $lazy_expr(303);
+            return $lazy_expr(321);
           }))(function(v) {
             return pure16(new Tuple(k, v));
           });
@@ -32710,13 +32744,13 @@
   });
   var $lazy_operand = /* @__PURE__ */ $runtime_lazy12("operand", "Tramaj.Parser", function() {
     return defer5(function(v) {
-      return alt6(keywordLit)(alt6($lazy_lambdaExpr(867))(alt6($lazy_parenExpr(868))(alt6($lazy_specialForm(869))(alt6($lazy_call(870))(alt6(pathExpr)(alt6($lazy_allocExpr(872))(alt6(demandExpr)(alt6($lazy_documentExpr(874))(alt6($lazy_stringLit(875))(alt6(numberLit)(alt6($lazy_arrayLit(877))($lazy_objectLit(878)))))))))))));
+      return alt6(keywordLit)(alt6($lazy_lambdaExpr(885))(alt6($lazy_parenExpr(886))(alt6($lazy_specialForm(887))(alt6($lazy_call(888))(alt6(pathExpr)(alt6($lazy_allocExpr(890))(alt6(demandExpr)(alt6($lazy_documentExpr(892))(alt6($lazy_stringLit(893))(alt6(numberLit)(alt6($lazy_arrayLit(895))($lazy_objectLit(896)))))))))))));
     });
   });
   var $lazy_parenExpr = /* @__PURE__ */ $runtime_lazy12("parenExpr", "Tramaj.Parser", function() {
     return $$try3(bind10(symbol("("))(function() {
       return bind10(defer5(function(v) {
-        return $lazy_expr(391);
+        return $lazy_expr(409);
       }))(function(e) {
         return bind10(symbol(")"))(function() {
           return pure16(e);
@@ -32728,15 +32762,15 @@
     var ternaryShape = function(ctor) {
       return bind10(symbol("("))(function() {
         return bind10(defer5(function(v) {
-          return $lazy_expr(433);
+          return $lazy_expr(451);
         }))(function(a2) {
           return bind10(symbol(","))(function() {
             return bind10(defer5(function(v) {
-              return $lazy_expr(435);
+              return $lazy_expr(453);
             }))(function(b2) {
               return bind10(symbol(","))(function() {
                 return bind10(defer5(function(v) {
-                  return $lazy_expr(437);
+                  return $lazy_expr(455);
                 }))(function(c) {
                   return bind10($$char(")"))(function() {
                     return pure16(ctor(a2)(b2)(c));
@@ -32753,8 +32787,8 @@
     });
     var fromContext = bind10($$try3(bind10(identifier)(function(n) {
       return bind10(lookAhead($$char("(")))(function() {
-        var $141 = n === "ctx";
-        if ($141) {
+        var $147 = n === "ctx";
+        if ($147) {
           return pure16(n);
         }
         ;
@@ -32774,7 +32808,7 @@
       });
     });
     var paramValue = alt6(map116(PType.create)(markedTypeExpr))(alt6(fromContext)(map116(PExpr.create)(defer5(function(v) {
-      return $lazy_expr(513);
+      return $lazy_expr(531);
     }))));
     var explicitParam = bind10(objectKey)(function(k) {
       return bind10(symbol(":"))(function() {
@@ -32807,7 +32841,7 @@
     var constraintShape = bind10(symbol("("))(function() {
       return bind10(staticString)(function(name15) {
         return bind10(many($$try3(applySecond3(symbol(","))(defer5(function(v) {
-          return $lazy_expr(468);
+          return $lazy_expr(486);
         })))))(function(args) {
           return bind10(optionMaybe(symbol(",")))(function() {
             return bind10($$char(")"))(function() {
@@ -32820,11 +32854,11 @@
     var binaryShape = function(ctor) {
       return bind10(symbol("("))(function() {
         return bind10(defer5(function(v) {
-          return $lazy_expr(424);
+          return $lazy_expr(442);
         }))(function(a2) {
           return bind10(symbol(","))(function() {
             return bind10(defer5(function(v) {
-              return $lazy_expr(426);
+              return $lazy_expr(444);
             }))(function(b2) {
               return bind10($$char(")"))(function() {
                 return pure16(ctor(a2)(b2));
@@ -32835,11 +32869,11 @@
       });
     };
     var arm = bind10(defer5(function(v) {
-      return $lazy_expr(455);
+      return $lazy_expr(473);
     }))(function(p2) {
       return bind10(symbol(","))(function() {
         return bind10(defer5(function(v) {
-          return $lazy_expr(457);
+          return $lazy_expr(475);
         }))(function(v) {
           return pure16(new Tuple(p2, v));
         });
@@ -32847,7 +32881,7 @@
     });
     var branchShape = bind10(symbol("("))(function() {
       return bind10(defer5(function(v) {
-        return $lazy_expr(447);
+        return $lazy_expr(465);
       }))(function(fallback) {
         return bind10(many($$try3(applySecond3(symbol(","))(arm))))(function(arms) {
           return bind10(optionMaybe(symbol(",")))(function() {
@@ -32883,12 +32917,12 @@
     });
     var adaptActionsShape = bind10(symbol("("))(function() {
       return bind10(defer5(function(v) {
-        return $lazy_expr(533);
+        return $lazy_expr(551);
       }))(function(target6) {
         return bind10(symbol(","))(function() {
           return bind10(adaptationShape)(function(adaptation) {
             return bind10(optionMaybe($$try3(applySecond3(symbol(","))(defer5(function(v) {
-              return $lazy_expr(536);
+              return $lazy_expr(554);
             })))))(function(fn) {
               return bind10(optionMaybe(symbol(",")))(function() {
                 return bind10($$char(")"))(function() {
@@ -32902,8 +32936,8 @@
     });
     return bind10($$try3(bind10(optionMaybe($$char("$")))(function() {
       return bind10(identifier)(function(n) {
-        var $146 = elem3(n)(["map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint"]);
-        if ($146) {
+        var $152 = elem3(n)(["map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint"]);
+        if ($152) {
           return pure16(n);
         }
         ;
@@ -32953,12 +32987,9 @@
     var plainRun = many1Chars(satisfy(function(c) {
       return c !== '"' && (c !== "`" && c !== "\\");
     }));
-    var litChunk = map116((function() {
-      var $162 = fold2(monoidString);
-      return function($163) {
-        return $162(fromFoldable23($163));
-      };
-    })())(many1(alt6(escapeSeq)(plainRun)));
+    var litChunk = map116(function($168) {
+      return fold4(fromFoldable23($168));
+    })(many1(alt6(escapeSeq)(plainRun)));
     var interpPart = map116(SInterp.create)(applyFirst2(applySecond3($$char("`"))(defer5(function(v) {
       return $lazy_expr(186);
     })))($$char("`")));
@@ -32976,7 +33007,7 @@
   var $lazy_valueShape = /* @__PURE__ */ $runtime_lazy12("valueShape", "Tramaj.Parser", function() {
     return bind10(symbol("("))(function() {
       return bind10(defer5(function(v) {
-        return $lazy_expr(841);
+        return $lazy_expr(859);
       }))(function(v) {
         return bind10(symbol(")"))(function() {
           return pure16(v);
@@ -32984,7 +33015,7 @@
       });
     });
   });
-  var expr = /* @__PURE__ */ $lazy_expr(855);
+  var expr = /* @__PURE__ */ $lazy_expr(873);
   var binding = /* @__PURE__ */ $$try3(/* @__PURE__ */ bind10(/* @__PURE__ */ $$char("@"))(function() {
     return bind10(identifier)(function(name15) {
       return bind10(optionMaybe($$try3(applySecond3(symbol(":"))(defer5(function(v) {
@@ -33003,7 +33034,7 @@
                 return new SAnnotate(name15, annot.value0, e);
               }
               ;
-              throw new Error("Failed pattern match at Tramaj.Parser (line 892, column 8 - line 894, column 33): " + [annot.constructor.name]);
+              throw new Error("Failed pattern match at Tramaj.Parser (line 910, column 8 - line 912, column 33): " + [annot.constructor.name]);
             })());
           });
         });
@@ -33057,7 +33088,7 @@
   var bind11 = /* @__PURE__ */ bind(bindMaybe);
   var show24 = /* @__PURE__ */ show(showEvalError);
   var type_19 = /* @__PURE__ */ type_18(isPropInputType);
-  var eq14 = /* @__PURE__ */ eq(eqMode);
+  var eq15 = /* @__PURE__ */ eq(eqMode);
   var ResultNode = /* @__PURE__ */ (function() {
     function ResultNode2(value0) {
       this.value0 = value0;
@@ -34039,7 +34070,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
     throw new Error("Failed pattern match at Playground.Main (line 580, column 27 - line 582, column 83): " + [v.constructor.name]);
   };
   var render = function(state3) {
-    return div2([class_("wrap")])([h1_([text5("tramaj playground")]), p([class_("hint")])([text5("Renders a tramaj template against a JSON context, entirely in the browser. See specs/reference.md for the full language; the reference below is the short version.")]), details([class_("card")])([summary_([text5("Language reference")]), pre([class_("ref")])([text5(referenceText)])]), div2([class_("cols")])([div2([class_("card")])([div2([class_("row")])([h2_([text5("Template")])]), renderTabBar(state3), p([class_("hint")])([text5("Every tab is available to import(...) by its name, including the active one \u2014 switch tabs above to edit a library.")]), kindHint(state3), textarea([class_("input"), rows4(16), spellcheck2(false), value13(activeTabOf(state3).source), onValueInput(SetTabSource.create(state3.activeTab))])]), div2([class_("card")])([div2([class_("row")])([h2_([text5("JSON context")]), label_([input2([type_19(InputCheckbox.value), checked2(eq14(state3.mode)(Symbolic.value)), onChecked(function(checked3) {
+    return div2([class_("wrap")])([h1_([text5("tramaj playground")]), p([class_("hint")])([text5("Renders a tramaj template against a JSON context, entirely in the browser. See specs/reference.md for the full language; the reference below is the short version.")]), details([class_("card")])([summary_([text5("Language reference")]), pre([class_("ref")])([text5(referenceText)])]), div2([class_("cols")])([div2([class_("card")])([div2([class_("row")])([h2_([text5("Template")])]), renderTabBar(state3), p([class_("hint")])([text5("Every tab is available to import(...) by its name, including the active one \u2014 switch tabs above to edit a library.")]), kindHint(state3), textarea([class_("input"), rows4(16), spellcheck2(false), value13(activeTabOf(state3).source), onValueInput(SetTabSource.create(state3.activeTab))])]), div2([class_("card")])([div2([class_("row")])([h2_([text5("JSON context")]), label_([input2([type_19(InputCheckbox.value), checked2(eq15(state3.mode)(Symbolic.value)), onChecked(function(checked3) {
       return new SetMode((function() {
         if (checked3) {
           return Symbolic.value;

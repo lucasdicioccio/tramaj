@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, Rust, JavaScript, TypeScript, React, fold, tramaj-cli, Node JSON"><meta name="description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"Five ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="Rust"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="TypeScript"><meta name="article:tag" content="React"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/">home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 1292 words, 6 code snippets, 21 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">2/3</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, Rust, JavaScript, TypeScript, Python, React, fold, tramaj-cli, Node JSON"><meta name="description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-25T12:00:00Z"><meta name="article:modified_time" content="2026-09-25T12:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-25T12:00:00Z","datePublished":"2026-09-25T12:00:00Z","description":"Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="Rust"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="TypeScript"><meta name="article:tag" content="Python"><meta name="article:tag" content="React"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/">home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Fri, 25 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 1548 words, 7 code snippets, 25 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">2/3</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
 <p>Every integration has the same two moving parts, regardless of language:</p>
 <ol>
 <li><strong>Evaluate</strong> — parse a template and run it against a JSON context to get
@@ -13,7 +13,7 @@ language, a config file.
 <p>Nothing about <code>Node</code> or the evaluator knows about HTML, a browser, or any
 particular UI framework (see <a href="/tramaj/properties.html">Properties</a>) — the fold is
 always something <em>you</em> write for your host, even where this repository
-already ships one for you. Which of the five paths below applies depends
+already ships one for you. Which of the six paths below applies depends
 only on what language your host is written in.</p>
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
@@ -21,6 +21,7 @@ only on what language your host is written in.</p>
 <tr><td>Haskell</td><td>depend on <code>tramaj-hs</code> directly</td><td>write your own — none shipped yet</td></tr>
 <tr><td>Rust</td><td>depend on <code>tramaj-rs</code> directly, or shell out to <code>tramaj-cli-rs</code></td><td>write your own — none shipped yet</td></tr>
 <tr><td>JavaScript / TypeScript</td><td>depend on <code>tramaj-js</code> directly, or shell out to <code>tramaj-cli</code></td><td>reuse <code>tramaj-react</code>, or write your own</td></tr>
+<tr><td>Python</td><td>depend on <code>tramaj-py</code> directly, or shell out to <code>python -m tramaj</code></td><td>write your own — none shipped yet</td></tr>
 <tr><td>anything else</td><td>shell out to <code>tramaj-cli</code> or <code>tramaj-cli-rs</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
 </table>
 <h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen">PureScript — import as a library, fold with <code>tramaj-halogen</code></h3>
@@ -163,9 +164,43 @@ Call <code>validateAttrNames</code> on the <code>Node</code> first, same caveat 
 open to any other language; see <a href="/tramaj/howto-humans.html">Getting started</a> for
 the exact CLI invocations, and <em>Any other language</em> below for the general
 shape of folding its JSON output by hand.</p>
+<h3 id="python--import-as-a-library-standard-library-only">Python — import as a library, standard library only</h3>
+<p><code>tramaj-py</code> is an independent, hand-written Python port of the same grammar
+and evaluation semantics as the other four implementations, held to the
+same shared conformance corpus (<code>corpus/cases/</code> — full parity, including
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints and
+<a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types). It needs
+nothing outside the standard library (Python 3.9+), so it drops into a data
+pipeline, a notebook or a backend service without a Node or PureScript
+toolchain as a runtime dependency. It’s a normal package — <code>tramaj</code> with
+<code>ast</code>, <code>parser</code>, <code>evaluator</code>, <code>node</code>, <code>analysis</code>, <code>typesys</code> and <code>jsonval</code>
+modules, laid out one-to-one like <code>tramaj-js</code> — installed from the
+repository’s <code>tramaj-py/</code> directory (not published to PyPI yet):</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tramaj <span class="im">import</span> parse_program, run_program</span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>program <span class="op">=</span> parse_program(<span class="st">&#39;.p($ctx.name)&#39;</span>)          <span class="co"># raises ParseError</span></span>
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>run_program(<span class="st">&quot;concrete&quot;</span>, {}, {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;web&quot;</span>}, program)  <span class="co"># raises EvalError</span></span></code></pre></div></div><p><code>run_program</code> gives you the evaluated result as plain Python JSON values
+(<code>dict</code>/<code>list</code>/<code>str</code>/numbers/<code>bool</code>/<code>None</code>), already encoded per
+<a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a> when the program produces a
+document, or the concrete/symbolic envelope from
+<a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a> §5 otherwise — the same shape
+<code>runProgram</code> returns on every other side. A library table is a <code>dict</code> from
+import name to parsed program; the mode is <code>&quot;concrete&quot;</code> or <code>&quot;symbolic&quot;</code>.
+<code>eval_program</code> is the lower-level entry point if you want the <code>Node</code> value
+itself rather than its JSON encoding. Numbers keep the language’s double
+semantics: an exact integer comes back as an <code>int</code>, and <code>str</code> renders as
+ECMAScript’s <code>Number::toString</code> does, so interpolated text matches the
+other implementations byte-for-byte.</p>
+<p>As with Haskell and Rust, no fold is shipped: a Python host writes its own
+following the same shape (case on <code>text</code>/<code>element</code>/<code>fragment</code>, recurse into
+children, decide what an <code>action(...)</code> payload means in your host). Python
+also has its own <code>tramaj-cli</code> equivalent, <code>python -m tramaj</code>, mirroring
+<code>tramaj-cli-rs</code>’s <code>evaluate</code>/<code>analyze</code> subcommands, flags and JSON output
+shapes, so a non-Python host with a Python interpreter around can shell out
+to it instead of to Node.</p>
 <h3 id="any-other-language">Any other language</h3>
-<p>For a host in a language with no PureScript, Haskell, Rust, or JavaScript
-interop story — Python, Go, whatever — there are two options:</p>
+<p>For a host in a language with no PureScript, Haskell, Rust, JavaScript, or
+Python interop story — Go, Java, whatever — there are two options:</p>
 <p><strong>(a) Full reimplementation.</strong> Port the parser and evaluator to your
 language, the way <code>tramaj-hs</code> ports the PureScript original. Worth it only
 if you need to <em>evaluate</em> templates natively (e.g. embedding evaluation in
@@ -173,8 +208,8 @@ a process that can’t shell out, or needs it to run in-process for
 performance). <a href="/tramaj/reference-language.html"><code>reference.md</code></a> is the full
 grammar and evaluation semantics to implement against, and the conformance
 corpus (<code>corpus/cases/</code> in the repository — template + context + expected
-output triples) is what both existing implementations are held to; a third
-implementation should be checked against the same corpus.</p>
+output triples) is what the five existing implementations are held to; a
+new implementation should be checked against the same corpus.</p>
 <p><strong>(b) Partial implementation, starting from <code>tramaj-cli</code>’s output.</strong> For
 most hosts this is the pragmatic choice: don’t reimplement the parser or
 evaluator at all. Shell out to <code>tramaj-cli</code>:</p>
@@ -191,8 +226,7 @@ static-analysis facts from <a href="/tramaj/properties.html">Properties</a> rath
 rendered document.</p>
 <p>This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.</p>
-<p>A native Python implementation specifically is wanted — see the
-<a href="/tramaj/roadmap.html">Roadmap</a> for what that would mean and where to start if you
-want to build one. (Rust and JavaScript now have one each: <code>tramaj-rs</code> and
-<code>tramaj-js</code>, above.)</p>
+<p>See the <a href="/tramaj/roadmap.html">Roadmap</a> for what a new implementation needs to
+cover and where to start if you want to build one; Rust, JavaScript and
+Python each have one now (<code>tramaj-rs</code>, <code>tramaj-js</code> and <code>tramaj-py</code>, above).</p>
 </section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

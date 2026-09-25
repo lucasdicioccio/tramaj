@@ -1,0 +1,7 @@
+# Changelog: tramaj-hs
+
+Release history of `tramaj-hs`, the Haskell implementation, also the engine behind Kitchen-Sink's templating sections. Releases happen when there are major changes rather than on a schedule; each entry below is one version. Every implementation has its own page like this one, and each page is tagged so the site builds one Atom feed per implementation: #changelog #haskell #tramaj-hs
+
+
+
+

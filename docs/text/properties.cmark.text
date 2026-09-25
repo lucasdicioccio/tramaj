@@ -8,7 +8,7 @@ The whole language is one expression grammar: bindings, HAML-like elements, `jq`
 
 ## Portable at the boundary
 
-Evaluation produces a generic `Node` AST with a normative JSON encoding ([`node-json.md`](/reference-node-json.html )): scalars stay scalars, and an element may carry many opaque, structured actions rather than being tied to one host's event model. That boundary is what lets two independent implementations — a PureScript one and a Haskell one — target the same grammar and share a conformance corpus, and it's what lets a host system receive a rendered document as data rather than as a blob of host-specific markup.
+Evaluation produces a generic `Node` AST with a normative JSON encoding ([`node-json.md`](/reference-node-json.html )): scalars stay scalars, and an element may carry many opaque, structured actions rather than being tied to one host's event model. That boundary is what lets five independent implementations — PureScript, Haskell, Rust, TypeScript and Python — target the same grammar and share a conformance corpus, and it's what lets a host system receive a rendered document as data rather than as a blob of host-specific markup.
 
 ## Cheap to analyze statically
 

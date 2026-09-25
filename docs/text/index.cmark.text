@@ -37,11 +37,11 @@ Go straight to [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/b
 
 - [**Getting started**](/howto-humans.html ) — install the toolchain, write and run a first template.
 
-- [**Integrating tramaj**](/integrate-tramaj.html ) — embedding it as a library in PureScript, Haskell, JavaScript, or anything else.
+- [**Integrating tramaj**](/integrate-tramaj.html ) — embedding it as a library in PureScript, Haskell, Rust, JavaScript, Python, or anything else.
 
 - [**For coding agents**](/howto-agents.html ) — a dense syntax cheatsheet and fetch strategy for an LLM emitting tramaj templates.
 
-- [**Roadmap**](/roadmap.html ) — where the implementations stand, and the native JS, Python, and Rust implementations that are wanted next.
+- [**Roadmap**](/roadmap.html ) — where the five implementations stand, and the folds and registry releases that are wanted next.
 
 
 ```html

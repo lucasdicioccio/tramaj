@@ -153,7 +153,7 @@ Three leader characters: `.` builds a document, `$` reads a name, `@` defines on
 <tr><td><code>$lib.vals.fn(1)</code></td><td>the callee may be a dotted path</td></tr>
 <tr><td><code>f(x).rendered</code></td><td>field access on a call's result</td></tr>
 <tr><td><code>"text"</code>, <code>"n: `$x`"</code></td><td>string literal, backtick interpolation</td></tr>
-<tr><td><code>123</code>, <code>1.5</code></td><td>number literal — <strong>no</strong> leading <code>-</code> and <strong>no</strong> exponent</td></tr>
+<tr><td><code>123</code>, <code>-1.5</code>, <code>1e5</code>, <code>1_000_000</code></td><td>number literal; see <em>Number literals</em> below</td></tr>
 <tr><td><code>true</code>, <code>false</code>, <code>null</code></td><td>keyword literals</td></tr>
 <tr><td><code>[a, b]</code></td><td>array literal</td></tr>
 <tr><td><code>{"k": v}</code>, <code>{k: v}</code>, <code>{foo}</code></td><td>object literal; keys may be bare; <code>{foo}</code> is shorthand for <code>{"foo": $foo}</code></td></tr>
@@ -177,6 +177,24 @@ Names — bindings, path segments, tags, bare keys — start with a letter and m
 **Comments.** `--` begins a comment that runs to the end of the line. There is no block form and no nesting, so a comment cannot be left unterminated and a second `--` inside one is simply more comment. A comment is legal wherever a space is — above the bindings, trailing one, between an element's arguments, after the root — and is discarded together with the whitespace around it, so it reaches neither the core AST nor §9's analyses. Inside a string literal `--` is ordinary text: a string body is read character by character and never passes through this rule.
 
 Being whitespace, a comment does not join the lines it sits between: `f() -- note` followed by `.div(...)` on the next line is two separate things, exactly as the uncommented version is.
+
+**Number literals.**
+
+```
+number = ["-"] digits ["." digits] [("e" | "E") ["+" | "-"] digits]
+digits = digit { ["_"] digit }
+```
+
+- The `-` is part of the literal, not an operator (there is no arithmetic, §11), so it must touch the first digit: `- 1` is a parse error, and so is a leading `+`. `--1` is a comment, like any other `--`.
+
+- A `_` separates digits for readability and means nothing: `1_000_000` is `1000000`. It is allowed only _between two digits_ — `1_`, `1__0`, `1_.5`, `1._5` and `1e_5` are all parse errors — and may appear in the integer, fraction and exponent parts alike (`0.000_001`, `1e1_0`).
+
+- Both parts around a `.` need at least one digit: `.5` and `5.` are not numbers.
+
+- The literal denotes the double nearest to its decimal value (round to nearest, ties to even). A literal too large for a double (`1e400`) is a parse error rather than an infinity; one too small rounds to zero.
+
+- There is no negative zero: a literal that denotes zero is `0` whatever its sign, so `-0` and `-1e-400` both evaluate to `0`.
+
 
 **Attribute position before children.** Attributes, `action(...)` and `value(...)` must all precede any child; a child first is a parse error.
 
@@ -430,8 +448,6 @@ Programs must not depend on any of these.
 - Destructuring (§8).
 
 - Calling a call's result directly (§7).
-
-- Negative and exponent number literals — `-1` and `1e5` are parse errors today. With no arithmetic in the language (§11) there is no way to write such a value inline at all; it has to arrive through `$ctx` or a library.
 
 - Types, domains and constraints. The AST is built to accept them: node annotations are where derived type/domain information goes, and the semantics avoid equating "unknown" with `null`, so a constraint-aware evaluator can reuse this AST rather than forking the language. The symbolic and constraint half of that is specified in [`v3-symbols.md`](/reference-v3-symbols.html ) and implemented in both hosts; nominal types are specified in [`v4-types.md`](/reference-v4-types.html ) — still a draft, not frozen, but implemented in both hosts through roadmap-to-v4 Phase 15 (tooling included: both the CLI and the browser playground surface the `"types"`/`"type-constraints"` envelope fields). v4 shipped as a **minor** bump — `type X = ...` declarations and `@x : T = e` annotations both fit inside the existing `Let`/`Emit` chain, so `Program`'s own shape (`DocumentProgram | ExpressionProgram`) never changed and no host that pattern-matches it is affected (roadmap-to-v4 Phase 15's version decision).
 
