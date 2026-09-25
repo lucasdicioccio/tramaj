@@ -48,7 +48,7 @@ import Data.String.CodeUnits (toCharArray)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Halogen.HTML (ComponentHTML, ElemName(..))
+import Halogen.HTML (ComponentHTML, ElemName(..), Namespace(..))
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
@@ -78,15 +78,40 @@ import Web.HTML.Common (AttrName(..))
 -- | them, so a template can produce a name the DOM rejects, throwing
 -- | mid-render. Call `validateAttrNames` first and handle a non-empty
 -- | result rather than folding straight through.
+-- |
+-- | An `svg` element and its descendants are built in the SVG namespace so
+-- | they actually paint (see `foldIn`).
 foldToHalogen
   :: forall action slots m
    . (String -> String -> Json -> Maybe action)
   -> Node
   -> Array (ComponentHTML action slots m)
-foldToHalogen _ (NText value _) = [ renderTextValue value ]
-foldToHalogen dispatch (NElement tag attrs value children _) =
-  [ HH.element (ElemName tag) (attrProps <> actionProps) childNodes ]
+foldToHalogen = foldIn false
+
+-- | The fold proper, tracking whether the node sits inside an `<svg>`
+-- | subtree. `svg`, and everything below it, is created in the SVG
+-- | namespace (`document.createElementNS`) rather than the HTML one:
+-- | `createElement "rect"` yields an `HTMLUnknownElement` that paints
+-- | nothing. `foreignObject` is itself an SVG element but switches its
+-- | children back to HTML, as the SVG spec says. Attributes are unaffected
+-- | (`viewBox`, `d`, `fill` are plain attributes, set through `HP.attr`).
+foldIn
+  :: forall action slots m
+   . Boolean
+  -> (String -> String -> Json -> Maybe action)
+  -> Node
+  -> Array (ComponentHTML action slots m)
+foldIn _ _ (NText value _) = [ renderTextValue value ]
+foldIn inSvg dispatch (NElement tag attrs value children _) =
+  [ mkElement (ElemName tag) (attrProps <> actionProps) childNodes ]
   where
+  isSvg = inSvg || tag == "svg"
+
+  mkElement =
+    if isSvg then HH.elementNS svgNamespace else HH.element
+
+  childrenInSvg = isSvg && tag /= "foreignObject"
+
   attrProps = Array.mapMaybe attrProp attrs
 
   attrProp (NAttr name v) = Just (HP.attr (AttrName name) (renderScalar v))
@@ -99,7 +124,7 @@ foldToHalogen dispatch (NElement tag attrs value children _) =
     Nothing -> Nothing
   actionProp _ = Nothing
 
-  folded = Array.concatMap (foldToHalogen dispatch) children
+  folded = Array.concatMap (foldIn childrenInSvg dispatch) children
 
   -- An element with a value slot and no children renders that value as its
   -- text content: in a DOM host there is nowhere else for it to go, and
@@ -108,8 +133,11 @@ foldToHalogen dispatch (NElement tag attrs value children _) =
   childNodes =
     if Array.null folded && not (isNull value) then [ renderTextValue value ]
     else folded
-foldToHalogen dispatch (NFragment children _) =
-  Array.concatMap (foldToHalogen dispatch) children
+foldIn inSvg dispatch (NFragment children _) =
+  Array.concatMap (foldIn inSvg dispatch) children
+
+svgNamespace :: Namespace
+svgNamespace = Namespace "http://www.w3.org/2000/svg"
 
 -- | A text-position value (a text child, or an element's value slot
 -- | rendered as text): a symbol renders in `<code>`, set apart from
