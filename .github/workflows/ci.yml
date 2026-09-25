@@ -85,3 +85,26 @@ jobs:
 
       - name: Test
         run: cabal test unit
+
+  python:
+    name: Python (tramaj-py)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Standard library only: no install step. The corpus runner walks up
+      # from tramaj-py/tests to the repository's corpus/cases.
+      - name: Test
+        run: python3 -m unittest discover -s tests
+        working-directory: tramaj-py
+
+      - name: Render a template
+        run: |
+          printf '@n=cardinality($ctx.items)\n.p("there are `$n` item(s)")' > /tmp/t.tramaj
+          printf '{"items":["a","b","c"]}' > /tmp/t.json
+          python3 -m tramaj /tmp/t.tramaj /tmp/t.json
+        working-directory: tramaj-py
