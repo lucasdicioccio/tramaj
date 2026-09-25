@@ -1,0 +1,62 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-09-25T08:00:00Z"
+,"title": "Changelog: tramaj-py"
+}
+
+=base:topic.json
+{"topics":["changelog"]
+,"keywords":["changelog", "Python", "tramaj-py", "release notes"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+Release history of `tramaj-py`, the Python implementation, standard library only.
+
+=base:main-content.cmark
+
+# Changelog: tramaj-py
+
+Release history of `tramaj-py`, the Python implementation, standard library only. Releases happen when there are
+major changes rather than on a schedule; each entry below is one version.
+Every implementation has its own page like this one, and each page is
+tagged so the site builds one Atom feed per implementation:
+#changelog #python #tramaj-py
+
+=base:main-content.tramaj-doc
+@version=import("changelog/version", {"package": "tramaj-py"})
+.div(class: "changelog",
+  $version({
+      "version": "0.1.0",
+      "date": "unreleased",
+      "summary": "Python port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a python -m tramaj CLI. Standard library only, Python 3.9+.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Hand-written port checked against \`corpus/cases\` by \`tests/test_corpus.py\`: every case passes in both modes."
+          }
+      ]
+  }).rendered)
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/changelog.css\";"
+  ]
+}

@@ -5,7 +5,7 @@
 
 =base:preamble.json
 {"author": "Lucas DiCioccio"
-,"date": "2026-09-10T01:00:00Z"
+,"date": "2026-09-25T12:00:00Z"
 ,"title": "Roadmap"
 }
 
@@ -22,7 +22,7 @@
 }
 
 =base:summary.cmark
-Two implementations exist today, in PureScript and Haskell. Native JS, Python, and Rust implementations are desired next.
+Five implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript and Python, all held to one conformance corpus. What is wanted next is folds and registry releases.
 
 =base:main-content.cmark
 
@@ -37,52 +37,61 @@ next.
 
 ## Where things stand today
 
-Two independent implementations target the same grammar and are checked
+Five independent implementations target the same grammar and are checked
 against a shared, language-neutral
 [conformance corpus](https://github.com/lucasdicioccio/tramaj/tree/main/corpus) —
 template/context/expected-output triples that both must reproduce
 byte-for-byte, per case, in both `concrete` and `symbolic` evaluation modes.
-That's a deliberately strong bar: a case belongs in the corpus only if two
+That's a deliberately strong bar: a case belongs in the corpus only if
 independently written implementations can run it identically.
 
 <table>
 <tr><th>Implementation</th><th>Language</th><th>Status</th></tr>
-<tr><td><code>tramaj</code></td><td>PureScript</td><td>reference implementation, checked against the corpus</td></tr>
+<tr><td><code>tramaj</code></td><td>PureScript</td><td>reference implementation, checked against the corpus; <code>tramaj-halogen</code> folds to Halogen, <code>tramaj-cli</code> is its CLI</td></tr>
 <tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>independent port, checked against the same corpus</td></tr>
+<tr><td><code>tramaj-rs</code></td><td>Rust</td><td>independent port, checked against the same corpus; <code>tramaj-cli-rs</code> is its CLI</td></tr>
+<tr><td><code>tramaj-js</code></td><td>JavaScript / TypeScript</td><td>independent port, checked against the same corpus; <code>tramaj-react</code> folds to React</td></tr>
+<tr><td><code>tramaj-py</code></td><td>Python</td><td>independent port on the standard library alone, checked against the same corpus; <code>python -m tramaj</code> is its CLI</td></tr>
 </table>
 
-Neither is published to a package registry yet (see the README's
-"Publishing" section) — both are used today as workspace/source
-dependencies. See [Integrating tramaj](/integrate-tramaj.html) for what's
+None is published to a package registry yet (see the README's
+"Publishing" section) — all are used today as workspace, source or git
+dependencies. Each has its own [changelog](/topics/changelog.html) page and
+Atom feed. See [Integrating tramaj](/integrate-tramaj.html) for what's
 actually usable from each right now, including the fold each one does or
 doesn't ship.
 
-## Desired: native implementations for JS, Python, and Rust
+## The native-implementation wish list is done
 
-For a host in JavaScript, Python, or Rust, [Integrating tramaj](/integrate-tramaj.html)
-currently recommends shelling out to `tramaj-cli` and writing a fold over
-its JSON output — a real, usable path, but a subprocess boundary rather
-than a native library. A native implementation in each of these languages
-is desired, so that hosts in these ecosystems get the same thing PureScript
-and Haskell hosts already have: an in-process parser and evaluator, with no
-subprocess and no JSON round-trip required just to get a `Node`.
+Earlier versions of this page asked for native JavaScript, Python and Rust
+implementations, so that hosts in those ecosystems would get what
+PureScript and Haskell hosts already had: an in-process parser and
+evaluator, with no subprocess and no JSON round-trip just to get a `Node`.
+All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each
+passes the full corpus in both modes, v3 and v4 extensions included.
 
-<table>
-<tr><th>Language</th><th>Why it's wanted</th></tr>
-<tr><td>JavaScript / TypeScript</td><td>an installable npm package usable directly in a browser or Node host, in place of shelling out to <code>tramaj-cli</code> or compiling a PureScript wrapper</td></tr>
-<tr><td>Python</td><td>native use from data pipelines, notebooks, and backend services already written in Python, without a Node/PureScript toolchain as a runtime dependency</td></tr>
-<tr><td>Rust</td><td>a dependency-light, embeddable core for performance-sensitive or WASM-targeted hosts</td></tr>
-</table>
+## Desired next: folds, and releases
 
-None of these exist yet — this is a wishlist, not a schedule. There's no
-committed timeline or assigned owner for any of the three.
+- **Folds.** Only PureScript (`tramaj-halogen`) and JavaScript
+  (`tramaj-react`) ship a fold to a rendering target. A DOM fold for JS, a
+  fold to a common Python templating output, and a fold for at least one
+  Haskell or Rust UI or markup library are the obvious next pieces.
+- **Registry releases.** The crates.io, npm and PyPI packages are ready to
+  publish but not published; the PureScript registry and Hackage are
+  deliberately deferred until the API has settled. Releases happen when
+  there are major changes, and each package's version tracks the language
+  version it implements in its major digit.
+
+This is a wish list, not a schedule: there's no committed timeline or
+assigned owner for any of it.
 
 ## What "done" looks like for a new implementation
 
-`tramaj-hs` is the template to follow, since it's the one implementation
-that was added *after* the language had already settled on a normative
-spec and output format. A new implementation is considered on par with the
-existing two once it:
+`tramaj-hs`, `tramaj-rs`, `tramaj-js` and `tramaj-py` are the templates to
+follow, since they were added *after* the language had settled on a
+normative spec and output format (`tramaj-py` is the smallest: one module
+per concern, standard library only). A new implementation is considered on
+par with the existing ones once it:
 
 - implements the grammar and evaluation rules in
   [`reference.md`](/reference-language.html), including the static
@@ -109,9 +118,9 @@ considered complete while targeting only the v2 core.
 
 If you're taking on one of these, the corpus is the fastest way to find out
 what you got wrong: it's meant to be run against a from-scratch
-implementation just as it's run against the two that exist, and a case
-that byte-for-byte matches both `tramaj` and `tramaj-hs` today is a strong
-signal your evaluation semantics agree with theirs. Open an issue on the
+implementation just as it's run against the five that exist, and a case
+that byte-for-byte matches all of them today is a strong signal your
+evaluation semantics agree with theirs. Open an issue on the
 [repository](https://github.com/lucasdicioccio/tramaj) before investing
 heavily in one — coordinating on which language is being worked on avoids
 duplicate effort.
