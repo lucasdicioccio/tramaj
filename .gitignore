@@ -49,3 +49,7 @@ target/
 agents-logfile
 agents/memory.db-shm
 conv.*.json
+
+# Python
+__pycache__/
+*.pyc
