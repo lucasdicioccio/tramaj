@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tramaj"
+version = "0.1.0"
+description = "Python port of the Tramaj language: parser, evaluator (concrete and symbolic modes), normative Node JSON, and static analysis. Standard library only."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Lucas DiCioccio" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Text Processing :: Markup",
+]
+
+[project.urls]
+Homepage = "https://github.com/lucasdicioccio/tramaj"
+Repository = "https://github.com/lucasdicioccio/tramaj"
+
+[project.scripts]
+tramaj-py = "tramaj.__main__:main"
+
+[tool.setuptools]
+packages = ["tramaj"]

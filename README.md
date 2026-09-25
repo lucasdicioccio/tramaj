@@ -100,6 +100,7 @@ what replaced it.
 | [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
 | [`tramaj-hs/`](tramaj-hs) | Haskell | The same five modules on megaparsec + aeson, for evaluating server-side. No browser runtime. |
+| [`tramaj-py/`](tramaj-py) | Python | The same modules on the standard library alone, plus a `python -m tramaj` CLI. No dependencies. |
 
 `tramaj-halogen` is a separate package precisely so that `tramaj` itself
 never pulls in Halogen; that is what lets `tramaj-cli` (and any other
