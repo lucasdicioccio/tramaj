@@ -108,9 +108,9 @@ the host’s decision.&lt;/p&gt;
 &lt;p&gt;Evaluation produces a generic &lt;code&gt;Node&lt;/code&gt; AST with a normative JSON encoding
 (&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;): scalars stay scalars, and an
 element may carry many opaque, structured actions rather than being tied to
-one host’s event model. That boundary is what lets two independent
-implementations — a PureScript one and a Haskell one — target the same
-grammar and share a conformance corpus, and it’s what lets a host system
+one host’s event model. That boundary is what lets five independent
+implementations — PureScript, Haskell, Rust, TypeScript and Python — target
+the same grammar and share a conformance corpus, and it’s what lets a host system
 receive a rendered document as data rather than as a blob of host-specific
 markup.&lt;/p&gt;
 &lt;h3 id="cheap-to-analyze-statically"&gt;Cheap to analyze statically&lt;/h3&gt;
