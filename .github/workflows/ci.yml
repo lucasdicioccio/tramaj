@@ -1,13 +1,19 @@
 name: CI
 
+# Automatic runs are switched off for now to save GitHub Actions credit;
+# every job is kept so it can be run by hand from the Actions tab
+# ("Run workflow") and re-enabled all at once later by restoring
+#
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   purescript:
-    name: PureScript (templating, templating-halogen, templating-cli, playground)
+    name: PureScript (tramaj, tramaj-halogen, tramaj-cli, playground)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,11 +45,11 @@ jobs:
       - name: Build all packages
         run: spago build
 
-      # The fixture suite lives in `templating`; templating-halogen,
-      # templating-cli and playground have no tests of their own, so
-      # `spago build` above is the only check they get.
+      # The fixture suite lives in `tramaj`; tramaj-halogen, tramaj-cli and
+      # playground have no tests of their own, so `spago build` above is the
+      # only check they get.
       - name: Test
-        run: spago test -p templating
+        run: spago test -p tramaj
 
       - name: Bundle the playground
         run: spago bundle -p tramaj-playground
@@ -51,14 +57,14 @@ jobs:
       - name: Bundle the CLI and render a template
         run: |
           # --outfile is resolved relative to the package directory
-          spago bundle -p templating-cli --platform node \
-            --outfile dist/templating-cli.js
+          spago bundle -p tramaj-cli --platform node \
+            --outfile dist/tramaj-cli.js
           printf '@n=cardinality($ctx.items)\n.p("there are `$n` item(s)")' > /tmp/t.tmpl
           printf '{"items":["a","b","c"]}' > /tmp/t.json
-          node templating-cli/dist/templating-cli.js /tmp/t.tmpl /tmp/t.json
+          node tramaj-cli/dist/tramaj-cli.js /tmp/t.tmpl /tmp/t.json
 
   haskell:
-    name: Haskell (templating-hs)
+    name: Haskell (tramaj-hs)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +86,13 @@ jobs:
       - name: cabal update
         run: cabal update
 
+      # --enable-tests on both steps: without it the solver plans the
+      # library alone and `cabal test` refuses (Cabal-7043).
       - name: Build
-        run: cabal build all
+        run: cabal build all --enable-tests
 
       - name: Test
-        run: cabal test unit
+        run: cabal test unit --enable-tests
 
   python:
     name: Python (tramaj-py)
