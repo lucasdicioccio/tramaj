@@ -182,6 +182,8 @@ one.
 | `[a, b]` | array literal |
 | `{"k": v}`, `{k: v}`, `{foo}` | object literal; keys may be bare; `{foo}` is shorthand for `{"foo": $foo}` |
 | `(x, y) => expr` | lambda |
+| `({a, b: c}, y) => expr` | lambda with an object pattern parameter; see *Binding patterns* in §8 |
+| `@{a, b: c}=expr` | binding with an object pattern; see §8 |
 | `(expr)` | grouping |
 | `-- text` | a comment, to the end of the line |
 | `a <> b` | concat — the only infix operator, left-associative, lowest precedence |
@@ -413,6 +415,8 @@ The parser lowers each of these; none has a core constructor.
 | `branch(f, p1, v1, p2, v2)` | `Branch p1 v1 (Branch p2 v2 f)` |
 | `a <> b <> c` | `Concat (Concat a b) c` |
 | `.div()` | `Element "div" [] NullLit []` |
+| `@{a, b: c}=$x.y` | `Let "a" $x.y.a (Let "c" $x.y.b …)` |
+| `({a}, n) => e` | `Lambda ["#arg0", "n"] (Let "a" $#arg0.a e)` |
 
 Escape sequences:
 
@@ -422,8 +426,29 @@ Escape sequences:
 
 `\u{...}` is braced, so an astral code point needs no surrogate pair.
 
-*Deferred:* destructuring in `let` and lambda parameters. It is pure
-desugaring and needs no change to the core AST.
+**Binding patterns.** An `@` binding or a lambda parameter may be an object
+pattern instead of a name (decisions §17):
+
+```
+pattern ::= name | "{" field { "," field } [","] "}"
+field   ::= name | name ":" pattern
+```
+
+`{title, kind: k, meta: {owner}}` binds `title`, `k` (the field `kind`) and
+`owner`, reading each field the way `$x.title` would: a missing field is
+`PathNotFound`, a non-object is `TypeMismatch`, and extra fields are ignored.
+A path source is read directly, so `@{a} = $ctx.item` is `@a=$ctx.item.a`; any
+other source (a call, a literal) is evaluated once. A pattern parameter takes
+one position, so arity is unchanged. Bindings are made left to right.
+
+These are parse errors: a name bound twice in one pattern, a default
+(`{a = 1}`), a rest element (`{...r}`), an array pattern (`@[a, b]`), an empty
+pattern (`{}`) and an annotation on a pattern (`@{a} : T = e`). The parser
+invents hidden names for the lowering (they start with `#`, which no surface
+name can); they never appear as a symbol's `"binding"` or in a library's
+`.vals`.
+
+*Deferred:* array patterns, defaults and rest (see decisions §17 for why).
 
 ---
 
@@ -554,7 +579,7 @@ Programs must not depend on any of these.
 
 ## 14. Open
 
-- Destructuring (§8).
+- Array patterns, defaults and rest in binding patterns (§8).
 - Calling a call's result directly (§7).
 - Types, domains and constraints. The AST is built to accept them: node
   annotations are where derived type/domain information goes, and the

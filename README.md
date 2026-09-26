@@ -286,8 +286,9 @@ Done:
 Still open:
 
 - revisit the naming and combinators of the primitives;
-- destructuring in `let` and lambda parameters — planned as pure desugaring
-  (`specs/reference.md` §8), so it needs no change to the core AST;
+- array patterns, defaults and rest for the object binding patterns that
+  `let` and lambda parameters now accept (`specs/reference.md` §8,
+  `specs/decisions.md` §17);
 - a shared cross-implementation conformance corpus (see the known gap above);
 - more regression and compatibility tests before anything is called stable.
 

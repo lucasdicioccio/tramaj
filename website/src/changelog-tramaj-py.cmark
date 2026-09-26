@@ -45,6 +45,10 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "Hand-written port checked against \`corpus/cases\` by \`tests/test_corpus.py\`: every case passes in both modes."
+          },
+          {
+              "kind": "added",
+              "text": "Object destructuring patterns in \`@\` bindings and lambda parameters (decisions section 17): a parser lowering to plain \`Let\`/\`Lambda\`, checked by shared corpus cases 100-118."
           }
       ]
   }).rendered)
