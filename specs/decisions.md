@@ -98,6 +98,7 @@ In: string escape sequences (the open `limitations` entry), object shorthand
 
 Deferred: destructuring in `let`/lambda parameters (merged2 §19 calls it planned;
 it is pure desugaring and can land later without touching the core AST).
+Designed in §17 below; not implemented.
 
 ## 8. Smaller calls made from the specs
 
@@ -307,3 +308,84 @@ library still missing a parameter would silently pass as closed. Filling the
 slot with `RVar` is what makes §3's own worked example (`payload=%ctx.p`,
 explicitly shown *with* an unfilled argument) the actual behavior rather than
 an illustration of a case the implementation could not otherwise produce.
+
+## 17. Destructuring binding patterns: object patterns only, pure desugaring
+
+*Status: proposed, for owner review. Nothing here is implemented; `specs/reference.md` §8/§14 keep calling destructuring deferred until a port lands.*
+
+§7 deferred destructuring as "pure desugaring". This section pins down what that
+means, because two facts about the language constrain it. Field access is
+`walkFields`, which reads **objects only** (an array segment is a `TypeMismatch`),
+and the only way to reach an array element is `lookup(container, key, fallback)`,
+whose fallback is mandatory. So a pattern can be faithful to an ordinary `$x.a`
+read for objects, and cannot be for arrays.
+
+**Scope.** Object patterns, in two positions: an `@` binding and a lambda
+parameter (so also the lambdas passed to `map`/`filter`/`scan`/`fold`). Not in
+`import` parameters, not in `value(...)`.
+
+```
+pattern ::= name | "{" field { "," field } "}"
+field   ::= name                 -- reads the field of that name, binds it to that name
+          | name ":" pattern     -- reads the field, binds/destructures it as `pattern`
+
+@{title, kind: k, meta: {owner}} = $ctx.item
+@row=({title, kind}) => .li("`$title` (`$kind`)")
+```
+
+`{name}` is the same shorthand as the object literal's `{foo}`; `{bar: baz}`
+reads field `bar` and binds `baz` (the JS reading, not the object literal's:
+in a literal the right side is an expression, in a pattern it is a pattern).
+`@{` cannot be confused with `@name` since a name starts with a letter.
+
+**Desugaring** (the core AST does not change):
+
+- `@{a, b: c} = e` then `rest` lowers to `Let "a" (e.a) (Let "c" (e.b) rest)`,
+  fields in written order. When `e` is a path (`$ctx.item`), the reads are the
+  extended paths (`$ctx.item.a`), so a missing field raises the same
+  `PathNotFound ["ctx","item","a"]` a hand-written read would, and
+  `contextHoles`/`unsuppliedParams` see the same reads they see today. When `e` is
+  anything else (a call, a literal), it is bound once to a hidden name and the
+  reads go through it.
+- A nested pattern desugars the same way against the sub-path.
+- A lambda `(p1, p2) => body` lowers to `Lambda [h1, h2] body'` where a pattern
+  position gets a hidden parameter name and `body'` is `body` wrapped in the
+  lets above. Arity is unchanged (a pattern takes one position), so arity errors
+  and `map`'s per-element binding are unaffected.
+- Hidden names must not be writable by the surface grammar (a name is letters,
+  digits, `_` and internal `-`); each port picks its own spelling. A hidden
+  binding is never reported as a symbol's `"binding"` (v3-symbols §5.2) and never
+  appears in an error path except through the temp case above.
+
+**Semantics** are exactly those of the reads it lowers to: a field the value
+lacks is `PathNotFound`; a non-object source is `TypeMismatch`; extra fields are
+ignored; a symbol source projects (v3-symbols §1.6), since a projection is a path
+read. Static analyses, node JSON and the v4 `@x : T = e` sugar are untouched.
+An annotation on a pattern (`@{a} : T = e`) is a parse error in this pass.
+Duplicate names within one pattern are a parse error; shadowing an earlier
+binding follows the ordinary `Let` rules.
+
+**Rejected or deferred**
+
+- *A core `LetPattern` constructor.* Would put a change in every port's
+  evaluator, analyses and node model, which is what "desugaring only" avoids.
+- *Array patterns `[x, y]`.* The only element read is `lookup` with a mandatory
+  fallback, so the lowering would silently turn a missing element into a value
+  instead of failing. Wait for an index read that fails like `PathNotFound`.
+- *Defaults `{a = 1}`.* Expressible later as `branch(1, has($s, "a"), $s.a)`, but
+  it needs a decision on whether `null` counts as present.
+- *Rest `{a, ...r}`.* Needs "object without these keys", which no builtin
+  provides.
+- Reserve `=` and `...` inside a pattern as a parse error with a clear message,
+  so defaults and rest stay available later.
+
+**Follow-up once approved:** the parser change in the PureScript reference, then
+`tramaj-hs`, `tramaj-rs`, `tramaj-js` and `tramaj-py`; corpus cases for a bound
+field, a renamed field, a nested pattern, a lambda parameter (also under `map`),
+a missing field, a non-object source, a symbol source, a call as source, a
+duplicate name and a rejected default/rest; then `reference.md` §8/§14 and
+`final-touches.md`.
+
+**Questions for the owner.** (1) Object-only scope, with array patterns waiting
+on a failing index read. (2) `{bar: baz}` as the rename spelling. (3) Annotated
+patterns rejected for now. (4) Reserve default and rest syntax as a parse error.
