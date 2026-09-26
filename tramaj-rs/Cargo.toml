@@ -5,7 +5,10 @@ edition = "2021"
 description = "Rust parser/AST/evaluator for the Tramaj language (specs/reference.md), a hand-written port kept in agreement with tramaj/ and tramaj-hs/ via the shared corpus/ conformance suite."
 authors = ["Lucas DiCioccio <lucas.dicioccio@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/lucasdicioccio/templating-lang"
+repository = "https://github.com/lucasdicioccio/tramaj"
+homepage = "https://github.com/lucasdicioccio/tramaj"
+keywords = ["template", "templating", "parser"]
+categories = ["template-engine", "parser-implementations"]
 
 [lib]
 name = "tramaj_rs"

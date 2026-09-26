@@ -4,6 +4,17 @@
   "private": true,
   "description": "Folds the normative Tramaj Node AST into React elements. The React counterpart of tramaj-halogen.",
   "license": "MIT",
+  "author": "Lucas DiCioccio <lucas.dicioccio@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucasdicioccio/tramaj.git",
+    "directory": "tramaj-react"
+  },
+  "homepage": "https://github.com/lucasdicioccio/tramaj#readme",
+  "bugs": {
+    "url": "https://github.com/lucasdicioccio/tramaj/issues"
+  },
+  "keywords": ["tramaj", "react", "template", "templating"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
