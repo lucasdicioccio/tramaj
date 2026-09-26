@@ -102,8 +102,8 @@ Not v3/v4-specific, but load-bearing context for anyone reading those specs
 looking for gaps: two items were open in the language before symbols or
 types existed and remain untouched by either extension.
 
-- **Destructuring** (§8) — no binding-pattern sugar; every field read is an
-  explicit path.
+- **Destructuring** (§8) — object binding patterns are implemented (decisions
+  §17); array patterns, defaults and rest are still open.
 - **Calling a call's result directly** (§7) — `f(x)(y)` is a parse error;
   a call's result must be bound before it's called again.
 

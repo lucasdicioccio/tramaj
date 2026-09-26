@@ -48,7 +48,7 @@ import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Tramaj.Analysis (symbolSites)
-import Tramaj.Ast (ActionAdaptation, Attribute(..), Expr(..), ParamValue(..), Program, Stmt(..), adaptKey, letBindings, programRoot, unlets)
+import Tramaj.Ast (ActionAdaptation, Attribute(..), Expr(..), ParamValue(..), Program, Stmt(..), adaptKey, isHiddenName, letBindings, programRoot, unlets)
 import Tramaj.Node (Node(..), NodeAttribute(..), mapActions, nodeToJson, noAnnotations)
 import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError, canonicalId, deepTypeConstraints, eraseTypes, programTypeRoots, typeClosure)
 
@@ -560,7 +560,7 @@ evalExpr ctx env = case _ of
   -- `Alloc`/`Demand` (used inline, with no binding) shares the same
   -- minting logic.
   Let name valueExpr body -> do
-    v <- evalBindable ctx env (Just name) valueExpr
+    v <- evalBindable ctx env (if isHiddenName name then Nothing else Just name) valueExpr
     evalExpr ctx (Map.insert name v env) body
 
   StringLit s -> pure (VString s)
@@ -915,7 +915,7 @@ runLibrary ctx name ctxVal =
       libEnv <- foldMEval (bindStep ctx') (initialEnv ctxVal) peeled.statements
       rendered <- evalExpr ctx' libEnv peeled.root
       let
-        bindings = letBindings peeled.statements
+        bindings = Array.filter (not <<< isHiddenName <<< fst) (letBindings peeled.statements)
         vals = Array.mapMaybe (\(Tuple n _) -> Tuple n <$> Map.lookup n libEnv) bindings
       pure (VEnv (Map.fromFoldable [ Tuple "rendered" rendered, Tuple "vals" (VEnv (Map.fromFoldable vals)) ]))
   where

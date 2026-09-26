@@ -563,11 +563,58 @@ impl P {
 
     fn lambda_expr(&mut self) -> PResult<Expr> {
         self.symbol("(")?;
-        let params = self.sep_end_by(",", Self::identifier)?;
+        let params = self.sep_end_by(",", Self::pattern)?;
         self.symbol(")")?;
         self.symbol("=>")?;
         let body = self.expr()?;
-        Ok(Expr::Lambda(params, Box::new(body)))
+        Ok(lower_lambda(params, body))
+    }
+
+    // Binding patterns (`specs/decisions.md` §17) ----------------------------
+
+    /// A binding pattern: a name, or an object pattern `{a, b: c, d: {e}}`.
+    /// Object patterns only; defaults, rest and array patterns are not in the
+    /// grammar, so they are parse errors.
+    fn pattern(&mut self) -> PResult<Pattern> {
+        if let Ok(n) = self.attempt(Self::identifier) {
+            return Ok(Pattern::Name(n));
+        }
+        self.object_pattern()
+    }
+
+    fn object_pattern(&mut self) -> PResult<Pattern> {
+        self.symbol("{")?;
+        let mut fields = vec![self.pattern_field()?];
+        loop {
+            if self.symbol(",").is_err() {
+                break;
+            }
+            match self.attempt(Self::pattern_field) {
+                Ok(f) => fields.push(f),
+                Err(_) => break,
+            }
+        }
+        self.symbol("}")?;
+        let pat = Pattern::Object(fields);
+        let names = pattern_names(&pat);
+        let mut seen = std::collections::HashSet::new();
+        if !names.iter().all(|n| seen.insert(n.clone())) {
+            return Err(self.err("duplicate name in a binding pattern"));
+        }
+        Ok(pat)
+    }
+
+    /// `name` reads that field into a binding of the same name; `name: p`
+    /// reads it and binds or destructures it as `p`.
+    fn pattern_field(&mut self) -> PResult<(String, Pattern)> {
+        let k = self.identifier()?;
+        let sub = self
+            .attempt(|p| {
+                p.symbol(":")?;
+                p.pattern()
+            })
+            .ok();
+        Ok((k.clone(), sub.unwrap_or(Pattern::Name(k))))
     }
 
     fn paren_expr(&mut self) -> PResult<Expr> {
@@ -1205,21 +1252,31 @@ impl P {
     /// `@name=expr` or `@name : T = expr` (`v4-types.md` §7), one per line —
     /// the optional `: T` is what tells `Stmt::Let` and `Stmt::Annotate`
     /// apart.
-    fn binding(&mut self) -> PResult<Stmt> {
+    fn binding(&mut self) -> PResult<Vec<Stmt>> {
         self.char_lit('@')?;
-        let name = self.identifier()?;
-        let annot = self
-            .attempt(|p| {
-                p.symbol(":")?;
-                p.type_expr()
-            })
-            .ok();
-        self.symbol("=")?;
-        let e = self.expr()?;
-        Ok(match annot {
-            Some(t) => Stmt::Annotate(name, t, e),
-            None => Stmt::Let(name, e),
-        })
+        match self.pattern()? {
+            Pattern::Name(name) => {
+                let annot = self
+                    .attempt(|p| {
+                        p.symbol(":")?;
+                        p.type_expr()
+                    })
+                    .ok();
+                self.symbol("=")?;
+                let e = self.expr()?;
+                Ok(vec![match annot {
+                    Some(t) => Stmt::Annotate(name, t, e),
+                    None => Stmt::Let(name, e),
+                }])
+            }
+            pat => {
+                // No annotation on a pattern (decisions §17): a `:` here is
+                // a parse error.
+                self.symbol("=")?;
+                let e = self.expr()?;
+                Ok(bind_pattern(&pat, e))
+            }
+        }
     }
 
     /// `!expr` (`v3-symbols.md` §2.2): the fourth statement leader, joining
@@ -1234,8 +1291,8 @@ impl P {
         self.skip_spaces();
         let mut statements: Vec<Stmt> = Vec::new();
         loop {
-            if let Ok(st) = self.attempt(Self::binding) {
-                statements.push(st);
+            if let Ok(sts) = self.attempt(Self::binding) {
+                statements.extend(sts);
                 continue;
             }
             if let Ok(st) = self.attempt(Self::type_emission) {
@@ -1289,6 +1346,81 @@ enum Stmt {
     TypeDecl(String, TypeExpr),
     Annotate(String, TypeExpr, Expr),
     TypeEmit(String, Vec<TypeConstraintArg>),
+}
+
+/// A binding pattern (`specs/decisions.md` §17).
+enum Pattern {
+    Name(String),
+    Object(Vec<(String, Pattern)>),
+}
+
+fn pattern_names(p: &Pattern) -> Vec<String> {
+    match p {
+        Pattern::Name(n) => vec![n.clone()],
+        Pattern::Object(fields) => fields.iter().flat_map(|(_, p)| pattern_names(p)).collect(),
+    }
+}
+
+/// Lowers `pattern = source` to plain bindings, in written order. A source
+/// that is a path is read directly (`$ctx.item.a`), so errors and static
+/// analyses see the reads a hand-written program would make; anything else
+/// is bound once to the hidden name `#src` first. Hidden names start with
+/// `#`, which no surface name can, and are dropped from a symbol's
+/// `"binding"` and from a library's `.vals` (`is_hidden_name`).
+fn bind_pattern(pat: &Pattern, source: Expr) -> Vec<Stmt> {
+    fn read_field(src: &Expr, k: &str) -> Expr {
+        match src {
+            Expr::Path(root, segs) => {
+                let mut segs = segs.clone();
+                segs.push(k.to_string());
+                Expr::Path(root.clone(), segs)
+            }
+            other => Expr::FieldAccess(Box::new(other.clone()), vec![k.to_string()]),
+        }
+    }
+    fn read_fields(fields: &[(String, Pattern)], src: &Expr) -> Vec<Stmt> {
+        fields
+            .iter()
+            .flat_map(|(k, p)| bind_pattern(p, read_field(src, k)))
+            .collect()
+    }
+    match pat {
+        Pattern::Name(n) => vec![Stmt::Let(n.clone(), source)],
+        Pattern::Object(fields) => match source {
+            Expr::Path(_, _) => read_fields(fields, &source),
+            _ => {
+                let mut out = vec![Stmt::Let("#src".to_string(), source)];
+                out.extend(read_fields(fields, &Expr::Path("#src".to_string(), vec![])));
+                out
+            }
+        },
+    }
+}
+
+/// A pattern parameter becomes a hidden parameter `#argN`; the body is
+/// wrapped in the bindings that read the pattern's names out of it.
+fn lower_lambda(params: Vec<Pattern>, body: Expr) -> Expr {
+    let names: Vec<String> = params
+        .iter()
+        .enumerate()
+        .map(|(i, p)| match p {
+            Pattern::Name(n) => n.clone(),
+            Pattern::Object(_) => format!("#arg{i}"),
+        })
+        .collect();
+    let mut stmts: Vec<Stmt> = Vec::new();
+    for (i, p) in params.iter().enumerate() {
+        if let Pattern::Object(_) = p {
+            stmts.extend(bind_pattern(p, Expr::Path(format!("#arg{i}"), vec![])));
+        }
+    }
+    let mut body = body;
+    for stmt in stmts.into_iter().rev() {
+        if let Stmt::Let(name, value) = stmt {
+            body = Expr::Let(name, Box::new(value), Box::new(body));
+        }
+    }
+    Expr::Lambda(names, Box::new(body))
 }
 
 fn as_scalar_arg(e: Expr) -> TypeConstraintArg {

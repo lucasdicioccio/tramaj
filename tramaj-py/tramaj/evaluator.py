@@ -413,7 +413,7 @@ def _eval_expr(ctx: EvalCtx, env: Env, e: A.Expr) -> Value:
     if t == "Lambda":
         return VClosure(e.params, e.body, dict(env))
     if t == "Let":
-        v = _eval_bindable(ctx, env, e.name, e.value)
+        v = _eval_bindable(ctx, env, None if A.is_hidden_name(e.name) else e.name, e.value)
         env2 = dict(env)
         env2[e.name] = v
         return _eval_expr(ctx, env2, e.body)
@@ -675,7 +675,8 @@ def _run_library(ctx: EvalCtx, name: str, ctx_val: Value) -> Value:
         for stmt in statements:
             if stmt.t in ("Let", "Annotate"):
                 lib_env[stmt.name] = _eval_expr(ctx2, lib_env, stmt.value)
-                binding_names.append(stmt.name)
+                if not A.is_hidden_name(stmt.name):
+                    binding_names.append(stmt.name)
             elif stmt.t == "Emit":
                 ctx2.emissions.constraints.extend(
                     _collect_constraints(_eval_expr(ctx2, lib_env, stmt.constraint))

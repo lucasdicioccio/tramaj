@@ -1,0 +1,5 @@
+{
+  "name": "destructuring in a lambda parameter",
+  "kind": "expression",
+  "mode": "concrete"
+}

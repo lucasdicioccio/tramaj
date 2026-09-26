@@ -7,6 +7,7 @@
 import { symbolSites } from "./analysis.js";
 import {
   adaptKey,
+  isHiddenName,
   unlets,
   type ActionAdaptation,
   type Attribute,
@@ -417,7 +418,7 @@ function evalExpr(ctx: EvalCtx, env: Env, e: Expr): Value {
     // `@name=?(k)` or `@name=?ctx.path` binds the allocation/demand directly to
     // a name, which is what the symbol table's `"binding"` field reports.
     case "Let": {
-      const v = evalBindable(ctx, env, e.name, e.value);
+      const v = evalBindable(ctx, env, isHiddenName(e.name) ? null : e.name, e.value);
       const env2 = new Map(env);
       env2.set(e.name, v);
       return evalExpr(ctx, env2, e.body);
@@ -744,7 +745,7 @@ function runLibrary(ctx: EvalCtx, name: string, ctxVal: Value): Value {
         // `TypeDecl`'s, only guards totality.
         case "Annotate":
           libEnv.set(stmt.name, evalExpr(ctx2, libEnv, stmt.value));
-          bindingNames.push(stmt.name);
+          if (!isHiddenName(stmt.name)) bindingNames.push(stmt.name);
           break;
         // A library's own emissions are collected when a field is read off its
         // import (`v3-symbols.md` §2.3) — which is exactly when this runs.

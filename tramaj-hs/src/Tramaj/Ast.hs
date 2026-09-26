@@ -35,6 +35,7 @@ module Tramaj.Ast
   , stmts
   , unlets
   , letBindings
+  , isHiddenName
   , typeDecls
   , adaptKey
   , subExprs
@@ -43,6 +44,7 @@ module Tramaj.Ast
   ) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 -- | A whole program, distinguished by what its root produces rather than by
 -- what it may contain -- both halves share one expression language.
@@ -356,6 +358,13 @@ letBindings stmts = [(n, e) | stmt <- stmts, Just (n, e) <- [asBinding stmt]]
     asBinding (SLet n e) = Just (n, e)
     asBinding (SAnnotate n _ e) = Just (n, e)
     asBinding _ = Nothing
+
+-- | A name the parser invents when lowering a binding pattern (decisions
+-- \S17): it starts with @#@, which no surface name can. Such a binding is a
+-- lowering detail, so it is never reported as a symbol's @"binding"@ and never
+-- exposed through a library's @.vals@.
+isHiddenName :: Text -> Bool
+isHiddenName = T.isPrefixOf "#"
 
 -- | Just the type declarations of a statement block, in order -- the
 -- analogue of 'letBindings' for the type realm (v4-types \S1.1). This is

@@ -99,7 +99,7 @@ Important findings are stored in `agents/memory.db`, table `findings`, with cate
 ## Open items
 
 - v4: transparent alias, application sugar, possible `Program`-breaking declaration block, type-directed projection, unifying `?`/`%` realms, row polymorphism.
-- Language-level: destructuring, calling a call's result directly `f(x)(y)`, negative/exponent number literals.
+- Language-level: array patterns, defaults and rest in binding patterns, calling a call's result directly `f(x)(y)`, negative/exponent number literals.
 
 ## File authority
 

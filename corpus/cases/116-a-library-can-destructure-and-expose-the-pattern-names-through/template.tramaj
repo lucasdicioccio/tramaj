@@ -1,0 +1,2 @@
+@lib=import("pair", {v: 1})
+{"a": $lib.vals.a, "b": $lib.vals.b}

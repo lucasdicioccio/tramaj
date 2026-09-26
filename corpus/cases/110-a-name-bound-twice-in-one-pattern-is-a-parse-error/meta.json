@@ -1,0 +1,6 @@
+{
+  "name": "a name bound twice in one pattern is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

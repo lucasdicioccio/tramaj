@@ -440,10 +440,45 @@ class _Parser:
 
     def lambda_expr(self) -> A.Expr:
         self.symbol("(")
-        params = self.sep_end_by(",", self.identifier)
+        params = self.sep_end_by(",", self.pattern)
         self.symbol(")")
         self.symbol("=>")
-        return A.Lambda(params, self.expr())
+        return _lower_lambda(params, self.expr())
+
+    # Binding patterns (decisions section 17) ---------------------------------------
+
+    def pattern(self) -> Pattern:
+        """A name, or an object pattern ``{a, b: c, d: {e}}``. Object patterns
+        only: defaults, rest and array patterns are not in the grammar, so they
+        are parse errors."""
+        n = self.attempt(self.identifier)
+        if n is not FAIL:
+            return ("name", n)
+        return self.object_pattern()
+
+    def object_pattern(self) -> Pattern:
+        self.symbol("{")
+        fields = self.sep_end_by(",", self.pattern_field)
+        if not fields:
+            raise self.err("expected a field in a binding pattern")
+        self.symbol("}")
+        pat: Pattern = ("obj", fields)
+        names = _pattern_names(pat)
+        if len(set(names)) != len(names):
+            raise self.err("duplicate name in a binding pattern")
+        return pat
+
+    def pattern_field(self) -> tuple[str, Pattern]:
+        """``name`` binds the field to that name; ``name: p`` binds or
+        destructures it as ``p``."""
+        k = self.identifier()
+
+        def sub_alt() -> Pattern:
+            self.symbol(":")
+            return self.pattern()
+
+        sub = self.attempt(sub_alt)
+        return k, ("name", k) if sub is FAIL else sub
 
     def paren_expr(self) -> A.Expr:
         self.symbol("(")
@@ -916,10 +951,16 @@ class _Parser:
 
     # Programs --------------------------------------------------------------------
 
-    def binding(self) -> A.Stmt:
-        """``@name=expr`` or ``@name : T = expr`` (``v4-types.md`` section 7)."""
+    def binding(self) -> list[A.Stmt]:
+        """``@name=expr``, ``@name : T = expr`` (``v4-types.md`` section 7) or
+        ``@{a, b: c} = expr`` (decisions section 17), which lowers to several
+        statements. An annotation on a pattern is a parse error."""
         self.char_lit("@")
-        name = self.identifier()
+        pat = self.pattern()
+        if pat[0] == "obj":
+            self.symbol("=")
+            return _bind_pattern(pat, self.expr())
+        name = pat[1]
 
         def annot_alt() -> A.TypeExpr:
             self.symbol(":")
@@ -929,8 +970,8 @@ class _Parser:
         self.symbol("=")
         value = self.expr()
         if annot is not FAIL:
-            return A.SAnnotate(name, annot, value)
-        return A.SLet(name, value)
+            return [A.SAnnotate(name, annot, value)]
+        return [A.SLet(name, value)]
 
     def emission_stmt(self) -> A.Expr:
         """``!expr`` (``v3-symbols.md`` section 2.2): a statement position only."""
@@ -943,7 +984,7 @@ class _Parser:
         while True:
             b = self.attempt(self.binding)
             if b is not FAIL:
-                statements.append(b)
+                statements.extend(b)
                 continue
             te = self.attempt(self.type_emission)
             if te is not FAIL:
@@ -977,6 +1018,55 @@ class _Parser:
                 body = A.TypeEmit(stmt.name, stmt.args, body)
         A.number_allocs(body)
         return A.document_program(body) if is_document else A.expression_program(body)
+
+
+# A binding pattern (decisions section 17): ``("name", n)`` or ``("obj", [(field, pattern)])``.
+Pattern = tuple
+
+
+def _pattern_names(pat: Pattern) -> list[str]:
+    if pat[0] == "name":
+        return [pat[1]]
+    return [n for _, p in pat[1] for n in _pattern_names(p)]
+
+
+def _read_field(source: A.Expr, k: str) -> A.Expr:
+    if source.t == "Path":
+        return A.Path(source.root, source.fields + [k])
+    return A.FieldAccess(source, [k])
+
+
+def _bind_pattern(pat: Pattern, source: A.Expr) -> list[A.Stmt]:
+    """Lowers ``pattern = source`` to plain bindings, in written order. A source
+    that is a path is read directly (``$ctx.item.a``), so errors and static
+    analyses see the reads a hand-written program would make; anything else is
+    bound once to the hidden name ``#src`` first. Hidden names start with ``#``,
+    which no surface name can (``A.is_hidden_name``)."""
+    if pat[0] == "name":
+        return [A.SLet(pat[1], source)]
+    out: list[A.Stmt] = []
+    if source.t != "Path":
+        out.append(A.SLet("#src", source))
+        source = A.Path("#src", [])
+    for k, p in pat[1]:
+        out.extend(_bind_pattern(p, _read_field(source, k)))
+    return out
+
+
+def _lower_lambda(params: list[Pattern], body: A.Expr) -> A.Expr:
+    """A pattern parameter becomes a hidden parameter ``#argN``; the body is
+    wrapped in the bindings that read the pattern's names out of it."""
+    names: list[str] = []
+    bound: list[A.Stmt] = []
+    for i, p in enumerate(params):
+        if p[0] == "name":
+            names.append(p[1])
+        else:
+            names.append(f"#arg{i}")
+            bound.extend(_bind_pattern(p, A.Path(f"#arg{i}", [])))
+    for stmt in reversed(bound):
+        body = A.Let(stmt.name, stmt.value, body)
+    return A.Lambda(names, body)
 
 
 def _as_scalar_arg(e: A.Expr) -> A.TypeConstraintArg:

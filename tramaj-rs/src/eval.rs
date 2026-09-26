@@ -586,7 +586,8 @@ fn eval_expr(ctx: &EvalCtx, env: &Env, e: &Expr) -> EResult<Value> {
         // field (v3-symbols §5.2) reports; anything else evaluates exactly
         // as it always has (`eval_bindable`).
         Expr::Let(name, value_expr, body) => {
-            let v = eval_bindable(ctx, env, Some(name.clone()), value_expr)?;
+            let binding = if crate::ast::is_hidden_name(name) { None } else { Some(name.clone()) };
+            let v = eval_bindable(ctx, env, binding, value_expr)?;
             let mut env2 = env.clone();
             env2.insert(name.clone(), v);
             eval_expr(ctx, &env2, body)
@@ -1075,7 +1076,7 @@ fn run_library(ctx: &EvalCtx, name: &str, ctx_val: Value) -> EResult<Value> {
         }
         let rendered = eval_expr(&ctx2, &lib_env, root)?;
         let mut vals = Env::new();
-        for n in binding_names {
+        for n in binding_names.into_iter().filter(|n| !crate::ast::is_hidden_name(n)) {
             vals.insert(n.clone(), lib_env.get(&n).cloned().unwrap());
         }
         let mut out = Env::new();

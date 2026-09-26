@@ -1,0 +1,6 @@
+{
+  "name": "an empty pattern is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error"
+}

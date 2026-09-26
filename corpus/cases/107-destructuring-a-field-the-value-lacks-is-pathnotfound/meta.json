@@ -1,0 +1,7 @@
+{
+  "name": "destructuring a field the value lacks is PathNotFound",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "PathNotFound"
+}

@@ -175,6 +175,21 @@ initialState =
   )
 )"""
         }
+      , { name: "destructuring-demo"
+        , source:
+            """-- Object binding patterns: an @-binding or a lambda parameter may
+-- destructure an object instead of naming it. {title, kind: k} reads the
+-- fields `title` and `kind` (binding the latter as `k`), exactly like
+-- $ctx.task.title; a missing field is PathNotFound, and nested patterns
+-- like {meta: {owner}} reach further in. Defaults, rest and array
+-- patterns are parse errors.
+@{title, kind: k, meta: {owner}} = $ctx.task
+@row=({name, done}) => .li("`$name`: `$done`")
+.div(
+  .p("`$title` (`$k`), owned by `$owner`"),
+  .ul(map($ctx.tasks, $row))
+)"""
+        }
       , { name: "value-demo"
         , source:
             """@item-count=cardinality($ctx.items)
@@ -281,7 +296,7 @@ type Value = document
       -- PathNotFound for the parameter its importer would have supplied.
       -- row-kind is the one the main tab actually reads, through ctx(...);
       -- zone is the one constraints-demo reads, through ?ctx.zone.
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}]}"""
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}]}"""
   , actionLog: []
   , mode: Concrete
   }

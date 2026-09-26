@@ -1,0 +1,5 @@
+{
+  "name": "destructuring renames a field with name: binding",
+  "kind": "expression",
+  "mode": "concrete"
+}

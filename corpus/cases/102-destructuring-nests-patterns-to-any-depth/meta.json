@@ -1,0 +1,5 @@
+{
+  "name": "destructuring nests patterns to any depth",
+  "kind": "expression",
+  "mode": "concrete"
+}

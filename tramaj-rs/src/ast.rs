@@ -357,6 +357,14 @@ pub fn type_decls(stmts: &[Stmt]) -> Vec<(String, TypeExpr)> {
         .collect()
 }
 
+/// A name the parser invents when lowering a binding pattern
+/// (`specs/decisions.md` §17): it starts with `#`, which no surface name
+/// can. Such a binding is a lowering detail, so it is never reported as a
+/// symbol's `"binding"` and never exposed through a library's `.vals`.
+pub fn is_hidden_name(n: &str) -> bool {
+    n.starts_with('#')
+}
+
 /// Just the named bindings of a statement block, in order — what an import
 /// exposes as `.vals`. An annotated binding still binds its name, so it
 /// counts here exactly as a plain `Let` does; only emissions and type

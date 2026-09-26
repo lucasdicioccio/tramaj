@@ -44,13 +44,15 @@ import Data.Array.NonEmpty as NEA
 import Data.Enum (toEnum)
 import Data.Either (Either)
 import Data.Int as Int
-import Data.Maybe (Maybe(..), maybe)
+import Data.Foldable (foldMap)
+import Data.List.NonEmpty as NEL
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Number as Number
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
 import Data.Tuple (Tuple(..))
 import Parsing (ParseError, Parser, fail, runParser)
-import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, skipMany, try)
+import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, sepEndBy1, skipMany, try)
 import Parsing.String (anyChar, char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
@@ -394,11 +396,75 @@ call = try do
 lambdaExpr :: P Expr
 lambdaExpr = try do
   _ <- symbol "("
-  params <- sepEndBy identifier (symbol ",")
+  params <- sepEndBy pattern (symbol ",")
   _ <- symbol ")"
   _ <- symbol "=>"
   body <- defer \_ -> expr
-  pure (Lambda (Array.fromFoldable params) body)
+  pure (lowerLambda (Array.fromFoldable params) body)
+
+-- Binding patterns (decisions §17) ------------------------------------------
+
+-- | A binding pattern: a name, or an object pattern `{a, b: c, d: {e}}`.
+-- | Object patterns only; defaults (`{a = 1}`), rest (`{...r}`) and array
+-- | patterns are deliberately not in the grammar, so they are parse errors.
+data Pattern
+  = PName String
+  | PObject (Array (Tuple String Pattern))
+
+pattern :: P Pattern
+pattern = defer \_ -> (PName <$> identifier) <|> objectPattern
+
+objectPattern :: P Pattern
+objectPattern = do
+  _ <- symbol "{"
+  fields <- sepEndBy1 patternField (symbol ",")
+  _ <- symbol "}"
+  let
+    pat = PObject (Array.fromFoldable (NEL.toList fields))
+    names = patternNames pat
+  if Array.length (Array.nub names) /= Array.length names then fail "duplicate name in a binding pattern"
+  else pure pat
+
+-- | `name` reads that field into a binding of the same name; `name: p`
+-- | reads it and binds or destructures it as `p`.
+patternField :: P (Tuple String Pattern)
+patternField = do
+  k <- identifier
+  sub <- optionMaybe (symbol ":" *> defer \_ -> pattern)
+  pure (Tuple k (fromMaybe (PName k) sub))
+
+patternNames :: Pattern -> Array String
+patternNames (PName n) = [ n ]
+patternNames (PObject fields) = foldMap (\(Tuple _ p) -> patternNames p) fields
+
+-- | Lowers `pattern = source` to plain bindings, in written order. A source
+-- | that is a path is read directly (`$ctx.item.a`), so errors and static
+-- | analyses see the reads a hand-written program would make; anything else
+-- | is bound once to the hidden name `#src` first. Hidden names start with
+-- | `#`, which no surface name can, and are dropped from a symbol's
+-- | `"binding"` and from a library's `.vals` (`isHiddenName`).
+bindPattern :: Pattern -> Expr -> Array Stmt
+bindPattern (PName n) source = [ SLet n source ]
+bindPattern (PObject fields) source = case source of
+  Path _ _ -> readFields source
+  _ -> Array.cons (SLet "#src" source) (readFields (Path "#src" []))
+  where
+  readFields src = Array.concatMap (\(Tuple k p) -> bindPattern p (readField src k)) fields
+
+  readField (Path root segs) k = Path root (Array.snoc segs k)
+  readField other k = FieldAccess other [ k ]
+
+-- | A pattern parameter becomes a hidden parameter `#argN`; the body is
+-- | wrapped in the bindings that read the pattern's names out of it.
+lowerLambda :: Array Pattern -> Expr -> Expr
+lowerLambda params body =
+  Lambda (Array.mapWithIndex paramName params) (stmts (Array.concat (Array.mapWithIndex unpack params)) body)
+  where
+  paramName _ (PName n) = n
+  paramName i (PObject _) = "#arg" <> show i
+
+  unpack _ (PName _) = []
+  unpack i p@(PObject _) = bindPattern p (Path ("#arg" <> show i) [])
 
 -- | Grouping, for readability where `Concat` chains get long. Not a
 -- | semantic construct: the parse tree it produces is the same as the inner
@@ -900,16 +966,23 @@ operand = defer \_ ->
 -- | `@name=expr` or `@name : T = expr` (v4-types §7), one per line. `@`
 -- | leads a binding definition, mirroring `$` leading a binding read; the
 -- | optional `: T` is what tells `SLet` and `SAnnotate` apart.
-binding :: P Stmt
+binding :: P (Array Stmt)
 binding = try do
   _ <- char '@'
-  name <- identifier
-  annot <- optionMaybe (try (symbol ":" *> defer \_ -> typeExpr))
-  _ <- symbol "="
-  e <- defer \_ -> expr
-  pure case annot of
-    Nothing -> SLet name e
-    Just t -> SAnnotate name t e
+  pat <- pattern
+  case pat of
+    PObject _ -> do
+      -- No annotation on a pattern (decisions §17): a `:` here is a parse error.
+      _ <- symbol "="
+      e <- defer \_ -> expr
+      pure (bindPattern pat e)
+    PName name -> do
+      annot <- optionMaybe (try (symbol ":" *> defer \_ -> typeExpr))
+      _ <- symbol "="
+      e <- defer \_ -> expr
+      pure case annot of
+        Nothing -> [ SLet name e ]
+        Just t -> [ SAnnotate name t e ]
 
 -- | `!expr` (v3-symbols §2.2): the fourth statement leader, joining `.`,
 -- | `$` and `@`. A statement position only — it may not appear inside an
@@ -924,8 +997,8 @@ emission = try do
 -- | source wrote them — what `Ast.stmts` rebuilds into the core chain.
 -- | `typeEmission` is tried ahead of `emission` since both share the `!`
 -- | leader.
-statement :: P Stmt
-statement = binding <|> typeEmission <|> (SEmit <$> emission) <|> typeDeclStmt
+statement :: P (Array Stmt)
+statement = binding <|> (pure <$> typeEmission) <|> (pure <<< SEmit <$> emission) <|> (pure <$> typeDeclStmt)
 
 -- | A program is a sequence of statements and a root expression. Which kind
 -- | of program it is follows from the root's own form — a document root is
@@ -941,7 +1014,7 @@ parseProgram input = runParser input program
     root <- expr
     skipSpaces
     eof
-    let programBody = numberAllocs (stmts (Array.fromFoldable statements) root)
+    let programBody = numberAllocs (stmts (Array.concat (Array.fromFoldable statements)) root)
     pure case root of
       Element _ _ _ _ -> DocumentProgram programBody
       Fragment _ -> DocumentProgram programBody
