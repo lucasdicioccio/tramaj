@@ -74,6 +74,14 @@ step. Also adds `concat(a, b, ...)` (variadic array-joining) and
 Purely additive; no existing behavior changed. Ported in lockstep to the
 PureScript `tramaj` package.
 
+Adds object destructuring patterns (`../specs/decisions.md` \S17) in `@`
+bindings and lambda parameters: `@{title, meta: {owner}} = $ctx.item`,
+`({a, b}) => ...`. Purely a parser lowering to plain `Let`/`Lambda`; defaults,
+rest, array patterns, empty patterns, duplicate names and annotated patterns
+are parse errors. Adds `Tramaj.Ast.isHiddenName`: the hidden names the
+lowering invents (`#src`, `#argN`) are never a symbol's `"binding"` and never
+appear in a library's `.vals`.
+
 ## 0.2.0.0
 
 Adds a JSON-producing mode for hosts that want the data half of the language on

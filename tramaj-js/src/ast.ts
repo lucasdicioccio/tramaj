@@ -216,6 +216,16 @@ export function typeDecls(stmts: Stmt[]): Array<[string, TypeExpr]> {
 }
 
 /**
+ * A name the parser invents when lowering a binding pattern (decisions §17):
+ * it starts with `#`, which no surface name can. Such a binding is a lowering
+ * detail, so it is never reported as a symbol's `"binding"` and never exposed
+ * through a library's `.vals`.
+ */
+export function isHiddenName(n: string): boolean {
+  return n.startsWith("#");
+}
+
+/**
  * Just the named bindings of a statement block, in order — what an import
  * exposes as `.vals`. An annotated binding still binds its name.
  */

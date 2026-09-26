@@ -500,6 +500,14 @@ class STypeEmit:
 Stmt = Union[SLet, SEmit, STypeDecl, SAnnotate, STypeEmit]
 
 
+def is_hidden_name(n: str) -> bool:
+    """A name the parser invents when lowering a binding pattern (decisions
+    section 17): it starts with ``#``, which no surface name can. Such a binding
+    is never reported as a symbol's ``"binding"`` and never exposed through a
+    library's ``vals``."""
+    return n.startswith("#")
+
+
 def unlets(e: Expr) -> tuple[list[Stmt], Expr]:
     """Peels the outermost ``Let``/``Emit``/``TypeDecl``/``TypeAnnotate``/``TypeEmit``
     chain back off, stopping at the first non-statement constructor."""

@@ -509,7 +509,7 @@ evalExpr _ env (Lambda params body) = pure (VClosure params body env)
 -- 'evalBindable' rather than special-cased here so a standalone 'Alloc'\/
 -- 'Demand' (used inline, with no binding) shares the same minting logic.
 evalExpr ctx env (Let name valueExpr body) = do
-  v <- evalBindable ctx env (Just name) valueExpr
+  v <- evalBindable ctx env (if isHiddenName name then Nothing else Just name) valueExpr
   evalExpr ctx (Map.insert name v env) body
 evalExpr _ _ (StringLit s) = pure (VString s)
 evalExpr _ _ (NumberLit n) = pure (VNumber (fromFloatDigits n))
@@ -812,7 +812,7 @@ runLibrary ctx name ctxVal
             (statements, root) = unlets (programRoot prog)
         libEnv <- foldlEval (bindStep ctx') (initialEnv ctxVal) statements
         rendered <- evalExpr ctx' libEnv root
-        let bindings = letBindings statements
+        let bindings = filter (not . isHiddenName . fst) (letBindings statements)
         pure (VEnv (Map.fromList [("rendered", rendered), ("vals", VEnv (Map.fromList (map (\(n, _) -> (n, libEnv Map.! n)) bindings)))]))
   where
     bindStep ctx' env (SLet n e) = do

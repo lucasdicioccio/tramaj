@@ -498,10 +498,45 @@ class P {
 
   private lambdaExpr(): Expr {
     this.symbol("(");
-    const params = this.sepEndBy(",", () => this.identifier());
+    const params = this.sepEndBy(",", () => this.pattern());
     this.symbol(")");
     this.symbol("=>");
-    return { t: "Lambda", params, body: this.expr() };
+    return lowerLambda(params, this.expr());
+  }
+
+  // Binding patterns (decisions §17) ------------------------------------------
+
+  /**
+   * A name, or an object pattern `{a, b: c, d: {e}}`. Object patterns only;
+   * defaults (`{a = 1}`), rest (`{...r}`) and array patterns are not in the
+   * grammar, so they are parse errors.
+   */
+  private pattern(): Pattern {
+    const obj = this.attempt(() => this.objectPattern());
+    return this.succeeded(obj) ? obj : { t: "PName", name: this.identifier() };
+  }
+
+  private objectPattern(): Pattern {
+    this.symbol("{");
+    const fields = this.sepEndBy(",", () => this.patternField());
+    if (fields.length === 0) throw this.err("expected a field in a binding pattern");
+    this.symbol("}");
+    const pat: Pattern = { t: "PObject", fields };
+    const names = patternNames(pat);
+    if (new Set(names).size !== names.length) {
+      throw this.err("duplicate name in a binding pattern");
+    }
+    return pat;
+  }
+
+  /** `name` binds the field to itself; `name: p` binds or destructures it as `p`. */
+  private patternField(): [string, Pattern] {
+    const k = this.identifier();
+    const sub = this.attempt(() => {
+      this.symbol(":");
+      return this.pattern();
+    });
+    return [k, this.succeeded(sub) ? sub : { t: "PName", name: k }];
   }
 
   private parenExpr(): Expr {
@@ -1055,19 +1090,28 @@ class P {
 
   // Programs -----------------------------------------------------------------
 
-  /** `@name=expr` or `@name : T = expr` (`v4-types.md` §7). */
-  private binding(): Stmt {
+  /**
+   * `@name=expr`, `@name : T = expr` (`v4-types.md` §7) or `@{pattern} = expr`
+   * (decisions §17), which lowers to several plain bindings. A pattern takes no
+   * annotation.
+   */
+  private binding(): Stmt[] {
     this.charLit("@");
-    const name = this.identifier();
+    const pat = this.pattern();
+    if (pat.t === "PObject") {
+      this.symbol("=");
+      return bindPattern(pat, this.expr());
+    }
+    const name = pat.name;
     const annot = this.attempt(() => {
       this.symbol(":");
       return this.typeExpr();
     });
     this.symbol("=");
     const value = this.expr();
-    return this.succeeded(annot)
-      ? { t: "Annotate", name, type: annot, value }
-      : { t: "Let", name, value };
+    return [
+      this.succeeded(annot) ? { t: "Annotate", name, type: annot, value } : { t: "Let", name, value },
+    ];
   }
 
   /** `!expr` (`v3-symbols.md` §2.2): a statement position only. */
@@ -1082,7 +1126,7 @@ class P {
     for (;;) {
       const b = this.attempt(() => this.binding());
       if (this.succeeded(b)) {
-        statements.push(b);
+        statements.push(...b);
         continue;
       }
       const te = this.attempt(() => this.typeEmission());
@@ -1130,6 +1174,57 @@ class P {
     numberAllocs(body);
     return isDocument ? documentProgram(body) : expressionProgram(body);
   }
+}
+
+type Pattern =
+  | { t: "PName"; name: string }
+  | { t: "PObject"; fields: Array<[string, Pattern]> };
+
+function patternNames(p: Pattern): string[] {
+  return p.t === "PName" ? [p.name] : p.fields.flatMap(([, sub]) => patternNames(sub));
+}
+
+/**
+ * Lowers `pattern = source` to plain bindings, in written order. A source that
+ * is a path is read directly (`$ctx.item.a`), so errors and static analyses see
+ * the reads a hand-written program would make; anything else is bound once to
+ * the hidden name `#src` first (`isHiddenName`).
+ */
+function bindPattern(p: Pattern, source: Expr): Stmt[] {
+  if (p.t === "PName") return [{ t: "Let", name: p.name, value: source }];
+  const readFields = (src: Expr): Stmt[] =>
+    p.fields.flatMap(([k, sub]) => bindPattern(sub, readField(src, k)));
+  if (source.t === "Path") return readFields(source);
+  return [
+    { t: "Let", name: "#src", value: source },
+    ...readFields({ t: "Path", root: "#src", fields: [] }),
+  ];
+}
+
+function readField(src: Expr, k: string): Expr {
+  return src.t === "Path"
+    ? { t: "Path", root: src.root, fields: [...src.fields, k] }
+    : { t: "FieldAccess", target: src, fields: [k] };
+}
+
+/**
+ * A pattern parameter becomes a hidden parameter `#argN`; the body is wrapped in
+ * the bindings that read the pattern's names out of it.
+ */
+function lowerLambda(params: Pattern[], body: Expr): Expr {
+  const lets = params.flatMap((p, i) =>
+    p.t === "PObject" ? bindPattern(p, { t: "Path", root: `#arg${i}`, fields: [] }) : [],
+  );
+  let wrapped = body;
+  for (let i = lets.length - 1; i >= 0; i -= 1) {
+    const l = lets[i] as Extract<Stmt, { t: "Let" }>;
+    wrapped = { t: "Let", name: l.name, value: l.value, body: wrapped };
+  }
+  return {
+    t: "Lambda",
+    params: params.map((p, i) => (p.t === "PName" ? p.name : `#arg${i}`)),
+    body: wrapped,
+  };
 }
 
 function asScalarArg(e: Expr): TypeConstraintArg {
