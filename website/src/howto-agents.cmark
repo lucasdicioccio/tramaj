@@ -140,6 +140,8 @@ AST — no context, no evaluation:
 - which import parameters are still unsupplied
 - (v3/v4) what constraints and symbols/types it introduces
 
+![Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over](/gen/images/agent-loop.dot.png)
+
 `tramaj-cli`'s `analyze` subcommand exposes these directly — see
 [Getting started](/howto-humans.html) for exact invocations. If you're
 generating a template and want to

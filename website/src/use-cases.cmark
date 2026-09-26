@@ -53,6 +53,8 @@ drive a different UI framework by pairing it with a different fold.
 
 ## Documents an LLM can emit and a host can trust
 
+![A template from a model or third party is analyzed statically, checked against host policy, and only then evaluated and folded into the UI](/gen/images/untrusted-template.dot.png)
+
 Because imports, action keys, and context reads are all static positions —
 literal strings, never computed — a host can run the static analyses in
 [`Tramaj.Analysis`](/reference-language.html) over a model-generated template

@@ -1,0 +1,16 @@
+digraph spec_layers {
+  rankdir=BT;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.5, ranksep=0.7];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  core [label="language reference\ncore AST, evaluation, imports,\nactions, builtins", fillcolor="#e8ecfb", color="#3a5fd9"];
+  nj   [label="Node JSON\nwire format of the evaluated Node"];
+  v3   [label="v3 symbols (value realm)\n? allocates a symbol, ! emits a constraint\nSymbolic mode carries both in the output"];
+  v4   [label="v4 types (type realm)\n% leader, type params ride import params\n!type-constraint, erased before evaluation"];
+
+  nj -> core [label="encodes its output"];
+  v3 -> core [label="extends"];
+  v4 -> core [label="extends"];
+  v4 -> v3 [label="separate realm: types are supplied\nby the caller and never left open;\na symbol may stay open in the output", style=dashed];
+}

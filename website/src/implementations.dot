@@ -1,0 +1,38 @@
+digraph implementations {
+  rankdir=TB;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.6, compound=true];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  spec [label="specs/ and corpus/\n(grammar and conformance cases)", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+
+  subgraph cluster_ps { label="PureScript"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    ps   [label="tramaj\n(reference)"];
+    hal  [label="tramaj-halogen\n(fold)"];
+    pcli [label="tramaj-cli"];
+  }
+  subgraph cluster_hs { label="Haskell"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    hs [label="tramaj-hs"];
+  }
+  subgraph cluster_rs { label="Rust"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    rs   [label="tramaj-rs"];
+    rcli [label="tramaj-cli-rs"];
+  }
+  subgraph cluster_js { label="JavaScript / TypeScript"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    js    [label="tramaj-js"];
+    react [label="tramaj-react\n(fold)"];
+  }
+  subgraph cluster_py { label="Python"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    py [label="tramaj-py\n(python -m tramaj)"];
+  }
+
+  spec -> ps [label="each port is\nchecked against\nthe corpus"];
+  spec -> hs;
+  spec -> rs;
+  spec -> js;
+  spec -> py;
+  ps -> hal [label="Node"];
+  ps -> pcli [label="wraps"];
+  rs -> rcli [label="wraps"];
+  js -> react [label="Node"];
+}

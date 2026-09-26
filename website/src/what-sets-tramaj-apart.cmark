@@ -122,17 +122,7 @@ and portability guarantees underneath it.
 Put the three together and a tramaj program has a discoverable interface
 even though it's an executable program:
 
-```
-              ┌──────────────────┐
-              │  tramaj program   │
-              └─────────┬─────────┘
-                         │
-       ┌─────────────────┼─────────────────┐
-       ▼                 ▼                 ▼
-   context holes     imports /         action keys
-   & reads          unsupplied            it can
-                      params               emit
-```
+![The interface of a program, recovered by walking its AST: context holes, imports and unsupplied params, action keys, all before any evaluation](/gen/images/static-interface.dot.png)
 
 None of documents-as-values, static analysis, or restricted languages is
 new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory

@@ -32,6 +32,10 @@ This is a practical walkthrough. For the language's core ideas, see the
 overview on the [home page](/); for the full grammar, see the
 [Reference](/reference.html).
 
+A template can be run in four places, and each section below covers one:
+
+![The same template can go to the playground, to tramaj-cli evaluate, to tramaj-cli analyze (no context needed), or into an embedding host](/gen/images/template-workflow.dot.png)
+
 ## The fastest way in: the playground
 
 Before installing anything, try the [playground](/playground.html) — it runs

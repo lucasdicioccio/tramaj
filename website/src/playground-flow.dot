@@ -1,0 +1,21 @@
+digraph playground_flow {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.6];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  tabs  [label="editor tabs\n(each tab is an importable\nlibrary for the others)", shape=note];
+  ctxin [label="context JSON", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+  subgraph cluster_b { label="your browser (PureScript bundle)"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    parse [label="parse"];
+    ev    [label="evaluate"];
+  }
+  conc [label="finished document"];
+  sym  [label="v3 envelope:\nsymbols and constraints", fillcolor="#fbeee8", color="#c0562f"];
+
+  tabs -> parse;
+  parse -> ev;
+  ctxin -> ev;
+  ev -> conc [label="Symbolic mode off"];
+  ev -> sym [label="Symbolic mode on"];
+}

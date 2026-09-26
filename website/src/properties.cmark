@@ -73,6 +73,14 @@ order is unconstrained outside of binding precedence, so a host is free to
 parallelize or reorder work, but never free to change the answer. This is
 what makes a rendered document reproducible, cacheable, and safe to diff.
 
+## Where the properties sit
+
+Determinism lives in the evaluator, portability in the `Node` JSON boundary
+after it, and everything host-specific (rendering, what an action key does)
+after that boundary, in code the host owns.
+
+![The evaluator is deterministic, Node JSON is the portable boundary, and folds and action handlers belong to the host](/gen/images/node-boundary.dot.png)
+
 ## What this buys you in practice
 
 Put together, these properties mean a host can accept a tramaj template from

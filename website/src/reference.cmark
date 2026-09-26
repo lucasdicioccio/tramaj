@@ -33,6 +33,11 @@ These pages are generated straight from the specs in the
 — the repository is always the canonical source, and may be ahead of what's
 published here.
 
+How the documents relate: the language reference is the base, the Node JSON
+format encodes what it evaluates to, and v3 and v4 each extend it.
+
+![Spec layers: Node JSON encodes the core's output; v3 symbols (value realm) and v4 types (type realm) both extend the core](/gen/images/spec-layers.dot.png)
+
 - [**Language reference**](/reference-language.html) — core AST, values,
   evaluation rules, surface syntax and its desugarings, imports, actions,
   builtins, and what's implementation-defined. Start here.

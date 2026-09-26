@@ -41,6 +41,15 @@ attaches an opaque, structured action to an element — the language
 recognises the syntax but assigns it no meaning, leaving the host to map the
 key onto a real event handler.
 
+The whole pipeline is short. A template is parsed into a `Program`, which
+is evaluated against a JSON context (and, for `import(...)`, a library
+table) into a `Node`; the host folds that `Node` into whatever it renders.
+The dashed branch is what makes tramaj unusual: a program's imports,
+context reads and action keys can be read off the `Program` without
+evaluating it.
+
+![From template source to a rendered document: parse, evaluate against a context, fold; static analysis branches off the Program](/gen/images/eval-pipeline.dot.png)
+
 Go straight to
 [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md)
 on GitHub for the full spec, or explore the site below.

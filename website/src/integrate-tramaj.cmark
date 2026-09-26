@@ -43,6 +43,12 @@ always something *you* write for your host, even where this repository
 already ships one for you. Which of the six paths below applies depends
 only on what language your host is written in.
 
+The implementations and how they relate: one specification and corpus, five
+independently written ports, and the folds and CLIs layered on top of two of
+them.
+
+![The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, and tramaj-py](/gen/images/implementations.dot.png)
+
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
 <tr><td>PureScript</td><td>depend on <code>tramaj</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>

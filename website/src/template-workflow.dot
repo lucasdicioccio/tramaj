@@ -1,0 +1,26 @@
+digraph template_workflow {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.35, ranksep=0.6];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  t    [label="hello.tramaj", shape=note];
+  ctxf [label="context.json", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+  pg   [label="playground\nin the browser,\nnothing sent to a server"];
+  cli  [label="tramaj-cli\nevaluate"];
+  an   [label="tramaj-cli analyze\nimports, actions, holes,\nunsupplied, all", fillcolor="#fbeee8", color="#c0562f"];
+  host [label="embedding host\nlibrary + your fold"];
+  out  [label="Node JSON"];
+  rep  [label="what it imports, emits,\nreads and still needs"];
+  ui   [label="your rendered UI"];
+
+  t -> pg;
+  t -> cli;
+  t -> an [label="no context needed"];
+  t -> host;
+  ctxf -> cli;
+  ctxf -> host;
+  cli -> out;
+  an -> rep;
+  host -> ui;
+}

@@ -1,0 +1,18 @@
+digraph agent_loop {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.6];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  llm  [label="agent drafts a template\nfrom the cheatsheet", fillcolor="#e8ecfb", color="#3a5fd9"];
+  an   [label="tramaj-cli analyze all\n(no context, no evaluation)", fillcolor="#fbeee8", color="#c0562f"];
+  chk  [label="interface as asked?\nimports, actions,\nctx holes, unsupplied", shape=diamond];
+  fix  [label="revise the template"];
+  ship [label="hand over to the host"];
+
+  llm -> an;
+  an -> chk;
+  chk -> fix [label="no"];
+  fix -> an [style=dashed];
+  chk -> ship [label="yes"];
+}

@@ -54,6 +54,8 @@ independently written implementations can run it identically.
 <tr><td><code>tramaj-py</code></td><td>Python</td><td>independent port on the standard library alone, checked against the same corpus; <code>python -m tramaj</code> is its CLI</td></tr>
 </table>
 
+![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png)
+
 None is published to a package registry yet (see the README's
 "Publishing" section) — all are used today as workspace, source or git
 dependencies. Each has its own [changelog](/topics/changelog.html) page and
