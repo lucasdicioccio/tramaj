@@ -1,0 +1,19 @@
+digraph untrusted_template {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.6];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  gen [label="template from a model\nor a third party", fillcolor="#e8ecfb", color="#3a5fd9"];
+  st  [label="static analysis\nimports, ctx reads,\naction keys"];
+  pol [label="host policy\nallowed imports?\nallowed action keys?", shape=diamond, fillcolor="#fbeee8", color="#c0562f"];
+  rej [label="reject before\nanything runs"];
+  ev  [label="evaluate against\nthe real context"];
+  ui  [label="fold into the UI;\naction keys map to\nhost handlers"];
+
+  gen -> st;
+  st -> pol;
+  pol -> rej [label="outside policy"];
+  pol -> ev [label="within policy"];
+  ev -> ui;
+}

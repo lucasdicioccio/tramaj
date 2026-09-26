@@ -24,7 +24,19 @@ gitignored there — see `scripts/`):
 ./scripts/sync-playground.sh   # bundles playground/ into a static tramaj-playground.* page
 ```
 
-Then run the dev server, which rebuilds on file changes:
+## Diagrams need graphviz
+
+The illustrations are `website/src/*.dot` sources, versioned next to the
+pages that use them. `kitchen-sink produce`/`serve` renders each one with
+graphviz `dot` to `/gen/images/<name>.dot.png`, and pages reference that with
+`![caption](/gen/images/<name>.dot.png)`. **graphviz (`dot`) must be
+installed wherever the site is produced**; the rendered PNGs are produce
+output, only the `.dot` files are source. The output directory needs its
+skeleton (`gen/images`, `images`, `css`, ...) to exist before `produce`.
+
+## Serving
+
+Run the dev server, which rebuilds on file changes:
 
 ```
 kitchen-sink serve --srcDir src --outputDir www --servMode DEV --httpPort 7655

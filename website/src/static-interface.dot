@@ -1,0 +1,21 @@
+digraph static_interface {
+  rankdir=TB;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.55];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  prog [label="tramaj program\n(unmodified AST, never evaluated)", fillcolor="#e8ecfb", color="#3a5fd9"];
+  a1 [label="context holes\nctx(path) literals\ncontextReads"];
+  a2 [label="imports and their params\nunsuppliedParams\n(what is still open)"];
+  a3 [label="action keys\nstaticActionKeys\n(event and key are literals)"];
+  host [label="host decision\naccept, ask for missing inputs,\nor refuse", fillcolor="#fbeee8", color="#c0562f"];
+  ev [label="evaluation\n(only if accepted)"];
+
+  prog -> a1;
+  prog -> a2;
+  prog -> a3;
+  a1 -> host;
+  a2 -> host;
+  a3 -> host;
+  host -> ev [label="accepted"];
+}

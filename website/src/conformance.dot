@@ -1,0 +1,27 @@
+digraph conformance {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.3, ranksep=0.7];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  case [label="corpus case\ntemplate + context\n+ expected output", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+  mode [label="run in both modes\nconcrete and symbolic", shape=oval];
+  i1 [label="tramaj (PureScript)"];
+  i2 [label="tramaj-hs"];
+  i3 [label="tramaj-rs"];
+  i4 [label="tramaj-js"];
+  i5 [label="tramaj-py"];
+  cmp [label="output must equal the\nexpected output\nbyte for byte", fillcolor="#fbeee8", color="#c0562f"];
+
+  case -> mode;
+  mode -> i1;
+  mode -> i2;
+  mode -> i3;
+  mode -> i4;
+  mode -> i5;
+  i1 -> cmp;
+  i2 -> cmp;
+  i3 -> cmp;
+  i4 -> cmp;
+  i5 -> cmp;
+}
