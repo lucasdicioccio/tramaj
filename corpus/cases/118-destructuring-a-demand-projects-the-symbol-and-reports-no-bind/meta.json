@@ -1,0 +1,5 @@
+{
+  "name": "destructuring a demand projects the symbol and reports no binding for the hidden source",
+  "kind": "expression",
+  "mode": "symbolic"
+}

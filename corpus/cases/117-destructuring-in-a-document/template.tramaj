@@ -1,0 +1,2 @@
+@{title} = $ctx.item
+.h1($title)

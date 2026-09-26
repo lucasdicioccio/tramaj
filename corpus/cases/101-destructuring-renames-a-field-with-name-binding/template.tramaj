@@ -1,0 +1,2 @@
+@{title: name, meta: m} = $ctx.item
+{"name": $name, "m": $m}

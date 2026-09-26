@@ -1,0 +1,5 @@
+{
+  "name": "a library can destructure and expose the pattern names through vals",
+  "kind": "expression",
+  "mode": "concrete"
+}

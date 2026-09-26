@@ -1,0 +1,5 @@
+{
+  "name": "destructuring binds the named fields and ignores the rest",
+  "kind": "expression",
+  "mode": "concrete"
+}

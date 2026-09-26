@@ -1,0 +1,5 @@
+{
+  "name": "a pattern parameter takes one position beside plain names",
+  "kind": "expression",
+  "mode": "concrete"
+}

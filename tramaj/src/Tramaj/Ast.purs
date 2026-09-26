@@ -37,6 +37,7 @@ module Tramaj.Ast
   , stmts
   , unlets
   , letBindings
+  , isHiddenName
   , typeDecls
   , adaptKey
   , subExprs
@@ -48,6 +49,7 @@ import Prelude
 
 import Data.Array as Array
 import Data.Maybe (Maybe(..))
+import Data.String.CodeUnits as Str
 import Data.Tuple (Tuple(..), snd)
 
 -- | A whole program, distinguished by what its root produces rather than
@@ -433,6 +435,13 @@ letBindings = Array.mapMaybe case _ of
   SEmit _ -> Nothing
   STypeDecl _ _ -> Nothing
   STypeEmit _ _ -> Nothing
+
+-- | A name the parser invents when lowering a binding pattern
+-- | (decisions §17): it starts with `#`, which no surface name can. Such a
+-- | binding is a lowering detail, so it is never reported as a symbol's
+-- | `"binding"` and never exposed through a library's `.vals`.
+isHiddenName :: String -> Boolean
+isHiddenName n = Str.take 1 n == "#"
 
 -- | Just the type declarations of a statement block, in order — the
 -- | analogue of `letBindings` for the type realm (v4-types §1.1). This is
