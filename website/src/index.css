@@ -88,3 +88,11 @@ nav.articles-listing:first-of-type >.articles-listing-list {
 .topics-listing-list-topic a:hover {
   color: var(--accent);
 }
+
+/* Generated diagrams (gen/images/*.dot.png): never overflow the column. */
+img[src*="/gen/images/"] {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}

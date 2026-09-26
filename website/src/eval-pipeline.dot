@@ -1,0 +1,24 @@
+digraph eval_pipeline {
+  rankdir=LR;
+  graph [bgcolor="#ffffff", pad=0.3, fontname="Helvetica", nodesep=0.4, ranksep=0.55];
+  node  [shape=box, style="rounded,filled", fillcolor="#f3f1ec", color="#8d867a", fontname="Helvetica", fontsize=12, fontcolor="#1c1b19"];
+  edge  [color="#514d46", fontname="Helvetica", fontsize=10, fontcolor="#514d46"];
+
+  src  [label="template source\n(text)"];
+  prog [label="Program\n(AST)"];
+  ctxt [label="context\n(JSON)", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+  libs [label="library table\n(import targets)", shape=note, fillcolor="#e8ecfb", color="#3a5fd9"];
+  doc  [label="Node\n(document tree)", fillcolor="#e8ecfb", color="#3a5fd9"];
+  json [label="Node JSON\n(normative encoding)"];
+  fold [label="host fold\nHalogen, React, HTML,\nJSON, your own"];
+  ana  [label="static analysis\nimports, actions,\nctx holes", fillcolor="#fbeee8", color="#c0562f"];
+
+  src -> prog [label="parse"];
+  prog -> doc [label="evaluate"];
+  ctxt -> doc;
+  libs -> doc;
+  doc -> json [label="encode"];
+  doc -> fold [label="fold"];
+  prog -> ana [label="walk the AST,\nno evaluation", style=dashed, color="#c0562f", fontcolor="#c0562f"];
+  {rank=same; ctxt; libs}
+}
