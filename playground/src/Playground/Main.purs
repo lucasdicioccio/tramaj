@@ -149,6 +149,32 @@ initialState =
 )
 """
         }
+      , { name: "svg-demo"
+        , source:
+            """-- An <svg> subtree is folded in the SVG namespace (createElementNS), so
+-- svg, g, rect, text and line paint like the HTML around them. Attributes
+-- are plain attributes: viewBox, x, y, width, height, fill. The language
+-- has no arithmetic, so the geometry of each bar comes from $ctx.bars;
+-- edit the numbers in the JSON context on the left and watch it redraw.
+-- foreignObject is the way back into HTML inside an svg.
+@bar=(b) =>
+  .g(
+    .rect(x: $b.x, y: $b.y, width: $b.width, height: $b.height, fill: $b.fill),
+    .text(x: $b.labelX, y: 228, "text-anchor": "middle", "font-size": 12, "`$b.label`")
+  )
+.div(
+  .p("`cardinality($ctx.bars)` bar(s)"),
+  .svg(
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 420 240",
+    width: 420,
+    height: 240,
+    .line(x1: 20, y1: 210, x2: 400, y2: 210, stroke: "currentColor"),
+    map($ctx.bars, $bar),
+    .foreignObject(x: 250, y: 10, width: 160, height: 40, .p("an HTML paragraph inside the svg"))
+  )
+)"""
+        }
       , { name: "value-demo"
         , source:
             """@item-count=cardinality($ctx.items)
@@ -255,7 +281,7 @@ type Value = document
       -- PathNotFound for the parameter its importer would have supplied.
       -- row-kind is the one the main tab actually reads, through ctx(...);
       -- zone is the one constraints-demo reads, through ?ctx.zone.
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu"}"""
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}]}"""
   , actionLog: []
   , mode: Concrete
   }
