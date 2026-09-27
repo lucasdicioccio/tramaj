@@ -95,14 +95,14 @@ what replaced it.
 
 | Package | Language | What it is |
 |---|---|---|
-| [`tramaj/`](tramaj) | PureScript | The core: `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`. No DOM, no Halogen — usable from any host. |
+| [`tramaj/`](tramaj) | PureScript | The core (package name `tramaj-purs`): `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`. No DOM, no Halogen — usable from any host. |
 | [`tramaj-halogen/`](tramaj-halogen) | PureScript | `Tramaj.Halogen.foldToHalogen` — folds an evaluated `Node` into `Halogen.HTML`, wiring each `action(...)` to the host's own `Action` type. Returns an *array*, since a fragment is several siblings with no wrapper. |
 | [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
 | [`tramaj-hs/`](tramaj-hs) | Haskell | The same five modules on megaparsec + aeson, for evaluating server-side. No browser runtime. |
 | [`tramaj-py/`](tramaj-py) | Python | The same modules on the standard library alone, plus a `python -m tramaj` CLI. No dependencies. |
 
-`tramaj-halogen` is a separate package precisely so that `tramaj` itself
+`tramaj-halogen` is a separate package precisely so that `tramaj-purs` itself
 never pulls in Halogen; that is what lets `tramaj-cli` (and any other
 non-browser host) depend on the core alone.
 
@@ -150,7 +150,7 @@ workspace rooted at this repository, so all commands run from the repo root:
 
 ```bash
 spago build                 # all four packages
-spago test -p tramaj        # the fixture suite
+spago test -p tramaj-purs   # the fixture suite
 spago run  -p tramaj-cli --args "template.txt context.json"
 spago run  -p tramaj-cli --args "--lib greeter=greeter.txt template.txt context.json"
 ```
@@ -241,7 +241,7 @@ Spago, in your `spago.yaml` — note the `subdir`, since this is a mono-repo:
 ```yaml
 workspace:
   extraPackages:
-    tramaj:
+    tramaj-purs:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
       ref: v0.1.0
       subdir: tramaj
@@ -295,9 +295,12 @@ Still open:
 
 ## Publishing
 
-Not on the PureScript registry or Hackage yet. Doing so needs a `publish:` block
-(license, location, version) in each `spago.yaml` and a commitment to semver;
-that is deliberately deferred until the API has settled.
+Not on the PureScript registry or Hackage yet, but prepped: `tramaj/spago.yaml`
+(package `tramaj-purs`) and `tramaj-halogen/spago.yaml` each carry a `publish:`
+block (license, location, version), and `tramaj-hs` has a clean `cabal check`
+and a built sdist. The actual registry submission (`spago publish` from a
+tagged commit) and `cabal upload` are deliberate one-way, live actions left
+for a human to run.
 
 ## License
 

@@ -1,8 +1,8 @@
 package:
   name: tramaj-halogen
-  # `tramaj` is the halogen-free parser/eval core this package folds
+  # `tramaj-purs` is the halogen-free parser/eval core this package folds
   # into real Halogen output; it resolves as a workspace-local package
-  # (see the root spago.yaml). Split out of `tramaj` itself on
+  # (see the root spago.yaml). Split out of `tramaj-purs` itself on
   # 2026-07-20 so the core carries no halogen dependency and stays
   # consumable by non-browser hosts such as `tramaj-cli`.
   dependencies:
@@ -15,4 +15,14 @@ package:
     - strings
     - tuples
     - halogen
-    - tramaj
+    - tramaj-purs
+  publish:
+    # Kept in lockstep with the other ports' registry versions
+    # (tramaj-js, tramaj-react, tramaj-rs, tramaj-cli-rs all start at
+    # 0.1.0).
+    version: 0.1.0
+    license: MIT
+    location:
+      githubOwner: lucasdicioccio
+      githubRepo: tramaj
+      subdir: tramaj-halogen

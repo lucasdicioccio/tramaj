@@ -15,7 +15,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import System.Directory (doesDirectoryExist, listDirectory, makeAbsolute)
+import System.Directory (canonicalizePath, doesDirectoryExist, listDirectory)
 import System.FilePath (dropExtension, takeFileName, (</>))
 import Test.Hspec
 import Tramaj.Eval (EvalError, LibraryTable, Mode (..), evalProgram, runProgram)
@@ -57,8 +57,16 @@ findCorpusRoot = go "."
       if found
         then pure candidate
         else do
-          absHere <- makeAbsolute dir
-          absUp <- makeAbsolute (dir </> "..")
+          -- `makeAbsolute` only prepends the cwd and normalises separators;
+          -- it does not collapse `..` segments, so comparing its output
+          -- against one accumulated `..` deeper never converges and this
+          -- loop spun forever once corpus/cases was unreachable (e.g.
+          -- running the test suite from a standalone sdist, which does not
+          -- include the repo-root corpus/ directory). `canonicalizePath`
+          -- resolves `..` (and symlinks) against the real filesystem, so
+          -- `absHere == absUp` actually fires at the real root.
+          absHere <- canonicalizePath dir
+          absUp <- canonicalizePath (dir </> "..")
           if absHere == absUp
             then error "could not locate corpus/cases above the test working directory"
             else go (dir </> "..")

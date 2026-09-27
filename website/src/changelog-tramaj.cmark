@@ -6,12 +6,12 @@
 =base:preamble.json
 {"author": "Lucas DiCioccio"
 ,"date": "2026-09-25T08:00:00Z"
-,"title": "Changelog: tramaj"
+,"title": "Changelog: tramaj-purs"
 }
 
 =base:topic.json
 {"topics":["changelog"]
-,"keywords":["changelog", "PureScript", "tramaj", "release notes"]
+,"keywords":["changelog", "PureScript", "tramaj-purs", "release notes"]
 }
 
 =base:social.json
@@ -22,20 +22,20 @@
 }
 
 =base:summary.cmark
-Release history of `tramaj`, the reference PureScript implementation: parser, evaluator, Node codec and analyses.
+Release history of `tramaj-purs`, the reference PureScript implementation: parser, evaluator, Node codec and analyses.
 
 =base:main-content.cmark
 
-# Changelog: tramaj
+# Changelog: tramaj-purs
 
-Release history of `tramaj`, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are
+Release history of `tramaj-purs`, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are
 major changes rather than on a schedule; each entry below is one version.
 Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
-#changelog #purescript #tramaj
+#changelog #purescript #tramaj-purs
 
 =base:main-content.tramaj-doc
-@version=import("changelog/version", {"package": "tramaj"})
+@version=import("changelog/version", {"package": "tramaj-purs"})
 .div(class: "changelog",
   $version({
       "version": "(none)",

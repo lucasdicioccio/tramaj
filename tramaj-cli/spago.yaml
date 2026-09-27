@@ -1,6 +1,6 @@
 package:
   name: tramaj-cli
-  # Deliberately depends on `tramaj`, not `tramaj-halogen` — this
+  # Deliberately depends on `tramaj-purs`, not `tramaj-halogen` — this
   # CLI never folds to Halogen output, only to the normative `Node` JSON
   # via `Tramaj.Node.nodeToJson`.
   dependencies:
@@ -16,7 +16,7 @@ package:
     - node-process
     - ordered-collections
     - strings
-    - tramaj
+    - tramaj-purs
     - tuples
     - foreign-object
   test:

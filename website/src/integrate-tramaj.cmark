@@ -51,7 +51,7 @@ them.
 
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
-<tr><td>PureScript</td><td>depend on <code>tramaj</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
+<tr><td>PureScript</td><td>depend on <code>tramaj-purs</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
 <tr><td>Haskell</td><td>depend on <code>tramaj-hs</code> directly</td><td>write your own — none shipped yet</td></tr>
 <tr><td>Rust</td><td>depend on <code>tramaj-rs</code> directly, or shell out to <code>tramaj-cli-rs</code></td><td>write your own — none shipped yet</td></tr>
 <tr><td>JavaScript / TypeScript</td><td>depend on <code>tramaj-js</code> directly, or shell out to <code>tramaj-cli</code></td><td>reuse <code>tramaj-react</code>, or write your own</td></tr>
@@ -61,10 +61,10 @@ them.
 
 ## PureScript — import as a library, fold with `tramaj-halogen`
 
-`tramaj`, `tramaj-halogen`, `tramaj-cli`, and `playground` are members of one
+`tramaj-purs`, `tramaj-halogen`, `tramaj-cli`, and `playground` are members of one
 [Spago](https://github.com/purescript/spago) workspace rooted at this
 repository. A new PureScript package placed as a subdirectory of the
-workspace, with `tramaj` (and `tramaj-halogen` if you're rendering through
+workspace, with `tramaj-purs` (and `tramaj-halogen` if you're rendering through
 Halogen) listed in its `spago.yaml` dependencies, is picked up by Spago's
 workspace discovery with no registry publishing step needed.
 
@@ -115,12 +115,12 @@ instead).
 ## Haskell — the library exists, the fold doesn't yet
 
 `tramaj-hs` is an independent Haskell port, built on megaparsec and aeson,
-that targets the same grammar as the PureScript `tramaj` and shares its
+that targets the same grammar as the PureScript `tramaj-purs` and shares its
 conformance corpus. It's a normal Cabal library exposing `Tramaj.Ast`,
 `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`, and
 `Tramaj.Types` — so a Haskell host can depend on it directly (as a
 `source-repository-package` or path dependency; it isn't published to
-Hackage), the same way a PureScript host depends on `tramaj`.
+Hackage), the same way a PureScript host depends on `tramaj-purs`.
 
 What it does *not* have yet is a `tramaj-halogen` equivalent — no fold to
 Lucid, Blaze, or any other Haskell HTML/UI library ships in this
@@ -133,14 +133,14 @@ children, and decide what an `action(...)` payload means in your host.
 ## Rust — the library exists, plus its own CLI
 
 `tramaj-rs` is an independent, hand-written Rust port of the same grammar
-and evaluation semantics as the PureScript `tramaj` and Haskell `tramaj-hs`,
+and evaluation semantics as the PureScript `tramaj-purs` and Haskell `tramaj-hs`,
 held to the same shared conformance corpus (`corpus/cases/` — full parity,
 including [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints
 and [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
 core language). It's a normal Cargo library crate — `tramaj_rs::{ast, parser,
 eval, node, analysis, types}` — depended on as a path or git dependency (not
 published to crates.io yet), the same way a PureScript host depends on
-`tramaj` or a Haskell host depends on `tramaj-hs`:
+`tramaj-purs` or a Haskell host depends on `tramaj-hs`:
 
 ```rust
 // tramaj_rs::parser
@@ -177,14 +177,14 @@ a drop-in alternative to `tramaj-cli` with no Node.js runtime required.
 ## JavaScript / TypeScript — import as a library, fold with `tramaj-react`
 
 `tramaj-js` is an independent, hand-written TypeScript port of the same
-grammar and evaluation semantics as the PureScript `tramaj`, Haskell
+grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell
 `tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance
 corpus (`corpus/cases/` — full parity, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
 core language). It's a normal npm package with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
-host depends on `tramaj`:
+host depends on `tramaj-purs`:
 
 ```typescript
 // parseProgram, tryParseProgram
