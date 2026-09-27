@@ -26,7 +26,7 @@ Everything is re-exported from `src/index.ts`.
 | `types` | `resolveTypeExpr`, `canonicalId`, `requireClosed`, `typeClosure`, `eraseTypes`, `typeConstraints`, `deepTypeConstraints`, `typeReferences`, `deepTypeReferences`, `checkTypeParamCollisions`, `TypeError` |
 
 ```ts
-import { parseProgram, runProgram } from "tramaj-js";
+import { parseProgram, runProgram } from "@lucasdicioccio/tramaj-js";
 
 const program = parseProgram('.p($ctx.name)');
 runProgram("concrete", new Map(), { name: "web" }, program);

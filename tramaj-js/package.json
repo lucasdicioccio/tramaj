@@ -1,7 +1,6 @@
 {
-  "name": "tramaj-js",
+  "name": "@lucasdicioccio/tramaj-js",
   "version": "0.1.0",
-  "private": true,
   "description": "TypeScript port of the Tramaj language: parser, evaluator, normative Node JSON, and static analysis. No React or DOM dependency.",
   "license": "MIT",
   "author": "Lucas DiCioccio <lucas.dicioccio@gmail.com>",
@@ -13,6 +12,9 @@
   "homepage": "https://github.com/lucasdicioccio/tramaj#readme",
   "bugs": {
     "url": "https://github.com/lucasdicioccio/tramaj/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": ["tramaj", "template", "templating"],
   "type": "module",

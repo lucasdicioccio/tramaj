@@ -6,7 +6,7 @@ Folds a `tramaj-js` `Node` into React elements — the React counterpart of
 ## Public API
 
 ```ts
-import { foldToReact, validateAttrNames } from "tramaj-react";
+import { foldToReact, validateAttrNames } from "@lucasdicioccio/tramaj-react";
 
 const bad = validateAttrNames(node);
 if (bad.length === 0) return <>{foldToReact(dispatch, node)}</>;

@@ -13,7 +13,7 @@ import {
   runProgram,
   type Json,
   type LibraryTable,
-} from "tramaj-js";
+} from "@lucasdicioccio/tramaj-js";
 
 import {
   ConstraintTable,

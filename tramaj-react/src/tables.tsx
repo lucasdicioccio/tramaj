@@ -11,7 +11,7 @@
  */
 
 import type { ReactNode } from "react";
-import { isJsonObject, type Card, type Json } from "tramaj-js";
+import { isJsonObject, type Card, type Json } from "@lucasdicioccio/tramaj-js";
 
 import { renderScalar } from "./fold.js";
 
