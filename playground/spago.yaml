@@ -1,7 +1,7 @@
 package:
   name: tramaj-playground
   # A browser app, so it depends on `tramaj-halogen` (and therefore on
-  # `tramaj` transitively) — unlike `tramaj-cli`, which only ever
+  # `tramaj-purs` transitively) — unlike `tramaj-cli`, which only ever
   # produces the generic `Node` AST and stays halogen-free.
   dependencies:
     - prelude
@@ -13,7 +13,7 @@ package:
     - halogen
     - maybe
     - strings
-    - tramaj
+    - tramaj-purs
     - tramaj-halogen
   bundle:
     module: Playground.Main

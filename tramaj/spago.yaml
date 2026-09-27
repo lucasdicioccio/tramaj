@@ -1,5 +1,5 @@
 package:
-  name: tramaj
+  name: tramaj-purs
   dependencies:
     - prelude
     - parsing
@@ -18,3 +18,13 @@ package:
       - console
       - exceptions
       - node-fs
+  publish:
+    # Kept in lockstep with the other ports' registry versions
+    # (tramaj-js, tramaj-react, tramaj-rs, tramaj-cli-rs all start at
+    # 0.1.0).
+    version: 0.1.0
+    license: MIT
+    location:
+      githubOwner: lucasdicioccio
+      githubRepo: tramaj
+      subdir: tramaj
