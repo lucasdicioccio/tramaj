@@ -29,7 +29,7 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from "react";
-import { isJsonObject, type Json, type Node, type NodeAttribute } from "tramaj-js";
+import { isJsonObject, type Json, type Node, type NodeAttribute } from "@lucasdicioccio/tramaj-js";
 
 /**
  * `dispatch` maps an action — its event type, its key, and its JSON payload —

@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Json, Node, NodeAttribute } from "tramaj-js";
+import type { Json, Node, NodeAttribute } from "@lucasdicioccio/tramaj-js";
 
 import { foldToReact, isValidAttrName, renderScalar, symbolLabel, validateAttrNames } from "../src/fold.js";
 
