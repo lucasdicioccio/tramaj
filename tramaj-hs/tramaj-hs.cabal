@@ -50,13 +50,13 @@ library
     Tramaj.Parser
     Tramaj.Types
   build-depends:
-    , base            ^>=4.19
-    , aeson           >=2.1
-    , containers      >=0.6
-    , megaparsec      >=9.5
-    , scientific      >=0.3
-    , text            >=2.0
-    , vector          >=0.13
+    , base            >=4.19  && <4.22
+    , aeson           >=2.1   && <2.4
+    , containers      >=0.6   && <0.9
+    , megaparsec      >=9.5   && <9.9
+    , scientific      >=0.3   && <0.4
+    , text            >=2.0   && <2.2
+    , vector          >=0.13  && <0.14
 
 test-suite unit
   import:           defaults

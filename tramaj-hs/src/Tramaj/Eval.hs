@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | Evaluates a "Tramaj.Ast" 'Program' against an input context, producing
 -- either a "Tramaj.Node" document or an ordinary JSON value.
 --
@@ -32,7 +33,11 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Bifunctor (first)
 import Data.Char (intToDigit)
 import Data.Foldable (traverse_)
+#if __GLASGOW_HASKELL__ >= 910
+import Data.List (sortOn)
+#else
 import Data.List (foldl', sortOn)
+#endif
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes)
