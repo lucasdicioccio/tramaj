@@ -243,11 +243,11 @@ workspace:
   extraPackages:
     tramaj-purs:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
-      ref: v0.1.0
+      ref: v0.3.0
       subdir: tramaj
     tramaj-halogen:
       git: "https://github.com/lucasdicioccio/templating-lang.git"
-      ref: v0.1.0
+      ref: v0.3.0
       subdir: tramaj-halogen
 ```
 

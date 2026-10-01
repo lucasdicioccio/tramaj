@@ -96,8 +96,8 @@ and says it's "deliberately deferred until the API has settled":
       version) to `tramaj/spago.yaml` and `tramaj-halogen/spago.yaml`, plus
       whatever account/token the
       [package registry](https://github.com/purescript/registry) requires.
-- [ ] Hackage: an account at [hackage.haskell.org](https://hackage.haskell.org),
-      and `cabal upload` for `tramaj-hs`.
+- [x] Hackage: an account at [hackage.haskell.org](https://hackage.haskell.org),
+      and `cabal upload` for `tramaj-hs` (`0.3.0.0` published).
 
 Not blocking the crates.io/npm work above — separate ecosystem, separate
 timeline.
