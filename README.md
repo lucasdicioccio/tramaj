@@ -233,22 +233,15 @@ produce` then reads from `website/src/`.
 
 ## Consuming from your own project
 
-Neither half is published to a registry yet (see *Publishing* below). Depend on
-them from git in the meantime.
-
-Spago, in your `spago.yaml` — note the `subdir`, since this is a mono-repo:
+Both halves are on the PureScript registry (`tramaj-purs`, `tramaj-halogen`,
+currently 0.3.3), so with a package set that does not yet list them, add them
+as registry extra packages in your `spago.yaml`:
 
 ```yaml
 workspace:
   extraPackages:
-    tramaj-purs:
-      git: "https://github.com/lucasdicioccio/templating-lang.git"
-      ref: v0.3.3
-      subdir: tramaj
-    tramaj-halogen:
-      git: "https://github.com/lucasdicioccio/templating-lang.git"
-      ref: v0.3.3
-      subdir: tramaj-halogen
+    tramaj-purs: 0.3.3
+    tramaj-halogen: 0.3.3
 ```
 
 Cabal, in your `cabal.project`:
@@ -295,12 +288,15 @@ Still open:
 
 ## Publishing
 
-Not on the PureScript registry or Hackage yet, but prepped: `tramaj/spago.yaml`
-(package `tramaj-purs`) and `tramaj-halogen/spago.yaml` each carry a `publish:`
-block (license, location, version), and `tramaj-hs` has a clean `cabal check`
-and a built sdist. The actual registry submission (`spago publish` from a
-tagged commit) and `cabal upload` are deliberate one-way, live actions left
-for a human to run.
+The PureScript registry does not support packages in a `subdir`, so
+`tramaj-purs` and `tramaj-halogen` are published from generated copies:
+[purescript-tramaj-purs](https://github.com/lucasdicioccio/purescript-tramaj-purs)
+and [purescript-tramaj-halogen](https://github.com/lucasdicioccio/purescript-tramaj-halogen).
+Bump `publish.version` in `tramaj/spago.yaml` and `tramaj-halogen/spago.yaml`
+(a failed or used version cannot be reused), commit, then run
+`scripts/sync-purs-registry-repos.sh --publish` (with `RELEASE_CONFIRM=yes`)
+and `spago publish` from a clone of each copy repo, `tramaj-purs` first. Needs
+spago 1.0 on Node 22.5+. `tramaj-hs` is on Hackage (`0.3.0.0`).
 
 ## License
 

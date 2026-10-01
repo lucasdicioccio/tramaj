@@ -92,10 +92,9 @@ package right before its first release:
 README.md's *Publishing* section already flags what's missing for these
 and says it's "deliberately deferred until the API has settled":
 
-- [ ] PureScript registry: add a `publish:` block (license, location,
-      version) to `tramaj/spago.yaml` and `tramaj-halogen/spago.yaml`, plus
-      whatever account/token the
-      [package registry](https://github.com/purescript/registry) requires.
+- [x] PureScript registry: `tramaj-purs` and `tramaj-halogen` `0.3.3`
+      published from generated copy repos (the registry rejects `subdir`);
+      see `scripts/sync-purs-registry-repos.sh`.
 - [x] Hackage: an account at [hackage.haskell.org](https://hackage.haskell.org),
       and `cabal upload` for `tramaj-hs` (`0.3.0.0` published).
 
