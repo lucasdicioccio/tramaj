@@ -124,7 +124,7 @@ bump_pkg() {
     if [ "$p" = tramaj-react ] && [ -n "${NEWVER[tramaj-js]:-}" ]; then
       (cd "$ROOT/$p" && node -e "
         const fs=require('fs');const j=JSON.parse(fs.readFileSync('package.json'));
-        j.dependencies['tramaj-js']='^${NEWVER[tramaj-js]}';
+        j.dependencies['@lucasdicioccio/tramaj-js']='^${NEWVER[tramaj-js]}';
         fs.writeFileSync('package.json',JSON.stringify(j,null,2)+'\n');")
     fi
   fi
