@@ -100,6 +100,10 @@ workspace:
   packageSet:
     registry: $(awk '/registry:/{print $2; exit}' "$ROOT/spago.yaml")
 EOF
+    # A freshly published tramaj-purs is not in the pinned package set yet.
+    if [ "$pkg" = tramaj-halogen ]; then
+      printf '  extraPackages:\n    tramaj-purs: %s\n' "$purs_ver"
+    fi
   } >"$stage/spago.yaml"
 
   say "building $repo (also writes spago.lock)"
