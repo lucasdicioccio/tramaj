@@ -20,8 +20,8 @@ package:
     - tuples: ">=7.0.0 <8.0.0"
     - web-html: ">=4.1.1 <5.0.0"
   publish:
-    # Tracks tramaj-hs (0.3.0.0); v0.1.0 predates the rename, 0.3.0 and 0.3.1 were never published.
-    version: 0.3.2
+    # Tracks tramaj-hs (0.3.0.0); v0.1.0 predates the rename, 0.3.0-0.3.2 were never published.
+    version: 0.3.3
     license: MIT
     location:
       githubOwner: lucasdicioccio
