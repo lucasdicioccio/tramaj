@@ -6,19 +6,22 @@ package:
   # 2026-07-20 so the core carries no halogen dependency and stays
   # consumable by non-browser hosts such as `tramaj-cli`.
   dependencies:
-    - prelude
     - argonaut-core
     - arrays
+    - foldable-traversable
+    - foreign-object
+    - halogen
     - integers
     - maybe
     - ordered-collections
+    - prelude
     - strings
-    - tuples
-    - halogen
     - tramaj-purs
+    - tuples
+    - web-html
   publish:
-    # Aligned with tramaj-hs (0.3.0.0); v0.1.0 predates the rename.
-    version: 0.3.0
+    # Tracks tramaj-hs (0.3.0.0); v0.1.0 predates the rename, 0.3.0 was never published.
+    version: 0.3.1
     license: MIT
     location:
       githubOwner: lucasdicioccio
