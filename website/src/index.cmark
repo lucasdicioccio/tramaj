@@ -59,6 +59,9 @@ on GitHub for the full spec, or explore the site below.
 - [**What sets tramaj apart**](/what-sets-tramaj-apart.html) — documents as
   values, `ctx(...)` as a declared hole, and why that makes a program's
   imports and actions inspectable without running it.
+- [**Compared to other tools**](/tramaj-compared-to-other-tools.html) — how tramaj
+  differs from string templates, JSX and configuration languages, and when to
+  pick something else.
 - [**Properties**](/properties.html) — the invariants tramaj is held to:
   portability, cheap static analysis, determinism.
 - [**Use cases**](/use-cases.html) — where a small document-composing
