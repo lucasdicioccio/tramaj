@@ -175,6 +175,48 @@ initialState =
   )
 )"""
         }
+      , { name: "millipede"
+        , source:
+            """-- A millipede per the getmillipede RFC (Vadot, 2015): an optional
+-- comment, a head ("╚⊙ ⊙╝") and a body of "╚═(███)═╝" segments, one per
+-- line. In reverse mode the body comes first, then the head with its
+-- mandibles inverted ("╝⊙ ⊙╚"), then the comment. The language has no
+-- arithmetic, so each segment's indentation (the wiggle) and its colour
+-- (a hue gradient) come from $ctx.millipede.segments. Edit the JSON
+-- context: add segments, change "reverse" to true, rewrite the comment.
+@row="white-space: pre; font-family: monospace; line-height: 1.15; font-size: 1.2rem"
+@segment=(s) =>
+  .div(
+    style: $row,
+    .span("`$s.pad`╚═"),
+    .span(style: "color: `$s.color`", "(███)"),
+    .span("═╝")
+  )
+@head=.div(
+  style: "`$row`; color: `$ctx.millipede.headColor`",
+  "`$ctx.millipede.headPad`╚⊙ ⊙╝"
+)
+@reversed-head=.div(
+  style: "`$row`; color: `$ctx.millipede.headColor`",
+  "`$ctx.millipede.reversedHeadPad`╝⊙ ⊙╚"
+)
+@comment=.p(style: "font-style: italic", "`$ctx.millipede.comment`")
+.div(
+  branch(
+    .(
+      $comment,
+      $head,
+      map($ctx.millipede.segments, $segment)
+    ),
+    $ctx.millipede.reverse,
+    .(
+      map($ctx.millipede.segments, $segment),
+      $reversed-head,
+      $comment
+    )
+  )
+)"""
+        }
       , { name: "destructuring-demo"
         , source:
             """-- Object binding patterns: an @-binding or a lambda parameter may
@@ -296,7 +338,7 @@ type Value = document
       -- PathNotFound for the parameter its importer would have supplied.
       -- row-kind is the one the main tab actually reads, through ctx(...);
       -- zone is the one constraints-demo reads, through ?ctx.zone.
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}]}"""
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}], "millipede": {"comment": "Hello from tramaj!", "reverse": false, "headPad": "  ", "headColor": "hsl(150, 80%, 70%)", "segments": [{"pad": "", "color": "hsl(130, 80%, 55%)"}, {"pad": " ", "color": "hsl(120, 80%, 55%)"}, {"pad": "  ", "color": "hsl(110, 80%, 55%)"}, {"pad": "   ", "color": "hsl(100, 80%, 55%)"}, {"pad": "   ", "color": "hsl(90, 80%, 55%)"}, {"pad": "  ", "color": "hsl(80, 80%, 55%)"}, {"pad": " ", "color": "hsl(70, 80%, 55%)"}, {"pad": "", "color": "hsl(60, 80%, 55%)"}, {"pad": " ", "color": "hsl(50, 80%, 55%)"}, {"pad": "  ", "color": "hsl(40, 80%, 55%)"}, {"pad": "   ", "color": "hsl(30, 80%, 55%)"}, {"pad": "   ", "color": "hsl(20, 80%, 55%)"}, {"pad": "  ", "color": "hsl(10, 80%, 55%)"}, {"pad": " ", "color": "hsl(0, 80%, 55%)"}], "reversedHeadPad": "   "}}"""
   , actionLog: []
   , mode: Concrete
   }
