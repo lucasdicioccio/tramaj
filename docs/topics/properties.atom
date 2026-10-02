@@ -1,4 +1,93 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html</id><title type="text">What sets tramaj apart</title><updated>2026-09-11T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="what-sets-tramaj-apart"&gt;What sets tramaj apart&lt;/h2&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html</id><title type="text">tramaj compared to other tools</title><updated>2026-10-02T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-compared-to-other-tools"&gt;tramaj compared to other tools&lt;/h2&gt;
+&lt;p&gt;tramaj sits between three families of tools: string template engines, JSX-style
+embedded document syntaxes, and configuration languages. This page says
+where it overlaps with each, where it differs, and when another tool is the
+better choice. For the argument behind the design, see
+&lt;a href="/tramaj/what-sets-tramaj-apart.html"&gt;What sets tramaj apart&lt;/a&gt;; for the guarantees,
+see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="at-a-glance"&gt;At a glance&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;String templates&lt;/strong&gt; (Jinja, Handlebars, Liquid, Go templates): output is
+text; inputs are discovered by running or grepping; untrusted source depends
+on the sandbox.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;JSX and similar&lt;/strong&gt;: output is an element tree; the expression language is
+the full host language; the program’s interface is whatever the host’s type
+checker knows.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Configuration languages&lt;/strong&gt; (Jsonnet, Dhall, CUE, Nickel): output is data;
+the language is small, functional and restricted; the interface is types or
+schemas.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;tramaj&lt;/strong&gt;: output is a document tree; the language is small, functional and
+shared by several runtimes; inputs are declared as literal &lt;code&gt;ctx(path)&lt;/code&gt; holes;
+imports, context reads and action keys are recoverable by walking the AST.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="against-string-template-engines"&gt;Against string template engines&lt;/h3&gt;
+&lt;p&gt;Jinja, Handlebars, Liquid, Mustache and Go’s &lt;code&gt;text/template&lt;/code&gt; render text.
+The template is a string with holes, and the output is a string. That is
+simple and works everywhere, but a few things follow:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Escaping is a concern of the author. A tree-valued output makes
+well-formed markup the default instead of a discipline.
+&lt;/li&gt;
+&lt;li&gt;Composition goes through includes, partials, or blocks, which are
+usually resolved by name at render time. In tramaj an &lt;code&gt;import&lt;/code&gt; is a value
+you can bind, partially apply and pass around.
+&lt;/li&gt;
+&lt;li&gt;What a template reads is discoverable only by running it or by grepping.
+tramaj &lt;code&gt;ctx(...)&lt;/code&gt; reads are literal paths, so a host can list them without
+evaluating anything.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Choose a string engine when you produce plain text (emails, config files,
+code) and want the most familiar syntax and the biggest ecosystem of
+filters and editors.&lt;/p&gt;
+&lt;h3 id="against-jsx-and-embedded-document-syntaxes"&gt;Against JSX and embedded document syntaxes&lt;/h3&gt;
+&lt;p&gt;JSX, and its cousins in other languages, make documents values inside a
+full programming language. tramaj shares that central idea. The difference
+is the host: with JSX you get all of JavaScript, its tooling and its
+libraries, and you also get a program that can do anything. tramaj keeps its
+own small language so the same template runs the same on every runtime and
+a tool can reason about it before it runs.&lt;/p&gt;
+&lt;p&gt;Choose JSX when you are already in a JavaScript application, want the
+component ecosystem, and trust the code that you compile. Choose tramaj when
+templates are data that travel across languages, or when the source is
+written by a model or a user you do not fully trust.&lt;/p&gt;
+&lt;h3 id="against-configuration-languages"&gt;Against configuration languages&lt;/h3&gt;
+&lt;p&gt;Jsonnet, Dhall, Nickel and CUE are the closest relatives in spirit: small,
+functional, importable, restricted on purpose. They produce data, though,
+and tramaj produces documents. Dhall brings a real type system and CUE
+brings constraint unification; tramaj does not try to compete with either.
+What tramaj adds is document composition, deferred and partially applied
+imports, and a statically recoverable vocabulary of actions that a document
+may attach to a node.&lt;/p&gt;
+&lt;p&gt;Choose a configuration language when the output is configuration and you
+want strong typing, schema validation or constraint solving. Choose tramaj
+when the output is a rendered document with interactive actions.&lt;/p&gt;
+&lt;h3 id="against-template-layers-on-top-of-configuration"&gt;Against template layers on top of configuration&lt;/h3&gt;
+&lt;p&gt;Helm charts and similar tools put a text templating layer on top of YAML.
+That mixes two syntaxes, so indentation and quoting become template
+concerns. tramaj builds the tree directly, so there is no text stage where
+structure can break.&lt;/p&gt;
+&lt;h3 id="where-tramaj-is-not-the-right-tool"&gt;Where tramaj is not the right tool&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;You only need text output and your team already knows a string engine.
+&lt;/li&gt;
+&lt;li&gt;You want arbitrary computation, I/O or a large standard library inside the
+template. tramaj is intentionally small and deterministic.
+&lt;/li&gt;
+&lt;li&gt;You need a rich type system or schema language over the data. Pair tramaj
+with one rather than expecting it in the template language.
+&lt;/li&gt;
+&lt;li&gt;You need an established ecosystem of editor plugins, linters and
+third-party filters. tramaj is young.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;See &lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a&gt; for where the trade-offs pay off, and
+&lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt; for the language itself.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html" rel="alternate"/><summary type="text">How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html</id><title type="text">What sets tramaj apart</title><updated>2026-09-11T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="what-sets-tramaj-apart"&gt;What sets tramaj apart&lt;/h2&gt;
 &lt;p&gt;Plenty of languages already do pieces of what tramaj does. JSX makes
 documents a value inside an expression language. Dhall and Nickel are
 typed, functional, importable configuration languages. Jsonnet generates
@@ -70,16 +159,7 @@ and portability guarantees underneath it.&lt;/p&gt;
 &lt;h3 id="the-shape-this-adds-up-to"&gt;The shape this adds up to&lt;/h3&gt;
 &lt;p&gt;Put the three together and a tramaj program has a discoverable interface
 even though it’s an executable program:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;              ┌──────────────────┐
-              │  tramaj program   │
-              └─────────┬─────────┘
-                         │
-       ┌─────────────────┼─────────────────┐
-       ▼                 ▼                 ▼
-   context holes     imports /         action keys
-   &amp;amp; reads          unsupplied            it can
-                      params               emit
-&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/static-interface.dot.png" alt="The interface of a program, recovered by walking its AST: context holes, imports and unsupplied params, action keys, all before any evaluation" /&gt;&lt;/p&gt;
 &lt;p&gt;None of documents-as-values, static analysis, or restricted languages is
 new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory
 here, and tramaj doesn’t compete with Dhall’s type system or CUE’s
@@ -127,6 +207,11 @@ against the same context values always produce the same result. Evaluation
 order is unconstrained outside of binding precedence, so a host is free to
 parallelize or reorder work, but never free to change the answer. This is
 what makes a rendered document reproducible, cacheable, and safe to diff.&lt;/p&gt;
+&lt;h3 id="where-the-properties-sit"&gt;Where the properties sit&lt;/h3&gt;
+&lt;p&gt;Determinism lives in the evaluator, portability in the &lt;code&gt;Node&lt;/code&gt; JSON boundary
+after it, and everything host-specific (rendering, what an action key does)
+after that boundary, in code the host owns.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/node-boundary.dot.png" alt="The evaluator is deterministic, Node JSON is the portable boundary, and folds and action handlers belong to the host" /&gt;&lt;/p&gt;
 &lt;h3 id="what-this-buys-you-in-practice"&gt;What this buys you in practice&lt;/h3&gt;
 &lt;p&gt;Put together, these properties mean a host can accept a tramaj template from
 an untrusted or automated source — a CMS, a design tool, an LLM — and know,

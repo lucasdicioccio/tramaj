@@ -12,6 +12,8 @@ The original motivation: templates that are comfortable to write by hand _and_ e
 
 ## Documents an LLM can emit and a host can trust
 
+![A template from a model or third party is analyzed statically, checked against host policy, and only then evaluated and folded into the UI](/gen/images/untrusted-template.dot.png )
+
 Because imports, action keys, and context reads are all static positions — literal strings, never computed — a host can run the static analyses in [`Tramaj.Analysis`](/reference-language.html ) over a model-generated template _before_ evaluating it: what does it import, what actions can it possibly emit, what context does it read, which import parameters are still unsupplied. That turns "an LLM wrote this template" from a trust problem into an inspectable one. See [Properties](/properties.html ) for why this holds.
 
 ## Constraint-driven generation

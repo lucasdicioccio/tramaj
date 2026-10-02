@@ -21,6 +21,7 @@ independently written implementations can run it identically.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-react&lt;/code&gt; folds to React&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;python -m tramaj&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
 &lt;p&gt;None is published to a package registry yet (see the README’s
 “Publishing” section) — all are used today as workspace, source or git
 dependencies. Each has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and

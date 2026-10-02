@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-26T12:20:29Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-09-26T12:20:29Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-02T11:02:48Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-10-02T11:02:48Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--language-reference"&gt;Tramaj — Language Reference&lt;/h2&gt;
 &lt;p&gt;This is the reference for the language &lt;strong&gt;as implemented&lt;/strong&gt;. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -497,7 +497,7 @@ declarations and &lt;code&gt;@x : T = e&lt;/code&gt; annotations both fit inside
 affected (roadmap-to-v4 Phase 15’s version decision).
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-language.html" rel="alternate"/><summary type="text">Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-09-26T12:20:29Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-language.html" rel="alternate"/><summary type="text">Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-10-02T11:02:48Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v4--types-draft"&gt;Tramaj v4 — Types (draft)&lt;/h2&gt;
 &lt;p&gt;Status: &lt;strong&gt;draft, not frozen, implemented.&lt;/strong&gt; Split out of the v3 design so
 that &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
@@ -929,7 +929,7 @@ what &lt;code&gt;!type-constraint&lt;/code&gt; is likely to be abused into expre
 abuse becomes common the honest fix is a former, not a constraint name.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-09-26T12:20:29Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-10-02T11:02:48Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v3--symbolic-values-and-constraints"&gt;Tramaj v3 — Symbolic values and constraints&lt;/h2&gt;
 &lt;p&gt;This document is &lt;strong&gt;normative&lt;/strong&gt; for the symbolic extension. It builds on
 &lt;code&gt;reference.md&lt;/code&gt;, which remains normative for everything else; section numbers
@@ -1514,7 +1514,7 @@ host’s vocabulary rather than the language’s.
 not just variables.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-09-26T12:20:29Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-10-02T11:02:48Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--normative-node-json-representation"&gt;Tramaj — Normative Node JSON representation&lt;/h2&gt;
 &lt;p&gt;The evaluated &lt;code&gt;Node&lt;/code&gt; AST is the portable interchange boundary between Tramaj
 implementations and their hosts. This document defines its &lt;strong&gt;normative&lt;/strong&gt; JSON
@@ -1625,7 +1625,96 @@ preserve them across every node-to-node transformation they perform —
 &lt;p&gt;A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
 job; on the wire the representation is explicit, so that a missing field is a bug
 rather than a silent &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html</id><title type="text">Integrating tramaj into a host</title><updated>2026-09-25T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="integrating-tramaj-into-a-host"&gt;Integrating tramaj into a host&lt;/h2&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html</id><title type="text">tramaj compared to other tools</title><updated>2026-10-02T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-compared-to-other-tools"&gt;tramaj compared to other tools&lt;/h2&gt;
+&lt;p&gt;tramaj sits between three families of tools: string template engines, JSX-style
+embedded document syntaxes, and configuration languages. This page says
+where it overlaps with each, where it differs, and when another tool is the
+better choice. For the argument behind the design, see
+&lt;a href="/tramaj/what-sets-tramaj-apart.html"&gt;What sets tramaj apart&lt;/a&gt;; for the guarantees,
+see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="at-a-glance"&gt;At a glance&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;String templates&lt;/strong&gt; (Jinja, Handlebars, Liquid, Go templates): output is
+text; inputs are discovered by running or grepping; untrusted source depends
+on the sandbox.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;JSX and similar&lt;/strong&gt;: output is an element tree; the expression language is
+the full host language; the program’s interface is whatever the host’s type
+checker knows.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Configuration languages&lt;/strong&gt; (Jsonnet, Dhall, CUE, Nickel): output is data;
+the language is small, functional and restricted; the interface is types or
+schemas.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;tramaj&lt;/strong&gt;: output is a document tree; the language is small, functional and
+shared by several runtimes; inputs are declared as literal &lt;code&gt;ctx(path)&lt;/code&gt; holes;
+imports, context reads and action keys are recoverable by walking the AST.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="against-string-template-engines"&gt;Against string template engines&lt;/h3&gt;
+&lt;p&gt;Jinja, Handlebars, Liquid, Mustache and Go’s &lt;code&gt;text/template&lt;/code&gt; render text.
+The template is a string with holes, and the output is a string. That is
+simple and works everywhere, but a few things follow:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Escaping is a concern of the author. A tree-valued output makes
+well-formed markup the default instead of a discipline.
+&lt;/li&gt;
+&lt;li&gt;Composition goes through includes, partials, or blocks, which are
+usually resolved by name at render time. In tramaj an &lt;code&gt;import&lt;/code&gt; is a value
+you can bind, partially apply and pass around.
+&lt;/li&gt;
+&lt;li&gt;What a template reads is discoverable only by running it or by grepping.
+tramaj &lt;code&gt;ctx(...)&lt;/code&gt; reads are literal paths, so a host can list them without
+evaluating anything.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Choose a string engine when you produce plain text (emails, config files,
+code) and want the most familiar syntax and the biggest ecosystem of
+filters and editors.&lt;/p&gt;
+&lt;h3 id="against-jsx-and-embedded-document-syntaxes"&gt;Against JSX and embedded document syntaxes&lt;/h3&gt;
+&lt;p&gt;JSX, and its cousins in other languages, make documents values inside a
+full programming language. tramaj shares that central idea. The difference
+is the host: with JSX you get all of JavaScript, its tooling and its
+libraries, and you also get a program that can do anything. tramaj keeps its
+own small language so the same template runs the same on every runtime and
+a tool can reason about it before it runs.&lt;/p&gt;
+&lt;p&gt;Choose JSX when you are already in a JavaScript application, want the
+component ecosystem, and trust the code that you compile. Choose tramaj when
+templates are data that travel across languages, or when the source is
+written by a model or a user you do not fully trust.&lt;/p&gt;
+&lt;h3 id="against-configuration-languages"&gt;Against configuration languages&lt;/h3&gt;
+&lt;p&gt;Jsonnet, Dhall, Nickel and CUE are the closest relatives in spirit: small,
+functional, importable, restricted on purpose. They produce data, though,
+and tramaj produces documents. Dhall brings a real type system and CUE
+brings constraint unification; tramaj does not try to compete with either.
+What tramaj adds is document composition, deferred and partially applied
+imports, and a statically recoverable vocabulary of actions that a document
+may attach to a node.&lt;/p&gt;
+&lt;p&gt;Choose a configuration language when the output is configuration and you
+want strong typing, schema validation or constraint solving. Choose tramaj
+when the output is a rendered document with interactive actions.&lt;/p&gt;
+&lt;h3 id="against-template-layers-on-top-of-configuration"&gt;Against template layers on top of configuration&lt;/h3&gt;
+&lt;p&gt;Helm charts and similar tools put a text templating layer on top of YAML.
+That mixes two syntaxes, so indentation and quoting become template
+concerns. tramaj builds the tree directly, so there is no text stage where
+structure can break.&lt;/p&gt;
+&lt;h3 id="where-tramaj-is-not-the-right-tool"&gt;Where tramaj is not the right tool&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;You only need text output and your team already knows a string engine.
+&lt;/li&gt;
+&lt;li&gt;You want arbitrary computation, I/O or a large standard library inside the
+template. tramaj is intentionally small and deterministic.
+&lt;/li&gt;
+&lt;li&gt;You need a rich type system or schema language over the data. Pair tramaj
+with one rather than expecting it in the template language.
+&lt;/li&gt;
+&lt;li&gt;You need an established ecosystem of editor plugins, linters and
+third-party filters. tramaj is young.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;See &lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a&gt; for where the trade-offs pay off, and
+&lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt; for the language itself.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html" rel="alternate"/><summary type="text">How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html</id><title type="text">Integrating tramaj into a host</title><updated>2026-09-25T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="integrating-tramaj-into-a-host"&gt;Integrating tramaj into a host&lt;/h2&gt;
 &lt;p&gt;Every integration has the same two moving parts, regardless of language:&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;Evaluate&lt;/strong&gt; — parse a template and run it against a JSON context to get
@@ -1642,9 +1731,13 @@ particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
 already ships one for you. Which of the six paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
+&lt;p&gt;The implementations and how they relate: one specification and corpus, five
+independently written ports, and the folds and CLIs layered on top of two of
+them.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, and tramaj-py" /&gt;&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;Host language&lt;/th&gt;&lt;th&gt;Get the &lt;code&gt;Node&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Write the fold&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-purs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-hs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-rs&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-js&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-react&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
@@ -1652,10 +1745,10 @@ only on what language your host is written in.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;tramaj&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
+&lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
 &lt;a href="https://github.com/purescript/spago"&gt;Spago&lt;/a&gt; workspace rooted at this
 repository. A new PureScript package placed as a subdirectory of the
-workspace, with &lt;code&gt;tramaj&lt;/code&gt; (and &lt;code&gt;tramaj-halogen&lt;/code&gt; if you’re rendering through
+workspace, with &lt;code&gt;tramaj-purs&lt;/code&gt; (and &lt;code&gt;tramaj-halogen&lt;/code&gt; if you’re rendering through
 Halogen) listed in its &lt;code&gt;spago.yaml&lt;/code&gt; dependencies, is picked up by Spago’s
 workspace discovery with no registry publishing step needed.&lt;/p&gt;
 &lt;p&gt;The core API:&lt;/p&gt;
@@ -1695,12 +1788,12 @@ for an &lt;em&gt;interactive&lt;/em&gt; host (a read-only host just passes &lt;c
 instead).&lt;/p&gt;
 &lt;h3 id="haskell--the-library-exists-the-fold-doesnt-yet"&gt;Haskell — the library exists, the fold doesn’t yet&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt; is an independent Haskell port, built on megaparsec and aeson,
-that targets the same grammar as the PureScript &lt;code&gt;tramaj&lt;/code&gt; and shares its
+that targets the same grammar as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and shares its
 conformance corpus. It’s a normal Cabal library exposing &lt;code&gt;Tramaj.Ast&lt;/code&gt;,
 &lt;code&gt;Tramaj.Parser&lt;/code&gt;, &lt;code&gt;Tramaj.Eval&lt;/code&gt;, &lt;code&gt;Tramaj.Node&lt;/code&gt;, &lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and
 &lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (as a
 &lt;code&gt;source-repository-package&lt;/code&gt; or path dependency; it isn’t published to
-Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj&lt;/code&gt;.&lt;/p&gt;
+Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;What it does &lt;em&gt;not&lt;/em&gt; have yet is a &lt;code&gt;tramaj-halogen&lt;/code&gt; equivalent — no fold to
 Lucid, Blaze, or any other Haskell HTML/UI library ships in this
 repository. A Haskell host gets the parser, the evaluator, and the &lt;code&gt;Node&lt;/code&gt;
@@ -1710,13 +1803,13 @@ the fold to your actual rendering library is on you. The shape to follow is
 children, and decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host.&lt;/p&gt;
 &lt;h3 id="rust--the-library-exists-plus-its-own-cli"&gt;Rust — the library exists, plus its own CLI&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; is an independent, hand-written Rust port of the same grammar
-and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
+and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
 held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity,
 including &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
 and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
 published to crates.io yet), the same way a PureScript host depends on
-&lt;code&gt;tramaj&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
+&lt;code&gt;tramaj-purs&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse_program(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt; ParseError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
@@ -1745,14 +1838,14 @@ library into your host — including from a non-Rust host — &lt;code&gt;tramaj
 a drop-in alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required.&lt;/p&gt;
 &lt;h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react"&gt;JavaScript / TypeScript — import as a library, fold with &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-js&lt;/code&gt; is an independent, hand-written TypeScript port of the same
-grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt;, Haskell
+grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt;, Haskell
 &lt;code&gt;tramaj-hs&lt;/code&gt;, and Rust &lt;code&gt;tramaj-rs&lt;/code&gt;, held to the same shared conformance
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language). It’s a normal npm package with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
-host depends on &lt;code&gt;tramaj&lt;/code&gt;:&lt;/p&gt;
+host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;function&lt;/span&gt; &lt;span class="fu"&gt;parseProgram&lt;/span&gt;(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;)&lt;span class="op"&gt;:&lt;/span&gt; Program&lt;span class="op"&gt;;&lt;/span&gt; &lt;span class="co"&gt;// throws ParseError&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
@@ -1879,6 +1972,7 @@ independently written implementations can run it identically.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-react&lt;/code&gt; folds to React&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;python -m tramaj&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
 &lt;p&gt;None is published to a package registry yet (see the README’s
 “Publishing” section) — all are used today as workspace, source or git
 dependencies. Each has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and
@@ -1955,14 +2049,14 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 &lt;a href="/tramaj/hashtags/changelog.html"&gt;&lt;span class="hashtag" data-hashtag="changelog"&gt;#changelog&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/purescript.html"&gt;&lt;span class="hashtag" data-hashtag="purescript"&gt;#purescript&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/tramaj-halogen.html"&gt;&lt;span class="hashtag" data-hashtag="tramaj-halogen"&gt;#tramaj-halogen&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;
 &lt;/section&gt;&lt;section class="main-section"&gt;&lt;div class="changelog"&gt;&lt;section class="changelog-version" id="v(none)"&gt;&lt;h2 class="changelog-heading"&gt;&lt;code&gt;tramaj-halogen&lt;/code&gt; (none)&lt;span class="changelog-date"&gt;unreleased&lt;/span&gt;&lt;/h2&gt;&lt;p class="changelog-summary"&gt;Consumed as a git dependency; no registry release yet.&lt;/p&gt;&lt;ul class="changelog-changes"&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; `Tramaj.Halogen.foldToHalogen`, wiring each `action(...)` to the host&amp;#39;s own Action type.&lt;/li&gt;&lt;/ul&gt;&lt;/section&gt;&lt;/div&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/changelog-tramaj-halogen.html" rel="alternate"/><summary type="text">Release history of `tramaj-halogen`, the Halogen host: folds an evaluated Node into Halogen.HTML.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html</id><title type="text">Changelog: tramaj</title><updated>2026-09-25T08:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="changelog-tramaj"&gt;Changelog: tramaj&lt;/h2&gt;
-&lt;p&gt;Release history of &lt;code&gt;tramaj&lt;/code&gt;, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/changelog-tramaj-halogen.html" rel="alternate"/><summary type="text">Release history of `tramaj-halogen`, the Halogen host: folds an evaluated Node into Halogen.HTML.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html</id><title type="text">Changelog: tramaj-purs</title><updated>2026-09-25T08:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="changelog-tramaj-purs"&gt;Changelog: tramaj-purs&lt;/h2&gt;
+&lt;p&gt;Release history of &lt;code&gt;tramaj-purs&lt;/code&gt;, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are
 major changes rather than on a schedule; each entry below is one version.
 Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
-&lt;a href="/tramaj/hashtags/changelog.html"&gt;&lt;span class="hashtag" data-hashtag="changelog"&gt;#changelog&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/purescript.html"&gt;&lt;span class="hashtag" data-hashtag="purescript"&gt;#purescript&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/tramaj.html"&gt;&lt;span class="hashtag" data-hashtag="tramaj"&gt;#tramaj&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/section&gt;&lt;section class="main-section"&gt;&lt;div class="changelog"&gt;&lt;section class="changelog-version" id="v(none)"&gt;&lt;h2 class="changelog-heading"&gt;&lt;code&gt;tramaj&lt;/code&gt; (none)&lt;span class="changelog-date"&gt;unreleased&lt;/span&gt;&lt;/h2&gt;&lt;p class="changelog-summary"&gt;Consumed as a git dependency; no registry release yet.&lt;/p&gt;&lt;ul class="changelog-changes"&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Reference implementation of the language: parser, evaluator (concrete and symbolic modes), normative Node JSON codec and static analyses.&lt;/li&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Conformance corpus under `corpus/cases`, shared with every other implementation.&lt;/li&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Object destructuring patterns in `@` bindings and lambda parameters (decisions section 17): a parser lowering to plain `Let`/`Lambda`, checked by shared corpus cases 100-118.&lt;/li&gt;&lt;/ul&gt;&lt;/section&gt;&lt;/div&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html" rel="alternate"/><summary type="text">Release history of `tramaj`, the reference PureScript implementation: parser, evaluator, Node codec and analyses.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/changelog-tramaj-hs.html</id><title type="text">Changelog: tramaj-hs</title><updated>2026-09-25T08:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="changelog-tramaj-hs"&gt;Changelog: tramaj-hs&lt;/h2&gt;
+&lt;a href="/tramaj/hashtags/changelog.html"&gt;&lt;span class="hashtag" data-hashtag="changelog"&gt;#changelog&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/purescript.html"&gt;&lt;span class="hashtag" data-hashtag="purescript"&gt;#purescript&lt;/span&gt;&lt;/a&gt; &lt;a href="/tramaj/hashtags/tramaj-purs.html"&gt;&lt;span class="hashtag" data-hashtag="tramaj-purs"&gt;#tramaj-purs&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;section class="main-section"&gt;&lt;div class="changelog"&gt;&lt;section class="changelog-version" id="v(none)"&gt;&lt;h2 class="changelog-heading"&gt;&lt;code&gt;tramaj-purs&lt;/code&gt; (none)&lt;span class="changelog-date"&gt;unreleased&lt;/span&gt;&lt;/h2&gt;&lt;p class="changelog-summary"&gt;Consumed as a git dependency; no registry release yet.&lt;/p&gt;&lt;ul class="changelog-changes"&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Reference implementation of the language: parser, evaluator (concrete and symbolic modes), normative Node JSON codec and static analyses.&lt;/li&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Conformance corpus under `corpus/cases`, shared with every other implementation.&lt;/li&gt;&lt;li&gt;&lt;span class="changelog-kind changelog-kind-added"&gt;added&lt;/span&gt; Object destructuring patterns in `@` bindings and lambda parameters (decisions section 17): a parser lowering to plain `Let`/`Lambda`, checked by shared corpus cases 100-118.&lt;/li&gt;&lt;/ul&gt;&lt;/section&gt;&lt;/div&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html" rel="alternate"/><summary type="text">Release history of `tramaj-purs`, the reference PureScript implementation: parser, evaluator, Node codec and analyses.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/changelog-tramaj-hs.html</id><title type="text">Changelog: tramaj-hs</title><updated>2026-09-25T08:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="changelog-tramaj-hs"&gt;Changelog: tramaj-hs&lt;/h2&gt;
 &lt;p&gt;Release history of &lt;code&gt;tramaj-hs&lt;/code&gt;, the Haskell implementation, also the engine behind Kitchen-Sink’s templating sections. Releases happen when there are
 major changes rather than on a schedule; each entry below is one version.
 Every implementation has its own page like this one, and each page is
@@ -2083,16 +2177,7 @@ and portability guarantees underneath it.&lt;/p&gt;
 &lt;h3 id="the-shape-this-adds-up-to"&gt;The shape this adds up to&lt;/h3&gt;
 &lt;p&gt;Put the three together and a tramaj program has a discoverable interface
 even though it’s an executable program:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;              ┌──────────────────┐
-              │  tramaj program   │
-              └─────────┬─────────┘
-                         │
-       ┌─────────────────┼─────────────────┐
-       ▼                 ▼                 ▼
-   context holes     imports /         action keys
-   &amp;amp; reads          unsupplied            it can
-                      params               emit
-&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/static-interface.dot.png" alt="The interface of a program, recovered by walking its AST: context holes, imports and unsupplied params, action keys, all before any evaluation" /&gt;&lt;/p&gt;
 &lt;p&gt;None of documents-as-values, static analysis, or restricted languages is
 new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory
 here, and tramaj doesn’t compete with Dhall’s type system or CUE’s
@@ -2203,6 +2288,7 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;li&gt;(v3/v4) what constraints and symbols/types it introduces
 &lt;/li&gt;
 &lt;/ul&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/agent-loop.dot.png" alt="Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommand exposes these directly — see
 &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
 generating a template and want to
@@ -2233,6 +2319,7 @@ local build. It parses and evaluates tramaj templates in the browser —
 nothing is sent to a server. Tabs act as importable libraries for each
 other; toggle “Symbolic mode” to see the v3 envelope instead of a finished
 document.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/playground-flow.dot.png" alt="Editor tabs and a context are parsed and evaluated in the browser; Symbolic mode decides between a finished document and the v3 envelope" /&gt;&lt;/p&gt;
 &lt;p&gt;See &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for running the same language
 from the command line, or &lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a&gt; for where it fits.&lt;/p&gt;
 &lt;iframe class="playground-frame" src="/tramaj/tramaj-playground.html" title="tramaj playground"&gt;&lt;/iframe&gt;
@@ -2242,6 +2329,8 @@ from the command line, or &lt;a href="/tramaj/use-cases.html"&gt;Use cases&lt;/a
 &lt;p&gt;This is a practical walkthrough. For the language’s core ideas, see the
 overview on the &lt;a href="/tramaj/"&gt;home page&lt;/a&gt;; for the full grammar, see the
 &lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;A template can be run in four places, and each section below covers one:&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/template-workflow.dot.png" alt="The same template can go to the playground, to tramaj-cli evaluate, to tramaj-cli analyze (no context needed), or into an embedding host" /&gt;&lt;/p&gt;
 &lt;h3 id="the-fastest-way-in-the-playground"&gt;The fastest way in: the playground&lt;/h3&gt;
 &lt;p&gt;Before installing anything, try the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt; — it runs
 entirely in the browser, needs no setup, and shows the same panels described
@@ -2304,6 +2393,9 @@ tramaj templates rather than writing them by hand.
 &lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/specs"&gt;tramaj repository&lt;/a&gt;
 — the repository is always the canonical source, and may be ahead of what’s
 published here.&lt;/p&gt;
+&lt;p&gt;How the documents relate: the language reference is the base, the Node JSON
+format encodes what it evaluates to, and v3 and v4 each extend it.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/spec-layers.dot.png" alt="Spec layers: Node JSON encodes the core’s output; v3 symbols (value realm) and v4 types (type realm) both extend the core" /&gt;&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="/tramaj/reference-language.html"&gt;&lt;strong&gt;Language reference&lt;/strong&gt;&lt;/a&gt; — core AST, values,
 evaluation rules, surface syntax and its desugarings, imports, actions,
@@ -2372,6 +2464,11 @@ against the same context values always produce the same result. Evaluation
 order is unconstrained outside of binding precedence, so a host is free to
 parallelize or reorder work, but never free to change the answer. This is
 what makes a rendered document reproducible, cacheable, and safe to diff.&lt;/p&gt;
+&lt;h3 id="where-the-properties-sit"&gt;Where the properties sit&lt;/h3&gt;
+&lt;p&gt;Determinism lives in the evaluator, portability in the &lt;code&gt;Node&lt;/code&gt; JSON boundary
+after it, and everything host-specific (rendering, what an action key does)
+after that boundary, in code the host owns.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/node-boundary.dot.png" alt="The evaluator is deterministic, Node JSON is the portable boundary, and folds and action handlers belong to the host" /&gt;&lt;/p&gt;
 &lt;h3 id="what-this-buys-you-in-practice"&gt;What this buys you in practice&lt;/h3&gt;
 &lt;p&gt;Put together, these properties mean a host can accept a tramaj template from
 an untrusted or automated source — a CMS, a design tool, an LLM — and know,
@@ -2399,6 +2496,7 @@ a template can describe &lt;em&gt;what&lt;/em&gt; should happen (“on-click, se
 without knowing &lt;em&gt;how&lt;/em&gt; the host will react to it — the same template could
 drive a different UI framework by pairing it with a different fold.&lt;/p&gt;
 &lt;h3 id="documents-an-llm-can-emit-and-a-host-can-trust"&gt;Documents an LLM can emit and a host can trust&lt;/h3&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/untrusted-template.dot.png" alt="A template from a model or third party is analyzed statically, checked against host policy, and only then evaluated and folded into the UI" /&gt;&lt;/p&gt;
 &lt;p&gt;Because imports, action keys, and context reads are all static positions —
 literal strings, never computed — a host can run the static analyses in
 &lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;Tramaj.Analysis&lt;/code&gt;&lt;/a&gt; over a model-generated template

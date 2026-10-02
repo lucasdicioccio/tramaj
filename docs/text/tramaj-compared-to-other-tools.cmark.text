@@ -1,0 +1,58 @@
+# tramaj compared to other tools
+
+tramaj sits between three families of tools: string template engines, JSX-style embedded document syntaxes, and configuration languages. This page says where it overlaps with each, where it differs, and when another tool is the better choice. For the argument behind the design, see [What sets tramaj apart](/what-sets-tramaj-apart.html ); for the guarantees, see [Properties](/properties.html ).
+
+## At a glance
+
+- **String templates** (Jinja, Handlebars, Liquid, Go templates): output is text; inputs are discovered by running or grepping; untrusted source depends on the sandbox.
+
+- **JSX and similar**: output is an element tree; the expression language is the full host language; the program's interface is whatever the host's type checker knows.
+
+- **Configuration languages** (Jsonnet, Dhall, CUE, Nickel): output is data; the language is small, functional and restricted; the interface is types or schemas.
+
+- **tramaj**: output is a document tree; the language is small, functional and shared by several runtimes; inputs are declared as literal `ctx(path)` holes; imports, context reads and action keys are recoverable by walking the AST.
+
+
+## Against string template engines
+
+Jinja, Handlebars, Liquid, Mustache and Go's `text/template` render text. The template is a string with holes, and the output is a string. That is simple and works everywhere, but a few things follow:
+
+- Escaping is a concern of the author. A tree-valued output makes well-formed markup the default instead of a discipline.
+
+- Composition goes through includes, partials, or blocks, which are usually resolved by name at render time. In tramaj an `import` is a value you can bind, partially apply and pass around.
+
+- What a template reads is discoverable only by running it or by grepping. tramaj `ctx(...)` reads are literal paths, so a host can list them without evaluating anything.
+
+
+Choose a string engine when you produce plain text (emails, config files, code) and want the most familiar syntax and the biggest ecosystem of filters and editors.
+
+## Against JSX and embedded document syntaxes
+
+JSX, and its cousins in other languages, make documents values inside a full programming language. tramaj shares that central idea. The difference is the host: with JSX you get all of JavaScript, its tooling and its libraries, and you also get a program that can do anything. tramaj keeps its own small language so the same template runs the same on every runtime and a tool can reason about it before it runs.
+
+Choose JSX when you are already in a JavaScript application, want the component ecosystem, and trust the code that you compile. Choose tramaj when templates are data that travel across languages, or when the source is written by a model or a user you do not fully trust.
+
+## Against configuration languages
+
+Jsonnet, Dhall, Nickel and CUE are the closest relatives in spirit: small, functional, importable, restricted on purpose. They produce data, though, and tramaj produces documents. Dhall brings a real type system and CUE brings constraint unification; tramaj does not try to compete with either. What tramaj adds is document composition, deferred and partially applied imports, and a statically recoverable vocabulary of actions that a document may attach to a node.
+
+Choose a configuration language when the output is configuration and you want strong typing, schema validation or constraint solving. Choose tramaj when the output is a rendered document with interactive actions.
+
+## Against template layers on top of configuration
+
+Helm charts and similar tools put a text templating layer on top of YAML. That mixes two syntaxes, so indentation and quoting become template concerns. tramaj builds the tree directly, so there is no text stage where structure can break.
+
+## Where tramaj is not the right tool
+
+- You only need text output and your team already knows a string engine.
+
+- You want arbitrary computation, I/O or a large standard library inside the template. tramaj is intentionally small and deterministic.
+
+- You need a rich type system or schema language over the data. Pair tramaj with one rather than expecting it in the template language.
+
+- You need an established ecosystem of editor plugins, linters and third-party filters. tramaj is young.
+
+
+See [Use cases](/use-cases.html ) for where the trade-offs pay off, and [Reference](/reference.html ) for the language itself.
+
+

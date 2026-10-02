@@ -17,6 +17,8 @@ Five independent implementations target the same grammar and are checked against
 </table>
 ```
 
+![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png )
+
 None is published to a package registry yet (see the README's "Publishing" section) — all are used today as workspace, source or git dependencies. Each has its own [changelog](/topics/changelog.html ) page and Atom feed. See [Integrating tramaj](/integrate-tramaj.html ) for what's actually usable from each right now, including the fold each one does or doesn't ship.
 
 ## The native-implementation wish list is done

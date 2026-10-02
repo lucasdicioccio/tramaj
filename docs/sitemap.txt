@@ -8,6 +8,7 @@ https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-hs.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-rs.html
+https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html
 https://lucasdicioccio.github.io/tramaj/roadmap.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-py.html
 https://lucasdicioccio.github.io/tramaj/howto-humans.html

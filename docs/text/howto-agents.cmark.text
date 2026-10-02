@@ -81,6 +81,8 @@ Because imports, action keys, adaptation prefixes, and `ctx(...)` paths are all 
 - (v3/v4) what constraints and symbols/types it introduces
 
 
+![Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over](/gen/images/agent-loop.dot.png )
+
 `tramaj-cli`'s `analyze` subcommand exposes these directly — see [Getting started](/howto-humans.html ) for exact invocations. If you're generating a template and want to self-check it before handing it to a host, running `analyze` on it is cheaper and more reliable than re-deriving these properties by re-reading your own output.
 
 ## Common pitfalls
