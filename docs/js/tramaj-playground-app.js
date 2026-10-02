@@ -33436,7 +33436,7 @@
       return ul([class_("log")])(map35(renderLogEntry)(reverse(state3.actionLog)));
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 660, column 1 - line 660, column 58): " + [state3.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 702, column 1 - line 702, column 58): " + [state3.constructor.name]);
   };
   var referenceText = `THREE LEADER CHARACTERS
   .    builds a document: .tag(...) an element, .(...) a fragment
@@ -33788,6 +33788,9 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
         name: "svg-demo",
         source: '-- An <svg> subtree is folded in the SVG namespace (createElementNS), so\n-- svg, g, rect, text and line paint like the HTML around them. Attributes\n-- are plain attributes: viewBox, x, y, width, height, fill. The language\n-- has no arithmetic, so the geometry of each bar comes from $ctx.bars;\n-- edit the numbers in the JSON context on the left and watch it redraw.\n-- foreignObject is the way back into HTML inside an svg.\n@bar=(b) =>\n  .g(\n    .rect(x: $b.x, y: $b.y, width: $b.width, height: $b.height, fill: $b.fill),\n    .text(x: $b.labelX, y: 228, "text-anchor": "middle", "font-size": 12, "`$b.label`")\n  )\n.div(\n  .p("`cardinality($ctx.bars)` bar(s)"),\n  .svg(\n    xmlns: "http://www.w3.org/2000/svg",\n    viewBox: "0 0 420 240",\n    width: 420,\n    height: 240,\n    .line(x1: 20, y1: 210, x2: 400, y2: 210, stroke: "currentColor"),\n    map($ctx.bars, $bar),\n    .foreignObject(x: 250, y: 10, width: 160, height: 40, .p("an HTML paragraph inside the svg"))\n  )\n)'
       }, {
+        name: "millipede",
+        source: '-- A millipede per the getmillipede RFC (Vadot, 2015): an optional\n-- comment, a head ("\u255A\u2299 \u2299\u255D") and a body of "\u255A\u2550(\u2588\u2588\u2588)\u2550\u255D" segments, one per\n-- line. In reverse mode the body comes first, then the head with its\n-- mandibles inverted ("\u255D\u2299 \u2299\u255A"), then the comment. The language has no\n-- arithmetic, so each segment\'s indentation (the wiggle) and its colour\n-- (a hue gradient) come from $ctx.millipede.segments. Edit the JSON\n-- context: add segments, change "reverse" to true, rewrite the comment.\n@row="white-space: pre; font-family: monospace; line-height: 1.15; font-size: 1.2rem"\n@segment=(s) =>\n  .div(\n    style: $row,\n    .span("`$s.pad`\u255A\u2550"),\n    .span(style: "color: `$s.color`", "(\u2588\u2588\u2588)"),\n    .span("\u2550\u255D")\n  )\n@head=.div(\n  style: "`$row`; color: `$ctx.millipede.headColor`",\n  "`$ctx.millipede.headPad`\u255A\u2299 \u2299\u255D"\n)\n@reversed-head=.div(\n  style: "`$row`; color: `$ctx.millipede.headColor`",\n  "`$ctx.millipede.reversedHeadPad`\u255D\u2299 \u2299\u255A"\n)\n@comment=.p(style: "font-style: italic", "`$ctx.millipede.comment`")\n.div(\n  branch(\n    .(\n      $comment,\n      $head,\n      map($ctx.millipede.segments, $segment)\n    ),\n    $ctx.millipede.reverse,\n    .(\n      map($ctx.millipede.segments, $segment),\n      $reversed-head,\n      $comment\n    )\n  )\n)'
+      }, {
         name: "destructuring-demo",
         source: '-- Object binding patterns: an @-binding or a lambda parameter may\n-- destructure an object instead of naming it. {title, kind: k} reads the\n-- fields `title` and `kind` (binding the latter as `k`), exactly like\n-- $ctx.task.title; a missing field is PathNotFound, and nested patterns\n-- like {meta: {owner}} reach further in. Defaults, rest and array\n-- patterns are parse errors.\n@{title, kind: k, meta: {owner}} = $ctx.task\n@row=({name, done}) => .li("`$name`: `$done`")\n.div(\n  .p("`$title` (`$k`), owned by `$owner`"),\n  .ul(map($ctx.tasks, $row))\n)'
       }, {
@@ -33839,7 +33842,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
         source: '-- A trivial library whose only purpose is to export a nominal type\n-- ("Value") for other tabs to reference by $lib.types.Name.\ntype Value = document\n.p("(json library body -- imported here for its types, not rendered)")\n'
       }],
       activeTab: 0,
-      jsonInput: '{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}]}',
+      jsonInput: '{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}], "millipede": {"comment": "Hello from tramaj!", "reverse": false, "headPad": "  ", "headColor": "hsl(150, 80%, 70%)", "segments": [{"pad": "", "color": "hsl(130, 80%, 55%)"}, {"pad": " ", "color": "hsl(120, 80%, 55%)"}, {"pad": "  ", "color": "hsl(110, 80%, 55%)"}, {"pad": "   ", "color": "hsl(100, 80%, 55%)"}, {"pad": "   ", "color": "hsl(90, 80%, 55%)"}, {"pad": "  ", "color": "hsl(80, 80%, 55%)"}, {"pad": " ", "color": "hsl(70, 80%, 55%)"}, {"pad": "", "color": "hsl(60, 80%, 55%)"}, {"pad": " ", "color": "hsl(50, 80%, 55%)"}, {"pad": "  ", "color": "hsl(40, 80%, 55%)"}, {"pad": "   ", "color": "hsl(30, 80%, 55%)"}, {"pad": "   ", "color": "hsl(20, 80%, 55%)"}, {"pad": "  ", "color": "hsl(10, 80%, 55%)"}, {"pad": " ", "color": "hsl(0, 80%, 55%)"}], "reversedHeadPad": "   "}}',
       actionLog: [],
       mode: Concrete.value
     };
@@ -34010,7 +34013,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
         });
       }
       ;
-      throw new Error("Failed pattern match at Playground.Main (line 305, column 16 - line 324, column 51): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Playground.Main (line 347, column 16 - line 366, column 51): " + [v.constructor.name]);
     };
   })();
   var dispatchAction = function(_event) {
@@ -34064,7 +34067,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
             });
           }
           ;
-          throw new Error("Failed pattern match at Playground.Main (line 586, column 41 - line 588, column 106): " + [v32.constructor.name]);
+          throw new Error("Failed pattern match at Playground.Main (line 628, column 41 - line 630, column 106): " + [v32.constructor.name]);
         }
         ;
         if (v22 instanceof Just && (v22.value0 === "expression" && v12 instanceof Just)) {
@@ -34080,7 +34083,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
         return new Left('Malformed symbolic envelope: missing "kind"/"root"');
       }
       ;
-      throw new Error("Failed pattern match at Playground.Main (line 576, column 29 - line 590, column 80): " + [v3.constructor.name]);
+      throw new Error("Failed pattern match at Playground.Main (line 618, column 29 - line 632, column 80): " + [v3.constructor.name]);
     };
     var v = jsonParser(state3.jsonInput);
     if (v instanceof Left) {
@@ -34122,7 +34125,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
             });
           }
           ;
-          throw new Error("Failed pattern match at Playground.Main (line 566, column 23 - line 569, column 134): " + [v2.constructor.name]);
+          throw new Error("Failed pattern match at Playground.Main (line 608, column 23 - line 611, column 134): " + [v2.constructor.name]);
         }
         ;
         if (state3.mode instanceof Symbolic) {
@@ -34135,16 +34138,16 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
             return decodeEnvelope(v2.value0);
           }
           ;
-          throw new Error("Failed pattern match at Playground.Main (line 570, column 23 - line 572, column 54): " + [v2.constructor.name]);
+          throw new Error("Failed pattern match at Playground.Main (line 612, column 23 - line 614, column 54): " + [v2.constructor.name]);
         }
         ;
-        throw new Error("Failed pattern match at Playground.Main (line 565, column 26 - line 572, column 54): " + [state3.mode.constructor.name]);
+        throw new Error("Failed pattern match at Playground.Main (line 607, column 26 - line 614, column 54): " + [state3.mode.constructor.name]);
       }
       ;
-      throw new Error("Failed pattern match at Playground.Main (line 563, column 7 - line 572, column 54): " + [v1.constructor.name]);
+      throw new Error("Failed pattern match at Playground.Main (line 605, column 7 - line 614, column 54): " + [v1.constructor.name]);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 556, column 23 - line 572, column 54): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 598, column 23 - line 614, column 54): " + [v.constructor.name]);
   };
   var kindHint = function(state3) {
     return p([class_("hint")])([text5((function() {
@@ -34161,7 +34164,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
         return "A program's kind follows from its root: write .tag(...) or .(...) for a document, anything else for a plain value.";
       }
       ;
-      throw new Error("Failed pattern match at Playground.Main (line 512, column 15 - line 518, column 127): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Playground.Main (line 554, column 15 - line 560, column 127): " + [v.constructor.name]);
     })())]);
   };
   var renderAst = function(state3) {
@@ -34178,7 +34181,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return pre([class_("ref")])([text5(stringifyWithIndent(2)(v.value0.output.value0))]);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 626, column 19 - line 629, column 125): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 668, column 19 - line 671, column 125): " + [v.constructor.name]);
   };
   var renderConstraints = function(state3) {
     var v = computeResult(state3);
@@ -34190,7 +34193,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return renderConstraintTable(v.value0.constraints);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 637, column 27 - line 639, column 61): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 679, column 27 - line 681, column 61): " + [v.constructor.name]);
   };
   var renderOutput2 = function(state3) {
     var v = computeResult(state3);
@@ -34211,7 +34214,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return [pre([class_("ref")])([code_([text5(stringifyWithIndent(2)(v.value0.output.value0))])])];
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 596, column 22 - line 613, column 6): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 638, column 22 - line 655, column 6): " + [v.constructor.name]);
   };
   var renderSymbols = function(state3) {
     var v = computeResult(state3);
@@ -34223,7 +34226,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return renderSymbolTable(v.value0.symbols);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 632, column 23 - line 634, column 49): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 674, column 23 - line 676, column 49): " + [v.constructor.name]);
   };
   var renderTypeConstraints = function(state3) {
     var v = computeResult(state3);
@@ -34235,7 +34238,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return renderTypeConstraintTable(v.value0.typeConstraints);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 647, column 31 - line 649, column 73): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 689, column 31 - line 691, column 73): " + [v.constructor.name]);
   };
   var renderTypes = function(state3) {
     var v = computeResult(state3);
@@ -34247,7 +34250,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return renderTypesTable(v.value0.types);
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 642, column 21 - line 644, column 44): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 684, column 21 - line 686, column 44): " + [v.constructor.name]);
   };
   var renderProgramCard = function(state3) {
     var v = parseProgram(activeTabOf(state3).source);
@@ -34259,7 +34262,7 @@ Full reference: specs/reference.md. Output format: specs/node-json.md.`;
       return renderCard(programCard(buildLibraryTable(state3.tabs))(v.value0));
     }
     ;
-    throw new Error("Failed pattern match at Playground.Main (line 621, column 27 - line 623, column 83): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Playground.Main (line 663, column 27 - line 665, column 83): " + [v.constructor.name]);
   };
   var render = function(state3) {
     return div2([class_("wrap")])([h1_([text5("tramaj playground")]), p([class_("hint")])([text5("Renders a tramaj template against a JSON context, entirely in the browser. See specs/reference.md for the full language; the reference below is the short version.")]), details([class_("card")])([summary_([text5("Language reference")]), pre([class_("ref")])([text5(referenceText)])]), div2([class_("cols")])([div2([class_("card")])([div2([class_("row")])([h2_([text5("Template")])]), renderTabBar(state3), p([class_("hint")])([text5("Every tab is available to import(...) by its name, including the active one \u2014 switch tabs above to edit a library.")]), kindHint(state3), textarea([class_("input"), rows4(16), spellcheck2(false), value13(activeTabOf(state3).source), onValueInput(SetTabSource.create(state3.activeTab))])]), div2([class_("card")])([div2([class_("row")])([h2_([text5("JSON context")]), label_([input2([type_19(InputCheckbox.value), checked2(eq15(state3.mode)(Symbolic.value)), onChecked(function(checked3) {
