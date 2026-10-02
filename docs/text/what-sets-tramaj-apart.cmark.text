@@ -49,17 +49,7 @@ That restriction exists for one reason: so `staticActionKeys(program)` stays ans
 
 Put the three together and a tramaj program has a discoverable interface even though it's an executable program:
 
-```
-              ┌──────────────────┐
-              │  tramaj program   │
-              └─────────┬─────────┘
-                         │
-       ┌─────────────────┼─────────────────┐
-       ▼                 ▼                 ▼
-   context holes     imports /         action keys
-   & reads          unsupplied            it can
-                      params               emit
-```
+![The interface of a program, recovered by walking its AST: context holes, imports and unsupplied params, action keys, all before any evaluation](/gen/images/static-interface.dot.png )
 
 None of documents-as-values, static analysis, or restricted languages is new on its own — JSX, Dhall, CUE, and Starlark each stake out real territory here, and tramaj doesn't compete with Dhall's type system or CUE's unification. What's specific to tramaj is treating the combination — _document composition_ + _deferred, parameterized imports_ + _a statically recoverable dependency and action vocabulary_ — as the actual point, instead of a byproduct of "yet another way to generate markup." That's why [Properties](/properties.html ) calls out cheap static analysis as an invariant, not a feature: it's the thing the rest of the design exists to protect.
 

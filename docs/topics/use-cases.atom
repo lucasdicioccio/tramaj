@@ -18,6 +18,7 @@ a template can describe &lt;em&gt;what&lt;/em&gt; should happen (“on-click, se
 without knowing &lt;em&gt;how&lt;/em&gt; the host will react to it — the same template could
 drive a different UI framework by pairing it with a different fold.&lt;/p&gt;
 &lt;h3 id="documents-an-llm-can-emit-and-a-host-can-trust"&gt;Documents an LLM can emit and a host can trust&lt;/h3&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/untrusted-template.dot.png" alt="A template from a model or third party is analyzed statically, checked against host policy, and only then evaluated and folded into the UI" /&gt;&lt;/p&gt;
 &lt;p&gt;Because imports, action keys, and context reads are all static positions —
 literal strings, never computed — a host can run the static analyses in
 &lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;Tramaj.Analysis&lt;/code&gt;&lt;/a&gt; over a model-generated template

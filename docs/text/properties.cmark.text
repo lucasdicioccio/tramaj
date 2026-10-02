@@ -18,6 +18,12 @@ Import names, action keys, action-adaptation prefixes, and `ctx(path)` reads are
 
 Templates are referentially transparent — the same bindings evaluated against the same context values always produce the same result. Evaluation order is unconstrained outside of binding precedence, so a host is free to parallelize or reorder work, but never free to change the answer. This is what makes a rendered document reproducible, cacheable, and safe to diff.
 
+## Where the properties sit
+
+Determinism lives in the evaluator, portability in the `Node` JSON boundary after it, and everything host-specific (rendering, what an action key does) after that boundary, in code the host owns.
+
+![The evaluator is deterministic, Node JSON is the portable boundary, and folds and action handlers belong to the host](/gen/images/node-boundary.dot.png )
+
 ## What this buys you in practice
 
 Put together, these properties mean a host can accept a tramaj template from an untrusted or automated source — a CMS, a design tool, an LLM — and know, without running it, what it can possibly do to the page or app it's embedded in. See [Use cases](/use-cases.html ) for what that looks like in practice, or the [Reference](/reference.html ) for the full specification these properties are drawn from.

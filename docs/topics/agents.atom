@@ -98,6 +98,7 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;li&gt;(v3/v4) what constraints and symbols/types it introduces
 &lt;/li&gt;
 &lt;/ul&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/agent-loop.dot.png" alt="Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommand exposes these directly — see
 &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
 generating a template and want to

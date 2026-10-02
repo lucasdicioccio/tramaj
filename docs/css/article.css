@@ -329,3 +329,11 @@ span.hashtag {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* Generated diagrams (gen/images/*.dot.png): never overflow the column. */
+img[src*="/gen/images/"] {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}

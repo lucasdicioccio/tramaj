@@ -15,9 +15,13 @@ particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
 already ships one for you. Which of the six paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
+&lt;p&gt;The implementations and how they relate: one specification and corpus, five
+independently written ports, and the folds and CLIs layered on top of two of
+them.&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, and tramaj-py" /&gt;&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;Host language&lt;/th&gt;&lt;th&gt;Get the &lt;code&gt;Node&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Write the fold&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-purs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-hs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-rs&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-js&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-react&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
@@ -25,10 +29,10 @@ only on what language your host is written in.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;tramaj&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
+&lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
 &lt;a href="https://github.com/purescript/spago"&gt;Spago&lt;/a&gt; workspace rooted at this
 repository. A new PureScript package placed as a subdirectory of the
-workspace, with &lt;code&gt;tramaj&lt;/code&gt; (and &lt;code&gt;tramaj-halogen&lt;/code&gt; if you’re rendering through
+workspace, with &lt;code&gt;tramaj-purs&lt;/code&gt; (and &lt;code&gt;tramaj-halogen&lt;/code&gt; if you’re rendering through
 Halogen) listed in its &lt;code&gt;spago.yaml&lt;/code&gt; dependencies, is picked up by Spago’s
 workspace discovery with no registry publishing step needed.&lt;/p&gt;
 &lt;p&gt;The core API:&lt;/p&gt;
@@ -68,12 +72,12 @@ for an &lt;em&gt;interactive&lt;/em&gt; host (a read-only host just passes &lt;c
 instead).&lt;/p&gt;
 &lt;h3 id="haskell--the-library-exists-the-fold-doesnt-yet"&gt;Haskell — the library exists, the fold doesn’t yet&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt; is an independent Haskell port, built on megaparsec and aeson,
-that targets the same grammar as the PureScript &lt;code&gt;tramaj&lt;/code&gt; and shares its
+that targets the same grammar as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and shares its
 conformance corpus. It’s a normal Cabal library exposing &lt;code&gt;Tramaj.Ast&lt;/code&gt;,
 &lt;code&gt;Tramaj.Parser&lt;/code&gt;, &lt;code&gt;Tramaj.Eval&lt;/code&gt;, &lt;code&gt;Tramaj.Node&lt;/code&gt;, &lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and
 &lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (as a
 &lt;code&gt;source-repository-package&lt;/code&gt; or path dependency; it isn’t published to
-Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj&lt;/code&gt;.&lt;/p&gt;
+Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;What it does &lt;em&gt;not&lt;/em&gt; have yet is a &lt;code&gt;tramaj-halogen&lt;/code&gt; equivalent — no fold to
 Lucid, Blaze, or any other Haskell HTML/UI library ships in this
 repository. A Haskell host gets the parser, the evaluator, and the &lt;code&gt;Node&lt;/code&gt;
@@ -83,13 +87,13 @@ the fold to your actual rendering library is on you. The shape to follow is
 children, and decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host.&lt;/p&gt;
 &lt;h3 id="rust--the-library-exists-plus-its-own-cli"&gt;Rust — the library exists, plus its own CLI&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; is an independent, hand-written Rust port of the same grammar
-and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
+and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
 held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity,
 including &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
 and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
 published to crates.io yet), the same way a PureScript host depends on
-&lt;code&gt;tramaj&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
+&lt;code&gt;tramaj-purs&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse_program(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt; ParseError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
@@ -118,14 +122,14 @@ library into your host — including from a non-Rust host — &lt;code&gt;tramaj
 a drop-in alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required.&lt;/p&gt;
 &lt;h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react"&gt;JavaScript / TypeScript — import as a library, fold with &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-js&lt;/code&gt; is an independent, hand-written TypeScript port of the same
-grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj&lt;/code&gt;, Haskell
+grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt;, Haskell
 &lt;code&gt;tramaj-hs&lt;/code&gt;, and Rust &lt;code&gt;tramaj-rs&lt;/code&gt;, held to the same shared conformance
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language). It’s a normal npm package with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
-host depends on &lt;code&gt;tramaj&lt;/code&gt;:&lt;/p&gt;
+host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;function&lt;/span&gt; &lt;span class="fu"&gt;parseProgram&lt;/span&gt;(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;)&lt;span class="op"&gt;:&lt;/span&gt; Program&lt;span class="op"&gt;;&lt;/span&gt; &lt;span class="co"&gt;// throws ParseError&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
@@ -233,6 +237,8 @@ Python each have one now (&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj
 &lt;p&gt;This is a practical walkthrough. For the language’s core ideas, see the
 overview on the &lt;a href="/tramaj/"&gt;home page&lt;/a&gt;; for the full grammar, see the
 &lt;a href="/tramaj/reference.html"&gt;Reference&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;A template can be run in four places, and each section below covers one:&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/template-workflow.dot.png" alt="The same template can go to the playground, to tramaj-cli evaluate, to tramaj-cli analyze (no context needed), or into an embedding host" /&gt;&lt;/p&gt;
 &lt;h3 id="the-fastest-way-in-the-playground"&gt;The fastest way in: the playground&lt;/h3&gt;
 &lt;p&gt;Before installing anything, try the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt; — it runs
 entirely in the browser, needs no setup, and shows the same panels described
@@ -390,6 +396,7 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;li&gt;(v3/v4) what constraints and symbols/types it introduces
 &lt;/li&gt;
 &lt;/ul&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/agent-loop.dot.png" alt="Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommand exposes these directly — see
 &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for exact invocations. If you’re
 generating a template and want to

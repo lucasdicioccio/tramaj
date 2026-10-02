@@ -1,0 +1,90 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - tramaj compared to other tools</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="properties, comparison, Jinja, Handlebars, Liquid, JSX, Helm, Jsonnet, Dhall, CUE"><meta name="description" content="How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - tramaj compared to other tools"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - tramaj compared to other tools"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html"><meta property="og:description" content="How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else."><meta name="article:published_time" content="2026-10-02T01:00:00Z"><meta name="article:modified_time" content="2026-10-02T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/tramaj-compared-to-other-tools.cmark.json"><meta name="ks:article_text" content="/tramaj/text/tramaj-compared-to-other-tools.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-02T01:00:00Z","datePublished":"2026-10-02T01:00:00Z","description":"How tramaj differs from string templates, JSX, and configuration languages, and when you should pick something else.","headline":"tramaj compared to other tools","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/tramaj-compared-to-other-tools.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="properties"><meta name="article:tag" content="comparison"><meta name="article:tag" content="Jinja"><meta name="article:tag" content="Handlebars"><meta name="article:tag" content="Liquid"><meta name="article:tag" content="JSX"><meta name="article:tag" content="Helm"><meta name="article:tag" content="Jsonnet"><meta name="article:tag" content="Dhall"><meta name="article:tag" content="CUE"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="search-box" data-base-path="/tramaj"><script type="text/javascript" src="/tramaj/js/search-box.js" async></script></div></nav><div class="main"><article><header class="heading"><h1>tramaj compared to other tools</h1><p>On <span>Fri, 02 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 608 words, 0 code snippets, 4 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/what-sets-tramaj-apart.html">‹</a></span><a class="topic-link" href="/tramaj/topics/properties.html"><span class="topic-name">properties</span><span class="topic-count">3/3</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="tramaj-compared-to-other-tools">tramaj compared to other tools</h2>
+<p>tramaj sits between three families of tools: string template engines, JSX-style
+embedded document syntaxes, and configuration languages. This page says
+where it overlaps with each, where it differs, and when another tool is the
+better choice. For the argument behind the design, see
+<a href="/tramaj/what-sets-tramaj-apart.html">What sets tramaj apart</a>; for the guarantees,
+see <a href="/tramaj/properties.html">Properties</a>.</p>
+<h3 id="at-a-glance">At a glance</h3>
+<ul>
+<li><strong>String templates</strong> (Jinja, Handlebars, Liquid, Go templates): output is
+text; inputs are discovered by running or grepping; untrusted source depends
+on the sandbox.
+</li>
+<li><strong>JSX and similar</strong>: output is an element tree; the expression language is
+the full host language; the program’s interface is whatever the host’s type
+checker knows.
+</li>
+<li><strong>Configuration languages</strong> (Jsonnet, Dhall, CUE, Nickel): output is data;
+the language is small, functional and restricted; the interface is types or
+schemas.
+</li>
+<li><strong>tramaj</strong>: output is a document tree; the language is small, functional and
+shared by several runtimes; inputs are declared as literal <code>ctx(path)</code> holes;
+imports, context reads and action keys are recoverable by walking the AST.
+</li>
+</ul>
+<h3 id="against-string-template-engines">Against string template engines</h3>
+<p>Jinja, Handlebars, Liquid, Mustache and Go’s <code>text/template</code> render text.
+The template is a string with holes, and the output is a string. That is
+simple and works everywhere, but a few things follow:</p>
+<ul>
+<li>Escaping is a concern of the author. A tree-valued output makes
+well-formed markup the default instead of a discipline.
+</li>
+<li>Composition goes through includes, partials, or blocks, which are
+usually resolved by name at render time. In tramaj an <code>import</code> is a value
+you can bind, partially apply and pass around.
+</li>
+<li>What a template reads is discoverable only by running it or by grepping.
+tramaj <code>ctx(...)</code> reads are literal paths, so a host can list them without
+evaluating anything.
+</li>
+</ul>
+<p>Choose a string engine when you produce plain text (emails, config files,
+code) and want the most familiar syntax and the biggest ecosystem of
+filters and editors.</p>
+<h3 id="against-jsx-and-embedded-document-syntaxes">Against JSX and embedded document syntaxes</h3>
+<p>JSX, and its cousins in other languages, make documents values inside a
+full programming language. tramaj shares that central idea. The difference
+is the host: with JSX you get all of JavaScript, its tooling and its
+libraries, and you also get a program that can do anything. tramaj keeps its
+own small language so the same template runs the same on every runtime and
+a tool can reason about it before it runs.</p>
+<p>Choose JSX when you are already in a JavaScript application, want the
+component ecosystem, and trust the code that you compile. Choose tramaj when
+templates are data that travel across languages, or when the source is
+written by a model or a user you do not fully trust.</p>
+<h3 id="against-configuration-languages">Against configuration languages</h3>
+<p>Jsonnet, Dhall, Nickel and CUE are the closest relatives in spirit: small,
+functional, importable, restricted on purpose. They produce data, though,
+and tramaj produces documents. Dhall brings a real type system and CUE
+brings constraint unification; tramaj does not try to compete with either.
+What tramaj adds is document composition, deferred and partially applied
+imports, and a statically recoverable vocabulary of actions that a document
+may attach to a node.</p>
+<p>Choose a configuration language when the output is configuration and you
+want strong typing, schema validation or constraint solving. Choose tramaj
+when the output is a rendered document with interactive actions.</p>
+<h3 id="against-template-layers-on-top-of-configuration">Against template layers on top of configuration</h3>
+<p>Helm charts and similar tools put a text templating layer on top of YAML.
+That mixes two syntaxes, so indentation and quoting become template
+concerns. tramaj builds the tree directly, so there is no text stage where
+structure can break.</p>
+<h3 id="where-tramaj-is-not-the-right-tool">Where tramaj is not the right tool</h3>
+<ul>
+<li>You only need text output and your team already knows a string engine.
+</li>
+<li>You want arbitrary computation, I/O or a large standard library inside the
+template. tramaj is intentionally small and deterministic.
+</li>
+<li>You need a rich type system or schema language over the data. Pair tramaj
+with one rather than expecting it in the template language.
+</li>
+<li>You need an established ecosystem of editor plugins, linters and
+third-party filters. tramaj is young.
+</li>
+</ul>
+<p>See <a href="/tramaj/use-cases.html">Use cases</a> for where the trade-offs pay off, and
+<a href="/tramaj/reference.html">Reference</a> for the language itself.</p>
+</section></div><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>
