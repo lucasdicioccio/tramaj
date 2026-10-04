@@ -11,6 +11,7 @@ digraph conformance {
   i3 [label="tramaj-rs"];
   i4 [label="tramaj-js"];
   i5 [label="tramaj-py"];
+  i6 [label="tramaj-go"];
   cmp [label="output must equal the\nexpected output\nbyte for byte", fillcolor="#fbeee8", color="#c0562f"];
 
   case -> mode;
@@ -19,9 +20,11 @@ digraph conformance {
   mode -> i3;
   mode -> i4;
   mode -> i5;
+  mode -> i6;
   i1 -> cmp;
   i2 -> cmp;
   i3 -> cmp;
   i4 -> cmp;
   i5 -> cmp;
+  i6 -> cmp;
 }

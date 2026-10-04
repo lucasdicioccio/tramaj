@@ -52,6 +52,7 @@ independently written implementations can run it identically.
 <tr><td><code>tramaj-rs</code></td><td>Rust</td><td>independent port, checked against the same corpus; <code>tramaj-cli-rs</code> is its CLI</td></tr>
 <tr><td><code>tramaj-js</code></td><td>JavaScript / TypeScript</td><td>independent port, checked against the same corpus; <code>tramaj-react</code> folds to React</td></tr>
 <tr><td><code>tramaj-py</code></td><td>Python</td><td>independent port on the standard library alone, checked against the same corpus; <code>python -m tramaj</code> is its CLI</td></tr>
+<tr><td><code>tramaj-go</code></td><td>Go</td><td>independent port on the standard library alone, checked against the same corpus; <code>tramaj-go</code> is its CLI</td></tr>
 </table>
 
 ![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png)
@@ -70,7 +71,8 @@ implementations, so that hosts in those ecosystems would get what
 PureScript and Haskell hosts already had: an in-process parser and
 evaluator, with no subprocess and no JSON round-trip just to get a `Node`.
 All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each
-passes the full corpus in both modes, v3 and v4 extensions included.
+passes the full corpus in both modes, v3 and v4 extensions included. A Go
+port, `tramaj-go`, has since joined them on the same terms.
 
 ## Desired next: folds, and releases
 
@@ -89,7 +91,7 @@ assigned owner for any of it.
 
 ## What "done" looks like for a new implementation
 
-`tramaj-hs`, `tramaj-rs`, `tramaj-js` and `tramaj-py` are the templates to
+`tramaj-hs`, `tramaj-rs`, `tramaj-js`, `tramaj-py` and `tramaj-go` are the templates to
 follow, since they were added *after* the language had settled on a
 normative spec and output format (`tramaj-py` is the smallest: one module
 per concern, standard library only). A new implementation is considered on
