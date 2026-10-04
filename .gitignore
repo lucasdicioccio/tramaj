@@ -53,3 +53,6 @@ conv.*.json
 # Python
 __pycache__/
 *.pyc
+
+# Go
+tramaj-go/tramaj-go

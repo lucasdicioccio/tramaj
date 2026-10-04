@@ -25,12 +25,16 @@ digraph implementations {
   subgraph cluster_py { label="Python"; style="rounded"; color="#c7c2b8"; fontsize=11;
     py [label="tramaj-py\n(python -m tramaj)"];
   }
+  subgraph cluster_go { label="Go"; style="rounded"; color="#c7c2b8"; fontsize=11;
+    go [label="tramaj-go\n(tramaj-go CLI)"];
+  }
 
   spec -> ps [label="each port is\nchecked against\nthe corpus"];
   spec -> hs;
   spec -> rs;
   spec -> js;
   spec -> py;
+  spec -> go;
   ps -> hal [label="Node"];
   ps -> pcli [label="wraps"];
   rs -> rcli [label="wraps"];

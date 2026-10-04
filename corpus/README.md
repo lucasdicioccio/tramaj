@@ -59,6 +59,7 @@ source:
 * `tramaj/test/Test/Main.purs` — `runCorpus`
 * `tramaj-hs/test/unit/Tramaj/CorpusSpec.hs`
 * `tramaj-py/tests/test_corpus.py`
+* `tramaj-go/corpus_test.go`
 
 A case belongs here only if both implementations can run it byte-for-byte
 identically. Behavior that is legitimately implementation-specific (error

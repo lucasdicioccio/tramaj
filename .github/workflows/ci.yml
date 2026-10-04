@@ -116,3 +116,29 @@ jobs:
           printf '{"items":["a","b","c"]}' > /tmp/t.json
           python3 -m tramaj /tmp/t.tramaj /tmp/t.json
         working-directory: tramaj-py
+
+  go:
+    name: Go (tramaj-go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      # Standard library only: nothing to download. The corpus runner walks
+      # up from tramaj-go to the repository's corpus/cases.
+      - name: Vet and test
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+        working-directory: tramaj-go
+
+      - name: Render a template
+        run: |
+          printf '@n=cardinality($ctx.items)\n.p("there are `$n` item(s)")' > /tmp/t.tramaj
+          printf '{"items":["a","b","c"]}' > /tmp/t.json
+          go run ./cmd/tramaj-go /tmp/t.tramaj /tmp/t.json
+        working-directory: tramaj-go
