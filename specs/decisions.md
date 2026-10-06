@@ -389,3 +389,285 @@ duplicate name and a rejected default/rest; then `reference.md` §8/§14 and
 **Questions for the owner.** (1) Object-only scope, with array patterns waiting
 on a failing index read. (2) `{bar: baz}` as the rename spelling. (3) Annotated
 patterns rejected for now. (4) Reserve default and rest syntax as a parse error.
+
+## 18. Arithmetic: six named builtins, no operators, and a term for what a symbol leaves unevaluated
+
+*Status: proposed, for owner review. Nothing here is implemented; `specs/reference.md` §11 keeps saying "there is no arithmetic" until a port lands.*
+
+`reference.md` §11 states that a template "compares and selects, it does not
+compute", and §5 and this file's §9 lean on it. This section proposes to
+reverse that position, so it records why first.
+
+**Why reverse it.** The position assumed that every derived number can be
+computed by whoever builds the context. That holds when the host and the
+template author are the same party. It fails when they are not: a template
+handed a set of counters by a host it does not control cannot show a subtotal,
+a share in percent or a bar width unless someone upstream precomputes each one
+and stores it next to the raw numbers. The template then depends on a second
+program staying in step with it, which is the coupling a template language
+exists to remove. The reversal is narrow: the *grammar* does not change at all.
+
+**Scope.** Six builtins, as ordinary names in the initial environment. No infix
+operator, no new leader, no new literal form.
+
+| builtin | arity | concrete result |
+|---|---|---|
+| `sum(…)` | any, including zero | left fold of `+` from `0`; `sum()` is `0` |
+| `product(…)` | any, including zero | left fold of `*` from `1`; `product()` is `1` |
+| `negate(x)` | 1 | `-x` |
+| `inverse(x)` | 1 | `quotient(1, x)`, by definition |
+| `quotient(a, b)` | 2 | `a / b` |
+| `floor(x)` | 1 | the largest integer not above `x` |
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor(quotient(product(100, $ctx.used), $ctx.total)))
+@total    = sum(map($ctx.lines, (l) => product($l.qty, $l.price)))
+```
+
+- *Subtraction is not a builtin.* Negation is exact in IEEE 754, so
+  `sum(a, negate(b))` is bit for bit `a - b`. A `difference` would add a name
+  and no value.
+- *Division is one, although it was not asked for by name.* The same argument
+  fails for it: `product(a, inverse(b))` rounds twice where `a / b` rounds
+  once, and the results differ. `product(49, inverse(49))` is
+  `0.9999999999999999`, so `floor` of it is `0`; 98, 103 and 107 behave the
+  same way. A share computed that way would be off by one unit for arbitrary
+  inputs. `quotient` is therefore the primitive and `inverse(x)` is defined as
+  `quotient(1, x)`, which keeps the requested name and its meaning.
+- *`floor` is the single integer primitive.* Without one, no ratio can be
+  turned into a whole number of percent or pixels. Modulo and truncation are
+  expressible from it. Rounding to nearest and decimal formatting are display
+  concerns and are left to the number-formatting work, since
+  `floor(sum(x, 0.5))` only approximates rounding (it is wrong for the double
+  just below `0.5`).
+- *`min` and `max` are left out.* Their identities are the infinities, which
+  are not values (below), so the zero-argument case could not follow `sum()`
+  and `and()`. `fold` with a `branch` covers the concrete case.
+
+The existing `-` rule is untouched: `-` stays part of a number literal, `--`
+stays a comment, `<>` stays the only infix operator, and §9's argument that no
+expression begins with a hyphen still holds. Only the parenthetical in ref §5
+("there is no arithmetic") needs rewording to "there are no arithmetic
+operators".
+
+**Arrays as arguments.** `sum` and `product` flatten their arguments by the
+rule children (ref §6) and `!` (v3-symbols §2.2) already use: an array
+contributes each of its elements, recursively, in order. So `sum($xs)`,
+`sum(1, $xs, 2)` and `sum([1, [2, 3]])` are all legal, and `sum([])` is `0`.
+There is no spread syntax and this does not add one; a separate
+`sum-of(array)` form would make the author pick a spelling by the shape of the
+data, and the language already answers "an array in a sequence position is a
+sequence" twice. The four fixed-arity builtins do not flatten: `negate([1])`
+is a `TypeMismatch`, and `map($xs, $negate)` is the way to write it. `and`,
+`or` and `concat` are unchanged.
+
+**Optional, but builtin: a profile.** Arithmetic is a third profile next to
+v3-symbols §5.5's core and symbolic ones, and independent of both.
+
+- An implementation with the **arithmetic profile** puts the six names in the
+  initial environment. One without it does not, and a program that uses one
+  fails with the existing `UnboundName`. No new refusal mechanism is needed,
+  and none at parse time is possible: these are names, not syntax, and
+  `@sum = …` may legitimately bind one.
+- Because builtins are ordinary bindings, a program that already binds `sum`,
+  `floor` or any of the others (a binding, a lambda parameter, a pattern name)
+  shadows the builtin and behaves exactly as before. Adding the names breaks
+  no existing program.
+- A new static analysis, `arithmeticOps` with a deep variant, reports which of
+  the six names a program references **free**, called or passed by reference
+  (`fold($xs, 0, $sum)`). It is scope-aware, so a shadowed name is not
+  reported, and it over-approximates like every analysis in ref §9. A host
+  without the profile refuses a program up front when `deepArithmeticOps` is
+  non-empty, the same way `deepConstraintKinds` is used.
+
+*Rejected: a reserved library, `import("math", {})`.* Its optionality story is
+the cleanest available, since `UnknownLibrary` and `staticImportNames` already
+exist. It costs every call three segments (`$m.vals.sum(…)`), needs an import
+with an empty parameter object, would be the first library that cannot be
+written in Tramaj, and takes a name out of the host's library table, which
+ref §7 gives to the host entirely.
+
+**Concrete semantics.** These are the rules that make six ports agree byte for
+byte.
+
+1. *Operands are IEEE 754 binary64.* A port that holds numbers in a wider type
+   (an arbitrary-precision integer or decimal) MUST convert each operand to the
+   nearest double before computing. This narrows ref §13's "number precision"
+   entry for arithmetic: the result of these builtins is not
+   implementation-defined.
+2. *One correctly rounded operation at a time*, round to nearest, ties to even.
+   `sum` and `product` are a left fold over the flattened operands, starting
+   from the identity: `sum(a, b, c)` is `((0 + a) + b) + c`. No pairwise or
+   compensated summation, no reordering, and no fused multiply-add: a port
+   whose compiler may contract `a * b + c` must prevent it. Starting from the
+   identity is exact (`0 + a` and `1 * a` are `a`), so it changes no result and
+   removes the one-operand special case.
+3. *A non-finite result is an error*, of a new kind `NotFinite`. NaN and the
+   infinities are not JSON and are not values. This covers `inverse(0)`,
+   `quotient(x, 0)`, `quotient(0, 0)` and overflow with one rule and no test
+   for a zero divisor. Once a fold's running value is non-finite it stays so,
+   so checking the final result is equivalent to checking each step.
+   Underflow is not an error: the result is the nearest double, which may be
+   zero, as for a literal (ref §5).
+4. *There is no negative zero.* A result that is zero is `0`, as for literals:
+   `negate(0)` is `0`, and so is `product(-1, 0)`.
+5. *No coercion.* An operand that is not a number is a `TypeMismatch`
+   (`sum(1, "2")`, `sum(null)`, `negate(true)`), like `eq`'s refusal to equate
+   `1` and `"1"`. A wrong argument count for a fixed-arity builtin is a
+   `TypeMismatch` too. All operands are checked, in flattened order, before
+   anything is computed, so `sum(1e308, 1e308, "a")` is a `TypeMismatch` and
+   not a `NotFinite`.
+6. *`str` is unchanged*, so `sum(0.1, 0.2)` interpolates as
+   `0.30000000000000004`. That is what the double is; hiding it belongs to
+   formatting, not to arithmetic.
+
+Division by a value that happens to be zero at render time is the case a
+template will meet in practice (an empty counter). It is an error rather than
+`null` or `0` because either of those would flow into the document as a
+plausible-looking answer. The guard is the lazy `branch` shown above, whose
+unselected arm is never evaluated (ref §6).
+
+**Symbolic semantics.** v3-symbols §1.5 makes everything that inspects a symbol
+`NotConcrete`, and §9 declined symbolic strings because "the value domain would
+gain terms, not just variables". Arithmetic over a symbol is that step. Three
+ways to take it:
+
+- *(a) A term in the value domain.* `sum(1, $s, 2)` evaluates to a value that
+  records the operation and its operands.
+- *(b) A derived symbol plus an emitted constraint.* `sum($a, $b)` yields a
+  fresh symbol and emits a constraint relating it to its operands, so the value
+  domain stays term-free.
+- *(c) Two libraries with the same names*, one concrete and one symbolic,
+  chosen by the author.
+
+**Recommended: (a).**
+
+(c) is ruled out by v3-symbols §5.1: a library written against `?ctx.path` must
+run whether its caller supplied a number or a symbol, so its author cannot know
+which library to call. It is also the eye strain the request asked to avoid.
+
+(b) keeps the value domain flat, which suits a solver, but breaks four rules
+the language holds elsewhere. The derived symbol needs an id that is identical
+across ports, and a builtin has no site (it can be passed by reference and
+called under `map`), so the id would have to be the canonical rendering of the
+operation and its operands: the term, hidden in a string the host must parse.
+A builtin would emit, where today only `!` does and a constraint never reached
+by a `!` is discarded (§2.2). A library doing arithmetic on a symbolic
+parameter would mint symbols, against §1.4's "only a root program may
+allocate". And the language would claim constraint names (`"sum"`) in a
+vocabulary §0 gives wholly to the host.
+
+(a) costs one new tagged shape. What distinguishes it from the declined
+symbolic strings: text had a better alternative (separate children, §1.8, which
+a form renderer wants anyway) and numbers have none; and the vocabulary is
+closed, six operations whose meaning the language itself defines, so a term is
+not host vocabulary. It is the computation the language would have performed
+had it known the operands, handed over undone.
+
+```text
+Value
+  = ...
+  | Term  op: String, arguments: List<Value>   -- arguments: numbers, symbols, terms
+```
+
+- A call to one of the six builtins whose flattened operands are all numbers
+  computes, as above. If at least one operand is a symbol or a term, the result
+  is a `Term` with that `op` and **the flattened operands exactly as written**:
+  same order, nothing folded, nothing simplified, no nested term spliced.
+  `sum(1, $s, 2)` is `sum(1, $s, 2)`, not `sum($s, 3)`; `inverse($s)` is
+  `inverse($s)`, not `quotient(1, $s)`.
+- Preserving rather than folding is forced by floating point: `(1 + s) + 2` and
+  `s + 3` are different doubles for some `s`. It buys the **residual law**: a
+  host that evaluates a term by the concrete rules above, after substituting
+  numbers for its symbols, gets byte for byte what the program would have
+  produced had those numbers been in the context. It also keeps the promise of
+  §0 that Tramaj solves nothing, and it is the least code in six ports.
+- Concrete operands of a term are still checked (`sum("a", $s)` is a
+  `TypeMismatch`). A symbol operand is not: what it stands for is the host's.
+  `inverse($s)` is a term even if the host later supplies `0`, and the author
+  who cares writes `!constraint("ne", $s, 0)` in the host's vocabulary.
+- A term is data, exactly as a symbol is (§1.5): it may be bound, passed,
+  stored, placed in an attribute, a payload, a value slot or a text child, used
+  as a constraint argument, and used as an operand. `constraint("lte",
+  sum($a, $b), 10)` is the point of the exercise.
+- Everything that inspects refuses, as for a symbol: `branch`, `eq`, `lt`,
+  `lte`, `gt`, `gte`, `str` and interpolation, `cardinality`, `has`, `lookup`,
+  `<>`, a `map` spine and an allocation key are `NotConcrete` on anything
+  containing a term. The comparisons do **not** become symbolic: a boolean term
+  could only feed `branch`, and control flow must be concrete.
+- A term has no projection. `$t.field` is a `TypeMismatch`, since a term stands
+  for a number and a number has no fields.
+- A symbol operand counts as one number. A symbol standing for a whole array
+  cannot be summed; that is §1.7's ceiling, unchanged.
+- Equality of terms, for constraint deduplication (§4), is structural:
+  `sum($a, 1)` and `sum(1, $a)` are two terms.
+- Concrete mode is untouched. No symbol can exist there (§5.1), so no term can.
+
+**Envelope.** The value domain gains a third tagged shape:
+
+```json
+{"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
+```
+
+- Both fields are required. `"$term"` joins `"$sym"` and `"$type"` as a key
+  reserved in the value domain in both modes and all profiles (§5.3): a parse
+  error in a program, rejected in a context unless it is a well-formed term in
+  symbolic mode. Well-formed means a known `op`, the right argument count, and
+  arguments that are numbers, symbols or terms with at least one symbol
+  somewhere inside. Seeding (§5.4) accepts it on those terms.
+- The envelope's own fields do not change, and the format stays
+  `tramaj/symbolic/1`, following v4-types §8. A term can reach a host only if
+  that host enabled the arithmetic profile, which is the host changing its
+  mind in §5.2's sense, and `deepArithmeticOps` tells it beforehand which
+  operations can appear.
+- No list is added. A term is carried where it is used; it is not an entity
+  with an identity, so it has no table.
+
+**Follow-up once approved.** Normative text: ref §5 (the parenthetical), §9
+(`arithmeticOps`), §11 (the table and the "no arithmetic" paragraph), §12
+(`NotFinite`), §13 (precision); v3-symbols §1.1, §1.5, §5.2 to §5.5, §7, §8 and
+§9's third "declined" entry; `laws.md` for the residual law. Then the
+PureScript reference and the Haskell, Rust, TypeScript, Go and Python ports.
+The corpus needs a way to mark a case as needing a profile (an optional
+`"requires": ["arithmetic"]` in `meta.json`), and these families:
+
+- identities: `sum()`, `product()`, `sum([])`, one operand;
+- flattening: nested arrays, arrays mixed with scalars, a `map` result;
+- fold order: a three-operand sum whose two groupings differ
+  (`sum(0.1, 0.2, 0.3)` is `0.6000000000000001`), and the same for `product`;
+- `quotient` against `product` with `inverse` (49), and `inverse` itself;
+- `floor` of negatives, of integers, of values past 2^53;
+- zero: `negate(0)`, `product(-1, 0)`, an underflowing product;
+- `NotFinite`: `inverse(0)`, `quotient(0, 0)`, overflow in `sum` and `product`,
+  and the `branch` guard that avoids it;
+- `TypeMismatch`: each non-number operand kind, wrong arity, an array given to
+  a fixed-arity builtin, and precedence over `NotFinite`;
+- operands above 2^53 arriving through the context;
+- a builtin passed by reference to `map` and `fold`; a shadowing binding;
+- terms: mixed operands preserved in order, a nested term, a flattened array of
+  symbols, a term in an attribute, a payload, a value slot, a text child and a
+  constraint argument;
+- terms refused: every inspecting builtin, interpolation, projection;
+- deduplication of two constraints over equal and over reordered terms;
+- seeding: a well-formed term round-trips, a malformed or symbol-free one is
+  rejected, and `"$term"` in a concrete-mode context is rejected;
+- the residual law: one program run symbolically, and concretely with the
+  symbol seeded as a number.
+
+**Questions for the owner.**
+
+1. `quotient` and `floor` in the first cut, beyond the four names asked for;
+   `min`/`max`, rounding and formatting left out.
+2. Flattening arrays in `sum`/`product`, and not in `and`/`or`.
+3. A profile gated by `UnboundName` and `deepArithmeticOps`, rather than a
+   reserved `import("math", {})`.
+4. `NotFinite` as a new error kind, and division by zero as an error rather
+   than a value.
+5. Terms in the value domain, preserved exactly as written. The alternative
+   worth a second look is folding a *leading* run of concrete operands, which
+   is exact (`sum(1, 2, $s)` to `sum(3, $s)`) but is a rewrite rule every port
+   must then share.
+6. Reserving `"$term"` in every profile, which rejects a context that carries
+   that key today, and keeping the envelope at `tramaj/symbolic/1`.
