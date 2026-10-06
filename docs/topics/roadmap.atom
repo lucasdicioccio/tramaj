@@ -20,6 +20,7 @@ independently written implementations can run it identically.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-react&lt;/code&gt; folds to React&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;python -m tramaj&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;tramaj-go&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
 &lt;p&gt;None is published to a package registry yet (see the README’s
@@ -34,7 +35,8 @@ implementations, so that hosts in those ecosystems would get what
 PureScript and Haskell hosts already had: an in-process parser and
 evaluator, with no subprocess and no JSON round-trip just to get a &lt;code&gt;Node&lt;/code&gt;.
 All three exist now — &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-rs&lt;/code&gt; — and each
-passes the full corpus in both modes, v3 and v4 extensions included.&lt;/p&gt;
+passes the full corpus in both modes, v3 and v4 extensions included. A Go
+port, &lt;code&gt;tramaj-go&lt;/code&gt;, has since joined them on the same terms.&lt;/p&gt;
 &lt;h3 id="desired-next-folds-and-releases"&gt;Desired next: folds, and releases&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Folds.&lt;/strong&gt; Only PureScript (&lt;code&gt;tramaj-halogen&lt;/code&gt;) and JavaScript
@@ -52,7 +54,7 @@ version it implements in its major digit.
 &lt;p&gt;This is a wish list, not a schedule: there’s no committed timeline or
 assigned owner for any of it.&lt;/p&gt;
 &lt;h3 id="what-done-looks-like-for-a-new-implementation"&gt;What “done” looks like for a new implementation&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;, &lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-py&lt;/code&gt; are the templates to
+&lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;, &lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-go&lt;/code&gt; are the templates to
 follow, since they were added &lt;em&gt;after&lt;/em&gt; the language had settled on a
 normative spec and output format (&lt;code&gt;tramaj-py&lt;/code&gt; is the smallest: one module
 per concern, standard library only). A new implementation is considered on

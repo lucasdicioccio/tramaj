@@ -9,9 +9,9 @@ Every integration has the same two moving parts, regardless of language:
 
 Nothing about `Node` or the evaluator knows about HTML, a browser, or any particular UI framework (see [Properties](/properties.html )) — the fold is always something _you_ write for your host, even where this repository already ships one for you. Which of the six paths below applies depends only on what language your host is written in.
 
-The implementations and how they relate: one specification and corpus, five independently written ports, and the folds and CLIs layered on top of two of them.
+The implementations and how they relate: one specification and corpus, six independently written ports, and the folds and CLIs layered on top of two of them.
 
-![The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, and tramaj-py](/gen/images/implementations.dot.png )
+![The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go](/gen/images/implementations.dot.png )
 
 ```html
 <table>
@@ -21,6 +21,7 @@ The implementations and how they relate: one specification and corpus, five inde
 <tr><td>Rust</td><td>depend on <code>tramaj-rs</code> directly, or shell out to <code>tramaj-cli-rs</code></td><td>write your own — none shipped yet</td></tr>
 <tr><td>JavaScript / TypeScript</td><td>depend on <code>tramaj-js</code> directly, or shell out to <code>tramaj-cli</code></td><td>reuse <code>tramaj-react</code>, or write your own</td></tr>
 <tr><td>Python</td><td>depend on <code>tramaj-py</code> directly, or shell out to <code>python -m tramaj</code></td><td>write your own — none shipped yet</td></tr>
+<tr><td>Go</td><td>depend on <code>tramaj-go</code> directly, or shell out to its <code>tramaj-go</code> CLI</td><td>write your own — none shipped yet</td></tr>
 <tr><td>anything else</td><td>shell out to <code>tramaj-cli</code> or <code>tramaj-cli-rs</code>, or reimplement the evaluator</td><td>write your own, over the JSON</td></tr>
 </table>
 ```
@@ -120,7 +121,7 @@ If you'd rather not add a JS dependency at all — or your host isn't Node — `
 
 ## Python — import as a library, standard library only
 
-`tramaj-py` is an independent, hand-written Python port of the same grammar and evaluation semantics as the other four implementations, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types). It needs nothing outside the standard library (Python 3.9+), so it drops into a data pipeline, a notebook or a backend service without a Node or PureScript toolchain as a runtime dependency. It's a normal package — `tramaj` with `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval` modules, laid out one-to-one like `tramaj-js` — installed from the repository's `tramaj-py/` directory (not published to PyPI yet):
+`tramaj-py` is an independent, hand-written Python port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types). It needs nothing outside the standard library (Python 3.9+), so it drops into a data pipeline, a notebook or a backend service without a Node or PureScript toolchain as a runtime dependency. It's a normal package — `tramaj` with `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval` modules, laid out one-to-one like `tramaj-js` — installed from the repository's `tramaj-py/` directory (not published to PyPI yet):
 
 ```python
 from tramaj import parse_program, run_program
@@ -133,11 +134,28 @@ run_program("concrete", {}, {"name": "web"}, program)  # raises EvalError
 
 As with Haskell and Rust, no fold is shipped: a Python host writes its own following the same shape (case on `text`/`element`/`fragment`, recurse into children, decide what an `action(...)` payload means in your host). Python also has its own `tramaj-cli` equivalent, `python -m tramaj`, mirroring `tramaj-cli-rs`'s `evaluate`/`analyze` subcommands, flags and JSON output shapes, so a non-Python host with a Python interpreter around can shell out to it instead of to Node.
 
+## Go — import as a module, standard library only
+
+`tramaj-go` is an independent, hand-written Go port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types). It needs nothing outside the standard library (Go 1.21+), so it compiles into a service or a static binary with no Node, Python or PureScript toolchain as a runtime dependency. It's one package, `tramaj`, in the repository's `tramaj-go/` directory (no tagged module release yet):
+
+```go
+import tramaj "github.com/lucasdicioccio/tramaj/tramaj-go"
+
+program, err := tramaj.ParseProgram(`.p($ctx.name)`) // err is a *tramaj.ParseError
+ctx, _ := tramaj.ParseJSON([]byte(`{"name": "web"}`))
+out, err := tramaj.RunProgram(tramaj.Concrete, nil, ctx, program) // err is a *tramaj.EvalError
+fmt.Println(tramaj.PrettyJSON(out))
+```
+
+`RunProgram` gives you the evaluated result as a `tramaj.JSON` value (`nil`, `bool`, `float64`, `string`, `[]tramaj.JSON` or `*tramaj.Object`, an object that keeps its keys in order), already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on every other side. A library table is a `tramaj.Libraries`, a map from import name to parsed program; the mode is `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry point if you want the `*tramaj.Node` itself rather than its JSON encoding. Every number is a `float64`, as the language specifies, and `str` renders as ECMAScript's `Number::toString` does, so interpolated text matches the other implementations byte-for-byte.
+
+As with Haskell, Rust and Python, no fold is shipped: a Go host writes its own following the same shape (switch on the node's `Type`, recurse into `Children`, decide what an action attribute means in your host). Go also has its own `tramaj-cli` equivalent, `tramaj-go` (`go build ./cmd/tramaj-go`), mirroring `tramaj-cli-rs`'s `evaluate`/`analyze` subcommands, flags and JSON output shapes.
+
 ## Any other language
 
-For a host in a language with no PureScript, Haskell, Rust, JavaScript, or Python interop story — Go, Java, whatever — there are two options:
+For a host in a language with no PureScript, Haskell, Rust, JavaScript, Python or Go interop story — Java, C#, whatever — there are two options:
 
-**(a) Full reimplementation.** Port the parser and evaluator to your language, the way `tramaj-hs` ports the PureScript original. Worth it only if you need to _evaluate_ templates natively (e.g. embedding evaluation in a process that can't shell out, or needs it to run in-process for performance). [`reference.md`](/reference-language.html ) is the full grammar and evaluation semantics to implement against, and the conformance corpus (`corpus/cases/` in the repository — template + context + expected output triples) is what the five existing implementations are held to; a new implementation should be checked against the same corpus.
+**(a) Full reimplementation.** Port the parser and evaluator to your language, the way `tramaj-hs` ports the PureScript original. Worth it only if you need to _evaluate_ templates natively (e.g. embedding evaluation in a process that can't shell out, or needs it to run in-process for performance). [`reference.md`](/reference-language.html ) is the full grammar and evaluation semantics to implement against, and the conformance corpus (`corpus/cases/` in the repository — template + context + expected output triples) is what the six existing implementations are held to; a new implementation should be checked against the same corpus.
 
 **(b) Partial implementation, starting from `tramaj-cli`'s output.** For most hosts this is the pragmatic choice: don't reimplement the parser or evaluator at all. Shell out to `tramaj-cli`:
 
@@ -149,6 +167,6 @@ which prints the evaluated `Node` as JSON on stdout, exactly per [`node-json.md`
 
 This is also the fastest way to prototype an integration in any language before deciding whether a full reimplementation is ever worth it.
 
-See the [Roadmap](/roadmap.html ) for what a new implementation needs to cover and where to start if you want to build one; Rust, JavaScript and Python each have one now (`tramaj-rs`, `tramaj-js` and `tramaj-py`, above).
+See the [Roadmap](/roadmap.html ) for what a new implementation needs to cover and where to start if you want to build one; Rust, JavaScript, Python and Go each have one now (`tramaj-rs`, `tramaj-js`, `tramaj-py` and `tramaj-go`, above).
 
 
