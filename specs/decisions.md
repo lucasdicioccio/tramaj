@@ -412,19 +412,27 @@ stops being good enough: a counter must add exactly and a ratio must not. The
 value domain's `Number` therefore splits in two, and nothing converts between
 them unless the program says so.
 
-- An **integer** is a signed 64-bit two's complement integer, from `-2^63` to
-  `2^63 - 1`. The width is mandatory: a port MUST hold every such value
-  exactly, which rules out a JavaScript `number` as the representation.
+- An **integer** is a signed whole number, held exactly. Every port MUST
+  cover the **guaranteed range**, `-(2^53 - 1)` to `2^53 - 1`, which is the
+  set of integers a double holds without ambiguity, so a port on JavaScript
+  can keep an integer in a `number` and test a result with
+  `Number.isSafeInteger`. A port SHOULD cover the full signed 64-bit range,
+  `-2^63` to `2^63 - 1`, and MUST NOT go beyond it. A port's range is one of
+  those two, and it documents which.
+- Inside the guaranteed range all ports agree. Between the two ranges a port
+  either holds the value exactly or refuses it, and never rounds it; which of
+  the two is implementation-defined (ref §13), and a portable program stays
+  inside the guaranteed range. Outside 64 bits every port refuses.
 - A **float** is an IEEE 754 binary64, finite, with no negative zero (ref §5).
 - *Literals need no new syntax.* The grammar of ref §5 is unchanged; what a
   literal denotes now depends on its form. One with neither a fraction nor an
   exponent is an integer (`1`, `-7`, `1_000_000`); one with either is a float
-  (`1.0`, `-1.5`, `1e5`). An integer literal outside the range is a parse
-  error, as `1e400` already is. `-9223372036854775808` is in range, since the
-  sign is part of the literal.
+  (`1.0`, `-1.5`, `1e5`). An integer literal outside the port's range is a
+  parse error, as `1e400` already is. The sign is part of the literal, so
+  `-9223372036854775808` is in the 64-bit range.
 - *A JSON number is read by the same rule*, applied to its text: `3` is an
   integer, `3.0` and `3e0` are floats. An integer-form number outside the
-  range is rejected rather than rounded. This holds for the context, for
+  port's range is rejected rather than rounded. This holds for the context, for
   library parameters and for a seeded value.
 - *Serialization keeps the type.* Wherever a value is written as JSON (the
   `Node`, the symbolic envelope, canon), an integer is written as decimal
@@ -482,10 +490,11 @@ infix operator, no new leader, no new literal form.
 - *`real` and `floor` are the only conversions*, one in each direction, and
   each accepts both types so that it can normalize a number of unknown type:
   `real` of a float and `floor` of an integer are the identity. `real` of an
-  integer rounds to nearest, ties to even, and is inexact above `2^53`; the
-  author who writes it has asked for that.
+  integer is exact inside the guaranteed range; beyond it, on a 64-bit port,
+  it rounds to nearest, ties to even.
 - *Subtraction is not a builtin.* Negation is exact for a float, so
-  `sum(a, negate(b))` is bit for bit `a - b`. For integers the two differ for
+  `sum(a, negate(b))` is bit for bit `a - b`. For integers the guaranteed
+  range is symmetric, so the same holds; on a 64-bit port the two differ for
   the single operand `b = -2^63`, whose negation is out of range. A
   `difference` would add a name for that one value.
 - *Float division is a primitive, although it was not asked for by name.*
@@ -574,11 +583,15 @@ byte.
 2. *Integer arithmetic is exact or it is an error.* `sum` and `product` are a
    left fold over the flattened operands, starting from the first, and every
    step is checked: `sum(a, b, c)` is `(a + b) + c`. A step whose mathematical
-   result is outside `-2^63 … 2^63 - 1` is a `NotRepresentable`, and nothing
-   wraps or saturates. The check is per step, so
-   `sum(9223372036854775807, 1, -1)` is an error although its total is in
-   range. The same kind covers `negate(-9223372036854775808)`,
-   `div(-9223372036854775808, -1)` and `div(x, 0)`.
+   result is outside the port's range is a `NotRepresentable`, and nothing
+   wraps, saturates or rounds. The check is per step, so
+   `sum(9223372036854775807, 1, -1)` is an error on every port although its
+   total is in the 64-bit range. The same kind covers `div(x, 0)` and, on a
+   64-bit port, `negate(-9223372036854775808)` and
+   `div(-9223372036854775808, -1)`. A port that keeps integers in doubles can
+   implement the check as "the computed result is not a safe integer": a sum
+   or product of two safe integers that leaves the guaranteed range rounds to
+   a double of magnitude at least `2^53`, which is never one.
 3. *Float arithmetic is one correctly rounded operation at a time*, round to
    nearest, ties to even, over the same left fold. No pairwise or compensated
    summation, no reordering, and no fused multiply-add: a port whose compiler
@@ -592,9 +605,10 @@ byte.
    zero, as for a literal (ref §5).
 5. *There is no negative zero.* A float result that is zero is `0.0`, as for
    literals: `negate(0.0)` is `0.0`, and so is `product(-1.0, 0.0)`.
-6. *The conversions.* `floor` of a float whose floor is outside the integer
-   range (`floor(1e19)`) is a `NotRepresentable`. `real` never fails: every
-   integer has a nearest double, and it is finite.
+6. *The conversions.* `floor` of a float whose floor is outside the port's
+   integer range is a `NotRepresentable`: `floor(1e19)` on every port,
+   `floor(1e16)` on a 53-bit one. `real` never fails: every integer has a
+   nearest double, and it is finite.
 7. *`str` renders what the value is*, so `sum(0.1, 0.2)` interpolates as
    `0.30000000000000004` and `sum(0.5, 0.5)` as `1.0`. Hiding either belongs
    to formatting, not to arithmetic.
@@ -717,16 +731,22 @@ not depend on the arithmetic profile.
 
 *The number split* touches every port and existing fixtures. Normative text:
 ref §3 (the value domain), §5 (what a literal denotes), §6 (`str`, `eq`, the
-comparisons), §13 (the precision entry goes away); `node-json.md` and
+comparisons), §13 (the precision entry becomes the integer range); `node-json.md` and
 v3-symbols §1.4 for serialization and canon; v4-types §1 (`int` and `float`
-for `number`). The PureScript reference and the TypeScript port need a 64-bit
-integer representation and a JSON reader that keeps integer digits; Python
-needs range checks on its unbounded integers; Haskell, Rust and Go need the
-two cases kept apart where they are one today. Fixtures:
+for `number`). The PureScript reference and the TypeScript port can stay on
+doubles with the 53-bit range, and still need to tell `3` from `3.0` in JSON
+text, which `JSON.parse` alone does not; Python needs range checks on its
+unbounded integers; Haskell, Rust and Go need the two cases kept apart where
+they are one today, and take the 64-bit range. The corpus marks a case that
+needs the wider range (`"requires": ["int64"]` in `meta.json`); every other
+case stays inside the guaranteed one or outside 64 bits, where all ports
+agree. Fixtures:
 
-- literals: each form to its type, both range ends, one past each end;
-- context numbers: `3`, `3.0`, `3e0`, an integer above 2^53 kept exactly, an
-  integer-form number out of range rejected;
+- literals: each form to its type, both ends of the guaranteed range, one
+  past each end of the 64-bit range, and both 64-bit ends under `int64`;
+- context numbers: `3`, `3.0`, `3e0`, both ends of the guaranteed range, an
+  integer-form number beyond 64 bits rejected, and under `int64` one above
+  2^53 kept exactly;
 - serialization: a whole-valued float in a `Node` attribute, in `str`, in
   interpolation, nested in an array, and in canon; a round trip of each type;
 - `eq(1, 1.0)`, and each comparison over a mixed pair;
@@ -743,18 +763,19 @@ The corpus needs a way to mark a case as needing a profile (an optional
 - identities: `sum()`, `product()`, `sum([])`, one operand of each type, and
   the float seed `sum(0.0, [])`;
 - flattening: nested arrays, arrays mixed with scalars, a `map` result;
-- integers: exact sums and products above 2^53, both range ends, overflow in
-  `sum`, `product` and `negate`, and a fold that overflows at a step although
-  its total is in range;
-- `div`: each sign combination, an exact division, `div(x, 0)`,
-  `div(-9223372036854775808, -1)`, and the remainder identity;
+- integers: exact sums and products up to the ends of the guaranteed range,
+  overflow past 64 bits in `sum` and `product`, and a fold that overflows at a
+  step although its total is in range; under `int64`, exact results above
+  2^53, both range ends, and `negate(-9223372036854775808)`;
+- `div`: each sign combination, an exact division, `div(x, 0)`, the remainder
+  identity, and under `int64` `div(-9223372036854775808, -1)`;
 - float fold order: a three-operand sum whose two groupings differ
   (`sum(0.1, 0.2, 0.3)` is `0.6000000000000001`), and the same for `product`;
 - `quotient` against `product` with `inverse` (49.0), and `inverse` itself;
 - `floor` of negative floats, of whole-valued floats, of an integer, and of a
-  float past the integer range;
-- `real` of a float, of a small integer, and of integers above 2^53 that round
-  down, round up and tie;
+  float past the 64-bit range;
+- `real` of a float and of integers up to the ends of the guaranteed range;
+  under `int64`, integers above 2^53 that round down, round up and tie;
 - zero: `negate(0.0)`, `product(-1.0, 0.0)`, an underflowing product;
 - `NotRepresentable` for floats: `inverse(0.0)`, `quotient(0.0, 0.0)`, overflow
   in `sum` and `product`, and the `branch` guard that avoids it;
@@ -807,3 +828,6 @@ The corpus needs a way to mark a case as needing a profile (an optional
     mathematical values exactly, which converts nothing and breaks no program,
     but makes `eq` hold between values that `sum` refuses to add.
 11. Whether the number split ships on its own, ahead of the builtins.
+12. Two permitted integer ranges and nothing in between, with the gap
+    implementation-defined as "exact or refused". A value a 64-bit port emits
+    above 2^53 is then rejected by a 53-bit port that receives it.
