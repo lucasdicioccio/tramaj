@@ -14,6 +14,7 @@ Five independent implementations target the same grammar and are checked against
 <tr><td><code>tramaj-rs</code></td><td>Rust</td><td>independent port, checked against the same corpus; <code>tramaj-cli-rs</code> is its CLI</td></tr>
 <tr><td><code>tramaj-js</code></td><td>JavaScript / TypeScript</td><td>independent port, checked against the same corpus; <code>tramaj-react</code> folds to React</td></tr>
 <tr><td><code>tramaj-py</code></td><td>Python</td><td>independent port on the standard library alone, checked against the same corpus; <code>python -m tramaj</code> is its CLI</td></tr>
+<tr><td><code>tramaj-go</code></td><td>Go</td><td>independent port on the standard library alone, checked against the same corpus; <code>tramaj-go</code> is its CLI</td></tr>
 </table>
 ```
 
@@ -23,7 +24,7 @@ None is published to a package registry yet (see the README's "Publishing" secti
 
 ## The native-implementation wish list is done
 
-Earlier versions of this page asked for native JavaScript, Python and Rust implementations, so that hosts in those ecosystems would get what PureScript and Haskell hosts already had: an in-process parser and evaluator, with no subprocess and no JSON round-trip just to get a `Node`. All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each passes the full corpus in both modes, v3 and v4 extensions included.
+Earlier versions of this page asked for native JavaScript, Python and Rust implementations, so that hosts in those ecosystems would get what PureScript and Haskell hosts already had: an in-process parser and evaluator, with no subprocess and no JSON round-trip just to get a `Node`. All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each passes the full corpus in both modes, v3 and v4 extensions included. A Go port, `tramaj-go`, has since joined them on the same terms.
 
 ## Desired next: folds, and releases
 
@@ -36,7 +37,7 @@ This is a wish list, not a schedule: there's no committed timeline or assigned o
 
 ## What "done" looks like for a new implementation
 
-`tramaj-hs`, `tramaj-rs`, `tramaj-js` and `tramaj-py` are the templates to follow, since they were added _after_ the language had settled on a normative spec and output format (`tramaj-py` is the smallest: one module per concern, standard library only). A new implementation is considered on par with the existing ones once it:
+`tramaj-hs`, `tramaj-rs`, `tramaj-js`, `tramaj-py` and `tramaj-go` are the templates to follow, since they were added _after_ the language had settled on a normative spec and output format (`tramaj-py` is the smallest: one module per concern, standard library only). A new implementation is considered on par with the existing ones once it:
 
 - implements the grammar and evaluation rules in [`reference.md`](/reference-language.html ), including the static restrictions that make imports, action keys, and `ctx(...)` paths analyzable without evaluation (see [Properties](/properties.html ));
 
