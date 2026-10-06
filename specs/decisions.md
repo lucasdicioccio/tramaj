@@ -390,9 +390,9 @@ duplicate name and a rejected default/rest; then `reference.md` §8/§14 and
 on a failing index read. (2) `{bar: baz}` as the rename spelling. (3) Annotated
 patterns rejected for now. (4) Reserve default and rest syntax as a parse error.
 
-## 18. Arithmetic: integers and floats as two types, eight named builtins, no operators, and a term for what a symbol leaves unevaluated
+## 18. Arithmetic: integers and floats as two types, nine named builtins, no operators, and a term for what a symbol leaves unevaluated
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/reference.md` §11 keeps saying "there is no arithmetic" until a port lands.*
+*Status: accepted by the owner on 2026-10-06, with the decisions listed at the end. Nothing here is implemented; `specs/reference.md` §11 keeps saying "there is no arithmetic" until a port lands.*
 
 `reference.md` §11 states that a template "compares and selects, it does not
 compute", and §5 and this file's §9 lean on it. This section proposes to
@@ -465,24 +465,26 @@ classifies a `number`, and must read JSON text with a parser that keeps
 integer digits past `2^53`. Both are that port's binding and are not
 normative here; the corpus is JSON text and follows the rule above.
 
-**Scope.** Eight builtins, as ordinary names in the initial environment. No
+**Scope.** Nine builtins, as ordinary names in the initial environment. No
 infix operator, no new leader, no new literal form.
 
 | builtin | arity | operands | concrete result |
 |---|---|---|---|
-| `sum(…)` | any, including zero | all integers or all floats | left fold of `+`; `sum()` is the integer `0` |
-| `product(…)` | any, including zero | all integers or all floats | left fold of `*`; `product()` is the integer `1` |
+| `sum(…)` | one or more | all integers or all floats | left fold of `+` |
+| `product(…)` | one or more | all integers or all floats | left fold of `*` |
 | `negate(x)` | 1 | integer or float | `-x`, of the same type |
 | `quotient(a, b)` | 2 | two floats | `a / b`, correctly rounded |
 | `inverse(x)` | 1 | float | `quotient(1.0, x)`, by definition |
-| `div(a, b)` | 2 | two integers | the largest integer not above `a / b` |
+| `floor-quotient(a, b)` | 2 | two integers | the largest integer not above `a / b` |
+| `modulo(a, b)` | 2 | two integers | `a - b * floor-quotient(a, b)` |
 | `floor(x)` | 1 | float or integer | the largest integer not above `x`, as an integer |
 | `real(x)` | 1 | integer or float | the float nearest to `x` |
 
 ```
 @subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
 @share    = branch(0, gt($ctx.total, 0),
-                   div(product(100, $ctx.used), $ctx.total))
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@stripe   = branch("odd", eq(modulo($i, 2), 0), "even")
 @total    = sum(0.0, map($ctx.lines,
                          (l) => product(real($l.qty), real($l.price))))
 ```
@@ -506,19 +508,27 @@ infix operator, no new leader, no new literal form.
 - *Integer division has its own name.* `quotient` over two integers is a
   `TypeMismatch` and does not mean floored division. If one name covered
   both, `quotient($ctx.used, $ctx.total)` would be `0.5` or `0` depending on
-  whether the producer wrote `1.0` or `1`, with no error either way. `div`
-  rounds toward negative infinity, which agrees with `floor` and makes the
-  remainder `sum(a, negate(product(b, div(a, b))))` take the sign of the
-  divisor. A `mod` builtin is left out for that reason.
+  whether the producer wrote `1.0` or `1`, with no error either way.
+  `floor-quotient` rounds toward negative infinity, which agrees with `floor`.
+- *`modulo` is its remainder*, so `a` is always
+  `b * floor-quotient(a, b) + modulo(a, b)` and the result is zero or has the
+  sign of the divisor. It is expressible from the other builtins, as
+  `sum(a, negate(product(b, floor-quotient(a, b))))`, and is a builtin
+  because that is too long to write correctly each time a template stripes
+  rows or groups items.
+- *Rejected: a `divmod` returning both.* Over a symbol it would be a term
+  standing for a pair, and a term has no projection (below). Reading the pair
+  would also need an object pattern, since array patterns are not available
+  (§17).
 - *`inverse` takes a float only.* The inverse of an integer is not an integer
   except for `1` and `-1`.
 - *Rounding to nearest and decimal formatting are left out.* They are display
   concerns and belong to the number-formatting work;
   `floor(sum(x, 0.5))` only approximates rounding (it is wrong for the double
   just below `0.5`).
-- *`min` and `max` are left out.* Their float identities are the infinities,
-  which are not values (below), so the zero-argument case could not follow
-  `sum()` and `and()`. `fold` with a `branch` covers the concrete case.
+- *`min` and `max` are left out of this cut.* `fold` with a `branch` covers
+  the concrete case. Adding them later is compatible: they would refuse an
+  empty call as `sum` does.
 
 The existing `-` rule is untouched: `-` stays part of a number literal, `--`
 stays a comment, `<>` stays the only infix operator, and §9's argument that no
@@ -529,25 +539,27 @@ operators".
 **Arrays as arguments.** `sum` and `product` flatten their arguments by the
 rule children (ref §6) and `!` (v3-symbols §2.2) already use: an array
 contributes each of its elements, recursively, in order. So `sum($xs)`,
-`sum(1, $xs, 2)` and `sum([1, [2, 3]])` are all legal, and `sum([])` is `0`.
+`sum(1, $xs, 2)` and `sum([1, [2, 3]])` are all legal.
 There is no spread syntax and this does not add one; a separate
 `sum-of(array)` form would make the author pick a spelling by the shape of the
 data, and the language already answers "an array in a sequence position is a
-sequence" twice. The six fixed-arity builtins do not flatten: `negate([1])`
+sequence" twice. The seven fixed-arity builtins do not flatten: `negate([1])`
 is a `TypeMismatch`, and `map($xs, $negate)` is the way to write it. `and`,
 `or` and `concat` are unchanged.
 
-An empty `sum` or `product` has no operand to take a type from, so it is an
-integer. A float total over a list that may be empty is seeded with a float,
-`sum(0.0, $xs)`, as in the example above; without the seed the result would be
-the integer `0` for an empty list and a float otherwise.
+An empty `sum` or `product` has no operand to take a type from, so it is a
+`TypeMismatch`: `sum()`, `sum([])` and `product([[]])` alike. A fold over a
+list that may be empty is seeded with the identity of the intended type,
+`sum(0, $xs)` or `sum(0.0, $xs)`, as in the example above. Returning an
+integer `0` instead would give a float total the wrong type on empty data
+only, which is the kind of failure the seed makes impossible.
 
 **Optional, but builtin: a profile.** Arithmetic is a third profile next to
 v3-symbols §5.5's core and symbolic ones, and independent of both. The two
 number types are not part of it: they belong to the value domain in every
 profile.
 
-- An implementation with the **arithmetic profile** puts the eight names in
+- An implementation with the **arithmetic profile** puts the nine names in
   the initial environment. One without it does not, and a program that uses
   one fails with the existing `UnboundName`. No new refusal mechanism is
   needed, and none at parse time is possible: these are names, not syntax, and
@@ -557,7 +569,7 @@ profile.
   shadows the builtin and behaves exactly as before. Adding the names breaks
   no existing program.
 - A new static analysis, `arithmeticOps` with a deep variant, reports which of
-  the eight names a program references **free**, called or passed by reference
+  the nine names a program references **free**, called or passed by reference
   (`fold($xs, 0, $sum)`). It is scope-aware, so a shadowed name is not
   reported, and it over-approximates like every analysis in ref §9. A host
   without the profile refuses a program up front when `deepArithmeticOps` is
@@ -576,8 +588,9 @@ byte.
 1. *No coercion and no promotion.* An operand that is not a number is a
    `TypeMismatch` (`sum(1, "2")`, `sum(null)`, `negate(true)`), like `eq`'s
    refusal to equate `1` and `"1"`. So is a number of the wrong type
-   (`sum(1, 1.5)`, `quotient(1, 2)`, `div(1.0, 2.0)`, `inverse(2)`), and so is
-   a wrong argument count for a fixed-arity builtin. All operands are checked,
+   (`sum(1, 1.5)`, `quotient(1, 2)`, `floor-quotient(1.0, 2.0)`, `inverse(2)`), and so is
+   a wrong argument count for a fixed-arity builtin, and so is a `sum` or
+   `product` with no operand after flattening. All operands are checked,
    in flattened order, before anything is computed, so
    `sum(1e308, 1e308, "a")` is a `TypeMismatch` and not a `NotRepresentable`.
 2. *Integer arithmetic is exact or it is an error.* `sum` and `product` are a
@@ -586,9 +599,10 @@ byte.
    result is outside the port's range is a `NotRepresentable`, and nothing
    wraps, saturates or rounds. The check is per step, so
    `sum(9223372036854775807, 1, -1)` is an error on every port although its
-   total is in the 64-bit range. The same kind covers `div(x, 0)` and, on a
-   64-bit port, `negate(-9223372036854775808)` and
-   `div(-9223372036854775808, -1)`. A port that keeps integers in doubles can
+   total is in the 64-bit range. The same kind covers `floor-quotient(x, 0)`
+   and `modulo(x, 0)` and, on a 64-bit port,
+   `negate(-9223372036854775808)` and
+   `floor-quotient(-9223372036854775808, -1)`. A port that keeps integers in doubles can
    implement the check as "the computed result is not a safe integer": a sum
    or product of two safe integers that leaves the guaranteed range rounds to
    a double of magnitude at least `2^53`, which is never one.
@@ -653,7 +667,7 @@ vocabulary §0 gives wholly to the host.
 (a) costs one new tagged shape. What distinguishes it from the declined
 symbolic strings: text had a better alternative (separate children, §1.8, which
 a form renderer wants anyway) and numbers have none; and the vocabulary is
-closed, eight operations whose meaning the language itself defines, so a term is
+closed, nine operations whose meaning the language itself defines, so a term is
 not host vocabulary. It is the computation the language would have performed
 had it known the operands, handed over undone.
 
@@ -663,7 +677,7 @@ Value
   | Term  op: String, arguments: List<Value>   -- arguments: numbers, symbols, terms
 ```
 
-- A call to one of the eight builtins whose flattened operands are all numbers
+- A call to one of the nine builtins whose flattened operands are all numbers
   computes, as above. If at least one operand is a symbol or a term, the result
   is a `Term` with that `op` and **the flattened operands exactly as written**:
   same order, nothing folded, nothing simplified, no nested term spliced.
@@ -726,8 +740,11 @@ Value
 - No list is added. A term is carried where it is used; it is not an entity
   with an identity, so it has no table.
 
-**Follow-up once approved.** This is two pieces of work, and the first does
-not depend on the arithmetic profile.
+**Follow-up.** This is two pieces of work. The number split lands first, on
+its own, in every port; the builtins follow. The split does not depend on the
+arithmetic profile, and until the builtins land a program has no conversion
+between the two types, so no release should fall between the two where that
+can be avoided.
 
 *The number split* touches every port and existing fixtures. Normative text:
 ref §3 (the value domain), §5 (what a literal denotes), §6 (`str`, `eq`, the
@@ -760,15 +777,17 @@ third "declined" entry; `laws.md` for the residual law. Then the six ports.
 The corpus needs a way to mark a case as needing a profile (an optional
 `"requires": ["arithmetic"]` in `meta.json`), and these families:
 
-- identities: `sum()`, `product()`, `sum([])`, one operand of each type, and
-  the float seed `sum(0.0, [])`;
+- the empty case: `sum()`, `product()`, `sum([])` and a nested empty array
+  refused, one operand of each type, and the seeds `sum(0, [])` and
+  `sum(0.0, [])`;
 - flattening: nested arrays, arrays mixed with scalars, a `map` result;
 - integers: exact sums and products up to the ends of the guaranteed range,
   overflow past 64 bits in `sum` and `product`, and a fold that overflows at a
   step although its total is in range; under `int64`, exact results above
   2^53, both range ends, and `negate(-9223372036854775808)`;
-- `div`: each sign combination, an exact division, `div(x, 0)`, the remainder
-  identity, and under `int64` `div(-9223372036854775808, -1)`;
+- `floor-quotient` and `modulo`: each sign combination, an exact division, a
+  zero divisor for each, the identity that relates them, and under `int64`
+  `floor-quotient(-9223372036854775808, -1)` with `modulo` of the same pair;
 - float fold order: a three-operand sum whose two groupings differ
   (`sum(0.1, 0.2, 0.3)` is `0.6000000000000001`), and the same for `product`;
 - `quotient` against `product` with `inverse` (49.0), and `inverse` itself;
@@ -794,40 +813,33 @@ The corpus needs a way to mark a case as needing a profile (an optional
 - the residual law: one program run symbolically, and concretely with the
   symbol seeded as a number.
 
-**Questions for the owner.**
+**Decided by the owner, 2026-10-06.**
 
-1. `quotient`, `div`, `floor` and `real` in the first cut, beyond the four
-   names asked for; `mod`, `min`/`max`, rounding and formatting left out.
-   `div` is a placeholder name.
-2. Flattening arrays in `sum`/`product`, and not in `and`/`or`; an empty one
-   being an integer, with `sum(0.0, $xs)` as the float idiom.
-3. A profile gated by `UnboundName` and `deepArithmeticOps`, rather than a
-   reserved `import("math", {})`.
+1. Nine builtins: the four asked for, plus `quotient`, `floor-quotient`,
+   `modulo`, `floor` and `real`. `min`/`max`, rounding and formatting are left
+   out, and `divmod` is rejected.
+2. `sum` and `product` flatten arrays; `and`/`or` do not. An empty `sum` or
+   `product` is a `TypeMismatch`, and the seed is the idiom.
+3. A profile gated by `UnboundName` and `deepArithmeticOps`, not a reserved
+   `import("math", {})`.
 4. `NotRepresentable` as the one new error kind, for integer overflow,
-   division by zero and a non-finite float alike; integer overflow checked at
-   each step of a fold and never wrapping.
-5. Terms in the value domain, preserved exactly as written. The alternative
-   worth a second look is folding a *leading* run of concrete operands, which
-   is exact (`sum(1, 2, $s)` to `sum(3, $s)`) but is a rewrite rule every port
-   must then share.
-6. Reserving `"$term"` in every profile, which rejects a context that carries
-   that key today, and keeping the envelope at `tramaj/symbolic/1`.
-7. The literal rule: a fraction or an exponent makes a float, so `1e5` is a
-   float and no new syntax is added.
-8. The same rule applied to JSON text, which lets the producer decide the type
-   of a context number and leaves `real` as the author's defence. The
-   alternative is to classify by value (whole and in range is an integer),
-   which no producer can get wrong but which cannot deliver the float `3.0`
-   and cannot round-trip a term.
-9. `str(1.0)` rendering as `1.0`, which changes existing output for
-   whole-valued floats. Keeping `1` would leave `str` as it is and make only
-   the JSON serialization type-preserving.
+   division by zero and a non-finite float alike. Integer overflow is checked
+   at each step of a fold. Division by zero is an error and not a value.
+5. Terms in the value domain, preserved exactly as written, with no folding of
+   concrete operands.
+6. `"$term"` reserved in every profile, which rejects a context that carries
+   that key today. The envelope stays `tramaj/symbolic/1`.
+7. A fraction or an exponent makes a literal a float, so `1e5` is a float. No
+   new syntax.
+8. A JSON number is typed by its text. The producer decides the type of a
+   context number, and `real` is the author's defence.
+9. `str(1.0)` renders as `1.0`, by the same rule as JSON serialization. This
+   changes existing output for whole-valued floats.
 10. Strict comparisons: `eq(1, 1.0)` is `false` and `gt(1.5, 0)` is a
-    `TypeMismatch`, so an existing `gt($ctx.ratio, 0)` over a float breaks and
-    must become `gt($ctx.ratio, 0.0)`. The alternative compares the two
-    mathematical values exactly, which converts nothing and breaks no program,
-    but makes `eq` hold between values that `sum` refuses to add.
-11. Whether the number split ships on its own, ahead of the builtins.
-12. Two permitted integer ranges and nothing in between, with the gap
-    implementation-defined as "exact or refused". A value a 64-bit port emits
-    above 2^53 is then rejected by a 53-bit port that receives it.
+    `TypeMismatch`. An existing `gt($ctx.ratio, 0)` over a float must become
+    `gt($ctx.ratio, 0.0)`.
+11. The number split ships first, ahead of the builtins.
+12. Integers are guaranteed to 53 bits and recommended at 64, with exactly
+    those two ranges permitted. In the gap a port holds the value exactly or
+    refuses it. A value a 64-bit port emits above 2^53 is rejected by a 53-bit
+    port that receives it.
