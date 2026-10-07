@@ -79,6 +79,8 @@ on GitHub for the full spec, or explore the site below.
   and fetch strategy for an LLM emitting tramaj templates.
 - [**Roadmap**](/roadmap.html) — where the five implementations stand, and
   the folds and registry releases that are wanted next.
+- [**About**](/about.html) — who writes tramaj, and the sites it is
+  related to.
 
 <script src="js/topicgraph.js"></script>
 
