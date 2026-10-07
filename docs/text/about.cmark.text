@@ -6,6 +6,10 @@ tramaj is written by Lucas DiCioccio, who also writes about it, and about the ot
 
 - [Kitchen Sink](https://kitchensink-tech.github.io/ ) — the static-site generator this site is made with. Its templating sections are evaluated by `tramaj-hs`, the Haskell implementation of tramaj.
 
+- [salmon](https://lucasdicioccio.github.io/salmon/ ) — a Haskell toolkit for describing infrastructure as a graph of idempotent operations. Its site is built with Kitchen Sink too.
+
+- [agents-exe](https://lucasdicioccio.github.io/agents-exe/ ) — a runner for LLM agents, with a Kitchen Sink site as well.
+
 - [dicioccio.fr](https://dicioccio.fr/ ) — the author's blog, also built with Kitchen Sink.
 
 

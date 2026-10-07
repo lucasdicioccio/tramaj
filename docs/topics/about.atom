@@ -9,8 +9,15 @@ the other tools it grows alongside, on his blog at
 generator this site is made with. Its templating sections are evaluated
 by &lt;code&gt;tramaj-hs&lt;/code&gt;, the Haskell implementation of tramaj.
 &lt;/li&gt;
+&lt;li&gt;&lt;a href="https://lucasdicioccio.github.io/salmon/"&gt;salmon&lt;/a&gt; — a Haskell toolkit
+for describing infrastructure as a graph of idempotent operations. Its
+site is built with Kitchen Sink too.
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://lucasdicioccio.github.io/agents-exe/"&gt;agents-exe&lt;/a&gt; — a runner
+for LLM agents, with a Kitchen Sink site as well.
+&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://dicioccio.fr/"&gt;dicioccio.fr&lt;/a&gt; — the author’s blog, also built
 with Kitchen Sink.
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/about.html" rel="alternate"/><summary type="text">Who writes tramaj, where to read more from the author, and the site generator this site is built with.</summary></entry></feed>
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/about.html" rel="alternate"/><summary type="text">Who writes tramaj, where to read more from the author, and the sibling sites built with the same tools.</summary></entry></feed>
