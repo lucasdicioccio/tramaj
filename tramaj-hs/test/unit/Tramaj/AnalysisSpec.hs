@@ -23,6 +23,7 @@ spec = do
   holeSpec
   constraintSpec
   symbolSpec
+  arithmeticSpec
   typeParamSpec
 
 prog :: Text -> Program
@@ -36,6 +37,8 @@ libs =
     , ("needs", prog "@p=import(\"button\", {name: ctx(inner.name)})\n$p({}).rendered")
     , ("panel", prog "@n=$ctx.replicas\n.section(.h2($ctx.name), .p($n))")
     , ("loopy", prog ".div(import(\"loopy\", {}).rendered)")
+    , ("adds", prog "sum($ctx.a, 1)")
+    , ("scales", prog "@f=(product) => $product\n.p(floor($ctx.x), import(\"adds\", {a: 1}).rendered)")
     , ("typed", prog "!constraint(\"has-type\", $ctx, \"Deployment\")\n1")
     ]
 
@@ -224,3 +227,62 @@ typeParamSpec = describe "type declarations and parameters" $ do
     let typedLibs = Map.singleton "message" (prog "type Envelope = { payload : %ctx.payload }\ntrue")
      in unsuppliedTypeParams typedLibs (prog "@msg=import(\"message\", {payload: %string})\ntrue")
           `shouldBe` [("message", Set.empty)]
+
+-- | reference.md \S9: which of the nine arithmetic names a program
+-- references free. The corpus has no case shape for an analysis, so the
+-- cases are here.
+arithmeticSpec :: Spec
+arithmeticSpec = describe "arithmetic operations" $ do
+  it "names the nine builtins of the profile" $
+    arithmeticNames
+      `shouldBe` ["sum", "product", "negate", "inverse", "quotient", "floor-quotient", "modulo", "floor", "real"]
+
+  it "reports a name that is called" $
+    arithmeticOps (prog "sum(1, negate($ctx.x))") `shouldBe` Set.fromList ["sum", "negate"]
+
+  it "reports a name passed by reference" $
+    arithmeticOps (prog "fold($ctx.xs, 0, $sum)") `shouldBe` Set.fromList ["sum"]
+
+  it "reports every one of the nine" $
+    arithmeticOps (prog "[$sum, $product, $negate, $inverse, $quotient, $floor-quotient, $modulo, $floor, $real]")
+      `shouldBe` Set.fromList arithmeticNames
+
+  it "reports none in a program that uses none, whatever other builtin it calls" $
+    arithmeticOps (prog "and(eq(1, 1), gt($ctx.n, 0))") `shouldBe` Set.empty
+
+  it "does not report a name shadowed by a binding" $
+    arithmeticOps (prog "@sum=(a, b) => $a\n$sum(1, 2)") `shouldBe` Set.empty
+
+  it "reports a name used in the right-hand side of its own binding" $
+    arithmeticOps (prog "@sum=sum(1, 2)\n$sum") `shouldBe` Set.fromList ["sum"]
+
+  it "reports a name used before the binding that shadows it" $
+    arithmeticOps (prog "@a=floor(1.5)\n@floor=1\n$floor") `shouldBe` Set.fromList ["floor"]
+
+  it "does not report a name shadowed by a lambda parameter, inside that lambda only" $
+    arithmeticOps (prog "[map($ctx.xs, (real) => $real), real(1)]") `shouldBe` Set.fromList ["real"]
+
+  it "does not report a name shadowed by a pattern name" $
+    arithmeticOps (prog "@{product, meta: {floor}} = $ctx.item\n[$product, $floor, modulo(1, 2)]")
+      `shouldBe` Set.fromList ["modulo"]
+
+  it "does not report a name shadowed by a lambda's pattern parameter" $
+    arithmeticOps (prog "map($ctx.xs, ({sum}) => $sum)") `shouldBe` Set.empty
+
+  it "reports a name under an arm no context will select" $
+    arithmeticOps (prog "branch(1, false, inverse(0.0))") `shouldBe` Set.fromList ["inverse"]
+
+  it "does not reach into a library on its own" $
+    arithmeticOps (prog "import(\"adds\", {a: 1}).rendered") `shouldBe` Set.empty
+
+  it "follows imports, directly or not, when deep" $
+    deepArithmeticOps libs (prog "@x=negate(1)\nimport(\"scales\", {x: 1.5}).rendered")
+      `shouldBe` Set.fromList ["negate", "floor", "sum"]
+
+  it "gives a library its own scope: a binding of the importer shadows nothing there" $
+    deepArithmeticOps libs (prog "@sum=1\nimport(\"adds\", {a: $sum}).rendered")
+      `shouldBe` Set.fromList ["sum"]
+
+  it "reports nothing for a missing library, and terminates on a cycle" $ do
+    deepArithmeticOps libs (prog "import(\"absent\", {}).rendered") `shouldBe` Set.empty
+    deepArithmeticOps libs (prog "import(\"loopy\", {}).rendered") `shouldBe` Set.empty

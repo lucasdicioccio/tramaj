@@ -310,14 +310,15 @@ objectLit = lexeme $ do
 objectKey :: P Text
 objectKey = staticString <|> identifier
 
--- | @"$sym"@ and @"$type"@ are reserved across the value domain (v3-symbols
--- \S5.3, v4-types \S0): the tag a symbolic or typed envelope uses to mark a
--- value that is not an ordinary object. An object literal spelling either as
--- a key is a parse error in every profile, not just the symbolic one, so a
--- program's legality never depends on which profile runs it.
+-- | @"$sym"@, @"$type"@ and @"$term"@ are reserved across the value domain
+-- (v3-symbols \S5.3, v4-types \S0): the tag a symbolic or typed envelope
+-- uses to mark a value that is not an ordinary object. An object literal
+-- spelling one of them as a key is a parse error in every profile, not just
+-- the symbolic or the arithmetic one, so a program's legality never depends
+-- on which profile runs it.
 reservedKeyRefused :: Text -> P ()
 reservedKeyRefused k
-  | k `elem` (["$sym", "$type"] :: [Text]) =
+  | k `elem` (["$sym", "$type", "$term"] :: [Text]) =
       fail ("\"" <> T.unpack k <> "\" is a reserved key and cannot be used as an object key")
   | otherwise = pure ()
 
