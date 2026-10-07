@@ -1,0 +1,8 @@
+{
+  "name": "a fold that overflows at a step is NotRepresentable although its total is in range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic"]
+}

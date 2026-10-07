@@ -1,0 +1,2 @@
+-- reference.md §11: the guard is branch, whose unselected arm is never evaluated
+branch(0.0, gt($ctx.total, 0.0), quotient($ctx.used, $ctx.total))

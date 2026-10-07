@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 6: 2^53 + 1 ties down to 2^53, 2^53 + 3 ties up to 2^53 + 4
+[real(9007199254740993), real(9007199254740995)]

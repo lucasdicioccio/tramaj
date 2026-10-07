@@ -1,0 +1,8 @@
+{
+  "name": "floor-quotient of the bottom of the 64-bit range by -1 is NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic", "int64"]
+}

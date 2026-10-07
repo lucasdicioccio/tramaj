@@ -1,0 +1,6 @@
+{
+  "name": "two constraints over equal terms are one constraint",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

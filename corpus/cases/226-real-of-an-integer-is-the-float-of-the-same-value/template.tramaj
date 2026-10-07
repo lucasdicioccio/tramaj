@@ -1,0 +1,2 @@
+-- reference.md §11; node-json.md, Numbers: a float carries a fraction
+[real(3), real(-7), real(0)]

@@ -1,0 +1,7 @@
+{
+  "name": "reserved key $term in an object literal is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error",
+  "requires": ["int-float", "arithmetic"]
+}

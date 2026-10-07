@@ -1,0 +1,2 @@
+-- reference.md §11: -x, of the same type
+[negate(5), negate(-5), negate(0), negate(9007199254740991), negate(-9007199254740991)]

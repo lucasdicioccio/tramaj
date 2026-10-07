@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2; there is no subtraction, so 10 - 3 is sum(10, negate(3))
+[sum(1, 2, 3), sum(-5, 5), sum(10, negate(3))]

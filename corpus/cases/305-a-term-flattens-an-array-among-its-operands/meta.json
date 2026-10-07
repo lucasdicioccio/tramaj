@@ -1,0 +1,6 @@
+{
+  "name": "a term flattens an array among its operands",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

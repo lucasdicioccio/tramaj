@@ -1,0 +1,5 @@
+-- reference.md §11, Semantics 2. With the 64-bit range $h is 2^62 and the sum, 2^63, is
+-- out of range. With the guaranteed range the product is already out of range. The
+-- error kind is the same either way.
+@h = product(2147483648, 2147483648)
+sum($h, $h)

@@ -1,0 +1,2 @@
+-- reference.md §11: the @share example, over one row with a total and one without
+map($ctx.rows, (r) => branch(0, gt($r.total, 0), floor-quotient(product(100, $r.used), $r.total)))

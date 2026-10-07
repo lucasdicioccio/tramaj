@@ -1,0 +1,6 @@
+{
+  "name": "sum of one symbol is a term and not the symbol",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

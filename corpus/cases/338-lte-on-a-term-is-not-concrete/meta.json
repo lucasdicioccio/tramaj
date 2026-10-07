@@ -1,0 +1,8 @@
+{
+  "name": "lte on a term is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: sum(sum(0, $a), $b); no nested term is spliced
+@a = ?("a")
+@b = ?("b")
+fold([$a, $b], 0, $sum)

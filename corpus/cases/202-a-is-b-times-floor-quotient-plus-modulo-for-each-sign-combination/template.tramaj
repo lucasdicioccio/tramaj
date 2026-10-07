@@ -1,0 +1,2 @@
+-- reference.md §11: a is always b * floor-quotient(a, b) + modulo(a, b)
+map($ctx.pairs, (p) => eq($p.a, sum(product($p.b, floor-quotient($p.a, $p.b)), modulo($p.a, $p.b))))

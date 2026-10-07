@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 5: there is no negative zero
+[negate(0.0), product(-1.0, 0.0), quotient(0.0, -1.0)]

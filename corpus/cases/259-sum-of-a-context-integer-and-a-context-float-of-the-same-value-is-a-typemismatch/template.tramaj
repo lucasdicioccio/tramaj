@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 1: a JSON number is typed by its text
+sum($ctx.a, $ctx.b)

@@ -1,0 +1,11 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$term": "sum", "arguments": [{"$term": "real", "arguments": [{"$sym": "#ctx.s", "path": []}]}, 1]},
+  "symbols": [
+    {"binding": "s", "id": "#ctx.s", "origin": {"kind": "demand", "path": ["s"]}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

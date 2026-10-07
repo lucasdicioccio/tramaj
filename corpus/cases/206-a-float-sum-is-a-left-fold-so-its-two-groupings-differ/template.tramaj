@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 3: (0.1 + 0.2) + 0.3 against 0.1 + (0.2 + 0.3)
+[sum(0.1, 0.2, 0.3), sum(0.1, sum(0.2, 0.3))]

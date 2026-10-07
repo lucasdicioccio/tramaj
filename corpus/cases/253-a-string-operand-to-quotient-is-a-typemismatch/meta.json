@@ -1,0 +1,8 @@
+{
+  "name": "a string operand to quotient is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

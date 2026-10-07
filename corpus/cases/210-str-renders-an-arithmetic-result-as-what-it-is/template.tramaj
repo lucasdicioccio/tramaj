@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 7
+[str(sum(0.1, 0.2)), str(sum(0.5, 0.5)), str(sum(1, 2))]

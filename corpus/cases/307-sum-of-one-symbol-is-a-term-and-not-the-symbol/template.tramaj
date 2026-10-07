@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: one operand is a symbol, so the result is a term with that op
+@s = ?("s")
+sum($s)

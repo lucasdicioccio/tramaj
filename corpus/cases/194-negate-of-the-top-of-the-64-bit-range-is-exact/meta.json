@@ -1,0 +1,6 @@
+{
+  "name": "negate of the top of the 64-bit range is exact",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic", "int64"]
+}

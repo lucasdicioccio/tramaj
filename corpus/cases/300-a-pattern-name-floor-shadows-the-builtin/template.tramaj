@@ -1,0 +1,3 @@
+-- reference.md §11: a pattern name shadows the builtin
+@{floor} = $ctx
+$floor

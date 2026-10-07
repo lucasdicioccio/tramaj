@@ -1,0 +1,2 @@
+-- reference.md §11: the result is an integer
+[floor(1.5), floor(0.5), floor(-0.5), floor(-1.5)]

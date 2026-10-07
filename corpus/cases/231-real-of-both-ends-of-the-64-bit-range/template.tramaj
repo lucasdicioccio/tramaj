@@ -1,0 +1,3 @@
+-- reference.md §11, Semantics 6: 2^63 - 1 rounds to 2^63; node-json.md, Numbers writes
+-- the shortest round-trip text of each float
+[real(9223372036854775807), real(-9223372036854775808)]

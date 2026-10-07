@@ -1,0 +1,2 @@
+-- reference.md §11: one or more operands, a left fold starting from the first
+[sum(5), sum(2.5), product(5), product(2.5)]

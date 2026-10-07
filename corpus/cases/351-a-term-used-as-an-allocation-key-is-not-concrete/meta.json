@@ -1,0 +1,8 @@
+{
+  "name": "a term used as an allocation key is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "requires": ["int-float", "arithmetic"]
+}

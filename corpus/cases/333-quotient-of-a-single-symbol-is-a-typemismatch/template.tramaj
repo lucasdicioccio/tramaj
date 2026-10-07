@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: concrete operands are checked as far as they can be without a type
+@s = ?("s")
+quotient($s)

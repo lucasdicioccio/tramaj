@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: it fails when evaluated, as the residual law says it should
+@s = ?ctx.s
+sum(real($s), 1)

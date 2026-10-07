@@ -1,0 +1,8 @@
+{
+  "name": "reserved key $term nested in the context is rejected in concrete mode",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

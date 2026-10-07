@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 6
+[floor(9007199254740991.0), floor(-9007199254740991.0)]

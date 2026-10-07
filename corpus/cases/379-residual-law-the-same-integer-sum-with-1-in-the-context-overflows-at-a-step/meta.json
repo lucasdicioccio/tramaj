@@ -1,0 +1,8 @@
+{
+  "name": "residual law: the same integer sum with 1 in the context overflows at a step",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic", "int64"]
+}

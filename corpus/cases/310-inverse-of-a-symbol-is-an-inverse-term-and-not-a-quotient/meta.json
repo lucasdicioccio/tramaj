@@ -1,0 +1,6 @@
+{
+  "name": "inverse of a symbol is an inverse term and not a quotient",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

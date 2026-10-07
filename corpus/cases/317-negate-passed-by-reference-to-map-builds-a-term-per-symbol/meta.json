@@ -1,0 +1,6 @@
+{
+  "name": "negate passed by reference to map builds a term per symbol",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "a float operand of a term is written as a float",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,13 @@
+{
+  "constraints": [
+    {"arguments": [{"$term": "sum", "arguments": [{"$sym": "#0:\"a\"", "path": []}, 1]}, 10], "name": "lte"}
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": 1,
+  "symbols": [
+    {"binding": "a", "id": "#0:\"a\"", "origin": {"key": "a", "kind": "alloc", "site": 0}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

@@ -1,0 +1,2 @@
+-- reference.md §11: a / b, correctly rounded; the result is a float even when whole
+[quotient(7.0, 2.0), quotient(-7.0, 2.0), quotient(6.0, 3.0), quotient(1.0, 3.0)]

@@ -1,0 +1,8 @@
+{
+  "name": "floor-quotient of a symbol by a float is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

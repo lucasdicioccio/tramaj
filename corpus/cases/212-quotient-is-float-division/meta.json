@@ -1,0 +1,6 @@
+{
+  "name": "quotient is float division",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

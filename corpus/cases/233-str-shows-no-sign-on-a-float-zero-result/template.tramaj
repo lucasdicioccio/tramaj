@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 5 and 7
+[str(negate(0.0)), str(product(-1.0, 0.0)), str(quotient(0.0, -1.0))]

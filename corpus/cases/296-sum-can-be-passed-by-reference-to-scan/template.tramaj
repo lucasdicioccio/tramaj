@@ -1,0 +1,2 @@
+-- reference.md §11: scan keeps the seed and every step
+scan($ctx.xs, 0, $sum)

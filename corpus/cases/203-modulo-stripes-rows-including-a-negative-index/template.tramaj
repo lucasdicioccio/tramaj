@@ -1,0 +1,2 @@
+-- reference.md §11: the @stripe example; modulo(-1, 2) is 1
+map($ctx.is, (i) => branch("odd", eq(modulo($i, 2), 0), "even"))

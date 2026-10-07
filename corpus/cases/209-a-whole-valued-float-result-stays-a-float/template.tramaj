@@ -1,0 +1,2 @@
+-- reference.md §3, §11: nothing converts between the two types; node-json.md, Numbers
+[sum(0.5, 0.5), product(1.5, 2.0), sum(1, 2)]

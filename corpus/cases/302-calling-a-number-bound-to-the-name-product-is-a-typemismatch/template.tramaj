@@ -1,0 +1,3 @@
+-- reference.md §11, §12: the binding shadows the builtin, and a number is not callable
+@product = 1
+product(2, 3)

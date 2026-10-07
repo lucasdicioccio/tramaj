@@ -1,0 +1,2 @@
+-- reference.md §11: -x, of the same type
+negate(9223372036854775807)

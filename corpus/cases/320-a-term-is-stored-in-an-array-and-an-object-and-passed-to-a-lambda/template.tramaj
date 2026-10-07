@@ -1,0 +1,5 @@
+-- v3-symbols §1.9: a term is data, exactly as a symbol is
+@s = ?("s")
+@t = sum($s, 1)
+@wrap = (x) => {"in": [$x]}
+wrap($t)

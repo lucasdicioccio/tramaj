@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 1: all operands are checked before anything is computed
+product(4294967296, 4294967296, 1.5)

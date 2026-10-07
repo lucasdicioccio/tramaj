@@ -1,0 +1,2 @@
+-- reference.md §11: negation is exact, so sum(a, negate(b)) is bit for bit a - b
+[negate(1.5), negate(-1.5), sum(0.3, negate(0.1))]

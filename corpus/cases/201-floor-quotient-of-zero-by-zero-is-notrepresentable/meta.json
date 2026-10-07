@@ -1,0 +1,8 @@
+{
+  "name": "floor-quotient of zero by zero is NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic"]
+}
