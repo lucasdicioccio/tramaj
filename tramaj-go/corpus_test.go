@@ -64,13 +64,42 @@ func readLibs(t *testing.T, caseDir string) Libraries {
 }
 
 type caseMeta struct {
-	Name      string `json:"name"`
-	Mode      Mode   `json:"mode"`
-	Expect    string `json:"expect"`
-	ErrorKind string `json:"errorKind"`
+	Name      string   `json:"name"`
+	Mode      Mode     `json:"mode"`
+	Expect    string   `json:"expect"`
+	ErrorKind string   `json:"errorKind"`
+	Requires  []string `json:"requires"`
+}
+
+// supportedRequirements holds the requirement names ("requires" in meta.json,
+// see corpus/README.md) this port declares. A case naming any other one is
+// skipped.
+var supportedRequirements = map[string]bool{}
+
+// missingRequirements lists the requirements a case names that this port does
+// not declare.
+func missingRequirements(meta caseMeta) []string {
+	var missing []string
+	for _, r := range meta.Requires {
+		if !supportedRequirements[r] {
+			missing = append(missing, r)
+		}
+	}
+	return missing
+}
+
+func readMeta(t *testing.T, caseDir string) caseMeta {
+	var meta caseMeta
+	if err := json.Unmarshal(readFile(t, filepath.Join(caseDir, "meta.json")), &meta); err != nil {
+		t.Fatal(err)
+	}
+	return meta
 }
 
 func runCase(t *testing.T, caseDir string, meta caseMeta) {
+	if missing := missingRequirements(meta); len(missing) > 0 {
+		t.Skipf("requires %s", strings.Join(missing, ", "))
+	}
 	if meta.Mode != Concrete && meta.Mode != Symbolic {
 		t.Fatalf("unknown mode %q", meta.Mode)
 	}
@@ -133,11 +162,21 @@ func TestCorpus(t *testing.T) {
 	for _, name := range dirs {
 		caseDir := filepath.Join(root, name)
 		t.Run(name, func(t *testing.T) {
-			var meta caseMeta
-			if err := json.Unmarshal(readFile(t, filepath.Join(caseDir, "meta.json")), &meta); err != nil {
-				t.Fatal(err)
-			}
-			runCase(t, caseDir, meta)
+			runCase(t, caseDir, readMeta(t, caseDir))
 		})
+	}
+}
+
+// corpus/runner-checks/unsupported-requirement would fail if it ran: its
+// expected.json does not match what the template evaluates to.
+func TestCorpusSkipsUndeclaredRequirement(t *testing.T) {
+	caseDir := filepath.Join(filepath.Dir(findCorpusRoot(t)), "runner-checks", "unsupported-requirement")
+	skipped := false
+	t.Run("unsupported-requirement", func(t *testing.T) {
+		defer func() { skipped = t.Skipped() }()
+		runCase(t, caseDir, readMeta(t, caseDir))
+	})
+	if !skipped {
+		t.Fatal("a case naming an undeclared requirement was not skipped")
 	}
 }

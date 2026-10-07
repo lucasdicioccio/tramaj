@@ -54,7 +54,20 @@ def read_libs(case_dir: str) -> dict:
     return table
 
 
+# The requirement names (``requires`` in ``meta.json``, see corpus/README.md)
+# this port declares. A case naming any other one is skipped.
+SUPPORTED_REQUIREMENTS: frozenset = frozenset()
+
+
+def missing_requirements(meta: dict) -> list:
+    """The requirements a case names that this port does not declare."""
+    return [r for r in meta.get("requires", []) if r not in SUPPORTED_REQUIREMENTS]
+
+
 def run_case(case_dir: str, meta: dict) -> None:
+    missing = missing_requirements(meta)
+    if missing:
+        raise unittest.SkipTest(f"requires {', '.join(missing)}")
     mode = meta["mode"]
     if mode not in ("concrete", "symbolic"):
         raise AssertionError(f"unknown mode {mode}")
@@ -117,6 +130,18 @@ def _install_cases() -> None:
 
 
 _install_cases()
+
+
+class RequiresTest(unittest.TestCase):
+    def test_a_case_with_an_undeclared_requirement_is_skipped(self):
+        # corpus/runner-checks/unsupported-requirement would fail if it ran:
+        # its expected.json does not match what the template evaluates to.
+        case_dir = os.path.join(os.path.dirname(find_corpus_root()), "runner-checks", "unsupported-requirement")
+        meta = read_json(os.path.join(case_dir, "meta.json"))
+        with self.assertRaises(unittest.SkipTest) as raised:
+            run_case(case_dir, meta)
+        self.assertEqual(str(raised.exception), "requires never-declared")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,34 @@ interface CaseMeta {
   mode: string;
   expect?: string;
   errorKind?: string;
+  requires?: string[];
+}
+
+/**
+ * The requirement names (`requires` in `meta.json`, see corpus/README.md) this
+ * port declares. A case naming any other one is skipped.
+ */
+const supportedRequirements: ReadonlySet<string> = new Set();
+
+/** The requirements a case names that this port does not declare. */
+function missingRequirements(meta: CaseMeta): string[] {
+  return (meta.requires ?? []).filter((r) => !supportedRequirements.has(r));
+}
+
+function readMeta(dir: string): CaseMeta {
+  return JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as CaseMeta;
+}
+
+/** Registers one case, as a skipped test when it names an undeclared requirement. */
+function registerCase(dir: string, meta: CaseMeta): void {
+  const missing = missingRequirements(meta);
+  if (missing.length > 0) {
+    it.skip(`${meta.name} (requires ${missing.join(", ")})`, () => {});
+    return;
+  }
+  it(meta.name, () => {
+    runCase(dir, meta);
+  });
 }
 
 /** `corpus/cases` lives at the repo root — walk upward until it is found. */
@@ -128,10 +156,7 @@ const caseDirs = readdirSync(corpusRoot)
   .filter((p) => statSync(p).isDirectory())
   .sort();
 
-const cases = caseDirs.map((dir) => ({
-  dir,
-  meta: JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as CaseMeta,
-}));
+const cases = caseDirs.map((dir) => ({ dir, meta: readMeta(dir) }));
 
 describe("shared corpus", () => {
   it("finds cases", () => {
@@ -144,11 +169,21 @@ describe("shared corpus", () => {
       it(`has ${mode} cases`, () => {
         expect(subset.length).toBeGreaterThan(0);
       });
-      for (const c of subset) {
-        it(c.meta.name, () => {
-          runCase(c.dir, c.meta);
-        });
-      }
+      for (const c of subset) registerCase(c.dir, c.meta);
     });
   }
+});
+
+// corpus/runner-checks/unsupported-requirement would fail if it ran: its
+// expected.json does not match what the template evaluates to.
+describe("a case naming an undeclared requirement", () => {
+  const dir = join(dirname(corpusRoot), "runner-checks", "unsupported-requirement");
+  const meta = readMeta(dir);
+  registerCase(dir, meta);
+
+  it("is registered as skipped", (ctx) => {
+    expect(missingRequirements(meta)).toEqual(["never-declared"]);
+    const registered = ctx.task.suite?.tasks.find((t) => t.name.startsWith(meta.name));
+    expect(registered?.mode).toBe("skip");
+  });
 });
