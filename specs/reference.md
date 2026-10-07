@@ -135,11 +135,24 @@ them unless the program says so (§11's `real` and `floor`).
   it. Its range is one of those two (§13).
 - A **float** is a finite IEEE 754 binary64. There is no NaN, no infinity and
   no negative zero.
-- **A JSON number is typed by its text**, by the rule for literals (§5): one
-  with neither a fraction nor an exponent is an integer, one with either is a
-  float. `3` is an integer; `3.0` and `3e0` are floats. An integer-form number
-  outside the implementation's range is rejected, not rounded. This holds for
-  the context, for library parameters and for a seeded value (v3-symbols §5.4).
+- **A JSON number is read as the literal of the same text** (§5). One with
+  neither a fraction nor an exponent is an integer, one with either is a
+  float: `3` is an integer; `3.0` and `3e0` are floats. Whatever that literal
+  denotes, the JSON number denotes: `-0.0` is `0.0`, `-0` is the integer `0`,
+  and a float too small for a double rounds to zero. Whatever is a parse
+  error as a literal is refused as a JSON number: an integer-form number
+  outside the implementation's range, which is not rounded, and a float too
+  large for a double (`1e400`). This holds for the context and for a seeded
+  value (v3-symbols §5.4), at any depth.
+- **A context with a refused number is a `TypeMismatch`** (§12), the kind a
+  context carrying a reserved key already raises (v3-symbols §5.3). The
+  context is decoded whole, before evaluation starts, so the error does not
+  depend on whether the program reads the number.
+- **A library parameter is not JSON text.** It is a value the importing
+  program built (§7), and it crosses the import with the type it has:
+  `import("lib", {n: 3.0})` passes a float and `{n: 3}` an integer. Nothing
+  is typed again at the boundary, and `ctx(path)` passes what the context
+  decoder made of the number.
 - **Written as JSON, a number keeps its type**: `node-json.md` has the rule,
   and `str` (§6) follows it.
 
@@ -667,8 +680,8 @@ they belong to the value domain in every profile.
 rule children use (§6): an array contributes each of its elements,
 recursively, in order. `sum($xs)`, `sum(1, $xs, 2)` and `sum([1, [2, 3]])` are
 all legal. The seven fixed-arity builtins do not flatten: `negate([1])` is a
-`TypeMismatch`, and `map($xs, $negate)` is the way to write it. `and`, `or`
-and `concat` are unchanged.
+`TypeMismatch`, whatever the array holds, and `map($xs, $negate)` is the way
+to write it. `and`, `or` and `concat` are unchanged.
 
 A `sum` or `product` with no operand after flattening has no type to take, so
 it is a `TypeMismatch`: `sum()`, `sum([])` and `product([[]])` alike. A fold
@@ -689,10 +702,12 @@ type: `sum(0, $xs)` or `sum(0.0, $xs)`.
    `sum(a, b, c)` is `(a + b) + c`. A step whose mathematical result is
    outside the implementation's integer range is a `NotRepresentable`; nothing
    wraps, saturates or rounds. The check is per step, so
-   `sum(9223372036854775807, 1, -1)` is an error on every implementation
-   although its total is in the 64-bit range. So are `floor-quotient(x, 0)`
-   and `modulo(x, 0)`, and, with the 64-bit range,
-   `negate(-9223372036854775808)` and
+   `product(4294967296, 4294967296, 0)` is an error on every implementation
+   although its total is `0`: the first step is `2^64`. With the 64-bit
+   range, `sum(9223372036854775807, 1, -1)` is an error for the same reason;
+   with the guaranteed range only, that program does not parse (§5).
+   `floor-quotient(x, 0)` and `modulo(x, 0)` are `NotRepresentable` too, and
+   so are, with the 64-bit range, `negate(-9223372036854775808)` and
    `floor-quotient(-9223372036854775808, -1)`.
 3. *Float arithmetic is one correctly rounded operation at a time*, round to
    nearest, ties to even, over the same left fold: `sum(0.1, 0.2, 0.3)` is
@@ -727,7 +742,7 @@ Over a symbol these builtins do not compute; they build a term
 |---|---|
 | `UnboundName` | a name that is not bound and not a builtin |
 | `PathNotFound` | a field the value does not have; carries the path as written |
-| `TypeMismatch` | wrong type, wrong arity, a non-callable callee, a value that cannot cross a JSON boundary |
+| `TypeMismatch` | wrong type, wrong arity, a non-callable callee, a value that cannot cross a JSON boundary, a context the decoder refuses (§3, v3-symbols §5.3) |
 | `ConcatMismatch` | `<>` over two different types |
 | `UnknownLibrary` | an import name the host table does not resolve |
 | `ImportCycle` | a library re-entered while already being evaluated |
@@ -749,8 +764,9 @@ Programs must not depend on any of these.
   `2^53 - 1`, or the signed 64-bit range, `-2^63` to `2^63 - 1`; no other is
   permitted, and an implementation documents which it has (§3). Inside the
   guaranteed range all implementations agree. Between the two, one holds an
-  integer exactly or refuses it (a parse error for a literal, a rejection for
-  a JSON number, a `NotRepresentable` for a result) and never rounds it.
+  integer exactly or refuses it (a parse error for a literal, a
+  `TypeMismatch` for a JSON number in the context, a `NotRepresentable` for a
+  result) and never rounds it.
   Outside 64 bits every implementation refuses. A value one implementation
   emits above the guaranteed range is therefore rejected by one that has only
   that range. Until the number split lands, numbers are doubles, integers

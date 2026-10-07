@@ -115,6 +115,12 @@ An unsupplied demand:
   library — the same error an ordinary unsupplied read already produces
   (ref §7).
 
+A demand is an expression and may be written wherever one may: as a call
+argument, an array element, an operand of an arithmetic builtin (§1.9). It
+does not need binding first. `sum(?ctx.s, 1)` and `@s = ?ctx.s` followed by
+`sum($s, 1)` allocate the same symbol and build the same term; they differ
+only in the `"binding"` the symbol table reports (§5.2).
+
 ### 1.4 Identity
 
 > **Only a root program may allocate. A library MUST NOT**, because the root
@@ -172,8 +178,9 @@ language to *know* something about it is an error:
 | `$s.field` | a projection (§1.6) — **the one exception** |
 | `branch($s, …)` | `NotConcrete` — no arm can be selected |
 | `map($s, f)`, `filter`, `scan`, `fold` | `NotConcrete` — the spine has no length |
-| `eq`, `lt`, `lte`, `gt`, `gte` on anything *containing* a symbol | `NotConcrete` |
-| `str($s)`, and so any interpolation of one | `NotConcrete` — §1.8 |
+| `eq` on anything *containing* a symbol | `NotConcrete` — deep equality needs the whole value |
+| `lt`, `lte`, `gt`, `gte` with a symbol as an operand | `NotConcrete`; an array or object operand is the `TypeMismatch` it always was, whatever it holds |
+| `str` of anything *containing* a symbol, and so any interpolation of one | `NotConcrete` — §1.8 |
 | `cardinality($s)`, `has($s, k)`, `lookup($s, k, d)` | `NotConcrete` |
 | `$s <> x` | `NotConcrete` |
 
@@ -190,8 +197,9 @@ branch — no evaluator rule in ref §6 changes, and no builtin learns a new
 case beyond refusing. The nine arithmetic builtins are the one exception:
 over a symbol they build a term (§1.9).
 
-A term is data in the same way, and every row above that refuses a symbol
-refuses anything containing a term. The one difference is projection, which a
+A term is data in the same way. Every row above that refuses a symbol refuses
+a term in the same position, and a row that says *containing* looks as deep
+for a term as it does for a symbol. The one difference is projection, which a
 term does not have (§1.9).
 
 ### 1.6 Projection
@@ -228,6 +236,9 @@ operations that *inspect* a value refuse.
 ```
 
 is legal end to end.
+
+A concrete structure containing terms (§1.9) is not special either, and the
+same operations work on it: `cardinality([sum($a, 1), 2])` is `2`.
 
 **A symbol that is itself structured is the ceiling.** `$d.replicas` projects
 fine; `map($d.items, f)` is `NotConcrete`, because the length is unknown. A
@@ -299,6 +310,12 @@ vocabulary is closed: nine operations whose meaning ref §11 defines, so an
   one: each MUST be a number, and those of one call MUST agree with each other
   and with what the builtin accepts. `sum("a", $s)`, `sum(1, $s, 2.0)` and
   `quotient(1, $s)` are `TypeMismatch`, and so is a wrong argument count.
+* **An operand is a symbol or a term only when it is one itself.** The seven
+  fixed-arity builtins do not flatten (ref §11), so an array given to one is
+  a `TypeMismatch` whatever it holds: `negate([$s])` is a `TypeMismatch`,
+  like `negate([1])`, and not a `NotConcrete`. Nothing looks inside the
+  array. `sum` and `product` flatten first, and `sum({k: $s})` is a
+  `TypeMismatch` for the same reason: an object is not a number.
 * **Nothing is inferred through a symbol or a nested term.**
   `sum(real($s), 1)` is built, and fails when the host evaluates it, as the
   residual law says it should. `inverse($s)` is a term even if the host later
@@ -307,11 +324,20 @@ vocabulary is closed: nine operations whose meaning ref §11 defines, so an
 * **A term is data, exactly as a symbol is** (§1.5). It may be bound, passed,
   stored, placed in an attribute, a payload, a value slot or a text child,
   used as a constraint argument, and used as an operand.
-* **Everything that inspects refuses**, as for a symbol: `branch`, `eq`, `lt`,
-  `lte`, `gt`, `gte`, `str` and interpolation, `cardinality`, `has`, `lookup`,
-  `<>`, a `map` spine and an allocation key are `NotConcrete` on anything
-  containing a term. The comparisons do **not** become symbolic: a boolean
-  term could only feed `branch`, and control flow must be concrete.
+* **Everything that inspects refuses, exactly where it refuses a symbol**
+  (§1.5), with `NotConcrete`. There are two depths, as for a symbol:
+  * `eq`, `str` and so interpolation, and an allocation key need the whole
+    value, so they refuse anything *containing* a term: `eq([$t], [1])` and
+    `str({k: $t})` are `NotConcrete`.
+  * `branch`, the comparisons, `cardinality`, `has`, `lookup`, `<>` and the
+    spine of `map`, `filter`, `scan` and `fold` refuse a term given *as* the
+    condition, the operand, the container or the collection. A concrete
+    structure that holds a term is not special (§1.7): `cardinality([$t])`
+    is `1`, `[$t] <> [1]` has two elements, and `map([$t], f)` applies `f` to
+    the term.
+
+  The comparisons do **not** become symbolic: a boolean term could only feed
+  `branch`, and control flow must be concrete.
 * **A term has no projection.** `$t.field` is a `TypeMismatch`: a term stands
   for a number, and a number has no fields.
 * A symbol standing for a whole array cannot be summed. It counts as one
@@ -583,7 +609,7 @@ about `!` and two refusals.
      "origin": {"kind": "alloc", "site": 2, "key": "web"},
      "binding": null},
     {"id": "#ctx.threshold",
-     "origin": {"kind": "demand", "path": ["ctx", "threshold"]},
+     "origin": {"kind": "demand", "path": ["threshold"]},
      "binding": "t"}
   ],
   "constraints": [
@@ -607,9 +633,15 @@ about `!` and two refusals.
   declarations.
 * A symbol the host seeded (§5.4) arrives as a value and is echoed wherever it
   was used; the language has nothing to add about it, so it is not listed.
-* `"binding"` is the name the allocation was bound to, or `null`. It is
+* `"binding"` is the name the allocation was bound to, or `null`. It is a
+  name only when the `?(k)` or `?ctx.path` is the whole right-hand side of an
+  `@name = …` binding. Used inline it is `null`, and so it is in
+  `@x = sum(?ctx.s, 1)`, where `x` names the term and not the symbol. It is
   provenance for humans. `"origin"` is the structured form of `"id"`, so a
   host never has to parse the id.
+* A demand's origin `"path"` is the `Demand` path of §3: the segments after
+  `ctx`, so `?ctx.a.b` has `["a", "b"]`. The `ctx` root is not repeated; it
+  is what `"kind": "demand"` says.
 * Every field is REQUIRED. A decoder MUST reject an object missing any of
   them, and MUST NOT infer one from a default — the discipline `node-json.md`
   already sets.
@@ -664,11 +696,31 @@ whose key is `"$sym"` or `"$term"`. Neither can:
   how a host runs it and a context does not change meaning when a host
   changes mode. Reserving `"$term"` rejects a context that carries that key
   as data, which implementations accept today.
-* **A well-formed term** has a known `op`, the argument count that builtin
-  takes (one or more for `sum` and `product`), and arguments that are
-  numbers, symbols or terms, with at least one symbol somewhere inside. An
-  implementation without the arithmetic profile knows no `op`, so it rejects
-  every term.
+* **The rejection is a `TypeMismatch`**, in both modes, for a reserved key
+  and for a malformed symbol reference or term alike. The context is decoded
+  whole before evaluation starts, so a context is rejected whether or not
+  the program reads the offending part.
+* **A well-formed term is one a call could have built** (§1.9). Its object
+  has exactly the two keys `"$term"` and `"arguments"`; any other key beside
+  them is rejected, as it is beside `"$sym"` and `"path"`. And:
+  * `"$term"` is a string naming a known `op`, and `"arguments"` is an array
+    with the argument count that builtin takes (one or more for `sum` and
+    `product`);
+  * each argument is a number, a well-formed symbol reference or a
+    well-formed term. An array is not an argument: a term holds its operands
+    already flattened;
+  * at least one argument is a symbol reference or a term. A nested term is
+    held to this whole rule itself, so every term contains a symbol at each
+    level;
+  * the arguments that are numbers pass the check a call makes (§1.9): they
+    agree with each other in type and with what the builtin accepts. A `sum`
+    over `1`, a symbol and `2.0` is rejected, and so is a `quotient` of `1`
+    by a symbol;
+  * each number is read by ref §3's rule, so an integer outside the
+    implementation's range is rejected.
+
+  An implementation without the arithmetic profile knows no `op`, so it
+  rejects every term.
 * Objects are otherwise built only by `<>`, which merges keys from objects
   that came from one of those two sources, so the sources are exhaustive.
 
@@ -691,7 +743,9 @@ and `?ctx.path` reads it with no allocation. This is what makes the
 ask-a-user and re-solve loops work without the template changing.
 
 A well-formed term (§5.3) is accepted the same way, and round-trips. A
-malformed one, or one with no symbol inside, is rejected.
+malformed one, or one with no symbol inside, is rejected with a
+`TypeMismatch`. A seeded number is read by ref §3's rule, like any other
+context number.
 
 ### 5.5 Profiles
 
@@ -726,9 +780,11 @@ Three kinds join ref §12's table.
 | `SymbolsUnavailable` | a symbol would have to be minted in concrete mode (§5.1) |
 
 `TypeMismatch` covers the rest: a constraint value crossing a JSON boundary,
-a `!` over something that is neither a constraint nor an array of them, and a
-projection of a term (§1.9). A term is a symbolic value, so `NotConcrete`
-covers it wherever it covers a symbol. An
+a `!` over something that is neither a constraint nor an array of them, a
+projection of a term (§1.9), an array given to a fixed-arity arithmetic
+builtin whatever it holds (§1.9), and a context the decoder rejects (§5.3).
+A term is a symbolic value, so `NotConcrete` covers it wherever it covers a
+symbol, and to the same depth. An
 unsupplied `?ctx.path` inside a library is the existing `PathNotFound`,
 `InLibrary`-wrapped.
 

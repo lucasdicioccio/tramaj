@@ -1,0 +1,6 @@
+{
+  "name": "has and lookup on a structure holding a term answer",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

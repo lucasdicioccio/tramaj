@@ -1,0 +1,3 @@
+-- reference.md §3, §7: nothing is typed again at the import
+@e = import("echo", {})
+[$e({"n": 1.0}).rendered, $e({"n": 1}).rendered]

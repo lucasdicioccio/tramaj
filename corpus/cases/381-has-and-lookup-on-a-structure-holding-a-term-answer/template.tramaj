@@ -1,0 +1,4 @@
+-- v3-symbols §1.7, §1.9: a concrete structure holding a term is not special
+@s = ?("s")
+@t = sum($s, 1)
+[has([$t], 0), has({k: $t}, "k"), lookup([$t], 0, null), lookup({k: $t}, "k", null)]

@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.9: a comparison refuses a term operand; an array is not a number
+@s = ?("s")
+@t = sum($s, 1)
+lt([$t], 1)

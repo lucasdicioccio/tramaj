@@ -1,0 +1,1 @@
+{"t": {"$term": "floor-quotient", "arguments": [{"$sym": "#ctx.s", "path": []}, 2.0]}}

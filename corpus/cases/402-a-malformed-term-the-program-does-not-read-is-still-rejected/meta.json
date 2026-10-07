@@ -1,0 +1,8 @@
+{
+  "name": "a malformed term the program does not read is still rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

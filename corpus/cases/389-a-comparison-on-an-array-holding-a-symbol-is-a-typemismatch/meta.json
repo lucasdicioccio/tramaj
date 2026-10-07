@@ -1,0 +1,7 @@
+{
+  "name": "a comparison on an array holding a symbol is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch"
+}

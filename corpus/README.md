@@ -43,7 +43,16 @@ cases/<NNN-slug>/
   * `"parse-error"` — the template MUST fail to parse. No `ctx.json` or
     `expected.json` is read.
   * `"eval-error"` — the template MUST parse but fail to evaluate, with the
-    error given by `errorKind`. No `expected.json` is read.
+    error given by `errorKind`. No `expected.json` is read. A context the
+    implementation's decoder refuses is expressed this way too, with
+    `errorKind` `"TypeMismatch"` (reference.md §3, v3-symbols §5.3): a
+    reserved key, a malformed symbol reference or term, an integer outside
+    the integer range, a float too large for a double. `ctx.json` is always
+    well-formed JSON; what is refused is its content, by the implementation
+    and not by the runner. A runner therefore hands the implementation the
+    text of each number in `ctx.json` (see `requires` below) and MUST NOT
+    read `ctx.json` of a case it skips, since its own JSON parser may refuse
+    `1e400`.
 * `errorKind` — required when `expect` is `"eval-error"`: the name of the
   `EvalError` constructor the case must raise (e.g. `"UnboundName"`,
   `"TypeMismatch"`). Only the constructor is checked — error message

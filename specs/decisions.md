@@ -843,3 +843,55 @@ The corpus needs a way to mark a case as needing a profile (an optional
     those two ranges permitted. In the gap a port holds the value exactly or
     refuses it. A value a 64-bit port emits above 2^53 is rejected by a 53-bit
     port that receives it.
+
+**Decided afterwards, 2026-10-07.** Points the fixtures found open or
+contradictory. The owner's rule: error on input that is unexpected, or whose
+acceptable semantics are hard to converge on, with an existing error kind.
+Where this list and the text above disagree, this list and the normative
+specs win.
+
+1. A concrete structure holding a term counts, iterates and merges, as one
+   holding a symbol does (v3-symbols §1.7, §1.9). `eq`, `str` and an
+   allocation key refuse anything *containing* a term; the rest refuse a
+   term given as the operand or container. Reason: a term is refused exactly
+   where a symbol is, so no port needs a second rule or a deep scan.
+2. `negate([$s])`, and any array given to a fixed-arity builtin, is a
+   `TypeMismatch`, not a `NotConcrete` (v3-symbols §1.9). Reason: these
+   builtins do not flatten, so nothing looks inside the array, and it is
+   what the residual law gives once `$s` is a number.
+3. A well-formed seeded term is one a call could have built: exactly the
+   keys `"$term"` and `"arguments"`, number arguments that agree in type and
+   suit the builtin, no array argument, and every nested term well-formed,
+   so containing a symbol (v3-symbols §5.3). Reason: the decoder reuses the
+   call's check, and a host cannot seed what the language cannot produce.
+4. The decoder's rejection is a `TypeMismatch` in both modes, for a reserved
+   key and a malformed symbol or term alike (v3-symbols §5.3, §6). Cases 360
+   to 369 are confirmed. Reason: it is what `"$sym"` and `"$type"` already
+   raise in every port.
+5. *Not decided.* How the corpus expresses behaviour of a 53-bit-only port
+   or of one without the arithmetic profile, and a case shape for
+   `arithmeticOps`, are corpus mechanisms the rule does not settle.
+6. A demand needs no binding to be an operand: `sum(?ctx.s, 1)` is legal and
+   its symbol table entry has `"binding": null` (v3-symbols §1.3, §5.2).
+   Reason: a demand is an expression, and refusing it inline would change
+   the v3 grammar.
+7. Wording. ref §11's example of a step overflow on every implementation is
+   `product(4294967296, 4294967296, 0)`; `sum(9223372036854775807, 1, -1)`
+   is the 64-bit example and a parse error on a 53-bit port. A demand's
+   origin path omits `ctx` (v3-symbols §5.2), as the ports and case 066
+   have it.
+8. An integer-form context number outside the port's range is a
+   `TypeMismatch` (ref §3, §12), and the corpus writes it as an
+   `eval-error` case, like a reserved key. Reason: one refusal for
+   everything the context decoder rejects; `NotRepresentable` stays an
+   operation that had no result.
+9. `-0.0` in context JSON is `0.0`, and `-0` the integer `0` (ref §3). It is
+   not rejected. Reason: a JSON number is read as the literal of the same
+   text, which already says so; rejecting would need a second number reader
+   and would refuse what common serializers write for a negative zero.
+10. A context float too large for a double (`1e400`) is a `TypeMismatch`;
+    one too small rounds to zero (ref §3, `node-json.md`). Reason: the same
+    literal rule, where `1e400` is a parse error.
+11. A library parameter is a value the importer built, not JSON text; it
+    keeps the type it has and nothing is typed again at the import (ref §3).
+    Reason: "typed by its text" has no text to apply to there.

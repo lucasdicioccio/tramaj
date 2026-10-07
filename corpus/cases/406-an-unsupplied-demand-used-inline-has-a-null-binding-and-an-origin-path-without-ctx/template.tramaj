@@ -1,0 +1,2 @@
+-- v3-symbols §5.2: the origin path is the segments after ctx
+[?ctx.a.b]
