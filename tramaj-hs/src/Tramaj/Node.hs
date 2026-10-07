@@ -18,20 +18,18 @@ module Tramaj.Node
   , mapActions
   ) where
 
-import Data.Aeson (Value (..), object, (.=))
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Bifunctor (first)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Vector as V
+import Tramaj.Json (Json (..), normalizeNumbers)
 
 -- | Arbitrary host\/tooling metadata hung off any node. The core language
 -- assigns no meaning to any key; unknown annotations must not affect
 -- semantics, and every node-to-node transformation must carry them through
 -- unchanged. This is where a future type\/domain\/constraint pass puts what
 -- it derives, without the 'Node' constructors having to change.
-type Annotations = Map Text Value
+type Annotations = Map Text Json
 
 noAnnotations :: Annotations
 noAnnotations = Map.empty
@@ -39,14 +37,15 @@ noAnnotations = Map.empty
 -- | Three constructors, with enough expressivity inside them to carry
 -- scalars losslessly -- see @../specs/decisions.md@ #5.
 --
--- 'NText' holds a 'Value', not a 'Text': @.p($ctx.count)@ with @count = 3@
--- keeps the number @3@ rather than stringifying it. Rendering a scalar to
+-- 'NText' holds a 'Json' value, not a 'Text': @.p($ctx.count)@ with
+-- @count = 3@ keeps the integer @3@ rather than stringifying it, and the
+-- float @3.0@ stays a float (@../specs/node-json.md@, /Numbers/). Rendering a scalar to
 -- characters is a host decision, so the interchange format declines to make
 -- it.
 --
 -- 'NElement' holds a @value@ slot alongside its children, for targets that
 -- attach a body value to a tagged node (a YAML\/HCL scalar leaf, a config
--- value); it is 'Null' unless a template sets one. Its attributes are an
+-- value); it is 'JNull' unless a template sets one. Its attributes are an
 -- ordered list rather than a map: an element may carry any number of
 -- attributes /and/ any number of actions, and source order is preserved.
 --
@@ -54,8 +53,8 @@ noAnnotations = Map.empty
 -- wrapper element. A host may flatten fragments when folding; evaluation
 -- does not.
 data Node
-  = NText Value Annotations
-  | NElement Text [NodeAttribute] Value [Node] Annotations
+  = NText Json Annotations
+  | NElement Text [NodeAttribute] Json [Node] Annotations
   | NFragment [Node] Annotations
   deriving stock (Eq, Show)
 
@@ -63,8 +62,8 @@ data Node
 -- @event@ and @key@ are plain 'Text' because both are static in the source
 -- AST (see "Tramaj.Ast"); only the payload is computed.
 data NodeAttribute
-  = NAttr Text Value
-  | NAction Text Text Value
+  = NAttr Text Json
+  | NAction Text Text Json
   deriving stock (Eq, Show)
 
 -- Serialization -----------------------------------------------------------
@@ -73,51 +72,57 @@ data NodeAttribute
 -- including an empty @annotations@ and a @null@ element @value@ -- see
 -- @../specs/node-json.md@, "Decoding": on the wire a missing field is a bug,
 -- not a default.
-nodeToJson :: Node -> Value
+nodeToJson :: Node -> Json
 nodeToJson (NText v anns) =
-  object ["type" .= ("text" :: Text), "value" .= v, "annotations" .= annotationsToJson anns]
+  object [("type", JString "text"), ("value", v), ("annotations", JObject anns)]
 nodeToJson (NElement tag attrs val children anns) =
   object
-    [ "type" .= ("element" :: Text)
-    , "tag" .= tag
-    , "attributes" .= V.fromList (map nodeAttributeToJson attrs)
-    , "value" .= val
-    , "children" .= V.fromList (map nodeToJson children)
-    , "annotations" .= annotationsToJson anns
+    [ ("type", JString "element")
+    , ("tag", JString tag)
+    , ("attributes", JArray (map nodeAttributeToJson attrs))
+    , ("value", val)
+    , ("children", JArray (map nodeToJson children))
+    , ("annotations", JObject anns)
     ]
 nodeToJson (NFragment children anns) =
   object
-    [ "type" .= ("fragment" :: Text)
-    , "children" .= V.fromList (map nodeToJson children)
-    , "annotations" .= annotationsToJson anns
+    [ ("type", JString "fragment")
+    , ("children", JArray (map nodeToJson children))
+    , ("annotations", JObject anns)
     ]
 
-nodeAttributeToJson :: NodeAttribute -> Value
+nodeAttributeToJson :: NodeAttribute -> Json
 nodeAttributeToJson (NAttr name val) =
-  object ["kind" .= ("attribute" :: Text), "name" .= name, "value" .= val]
+  object [("kind", JString "attribute"), ("name", JString name), ("value", val)]
 nodeAttributeToJson (NAction event key payload) =
-  object ["kind" .= ("action" :: Text), "event" .= event, "key" .= key, "payload" .= payload]
+  object [("kind", JString "action"), ("event", JString event), ("key", JString key), ("payload", payload)]
 
-annotationsToJson :: Annotations -> Value
-annotationsToJson = Object . KeyMap.fromList . map (\(k, v) -> (Key.fromText k, v)) . Map.toList
+object :: [(Text, Json)] -> Json
+object = JObject . Map.fromList
 
 -- | Decodes the normative representation, strictly: a missing or
 -- ill-typed field is an error rather than a silently-defaulted value, so
 -- @nodeFromJson . nodeToJson@ round-trips and a malformed document is
 -- reported where it is read rather than where it later misbehaves. The
 -- 'Left' carries a human-readable path-ish description of what was wrong.
-nodeFromJson :: Value -> Either String Node
-nodeFromJson (Object obj) = do
+--
+-- A number in a @Value@ follows /Numbers/ and /Decoding/ there: an
+-- integer-form number outside the integer range or a float too large for a
+-- double is refused rather than rounded, at any depth, and a negative zero
+-- decodes as zero ('reqValue'). Annotations are arbitrary JSON, not a
+-- @Value@, and are kept as they were read.
+nodeFromJson :: Json -> Either String Node
+nodeFromJson (JObject obj) = do
   ty <- reqString "node" "type" obj
   case ty of
     "text" -> do
-      v <- req "text node" "value" obj
+      v <- reqValue "text node" "value" obj
       anns <- reqAnnotations obj
       pure (NText v anns)
     "element" -> do
       tag <- reqString "element node" "tag" obj
       attrs <- reqArray "element node" "attributes" obj >>= traverse nodeAttributeFromJson
-      val <- req "element node" "value" obj
+      val <- reqValue "element node" "value" obj
       children <- reqArray "element node" "children" obj >>= traverse nodeFromJson
       anns <- reqAnnotations obj
       pure (NElement tag attrs val children anns)
@@ -128,40 +133,46 @@ nodeFromJson (Object obj) = do
     other -> Left ("unknown node type: " <> show other)
 nodeFromJson _ = Left "expected a JSON object for a node"
 
-nodeAttributeFromJson :: Value -> Either String NodeAttribute
-nodeAttributeFromJson (Object obj) = do
+nodeAttributeFromJson :: Json -> Either String NodeAttribute
+nodeAttributeFromJson (JObject obj) = do
   kind <- reqString "node attribute" "kind" obj
   case kind of
-    "attribute" -> NAttr <$> reqString "attribute" "name" obj <*> req "attribute" "value" obj
+    "attribute" -> NAttr <$> reqString "attribute" "name" obj <*> reqValue "attribute" "value" obj
     "action" ->
       NAction
         <$> reqString "action" "event" obj
         <*> reqString "action" "key" obj
-        <*> req "action" "payload" obj
+        <*> reqValue "action" "payload" obj
     other -> Left ("unknown node attribute kind: " <> show other)
 nodeAttributeFromJson _ = Left "expected a JSON object for a node attribute"
 
-req :: String -> Text -> KeyMap.KeyMap Value -> Either String Value
-req what field obj = case KeyMap.lookup (Key.fromText field) obj of
+req :: String -> Text -> Map Text Json -> Either String Json
+req what field obj = case Map.lookup field obj of
   Nothing -> Left (what <> ": missing required field " <> show field)
   Just v -> Right v
 
-reqString :: String -> Text -> KeyMap.KeyMap Value -> Either String Text
+-- | A field holding a @Value@, with its numbers checked ('normalizeNumbers').
+reqValue :: String -> Text -> Map Text Json -> Either String Json
+reqValue what field obj = do
+  v <- req what field obj
+  first (\why -> what <> ": field " <> show field <> ": " <> why) (normalizeNumbers v)
+
+reqString :: String -> Text -> Map Text Json -> Either String Text
 reqString what field obj =
   req what field obj >>= \case
-    String s -> Right s
+    JString s -> Right s
     _ -> Left (what <> ": field " <> show field <> " must be a string")
 
-reqArray :: String -> Text -> KeyMap.KeyMap Value -> Either String [Value]
+reqArray :: String -> Text -> Map Text Json -> Either String [Json]
 reqArray what field obj =
   req what field obj >>= \case
-    Array arr -> Right (V.toList arr)
+    JArray arr -> Right arr
     _ -> Left (what <> ": field " <> show field <> " must be an array")
 
-reqAnnotations :: KeyMap.KeyMap Value -> Either String Annotations
+reqAnnotations :: Map Text Json -> Either String Annotations
 reqAnnotations obj =
   req "node" "annotations" obj >>= \case
-    Object anns -> Right (Map.fromList (map (\(k, v) -> (Key.toText k, v)) (KeyMap.toList anns)))
+    JObject anns -> Right anns
     _ -> Left "node: field \"annotations\" must be an object"
 
 -- Transformation -----------------------------------------------------------
@@ -172,7 +183,7 @@ reqAnnotations obj =
 -- that only fails ('Either') and one that also accumulates something
 -- alongside its result (v3-symbols constraint emission) can share this one
 -- traversal.
-mapActions :: (Applicative f) => (Text -> Text -> Value -> f NodeAttribute) -> Node -> f Node
+mapActions :: (Applicative f) => (Text -> Text -> Json -> f NodeAttribute) -> Node -> f Node
 mapActions _ n@(NText _ _) = pure n
 mapActions f (NElement tag attrs val children anns) =
   NElement tag <$> traverse step attrs <*> pure val <*> traverse (mapActions f) children <*> pure anns

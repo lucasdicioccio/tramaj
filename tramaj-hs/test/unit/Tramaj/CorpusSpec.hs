@@ -6,9 +6,8 @@
 module Tramaj.CorpusSpec (spec) where
 
 import Control.Monad (filterM, forM)
-import Data.Aeson (FromJSON (..), Value (..), eitherDecodeStrict, encode, withObject, (.:), (.:?))
+import Data.Aeson (FromJSON (..), eitherDecodeStrict, withObject, (.:), (.:?))
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
 import Data.List (isSuffixOf, sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -18,7 +17,8 @@ import qualified Data.Text.Encoding as TE
 import System.Directory (canonicalizePath, doesDirectoryExist, listDirectory)
 import System.FilePath (dropExtension, takeFileName, (</>))
 import Test.Hspec
-import Tramaj.Eval (EvalError, LibraryTable, Mode (..), evalProgram, runProgram)
+import Tramaj.Eval (EvalError, LibraryTable, Mode (..), runProgram)
+import Tramaj.Json (Json, jsonParser, stringify)
 import Tramaj.Parser (parseProgram)
 
 -- | `"kind"` is part of the format (corpus/README.md) but not read here: a
@@ -42,9 +42,11 @@ instance FromJSON CaseMeta where
 
 -- | The requirement names (@requires@ in @meta.json@, see
 -- @corpus/README.md@) this port declares. A case naming any other one is
--- skipped.
+-- skipped. @int-float@: integers and floats are two types. @int64@: an
+-- integer covers the signed 64-bit range. The arithmetic builtins are not
+-- implemented, so a case that also names @arithmetic@ stays skipped.
 supportedRequirements :: [Text]
-supportedRequirements = []
+supportedRequirements = ["int-float", "int64"]
 
 -- | The requirements a case names that this port does not declare.
 missingRequirements :: CaseMeta -> [Text]
@@ -108,6 +110,16 @@ readJsonFile path = do
   bytes <- BS.readFile path
   either (\e -> error (path <> ": " <> e)) pure (eitherDecodeStrict bytes)
 
+-- | Reads @ctx.json@ or @expected.json@ with the reader that types a number
+-- by its text (@corpus/README.md@): @3@ is an integer and @3.0@ a float, and
+-- an integer keeps its digits whatever its size. aeson's own decoder would
+-- make the two one number, and no fixture could then catch a result of the
+-- wrong type.
+readTypedJsonFile :: FilePath -> IO Json
+readTypedJsonFile path = do
+  bytes <- BS.readFile path
+  either (\e -> error (path <> ": " <> e)) pure (jsonParser (TE.decodeUtf8 bytes))
+
 readLibs :: FilePath -> IO LibraryTable
 readLibs dir = do
   let libsDir = dir </> "libs"
@@ -159,10 +171,15 @@ checkSupportedCase dir meta = do
     "eval-error" -> case metaErrorKind meta of
       Nothing -> expectationFailure (label <> ": eval-error case needs errorKind")
       Just errorKind -> do
-        ctx <- (readJsonFile (dir </> "ctx.json") :: IO Value)
+        ctx <- readTypedJsonFile (dir </> "ctx.json")
         case parseProgram src of
           Left e -> expectationFailure (label <> ": parse error: " <> show e)
-          Right prog -> case evalProgram mode libs ctx prog of
+          -- 'runProgram', as for a success case and as corpus/README.md says
+          -- of @mode@: in symbolic mode it also builds the envelope's
+          -- @"types"@ table, which is where an annotation naming an
+          -- undeclared type is refused. Every error 'evalProgram' raises is
+          -- raised first by 'runProgram'.
+          Right prog -> case runProgram mode libs ctx prog of
             Right _ -> expectationFailure (label <> ": expected eval error " <> T.unpack errorKind <> ", but evaluation succeeded")
             Left e ->
               let actualKind = errorConstructor e
@@ -170,13 +187,21 @@ checkSupportedCase dir meta = do
                     then pure ()
                     else expectationFailure (label <> ": expected eval error " <> T.unpack errorKind <> ", got " <> T.unpack actualKind <> " (" <> show e <> ")")
     "success" -> do
-      ctx <- (readJsonFile (dir </> "ctx.json") :: IO Value)
-      expected <- (readJsonFile (dir </> "expected.json") :: IO Value)
+      ctx <- readTypedJsonFile (dir </> "ctx.json")
+      expected <- readTypedJsonFile (dir </> "expected.json")
       case parseProgram src of
         Left e -> expectationFailure (label <> ": parse error: " <> show e)
         Right prog -> case runProgram mode libs ctx prog of
           Left e -> expectationFailure (label <> ": eval error: " <> show e)
-          Right actual -> encode actual `shouldBe` (encode expected :: BL.ByteString)
+          -- Typed values, so an integer @1@ against an expected float @1.0@
+          -- is a failure: the text of every number is compared, up to the
+          -- spelling of one value of one type (@1.0@ and @1e0@ are the same
+          -- float). Object key order is not compared.
+          --
+          -- The result goes through the writer and the reader first, since
+          -- the text is what a host receives: a float written without its
+          -- fraction would read back as an integer and fail here.
+          Right actual -> jsonParser (stringify actual) `shouldBe` Right expected
     other -> expectationFailure (label <> ": unknown expect " <> T.unpack other)
 
 -- | The constructor name an 'EvalError''s 'Show' instance leads with -- every
