@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -23,6 +24,30 @@ struct CaseMeta {
     expect: String,
     #[serde(rename = "errorKind", default)]
     error_kind: Option<String>,
+    #[serde(default)]
+    requires: Vec<String>,
+}
+
+/// The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
+/// this port declares. A case naming any other one is skipped.
+const SUPPORTED_REQUIREMENTS: &[&str] = &[];
+
+/// The requirements a case names that this port does not declare.
+fn missing_requirements(meta: &CaseMeta) -> Vec<String> {
+    meta.requires
+        .iter()
+        .filter(|r| !SUPPORTED_REQUIREMENTS.contains(&r.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// What `run_case` did with a case. A failing case panics instead.
+#[derive(Debug, PartialEq)]
+enum Outcome {
+    Passed,
+    /// Not run: the case names these requirements, which this port does not
+    /// declare.
+    Skipped(Vec<String>),
 }
 
 fn default_expect() -> String {
@@ -110,11 +135,15 @@ fn error_constructor(e: &tramaj_rs::eval::EvalError) -> String {
         .to_string()
 }
 
-fn run_case(dir: &Path) {
+fn run_case(dir: &Path) -> Outcome {
     let meta: CaseMeta = {
         let bytes = fs::read_to_string(dir.join("meta.json")).unwrap();
         serde_json::from_str(&bytes).unwrap()
     };
+    let missing = missing_requirements(&meta);
+    if !missing.is_empty() {
+        return Outcome::Skipped(missing);
+    }
     let mode = mode_from_meta(dir, &meta.mode);
     let src = fs::read_to_string(dir.join("template.tramaj")).unwrap();
     let libs = read_libs(dir);
@@ -161,6 +190,7 @@ fn run_case(dir: &Path) {
         }
         other => panic!("{label}: unknown expect {other}"),
     }
+    Outcome::Passed
 }
 
 fn case_mode(dir: &Path) -> String {
@@ -189,18 +219,26 @@ fn run_corpus_subset(modes: &[&str]) {
     );
 
     let mut failures = Vec::new();
+    let mut skipped = Vec::new();
     for dir in &dirs {
         let name = dir.file_name().unwrap().to_string_lossy().to_string();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(dir)));
-        if let Err(payload) = result {
-            let msg = payload
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
-                .unwrap_or_else(|| "<non-string panic payload>".to_string());
-            failures.push(format!("{name}: {msg}"));
+        match result {
+            Ok(Outcome::Passed) => {}
+            Ok(Outcome::Skipped(missing)) => {
+                skipped.push(format!("{name} (requires {})", missing.join(", ")))
+            }
+            Err(payload) => {
+                let msg = payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "<non-string panic payload>".to_string());
+                failures.push(format!("{name}: {msg}"));
+            }
         }
     }
+    report_skipped(modes, dirs.len(), &skipped);
 
     if !failures.is_empty() {
         panic!(
@@ -210,6 +248,40 @@ fn run_corpus_subset(modes: &[&str]) {
             failures.join("\n")
         );
     }
+}
+
+/// libtest has no way to mark part of a test as skipped, and it captures
+/// what a passing test prints through `println!`/`eprintln!`. Writing to the
+/// stderr handle directly is not captured, so a skipped case shows up in an
+/// ordinary `cargo test` run rather than being counted silently as passed.
+fn report_skipped(modes: &[&str], total: usize, skipped: &[String]) {
+    if skipped.is_empty() {
+        return;
+    }
+    let mut err = std::io::stderr().lock();
+    let _ = writeln!(
+        err,
+        "shared corpus ({modes:?}): skipped {} of {total} cases",
+        skipped.len()
+    );
+    for line in skipped {
+        let _ = writeln!(err, "  skipped: {line}");
+    }
+}
+
+/// `corpus/runner-checks/unsupported-requirement` would fail if it ran: its
+/// `expected.json` does not match what the template evaluates to.
+#[test]
+fn case_with_undeclared_requirement_is_skipped() {
+    let root = find_corpus_root();
+    let dir = root
+        .join("..")
+        .join("runner-checks")
+        .join("unsupported-requirement");
+    assert_eq!(
+        run_case(&dir),
+        Outcome::Skipped(vec!["never-declared".to_string()])
+    );
 }
 
 /// R1's target: every `concrete`-mode case (specs/reference.md, no v3/v4).

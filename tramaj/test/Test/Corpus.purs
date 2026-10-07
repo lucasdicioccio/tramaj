@@ -8,7 +8,7 @@ module Test.Corpus (runCorpus) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify, toObject, toString)
+import Data.Argonaut.Core (Json, stringify, toArray, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (sort)
 import Data.Array as Array
@@ -34,12 +34,47 @@ import Tramaj.Parser (parseProgram)
 corpusRoot :: String
 corpusRoot = "corpus/cases"
 
+-- | The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
+-- this port declares. A case naming any other one is skipped.
+supportedRequirements :: Array String
+supportedRequirements = []
+
+-- | What `runCase` did with a case. A failing case throws instead.
+data Outcome
+  = Passed
+  -- | Not run: the case names these requirements, which this port does not
+  -- declare.
+  | Skipped (Array String)
+
 runCorpus :: Effect Unit
 runCorpus = do
   names <- sort <$> readdir corpusRoot
   dirs <- Array.filterA (\n -> isDirectory <$> stat (corpusRoot <> "/" <> n)) names
-  traverse_ runCase dirs
-  log ("ok - " <> show (Array.length dirs) <> " shared corpus cases")
+  outcomes <- traverse (\n -> Tuple n <$> runCase (corpusRoot <> "/" <> n) n) dirs
+  let
+    skipped = Array.mapMaybe
+      ( \(Tuple n o) -> case o of
+          Passed -> Nothing
+          Skipped missing -> Just (Tuple n missing)
+      )
+      outcomes
+  traverse_ (\(Tuple n missing) -> log ("skip - " <> n <> " (requires " <> String.joinWith ", " missing <> ")")) skipped
+  log
+    ( "ok - " <> show (Array.length dirs - Array.length skipped) <> " shared corpus cases"
+        <> if Array.null skipped then "" else ", " <> show (Array.length skipped) <> " skipped"
+    )
+  checkUndeclaredRequirementIsSkipped
+
+-- | `corpus/runner-checks/unsupported-requirement` would fail if it ran: its
+-- `expected.json` does not match what the template evaluates to.
+checkUndeclaredRequirementIsSkipped :: Effect Unit
+checkUndeclaredRequirementIsSkipped = do
+  let name = "unsupported-requirement"
+  outcome <- runCase ("corpus/runner-checks/" <> name) name
+  case outcome of
+    Skipped [ "never-declared" ] -> log "ok - a case naming an undeclared requirement is skipped"
+    Skipped other -> throw (name <> ": skipped for the wrong requirements: " <> show other)
+    Passed -> throw (name <> ": expected the case to be skipped, but it ran")
 
 modeFromField :: String -> String -> Effect Mode
 modeFromField name m = case m of
@@ -51,10 +86,15 @@ modeFromField name m = case m of
 -- successful run's shape is checked by comparing against `expected.json`
 -- wholesale, via `runProgram`, which already reflects the mode and (once §4
 -- lands) the kind in what it produces.
-runCase :: String -> Effect Unit
-runCase name = do
-  let dir = corpusRoot <> "/" <> name
+runCase :: String -> String -> Effect Outcome
+runCase dir name = do
   meta <- mustParseJsonFile (name <> "/meta.json") (dir <> "/meta.json")
+  case Array.filter (\r -> not (Array.elem r supportedRequirements)) (requirements meta) of
+    [] -> Passed <$ runSupportedCase dir name meta
+    missing -> pure (Skipped missing)
+
+runSupportedCase :: String -> String -> Json -> Effect Unit
+runSupportedCase dir name meta = do
   modeField <- field meta "mode"
   mode <- modeFromField name modeField
   expect <- fromMaybe "success" <$> optionalField meta "expect"
@@ -120,6 +160,10 @@ field :: Json -> String -> Effect String
 field j key = case toObject j >>= Object.lookup key >>= toString of
   Just s -> pure s
   Nothing -> throw ("meta.json: missing or non-string field " <> key)
+
+-- | The optional `requires` list; absent means no requirement.
+requirements :: Json -> Array String
+requirements j = fromMaybe [] (toObject j >>= Object.lookup "requires" >>= toArray >>= traverse toString)
 
 optionalField :: Json -> String -> Effect (Maybe String)
 optionalField j key = pure (toObject j >>= Object.lookup key >>= toString)

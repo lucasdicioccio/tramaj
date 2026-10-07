@@ -30,6 +30,7 @@ data CaseMeta = CaseMeta
   , metaMode :: Text
   , metaExpect :: Text
   , metaErrorKind :: Maybe Text
+  , metaRequires :: [Text]
   }
 
 instance FromJSON CaseMeta where
@@ -37,6 +38,25 @@ instance FromJSON CaseMeta where
     CaseMeta <$> o .: "name" <*> o .: "mode"
       <*> (fromMaybe "success" <$> o .:? "expect")
       <*> o .:? "errorKind"
+      <*> (fromMaybe [] <$> o .:? "requires")
+
+-- | The requirement names (@requires@ in @meta.json@, see
+-- @corpus/README.md@) this port declares. A case naming any other one is
+-- skipped.
+supportedRequirements :: [Text]
+supportedRequirements = []
+
+-- | The requirements a case names that this port does not declare.
+missingRequirements :: CaseMeta -> [Text]
+missingRequirements = filter (`notElem` supportedRequirements) . metaRequires
+
+-- | What 'checkCase' did with a case. A failing case throws instead.
+data Outcome
+  = Passed
+  | -- | Not run: the case names these requirements, which this port does
+    -- not declare.
+    Skipped [Text]
+  deriving (Eq, Show)
 
 spec :: Spec
 spec = do
@@ -44,6 +64,12 @@ spec = do
   cases <- runIO (loadCaseDirs root)
   describe "shared corpus" $
     mapM_ (\dir -> it (takeFileName dir) (runCase dir)) cases
+  describe "a case naming an undeclared requirement" $
+    -- corpus/runner-checks/unsupported-requirement would fail if it ran: its
+    -- expected.json does not match what the template evaluates to.
+    it "is skipped" $
+      checkCase (root </> ".." </> "runner-checks" </> "unsupported-requirement")
+        `shouldReturn` Skipped ["never-declared"]
 
 -- | The corpus lives at @corpus/cases@ relative to the repo root, but
 -- @cabal test@'s working directory depends on how it is invoked -- walk
@@ -104,9 +130,24 @@ modeFromMeta dir m = case m of
   "symbolic" -> pure Symbolic
   other -> error (dir <> ": unknown mode " <> T.unpack other)
 
+-- | A skipped case is reported as pending, which hspec counts and prints
+-- apart from the passed ones.
 runCase :: FilePath -> Expectation
 runCase dir = do
+  outcome <- checkCase dir
+  case outcome of
+    Passed -> pure ()
+    Skipped missing -> pendingWith ("requires " <> T.unpack (T.intercalate ", " missing))
+
+checkCase :: FilePath -> IO Outcome
+checkCase dir = do
   meta <- (readJsonFile (dir </> "meta.json") :: IO CaseMeta)
+  case missingRequirements meta of
+    [] -> Passed <$ checkSupportedCase dir meta
+    missing -> pure (Skipped missing)
+
+checkSupportedCase :: FilePath -> CaseMeta -> Expectation
+checkSupportedCase dir meta = do
   mode <- modeFromMeta dir (metaMode meta)
   src <- TE.decodeUtf8 <$> BS.readFile (dir </> "template.tramaj")
   libs <- readLibs dir
