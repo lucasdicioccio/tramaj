@@ -198,7 +198,7 @@ symbolSpec = describe "symbol sites" $ do
 typeParamSpec :: Spec
 typeParamSpec = describe "type declarations and parameters" $ do
   it "finds every type this program declares" $
-    typeDeclarations (prog "type A = string\ntype B = number\ntrue") `shouldBe` Set.fromList ["A", "B"]
+    typeDeclarations (prog "type A = string\ntype B = int\ntrue") `shouldBe` Set.fromList ["A", "B"]
 
   it "is empty for a program with no type declaration" $
     typeDeclarations (prog "1") `shouldBe` Set.empty

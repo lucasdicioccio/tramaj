@@ -6,10 +6,12 @@
 -- values of every JSON type.
 module Tramaj.NodeJsonSpec (spec) where
 
-import Data.Aeson (ToJSON, Value (..), object, (.=))
 import qualified Data.Map.Strict as Map
+import Data.Text (Text)
 import Test.Hspec
+import Tramaj.Json (Json (..))
 import Tramaj.Node
+import Tramaj.TestJson (ToJ, object, (.=))
 
 spec :: Spec
 spec = describe "Tramaj.Node JSON representation" $ do
@@ -21,39 +23,39 @@ spec = describe "Tramaj.Node JSON representation" $ do
 -- | Every sample below must survive @nodeFromJson . nodeToJson@ unchanged.
 samples :: [(String, Node)]
 samples =
-  [ ("text holding a string", NText (String "hello") noAnnotations)
-  , ("text holding a number", NText (Number 3) noAnnotations)
-  , ("text holding null", NText Null noAnnotations)
-  , ("text holding a boolean", NText (Bool True) noAnnotations)
+  [ ("text holding a string", NText (JString "hello") noAnnotations)
+  , ("text holding a number", NText (JInt 3) noAnnotations)
+  , ("text holding null", NText JNull noAnnotations)
+  , ("text holding a boolean", NText (JBool True) noAnnotations)
   , ("text holding an object", NText (object ["a" .= (1 :: Int)]) noAnnotations)
-  , ("empty element", NElement "div" [] Null [] noAnnotations)
-  , ("element with an ordinary attribute", NElement "div" [NAttr "class" (String "panel")] Null [] noAnnotations)
+  , ("empty element", NElement "div" [] JNull [] noAnnotations)
+  , ("element with an ordinary attribute", NElement "div" [NAttr "class" (JString "panel")] JNull [] noAnnotations)
   ,
     ( "element with several actions and attributes interleaved"
     , NElement
         "button"
-        [ NAttr "class" (String "primary")
+        [ NAttr "class" (JString "primary")
         , NAction "on-click" "save" (object ["id" .= (1 :: Int)])
-        , NAttr "data-n" (Number 2)
-        , NAction "on-double-click" "open" Null
+        , NAttr "data-n" (JInt 2)
+        , NAction "on-double-click" "open" JNull
         ]
-        Null
-        [NText (String "Save") noAnnotations]
+        JNull
+        [NText (JString "Save") noAnnotations]
         noAnnotations
     )
-  , ("element with a value slot", NElement "Replicas" [] (Number 3) [] noAnnotations)
-  , ("fragment", NFragment [NText (String "one") noAnnotations, NText (String "two") noAnnotations] noAnnotations)
+  , ("element with a value slot", NElement "Replicas" [] (JInt 3) [] noAnnotations)
+  , ("fragment", NFragment [NText (JString "one") noAnnotations, NText (JString "two") noAnnotations] noAnnotations)
   , ("empty fragment", NFragment [] noAnnotations)
   ,
     ( "annotations at every level, including ones the core does not understand"
     , NElement
         "section"
-        [NAttr "id" (String "x")]
-        Null
-        [NFragment [NText (String "deep") (Map.fromList [("origin", String "lib")])] (Map.fromList [("flattenable", Bool True)])]
-        (Map.fromList [("type", String "Section"), ("domain", object ["min" .= (1 :: Int)])])
+        [NAttr "id" (JString "x")]
+        JNull
+        [NFragment [NText (JString "deep") (Map.fromList [("origin", JString "lib")])] (Map.fromList [("flattenable", JBool True)])]
+        (Map.fromList [("type", JString "Section"), ("domain", object ["min" .= (1 :: Int)])])
     )
-  , ("repeated attribute names are preserved, not deduplicated", NElement "div" [NAttr "class" (String "a"), NAttr "class" (String "b")] Null [] noAnnotations)
+  , ("repeated attribute names are preserved, not deduplicated", NElement "div" [NAttr "class" (JString "a"), NAttr "class" (JString "b")] JNull [] noAnnotations)
   ]
 
 roundTripSpec :: Spec
@@ -66,41 +68,41 @@ roundTripSpec = describe "round-trips through the normative representation" $
 shapeSpec :: Spec
 shapeSpec = describe "encodes the shape specs/node-json.md documents" $ do
   it "a text node carries its value unconverted, plus annotations" $
-    nodeToJson (NText (Number 3) noAnnotations)
-      `shouldBe` object ["type" .= ("text" :: String), "value" .= (3 :: Int), "annotations" .= object []]
+    nodeToJson (NText (JInt 3) noAnnotations)
+      `shouldBe` object ["type" .= ("text" :: Text), "value" .= (3 :: Int), "annotations" .= object []]
 
   it "an element always emits tag, attributes, value, children and annotations" $
-    nodeToJson (NElement "p" [] Null [] noAnnotations)
+    nodeToJson (NElement "p" [] JNull [] noAnnotations)
       `shouldBe` object
-        [ "type" .= ("element" :: String)
-        , "tag" .= ("p" :: String)
-        , "attributes" .= ([] :: [Value])
-        , "value" .= Null
-        , "children" .= ([] :: [Value])
+        [ "type" .= ("element" :: Text)
+        , "tag" .= ("p" :: Text)
+        , "attributes" .= ([] :: [Json])
+        , "value" .= JNull
+        , "children" .= ([] :: [Json])
         , "annotations" .= object []
         ]
 
   it "attributes and actions are discriminated by \"kind\" in one ordered list" $
-    nodeToJson (NElement "b" [NAttr "class" (String "c"), NAction "on-click" "save" Null] Null [] noAnnotations)
+    nodeToJson (NElement "b" [NAttr "class" (JString "c"), NAction "on-click" "save" JNull] JNull [] noAnnotations)
       `shouldBe` object
-        [ "type" .= ("element" :: String)
-        , "tag" .= ("b" :: String)
+        [ "type" .= ("element" :: Text)
+        , "tag" .= ("b" :: Text)
         , "attributes"
-            .= [ object ["kind" .= ("attribute" :: String), "name" .= ("class" :: String), "value" .= ("c" :: String)]
-               , object ["kind" .= ("action" :: String), "event" .= ("on-click" :: String), "key" .= ("save" :: String), "payload" .= Null]
+            .= [ object ["kind" .= ("attribute" :: Text), "name" .= ("class" :: Text), "value" .= ("c" :: Text)]
+               , object ["kind" .= ("action" :: Text), "event" .= ("on-click" :: Text), "key" .= ("save" :: Text), "payload" .= JNull]
                ]
-        , "value" .= Null
-        , "children" .= ([] :: [Value])
+        , "value" .= JNull
+        , "children" .= ([] :: [Json])
         , "annotations" .= object []
         ]
 
   it "a fragment emits no tag, attributes or value" $
     nodeToJson (NFragment [] noAnnotations)
-      `shouldBe` object ["type" .= ("fragment" :: String), "children" .= ([] :: [Value]), "annotations" .= object []]
+      `shouldBe` object ["type" .= ("fragment" :: Text), "children" .= ([] :: [Json]), "annotations" .= object []]
 
 -- | @specs/node-json.md@, "Decoding": a decoder must reject rather than
 -- default, so that a malformed document is reported where it is read.
--- Malformed documents are built as 'Value's directly rather than parsed from
+-- Malformed documents are built as 'Json's directly rather than parsed from
 -- JSON text, so each one differs from a well-formed node in exactly the one
 -- way its name describes.
 rejectionSpec :: Spec
@@ -110,54 +112,54 @@ rejectionSpec = describe "rejects malformed documents rather than defaulting" $ 
   rejects "a node with no type" $
     object ["value" .= (1 :: Int), "annotations" .= object []]
   rejects "an unknown node type" $
-    object ["type" .= ("comment" :: String), "annotations" .= object []]
+    object ["type" .= ("comment" :: Text), "annotations" .= object []]
   rejects "a text node with no value" $
-    object ["type" .= ("text" :: String), "annotations" .= object []]
+    object ["type" .= ("text" :: Text), "annotations" .= object []]
   rejects "a node with no annotations" $
-    object ["type" .= ("text" :: String), "value" .= (1 :: Int)]
+    object ["type" .= ("text" :: Text), "value" .= (1 :: Int)]
   rejects "an element with no value slot" $
     object
-      [ "type" .= ("element" :: String)
-      , "tag" .= ("p" :: String)
-      , "attributes" .= ([] :: [Value])
-      , "children" .= ([] :: [Value])
+      [ "type" .= ("element" :: Text)
+      , "tag" .= ("p" :: Text)
+      , "attributes" .= ([] :: [Json])
+      , "children" .= ([] :: [Json])
       , "annotations" .= object []
       ]
   rejects "an element with a non-string tag" $
-    element (Number 1) ([] :: [Value]) ([] :: [Value])
+    element (JInt 1) ([] :: [Json]) ([] :: [Json])
   rejects "an element whose children are not an array" $
-    element (String "p") ([] :: [Value]) (object [])
+    element (JString "p") ([] :: [Json]) (object [])
   rejects "an element whose attributes are not an array" $
-    element (String "p") (object []) ([] :: [Value])
+    element (JString "p") (object []) ([] :: [Json])
   rejects "annotations that are not an object" $
-    object ["type" .= ("fragment" :: String), "children" .= ([] :: [Value]), "annotations" .= ([] :: [Value])]
+    object ["type" .= ("fragment" :: Text), "children" .= ([] :: [Json]), "annotations" .= ([] :: [Json])]
   rejects "an attribute with no kind" $
-    element (String "p") [object ["name" .= ("a" :: String), "value" .= (1 :: Int)]] ([] :: [Value])
+    element (JString "p") [object ["name" .= ("a" :: Text), "value" .= (1 :: Int)]] ([] :: [Json])
   rejects "an unknown attribute kind" $
-    element (String "p") [object ["kind" .= ("listener" :: String)]] ([] :: [Value])
+    element (JString "p") [object ["kind" .= ("listener" :: Text)]] ([] :: [Json])
   rejects "an action with no key" $
-    element (String "p") [object ["kind" .= ("action" :: String), "event" .= ("e" :: String), "payload" .= Null]] ([] :: [Value])
+    element (JString "p") [object ["kind" .= ("action" :: Text), "event" .= ("e" :: Text), "payload" .= JNull]] ([] :: [Json])
   rejects "an attribute with a non-string name" $
-    element (String "p") [object ["kind" .= ("attribute" :: String), "name" .= (1 :: Int), "value" .= Null]] ([] :: [Value])
+    element (JString "p") [object ["kind" .= ("attribute" :: Text), "name" .= (1 :: Int), "value" .= JNull]] ([] :: [Json])
   rejects "a malformed node nested deep in a child" $
     object
-      [ "type" .= ("fragment" :: String)
-      , "children" .= [object ["type" .= ("text" :: String)]]
+      [ "type" .= ("fragment" :: Text)
+      , "children" .= [object ["type" .= ("text" :: Text)]]
       , "annotations" .= object []
       ]
-  rejects "a bare scalar where a node was expected" $ Number 42
+  rejects "a bare scalar where a node was expected" $ JInt 42
   rejects "an attribute that is not an object" $
-    element (String "p") [String "class"] ([] :: [Value])
+    element (JString "p") [JString "class"] ([] :: [Json])
   where
     -- | A well-formed element apart from whichever of its three variable
     -- parts the caller deliberately breaks.
-    element :: (ToJSON a, ToJSON b) => Value -> a -> b -> Value
+    element :: (ToJ a, ToJ b) => Json -> a -> b -> Json
     element tag attrs children =
       object
-        [ "type" .= ("element" :: String)
+        [ "type" .= ("element" :: Text)
         , "tag" .= tag
         , "attributes" .= attrs
-        , "value" .= Null
+        , "value" .= JNull
         , "children" .= children
         , "annotations" .= object []
         ]
@@ -175,25 +177,25 @@ mapActionsSpec = describe "mapActions" $ do
       ( NElement
           "div"
           []
-          Null
-          [NFragment [NElement "b" [NAction "on-click" "save" Null] Null [] noAnnotations] noAnnotations]
+          JNull
+          [NFragment [NElement "b" [NAction "on-click" "save" JNull] JNull [] noAnnotations] noAnnotations]
           noAnnotations
       )
       `shouldBe` Right
         ( NElement
             "div"
             []
-            Null
-            [NFragment [NElement "b" [NAction "on-click" "ns:save" Null] Null [] noAnnotations] noAnnotations]
+            JNull
+            [NFragment [NElement "b" [NAction "on-click" "ns:save" JNull] JNull [] noAnnotations] noAnnotations]
             noAnnotations
         )
 
   it "leaves ordinary attributes, value slots and annotations untouched" $
-    let anns = Map.fromList [("origin", String "lib")]
-        n = NElement "div" [NAttr "class" (String "c"), NAction "on-click" "save" Null] (Number 1) [] anns
+    let anns = Map.fromList [("origin", JString "lib")]
+        n = NElement "div" [NAttr "class" (JString "c"), NAction "on-click" "save" JNull] (JInt 1) [] anns
      in prefix "ns:" n
-          `shouldBe` Right (NElement "div" [NAttr "class" (String "c"), NAction "on-click" "ns:save" Null] (Number 1) [] anns)
+          `shouldBe` Right (NElement "div" [NAttr "class" (JString "c"), NAction "on-click" "ns:save" JNull] (JInt 1) [] anns)
 
   it "propagates a failing rewrite instead of dropping it" $
-    mapActions (\_ _ _ -> Left "boom") (NElement "b" [NAction "on-click" "save" Null] Null [] noAnnotations)
+    mapActions (\_ _ _ -> Left "boom") (NElement "b" [NAction "on-click" "save" JNull] JNull [] noAnnotations)
       `shouldBe` (Left "boom" :: Either String Node)

@@ -46,12 +46,13 @@ library
     Tramaj.Analysis
     Tramaj.Ast
     Tramaj.Eval
+    Tramaj.Json
     Tramaj.Node
     Tramaj.Parser
     Tramaj.Types
   build-depends:
     , base            >=4.19  && <4.22
-    , aeson           >=2.1   && <2.4
+    , aeson           >=2.2.1 && <2.4
     , containers      >=0.6   && <0.9
     , megaparsec      >=9.5   && <9.9
     , scientific      >=0.3   && <0.4
@@ -67,8 +68,10 @@ test-suite unit
     Tramaj.AnalysisSpec
     Tramaj.CorpusSpec
     Tramaj.EvalSpec
+    Tramaj.JsonSpec
     Tramaj.NodeJsonSpec
     Tramaj.ParserSpec
+    Tramaj.TestJson
     Tramaj.TypesSpec
   build-depends:
     , base

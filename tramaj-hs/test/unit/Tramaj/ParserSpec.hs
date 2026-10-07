@@ -172,12 +172,12 @@ desugaringSpec = describe "desugars" $ do
   parsesTo
     "object shorthand into an explicit field reading the same name"
     "{foo, bar: 1}"
-    (ObjectLit [("foo", Path "foo" []), ("bar", NumberLit 1)])
+    (ObjectLit [("foo", Path "foo" []), ("bar", IntLit 1)])
 
   parsesTo
     "a multi-armed branch into nested Branch, fallback innermost"
     "branch(0, $a, 1, $b, 2)"
-    (Branch (Path "a" []) (NumberLit 1) (Branch (Path "b" []) (NumberLit 2) (NumberLit 0)))
+    (Branch (Path "a" []) (IntLit 1) (Branch (Path "b" []) (IntLit 2) (IntLit 0)))
 
   parsesTo
     "concat as a left-associative chain"
@@ -194,8 +194,8 @@ desugaringSpec = describe "desugars" $ do
     ".div(class: \"a\", action(\"on-click\", \"save\", 1), value(2), \"kid\")"
     ( Element
         "div"
-        [Attr "class" (StringLit "a"), ActionAttr "on-click" "save" (NumberLit 1)]
-        (NumberLit 2)
+        [Attr "class" (StringLit "a"), ActionAttr "on-click" "save" (IntLit 1)]
+        (IntLit 2)
         [StringLit "kid"]
     )
 
@@ -224,7 +224,7 @@ desugaringSpec = describe "desugars" $ do
   parsesTo
     "a field access on a call's result into FieldAccess"
     "$f(1).rendered"
-    (FieldAccess (Call (Path "f" []) [NumberLit 1]) ["rendered"])
+    (FieldAccess (Call (Path "f" []) [IntLit 1]) ["rendered"])
 
   parsesTo "the $ prefix on a call as optional" "cardinality($x)" (Call (Path "cardinality" []) [Path "x" []])
   parsesTo "the $ prefix on a call as meaning the same thing" "$cardinality($x)" (Call (Path "cardinality" []) [Path "x" []])
@@ -233,7 +233,7 @@ desugaringSpec = describe "desugars" $ do
     parseProgram "@a=1\n@b=$a\n.p($b)"
       `shouldBe` Right
         ( DocumentProgram
-            (Let "a" (NumberLit 1) (Let "b" (Path "a" []) (Element "p" [] NullLit [Path "b" []])))
+            (Let "a" (IntLit 1) (Let "b" (Path "a" []) (Element "p" [] NullLit [Path "b" []])))
         )
 
 -- | Which kind of program it is follows from the root's own form; there is no
@@ -264,16 +264,16 @@ typeExprSpec = describe "type declarations" $ do
 
   declares
     "a record declaration"
-    "type Point = { x : number, y : number }\ntrue"
-    (ExpressionProgram (TypeDecl "Point" (TRecord [("x", TPrim "number"), ("y", TPrim "number")]) (BoolLit True)))
+    "type Point = { x : float, y : float }\ntrue"
+    (ExpressionProgram (TypeDecl "Point" (TRecord [("x", TPrim "float"), ("y", TPrim "float")]) (BoolLit True)))
 
   declares
     "a union declaration with payload-carrying and nullary arms"
-    "type Shape = | Circle { r : number } | Dev\ntrue"
+    "type Shape = | Circle { r : float } | Dev\ntrue"
     ( ExpressionProgram
         ( TypeDecl
             "Shape"
-            (TUnion [("Circle", Just (TRecord [("r", TPrim "number")])), ("Dev", Nothing)])
+            (TUnion [("Circle", Just (TRecord [("r", TPrim "float")])), ("Dev", Nothing)])
             (BoolLit True)
         )
     )
@@ -320,8 +320,8 @@ typeExprSpec = describe "type declarations" $ do
         ( DocumentProgram
             ( Let
                 "a"
-                (NumberLit 1)
-                (TypeDecl "T" (TPrim "string") (Let "b" (NumberLit 2) (Element "p" [] NullLit [StringLit "x"])))
+                (IntLit 1)
+                (TypeDecl "T" (TPrim "string") (Let "b" (IntLit 2) (Element "p" [] NullLit [StringLit "x"])))
             )
         )
 
@@ -350,7 +350,7 @@ typeExprSpec = describe "type declarations" $ do
   declares
     "an annotation naming a library-qualified type"
     "@m : $msg.types.Envelope = 1\ntrue"
-    (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (NumberLit 1) (BoolLit True)))
+    (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (IntLit 1) (BoolLit True)))
 
   -- roadmap Phase 12: !type-constraint.
   declares
@@ -372,4 +372,4 @@ typeExprSpec = describe "type declarations" $ do
 
   it "does not confuse !type-constraint with an ordinary !expr emission" $
     parseProgram "!constraint(\"k\", 1)\ntrue"
-      `shouldBe` Right (ExpressionProgram (Emit (Constrain "k" [NumberLit 1]) (BoolLit True)))
+      `shouldBe` Right (ExpressionProgram (Emit (Constrain "k" [IntLit 1]) (BoolLit True)))

@@ -66,6 +66,26 @@ Not yet ported to the PureScript `tramaj` package, which still implements v1.
 
 ## Unreleased
 
+**Breaking: integers and floats are two number types** (`../specs/decisions.md`
+\S18, `../specs/reference.md` \S3). A literal or a JSON number with neither a
+fraction nor an exponent is an integer; one with either is a float. Nothing
+converts between them: `eq(1, 1.0)` is `false`, `lt`/`lte`/`gt`/`gte` over an
+integer and a float are a `TypeMismatch`, and `has`/`lookup` take an integer
+index. The integer range is the signed 64-bit one; an integer literal outside
+it is a parse error and a context integer outside it a `TypeMismatch`. A
+float is written with a fraction or an exponent everywhere, so `str(1.0)` is
+`1.0` where it was `1`. The arithmetic builtins are not part of this.
+
+New `Tramaj.Json`: a JSON value with `JInt` and `JFloat`, `jsonParser` (which
+types a number by its text) and `stringify`. `evalProgram`, `runProgram`,
+`Output`, `Node`, `NodeAttribute`, `Annotations`, `nodeToJson`,
+`nodeFromJson`, `nodeAttributeToJson` and `mapActions` use it where they used
+`Data.Aeson.Value`, which holds one number type; `fromAeson` and `toAeson`
+bridge the two. `NumberLit` is split into `IntLit`/`FloatLit`, `TCScalarNum`
+into `TCScalarInt`/`TCScalarFloat` and `RCScalarNum` into
+`RCScalarInt`/`RCScalarFloat`. The type primitive `number` is gone; `int` and
+`float` replace it. Needs `aeson >= 2.2.1`, for its token decoder.
+
 Adds `fold(arr, init, fn)`, a fourth functional array primitive alongside
 `map`/`filter`/`scan`: same `(acc, item)` step and `scanl` iteration order as
 `scan`, but returns only the final accumulator instead of every intermediate

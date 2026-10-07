@@ -86,8 +86,9 @@ cases/<NNN-slug>/
 
 Each runner holds the list of requirements its implementation declares, next
 to the code that reads `meta.json` (`supportedRequirements`, or the same name
-in the language's own spelling). The PureScript list holds `"int-float"`;
-every other list is empty today. An implementation
+in the language's own spelling). The PureScript list holds `"int-float"` and
+the Haskell list `"int-float"` and `"int64"`; every other list is empty
+today. An implementation
 that gains a capability adds the name there, and the cases marked with it
 start running in that suite; no case needs editing.
 
