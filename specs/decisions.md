@@ -895,3 +895,463 @@ specs win.
 11. A library parameter is a value the importer built, not JSON text; it
     keeps the type it has and nothing is typed again at the import (ref §3).
     Reason: "typed by its text" has no text to apply to there.
+
+## 19. Sorting and number formatting: `sort-by` over a parallel array of keys, `format-number` with one exact rounding rule, and `round`
+
+*Status: proposed, for owner review. Nothing here is implemented in any port,
+and no normative file is changed: `reference.md` §11 does not list these
+names. The questions at the end are the choices to push back on.*
+
+A host that hands a template a list of records and their counters cannot have
+it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
+Both are then precomputed upstream and stored next to the raw data, which is
+the coupling §18 set out to remove. §18 also left two things to this section
+by name: "rounding to nearest and decimal formatting".
+
+The request named `sort_by` and `format_number`. Neither exists on `main`, and
+nothing in the current vocabulary (ref §11) can express either: there is no
+way to reorder an array, and `str` is the only number-to-text conversion.
+
+**Scope.** Four builtins, as ordinary names in the initial environment. No
+new syntax, no new core constructor, no new error kind, no new tagged shape.
+
+| builtin | arity | arguments | result |
+|---|---|---|---|
+| `sort-by(list, keys)` | 2 | two arrays of the same length | the elements of `list`, ordered by ascending key, ties in input order |
+| `sort-by-descending(list, keys)` | 2 | the same | ordered by descending key, ties in input order |
+| `format-number(x, decimals, group)` | 3 | an integer or a float; an integer `0` to `20`; a string | a string: `x` in positional decimal notation |
+| `round(x)` | 1 | a float or an integer | the integer nearest to `x`, ties away from zero |
+
+```
+@rows  = $ctx.buckets
+@top   = sort-by-descending($rows, map($rows, (r) => $r.spend))
+@money = (x) => "$" <> format-number($x, 2, ",")
+
+.table(map($top, (r) =>
+  .tr(.td($r.name),
+      .td($money($r.spend)),
+      .td(format-number(product(100.0, $r.share), 1, "") <> "%"))))
+```
+
+### Sorting
+
+**The shape: a parallel array of keys.** `sort-by(list, keys)` reorders `list`
+by the values in `keys`, which has one key per element, at the same index.
+The key of a record is computed by the `map` the language already has:
+
+```
+sort-by($rows, map($rows, (r) => $r.spend))                 -- by a field
+sort-by($rows, map($rows, (r) => cardinality($r.members)))  -- by a computed value
+sort-by($names, $names)                                     -- a list of scalars
+```
+
+A builtin is a function of its evaluated arguments and cannot apply a closure,
+which is why `map`, `filter`, `scan` and `fold` are core constructors (ref
+§11). This shape keeps the sort an ordinary builtin and still sorts by any
+computed value. The elements of `list` are never inspected, so a list of
+documents, closures or objects holding a symbol sorts like any other.
+
+*Rejected: a key name, `sort-by(list, "spend")`.* It reads best for the one
+case of a top-level field. A computed key then needs three steps (wrap each
+record with its key using `map`, sort, unwrap with a second `map`). It also
+opens a small language inside a string: whether `"a.b"` is a path, what a
+missing field means, and whether the tolerant `lookup` or the strict `$x.a`
+is the model. With a key array the author answers each of those with code
+that already has a meaning: `$r.spend` fails with `PathNotFound` on a record
+without the field, and `lookup($r, "spend", 0)` supplies a default.
+
+*Rejected: a core constructor, `sort-by(list, (r) => $r.spend)`.* It is the
+most familiar spelling. It costs a new AST node, a parser special form, a case
+in every static analysis and in the evaluator, in six ports, to save the
+author one `map`. A special form is also recognized by the parser, by name
+(ref §5), so adding one can change what an existing program that uses that
+name means, which adding a builtin cannot.
+
+*Rejected: keys that are arrays, compared lexicographically, for a sort on
+several columns.* Stability gives the same result with no new rule: sort by
+the least significant key first, then by the next.
+
+```
+@by-name = sort-by($rows, map($rows, (r) => $r.name))
+@ranked  = sort-by-descending($by-name, map($by-name, (r) => $r.spend))
+-- highest spend first, equal spends in name order
+```
+
+**Direction is a second name, not `reverse`.** Reversing an ascending stable
+sort reverses the ties as well, so `reverse(sort-by(…))` is not a stable
+descending sort and the two-column idiom above would break. For keys
+`[2, 1, 2]` over `["a", "b", "c"]`, `sort-by` gives `["b", "a", "c"]`,
+`sort-by-descending` gives `["a", "c", "b"]`, and a reversal of the first would
+give `["c", "a", "b"]`. Negating the keys works for numbers only, needs the
+arithmetic profile, and fails for `-2^63`. A third argument (`"asc"`,
+`"desc"`) would be a string the builtin has to validate, where a misspelt name
+is caught by `UnboundName` for free; §18 made the same choice between
+`quotient` and `floor-quotient`. `reverse` itself is not proposed: nothing
+here needs it.
+
+**What a key may be.** The keys of one call are all integers, or all floats,
+or all strings. Anything else is refused.
+
+| keys | result |
+|---|---|
+| all integers | numeric order |
+| all floats | numeric order; there is no NaN and no negative zero (ref §3), so the order is total |
+| all strings | lexicographic by Unicode code point; a proper prefix sorts first |
+| an integer and a float in one call | `TypeMismatch` |
+| a number and a string in one call | `TypeMismatch` |
+| `null`, a boolean, an array, an object, a document, a closure, a builtin, an import | `TypeMismatch` |
+| a symbol or a term | `NotConcrete` |
+
+- *Integers against floats.* §18 decided that `lt(1, 1.0)` is a
+  `TypeMismatch` and that nothing converts between the two types unless the
+  program says so. The sort follows it: `sort-by($xs, [1, 2.5, 3])` is a
+  `TypeMismatch`. Keys of unknown type are normalized at the point of use,
+  with `map($rows, (r) => real($r.spend))`, as §18 prescribes for every other
+  operation. Ordering mixed numbers by value is the alternative; it would be
+  the only place in the language where an integer and a float are compared.
+- *Strings.* Code point order is the same as the byte order of the UTF-8
+  encoding. It is **not** what a comparison of UTF-16 code units gives, which
+  is the native string order on JavaScript: that places U+1F600 before U+FF5E,
+  where code point order places it after. A port whose strings are UTF-16
+  must compare by code point. No case folding, no normalization, no numeric
+  awareness and no collation:
+  `["", "10", "9", "Zebra", "apple", "banana", "eclair", "éclair"]` is in
+  order. A locale-aware order cannot be made identical in six ports and is out
+  of scope.
+- *`null` and missing values.* The request asked for a defined place for
+  them. The proposal is that there is none: a `null` key is a `TypeMismatch`,
+  and a missing field is whatever the key expression makes of it. An author
+  who wants absent values last writes the default
+  (`lookup($r, "spend", 0)`), or sorts the two `filter`ed halves and joins
+  them with `concat`. Any built-in placement (first, last, as zero) would be a
+  plausible-looking answer for data the author did not expect, which is the
+  case the owner's rule says to refuse.
+- *Booleans* are not ordered. `branch(1, $r.active, 0)` states the order the
+  author wants.
+- *The comparisons are unchanged.* `lt` and its siblings stay numbers-only.
+  Extending them to strings by the same code point order would be compatible
+  and is not proposed here.
+
+**Stability and determinism.** The result is defined without reference to an
+algorithm: element `i` precedes element `j` when its key is smaller (larger,
+for `sort-by-descending`), or when the keys are equal and `i < j`. Two keys
+are equal when they are the same number or the same sequence of code points.
+That is a total order on positions, so there is exactly one result and a port
+may use any algorithm that produces it: a stable sort, or any sort over
+`(key, index)` pairs.
+
+**Checks, in this order**, all before anything is reordered:
+
+1. An argument count other than two is a `TypeMismatch`.
+2. `list`, then `keys`: a symbol or a term is `NotConcrete` (the spine has no
+   length, as for `map`, v3-symbols §1.5); any other non-array is a
+   `TypeMismatch`.
+3. Different lengths are a `TypeMismatch`.
+4. The keys are examined left to right, and the first one that is not
+   acceptable decides the error: a symbol or a term is `NotConcrete`; a value
+   of a kind that is never a key, or of a different type from the first key,
+   is a `TypeMismatch`.
+
+So every key is checked even when the list has one element, and
+`sort-by([$a], [null])` is an error although nothing would move. Two empty
+arrays give `[]`; there is no type to get wrong, unlike an empty `sum`.
+
+**Symbols.** Sorting inspects its keys, so it refuses a symbol or a term as a
+key, like `lt`. It builds no term: a term stands for a number (§18), and the
+result of a sort is an array. A list whose order depends on an unsupplied
+value cannot be rendered, which is the ceiling v3-symbols §1.5 already states
+for a list of symbolic length.
+
+**No profile.** These two names are not arithmetic and nothing new reaches a
+host through them, so they belong to the core vocabulary. Because builtins are
+ordinary bindings, a program that already binds `sort-by` shadows it and is
+unaffected (§18 made the same argument). A port that does not have them yet
+fails with `UnboundName`, and the corpus marks the cases with
+`"requires": ["sort"]`.
+
+### Number formatting
+
+`format-number(x, decimals, group)` writes a number in positional decimal
+notation with exactly `decimals` digits after the point, and `group` between
+each group of three digits of the integer part.
+
+```
+format-number(1234567.891, 2, ",")   -- "1,234,567.89"
+format-number(1234567.891, 2, " ")   -- "1 234 567.89"
+format-number(1234.5, 2, "")         -- "1234.50"
+format-number(1234.5, 0, ",")        -- "1,235"
+format-number(1234, 2, ",")          -- "1,234.00"
+format-number(-1234567, 0, ",")      -- "-1,234,567"
+format-number(999.995, 2, "")        -- "1000.00"
+format-number(sum(0.1, 0.2), 2, "")  -- "0.30"
+```
+
+**The rounding rule.** This is the part six ports will not agree on unless it
+is normative, because their native formatters differ. Measured on one machine
+(Node, Python 3, Go 1.26, Rust 1.93, GHC's `showFFloat`):
+
+| number, decimals | proposed | JavaScript `toFixed` | Python `%f`, Go `FormatFloat`, Rust `{:.N}` | Haskell `showFFloat` |
+|---|---|---|---|---|
+| `2.5`, 0 | `3` | `3` | `2` | `2` |
+| `0.125`, 2 | `0.13` | `0.13` | `0.12` | `0.12` |
+| `2.675`, 2 | `2.67` | `2.67` | `2.67` | `2.68` |
+| `-0.001`, 2 | `0.00` | `-0.00` | `-0.00` | `-0.00` |
+| `1e21`, 0 | `1000000000000000000000` | `1e+21` | `1000000000000000000000` | `1000000000000000000000` |
+
+No native formatter is the proposed rule in every row, so each port implements
+it by hand.
+
+*Proposed rule.* Let `v` be the exact mathematical value of `x`. A float is a
+binary fraction, so `v` has a finite decimal expansion; `0.1` is exactly
+`0.1000000000000000055511151231257827021181583404541015625`. The result
+denotes the multiple of `10^-decimals` nearest to `v`; when two are equally
+near, the one farther from zero.
+
+- It is one sentence, it mentions no algorithm, and it is the rule of
+  ECMAScript's `Number.prototype.toFixed`, so Node gives the expected text of
+  every fixture below `1e21` (apart from the sign of a zero result).
+- A tie exists only when `v` is exactly halfway, which happens for values a
+  double holds exactly: `0.5`, `2.5`, `0.125`, and `0.25` to one decimal.
+  Those round away from zero, which is what a reader of a price expects:
+  `format-number(2.5, 0, "")` is `3`, `format-number(-2.5, 0, "")` is `-3`.
+- The well-known surprises stay: `format-number(1.005, 2, "")` is `1.00` and
+  `format-number(2.675, 2, "")` is `2.67`, because the doubles nearest to
+  those literals are `1.00499999999999989…` and `2.67499999999999982…`.
+  This is §18's "`str` renders what the value is" applied to formatting: the
+  builtin rounds the number the program has, not the text it was written as.
+
+*Alternative (b): the same, ties to even.* Native in Python, Go and Rust.
+`2.5` becomes `2` and `0.125` becomes `0.12`, which is right for statistics
+and reads as a bug on a price list. It differs from the proposal only at
+exact ties.
+
+*Alternative (c): round the text `str` writes, half away from zero.* That is
+the shortest round-trip decimal, which every port must already produce for
+`str`. It gives `1.01` for `1.005`, `2.68` for `2.675` and `0.29` for `0.285`,
+which is what a spreadsheet user expects, and at 20 decimals it gives
+`0.10000000000000000000` for `0.1` where the proposal gives
+`0.10000000000000000555`. It rounds twice (to the shortest text, then to
+`decimals`), so the result is not always the decimal nearest to the value,
+and no port has it natively (Haskell's `showFFloat` rounds the same digits but
+ties to even). It is the serious alternative, and question 5 asks for the
+choice. While `decimals` asks for fewer digits than `str` would show, the
+proposal and (c) differ only for a number whose shortest text is itself a tie,
+which is few numbers, and exactly the ones a user types.
+
+**The remaining rules.**
+
+1. *Arguments.* `x` is an integer or a float. An integer is formatted from its
+   exact value, so `format-number(1234, 2, ",")` is `1,234.00`; no float is
+   involved and nothing is converted. `decimals` is an integer from `0` to
+   `20`. `group` is a string. An argument count other than three is a
+   `TypeMismatch`. The arguments are then examined left to right and the first
+   that is not acceptable decides the error: a symbol or a term is
+   `NotConcrete`, anything else of the wrong type is a `TypeMismatch`. So is a
+   float `decimals` (`2.0`), and so is one outside `0` to `20`.
+2. *Shape of the text.* An optional `-`, the integer part, and, when
+   `decimals` is not zero, a `.` and exactly `decimals` digits. The integer
+   part has at least one digit and no leading zero beyond it (`0.50`, never
+   `.50`). With zero decimals there is no point: `1235`, never `1235.`.
+3. *Never an exponent.* Every finite double has a positional text, and beyond
+   `2^53` it is an integer whose digits are exact:
+   `format-number(1e21, 0, ",")` is `1,000,000,000,000,000,000,000`. The
+   largest double has 309 digits. A port on JavaScript cannot use `toFixed`
+   from `1e21` up, where it switches to `Number::toString`.
+4. *No negative zero.* A result whose digits are all zero carries no sign:
+   `format-number(-0.001, 2, "")` is `0.00`. This is the rule of ref §3
+   carried to the text; every native formatter measured above writes `-0.00`.
+   `format-number(-0.005, 2, "")` is `-0.01`, since `-0.005` is the double
+   `-0.005000000000000000104…`.
+5. *Grouping.* When `group` is not empty it is inserted between groups of
+   three digits of the integer part, counted from the point leftward. The
+   fraction is never grouped, and the sign precedes the first group. `""`
+   means no grouping. The string is inserted as it is, whatever it is: `","`,
+   `" "`, `"'"`, `"_"`, U+202F. Nothing validates it, because nothing about it
+   needs agreeing on. Groups are always of three; the 3-2-2 grouping of Indian
+   numbering is out of scope.
+6. *The decimal mark is always `.`*, so `1.234,56` cannot be produced
+   (question 7).
+7. *Symbols.* `format-number($s, 2, ",")` is `NotConcrete`, like `str($s)`. It
+   builds no term: a term stands for a number and this is text, and symbolic
+   strings were declined (v3-symbols §9).
+
+**What is deliberately not here.**
+
+- *Locales.* No locale argument, no currency codes, no host-dependent
+  defaults. The corpus requires byte equality, and the six platforms do not
+  ship the same locale data.
+- *Prefix and suffix.* `<>` and interpolation already do it:
+  `"$" <> format-number($x, 2, ",")`. Where the sign goes in `-$5.00` is then
+  the author's choice, written with `branch`, and not an option of the
+  builtin.
+- *Percent.* The builtin does not multiply. The author writes
+  `format-number(product(100.0, $ratio), 1, "") <> "%"`, which needs the
+  arithmetic profile, and the result is the formatting of that product. This
+  matters at the margin: `product(100.0, 0.015)` is exactly `1.5` and formats
+  to `2` at zero decimals, although `0.015` is the double
+  `0.01499999999999999944…`, whose exact hundredfold would format to `1`. An
+  implicit ×100 would have to pick one of those silently; written out, it is
+  the product's own rounding, which §18 already specifies.
+- *Significant digits, exponent notation, compact forms (`1.2k`), padding to a
+  width, a `+` sign, parentheses for negatives, trimming of trailing zeros.*
+  None was asked for, and each is a separate rule to converge on.
+- *Parsing a number from text.* Not asked for.
+
+**No profile** for `format-number` either, for the same reasons as the sort.
+It formats both number types and does not depend on the arithmetic builtins.
+The corpus marks its cases `"requires": ["format-number"]`, with `"int-float"`
+wherever the type of a number matters, which is nearly everywhere.
+
+### `round`
+
+§18 noted that `floor(sum(x, 0.5))` only approximates rounding:
+for `0.49999999999999994` the sum is exactly `1.0` and the floor is `1`.
+`round(x)` is the integer nearest to the exact value of `x`, ties away from
+zero, as an integer: `round(2.5)` is `3`, `round(-2.5)` is `-3`,
+`round(0.49999999999999994)` is `0`, `round(-0.4)` is `0`.
+
+- It is `floor`'s sibling and follows `floor` in everything else (§18). It
+  accepts both types and is the identity on an integer. A result outside the
+  port's integer range is a `NotRepresentable`. Over a symbol or a term it
+  builds the term `round($s)`.
+- It therefore belongs to the **arithmetic profile**, as a tenth name: it
+  joins `arithmeticOps`, the `"$term"` vocabulary of v3-symbols §5.3 and the
+  residual law, and ships with the other nine.
+- The tie rule is the one `format-number` uses, on purpose. For a float `x`
+  whose rounding is in range, `str(round(x))` and `format-number(x, 0, "")`
+  are the same text. If question 5 changes one rule it changes both.
+- Rounding to a number of decimals **as a float** is not proposed. The result
+  would be the double nearest to the rounded decimal, which is not that
+  decimal; a rounded decimal is text, and `format-number` is the builtin that
+  produces it.
+- `ceiling` and `truncate` are not proposed. `negate(floor(negate(x)))` is the
+  ceiling of a float, exactly.
+
+### Noticed, not changed
+
+- `str` and canon write object keys "sorted" (ref §6, v3-symbols §1.4) and
+  neither says by what order. The same code point against UTF-16 question
+  applies there, for a key outside the Basic Multilingual Plane. What the six
+  ports do was not checked. If this section's string order is accepted, the
+  same sentence would settle it.
+- Whether a string may hold an unpaired surrogate (a context can spell one as
+  `"\ud800"`) is not stated anywhere, and a port whose strings are sequences
+  of Unicode scalar values cannot hold one. The string order above is defined
+  for well-formed strings only.
+
+### Follow-up
+
+The design is one piece of work; building it is several, and none of them is
+done by accepting this section.
+
+1. *Normative text and fixtures*, in one change, with no port touched: ref §11
+   (four rows, the rounding rule and the string order), ref §13 if anything is
+   left implementation-defined, v3-symbols §1.5 (the refusals) and §1.9 and
+   §5.3 (`round` as a tenth term operation), `laws.md` (the
+   `round`/`format-number` identity), `corpus/README.md` (the `"sort"` and
+   `"format-number"` requirement names). The fixtures are skipped by every
+   port until it declares the names.
+2. *`sort-by` and `sort-by-descending` in each port.* Integer and string keys
+   need nothing else. Float keys and the mixed-number refusal need the number
+   split in that port, which today means PureScript, then Haskell once its
+   split merges, then the other four after theirs.
+3. *`format-number` in each port*, after the number split in that port, since
+   its first argument is typed by it.
+4. *`round`*, with the nine arithmetic builtins in each port, not separately.
+
+Fixture families, with every expected text taken from one reference
+computation and cross-checked against Node below `1e21`:
+
+- sort, integers: already ordered, reversed, with duplicates, negative keys,
+  one element, both arguments empty; under `int64`, keys at both range ends;
+- sort, floats: fractions, negative values, `0.0` among them, keys that differ
+  in the last bit;
+- sort, strings: the empty string, a proper prefix, upper against lower case,
+  digits as text (`"10"` before `"9"`), a non-ASCII letter, and U+FF5E against
+  U+1F600, which a UTF-16 comparison gets wrong;
+- stability: equal keys keep input order under both names, with the
+  `[2, 1, 2]` example above, and the two-column idiom;
+- `sort-by-descending` over each key type;
+- what is sorted: objects, arrays, documents in child position, and an array
+  holding a symbol with concrete keys (symbolic mode);
+- sort refused with `TypeMismatch`: an integer with a float, a number with a
+  string, each kind that is never a key, a single-element list with a `null`
+  key, different lengths, a non-array for each argument, one and three
+  arguments;
+- sort refused with `NotConcrete`: a symbol for each argument, a symbol and a
+  term as a key, and a symbol key after a `TypeMismatch` key and before one,
+  which pins the left-to-right rule;
+- a builtin passed by reference (`fold`), and a shadowing `@sort-by`;
+- format, the rounding table: every row of the table above, plus `0.5`, `1.5`,
+  `-2.5`, `0.25` to one decimal, `1.005`, `0.285`, `1.45`, `8.345`, and
+  `999.995` and `0.999`, which carry into a new digit;
+- format, zero and sign: `-0.001` and `-0.005` to two decimals, `-0.4` to
+  none, `0.0`, the smallest double to two decimals (`0.00`);
+- format, decimals: `0`, `1`, `20` (`0.1` gives `0.10000000000000000555`), and
+  `-1`, `21` and `2.0` refused;
+- format, magnitude: `1e21` and `1e22`, with and without grouping, and the
+  largest double;
+- format, grouping: three, four, six and seven digits; a negative number; a
+  carry that adds a group (`999999.5` to none gives `1,000,000`); a
+  multi-character and a non-ASCII separator; the empty separator;
+- format, integers: with zero and with two decimals, negative, both ends of
+  the guaranteed range; under `int64`, `9223372036854775807` grouped
+  (`9,223,372,036,854,775,807`) and `-9223372036854775808`;
+- format refused: a string, `null` and a boolean for `x`; a non-string
+  `group`; two and four arguments; a symbol and a term for each argument;
+- percent and currency written with `product`, `<>` and interpolation,
+  including `product(100.0, 0.015)`;
+- `round`: each sign, each tie, `0.49999999999999994`, an integer argument, a
+  float past the integer range, the term over a symbol, the residual law, and
+  the identity with `format-number` at zero decimals.
+
+### Questions for the owner
+
+1. **The sort takes a parallel array of keys**, `sort-by(list, keys)`, and is
+   an ordinary builtin. The alternatives are a key name (`sort-by(list,
+   "spend")`), simpler for one field and awkward for a computed key, or a core
+   constructor taking a lambda, in six parsers and every analysis. Accept the
+   key array?
+2. **Direction is a second builtin**, `sort-by-descending`, stable on its own
+   terms, and there is no `reverse`. Accept, or prefer a third argument, or
+   want `reverse` as well?
+3. **Keys are all integers, all floats or all strings, and everything else is
+   refused**: a mix of integers and floats, `null`, a boolean. The request
+   asked for a defined order for missing and non-numeric values; this answers
+   "an error, and the author writes the default". Accept, or should `null`
+   sort last?
+4. **Strings sort by Unicode code point**, with no case folding and no
+   collation, and `lt`/`gt` stay numbers-only. Accept? Should the same order
+   be written down for the keys `str` and canon sort?
+5. **The rounding rule.** Proposed: the exact value of the number, rounded to
+   the nearest decimal, ties away from zero (ECMAScript's `toFixed`). That
+   gives `3` for `2.5` and `1.00` for `1.005`. Alternative (b), ties to even,
+   gives `2` for `2.5`. Alternative (c), rounding the text `str` shows, gives
+   `1.01` for `1.005`. Which one? `round` follows the same choice.
+6. **`format-number(x, decimals, group)` is positional, with all three
+   arguments required.** The alternative is an options object,
+   `format-number(x, {decimals: 2, group: ","})`, which leaves room for more
+   options and would be the first builtin with optional keys and defaults.
+   Accept the positional form?
+7. **The decimal mark is always `.`**, so `1.234,56` cannot be written. Add a
+   fourth argument for it now, or leave it out?
+8. **`decimals` runs from `0` to `20`**, and a value outside is a
+   `TypeMismatch`. Accept the bound and the error kind?
+9. **Every float formats, however large, and never with an exponent**: `1e21`
+   is 22 digits and the largest double 309. The alternative is to refuse from
+   `1e21` up. Accept?
+10. **An integer is accepted by `format-number` with any `decimals`**
+    (`format-number(1234, 2, ",")` is `1,234.00`). It is exact and involves
+    no float, but it is the one place an integer is written with a fraction.
+    Accept, or require `real` first?
+11. **No prefix, suffix or percent option**: the author writes them with `<>`
+    and `product`. Accept?
+12. **`round` is added to the arithmetic profile as a tenth builtin**, builds
+    a term over a symbol, and ships with the other nine. Accept, or leave it
+    out and let `format-number(x, 0, "")` be the only rounding?
+13. **`sort-by`, `sort-by-descending` and `format-number` are core vocabulary
+    with no profile**, since nothing new reaches a host through them. Accept,
+    or put them behind one?
+14. **Names**: `sort-by`, `sort-by-descending`, `format-number`, `round`. The
+    request spelled them `sort_by` and `format_number`, which are also legal
+    identifiers; kebab-case matches `floor-quotient` and `adapt-actions`.
