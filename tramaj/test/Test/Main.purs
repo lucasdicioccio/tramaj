@@ -12,8 +12,8 @@ module Test.Main where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, jsonNull, stringify, toObject)
-import Data.Argonaut.Parser (jsonParser)
+import Data.Argonaut.Core (stringify) as Argonaut
+import Data.Argonaut.Parser (jsonParser) as Argonaut
 import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Map (Map)
@@ -30,6 +30,7 @@ import Test.Corpus (runCorpus)
 import Tramaj.Analysis (constraintKinds, contextHoles, contextReads, deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), TypeConstraintArg(..), TypeExpr(..), programRoot, typeDecls, unlets)
 import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
+import Tramaj.Json (Json(..), fromArgonaut, fromArray, jsonNull, jsonParser, normalizeNumbers, stringify, stringifyWithIndent, toArgonaut, toObject)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
 import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError(..), canonicalId, checkTypeParamCollisions, deepTypeConstraints, deepTypeReferences, requireClosed, resolveTypeExpr, typeClosure, typeConstraints, typeReferences)
@@ -46,6 +47,8 @@ main = do
   runTypeOutputChecks
   runTypedEvalChecks
   runNodeJsonChecks
+  runJsonChecks
+  runNumberChecks
   log "All tramaj checks passed."
 
 -- Parser ---------------------------------------------------------------
@@ -69,6 +72,11 @@ runParserChecks = do
     , Tuple "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
     , Tuple "an unknown escape sequence" "\"a\\qb\""
     , Tuple "trailing input after the root" ".div() .span()"
+    -- This port has the guaranteed integer range only (reference.md §13),
+    -- so the first integer past either end of it does not parse.
+    , Tuple "an integer literal one past the top of the integer range" "9007199254740992"
+    , Tuple "an integer literal one past the bottom of the integer range" "-9007199254740992"
+    , Tuple "an integer literal inside the 64-bit range but outside this port's" "9223372036854775807"
     ]
   traverse_ (uncurry accepts)
     [ Tuple "an empty fragment" ".()"
@@ -88,8 +96,11 @@ runParserChecks = do
     , Tuple "\"n: `$x`!\""
         (Concat (Concat (StringLit "n: ") (Call (Path "str" []) [ Path "x" [] ])) (StringLit "!"))
     , Tuple "{foo, bar: 1}"
-        (ObjectLit [ Tuple "foo" (Path "foo" []), Tuple "bar" (NumberLit 1.0) ])
-    , Tuple "branch(0, $a, 1)" (Branch (Path "a" []) (NumberLit 1.0) (NumberLit 0.0))
+        (ObjectLit [ Tuple "foo" (Path "foo" []), Tuple "bar" (IntLit 1.0) ])
+    , Tuple "branch(0, $a, 1)" (Branch (Path "a" []) (IntLit 1.0) (IntLit 0.0))
+    -- The form decides the type of a number literal (reference.md §5).
+    , Tuple "[1, -7, 1_000, -0]" (ArrayLit [ IntLit 1.0, IntLit (-7.0), IntLit 1000.0, IntLit 0.0 ])
+    , Tuple "[1.0, 1e5, -0.0]" (ArrayLit [ FloatLit 1.0, FloatLit 100000.0, FloatLit 0.0 ])
     , Tuple "$a <> $b <> $c" (Concat (Concat (Path "a" []) (Path "b" [])) (Path "c" []))
     , Tuple "$a.b.c" (Path "a" [ "b", "c" ])
     , Tuple ".div()" (Element "div" [] NullLit [])
@@ -129,12 +140,12 @@ runParserChecks = do
 runTypeDeclChecks :: Effect Unit
 runTypeDeclChecks = do
   traverse_ (uncurry declaresTo)
-    [ Tuple "type Point = { x : number, y : number }\ntrue"
-        (ExpressionProgram (TypeDecl "Point" (TRecord [ Tuple "x" (TPrim "number"), Tuple "y" (TPrim "number") ]) (BoolLit true)))
-    , Tuple "type Shape = | Circle { r : number } | Dev\ntrue"
+    [ Tuple "type Point = { x : float, y : float }\ntrue"
+        (ExpressionProgram (TypeDecl "Point" (TRecord [ Tuple "x" (TPrim "float"), Tuple "y" (TPrim "float") ]) (BoolLit true)))
+    , Tuple "type Shape = | Circle { r : float } | Dev\ntrue"
         ( ExpressionProgram
             ( TypeDecl "Shape"
-                (TUnion [ Tuple "Circle" (Just (TRecord [ Tuple "r" (TPrim "number") ])), Tuple "Dev" Nothing ])
+                (TUnion [ Tuple "Circle" (Just (TRecord [ Tuple "r" (TPrim "float") ])), Tuple "Dev" Nothing ])
                 (BoolLit true)
             )
         )
@@ -170,7 +181,7 @@ runTypeDeclChecks = do
     , Tuple "@d : Deployment = ?(\"d\")\ntrue"
         (ExpressionProgram (TypeAnnotate "d" (TName "Deployment") (Alloc 0 (StringLit "d")) (BoolLit true)))
     , Tuple "@m : $msg.types.Envelope = 1\ntrue"
-        (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (NumberLit 1.0) (BoolLit true)))
+        (ExpressionProgram (TypeAnnotate "m" (TLibRef "msg" "Envelope") (IntLit 1.0) (BoolLit true)))
     -- roadmap Phase 12: !type-constraint.
     , Tuple "!type-constraint(\"has-default\", %ctx.payload)\ntrue"
         (ExpressionProgram (TypeEmit "has-default" [ TCType (TVar [ "payload" ]) ] (BoolLit true)))
@@ -181,15 +192,15 @@ runTypeDeclChecks = do
     , Tuple "!type-constraint(\"closed-world\")\ntrue"
         (ExpressionProgram (TypeEmit "closed-world" [] (BoolLit true)))
     , Tuple "!constraint(\"k\", 1)\ntrue"
-        (ExpressionProgram (Emit (Constrain "k" [ NumberLit 1.0 ]) (BoolLit true)))
+        (ExpressionProgram (Emit (Constrain "k" [ IntLit 1.0 ]) (BoolLit true)))
     ]
   ( case parseProgram "@a=1\ntype T = string\n@b=2\n.p(\"x\")" of
       Left err -> throw ("expected the .vals-across-a-type-declaration case to parse, got: " <> show err)
       Right p ->
         let
           expected = DocumentProgram
-            ( Let "a" (NumberLit 1.0)
-                (TypeDecl "T" (TPrim "string") (Let "b" (NumberLit 2.0) (Element "p" [] NullLit [ StringLit "x" ])))
+            ( Let "a" (IntLit 1.0)
+                (TypeDecl "T" (TPrim "string") (Let "b" (IntLit 2.0) (Element "p" [] NullLit [ StringLit "x" ])))
             )
         in
           if p == expected then pure unit
@@ -556,20 +567,20 @@ runTypeResolutionChecks = do
     "|Leaf|Node {l:root:Tree,r:root:Tree}"
 
   resolvesTo Map.empty
-    (unsafeParse "type Inner = { x : number }\ntype Outer = { items : [ Inner ] }\ntrue")
+    (unsafeParse "type Inner = { x : float }\ntype Outer = { items : [ Inner ] }\ntrue")
     "Outer"
     "{items:[root:Inner]}"
 
-  resolvesTo (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { to : string, id : number }\ntrue") ])
+  resolvesTo (Map.fromFoldable [ Tuple "message" (unsafeParse "type Envelope = { to : string, id : float }\ntrue") ])
     (unsafeParse "@msg=import(\"message\", {})\ntype UsesEnvelope = { env : $msg.types.Envelope }\ntrue")
     "UsesEnvelope"
     "{env:\"message\":Envelope}"
 
   -- Sorted by arm/field name, regardless of source order.
   resolvesTo Map.empty
-    (unsafeParse "type Shape = | Square { s : number } | Circle { r : number } | Dev\ntrue")
+    (unsafeParse "type Shape = | Square { s : float } | Circle { r : float } | Dev\ntrue")
     "Shape"
-    "|Circle {r:number}|Dev|Square {s:number}"
+    "|Circle {r:float}|Dev|Square {s:float}"
 
   -- A root declaration and a same-named library declaration must render to
   -- different strings.
@@ -698,7 +709,7 @@ runTypeParamChecks = do
   if typeParams (unsafeParse "@in=import(\"inner\", {payload: %ctx.payload})\ntrue") == Set.singleton [ "payload" ] then pure unit
   else throw "typeParams: expected a forwarding import's own %ctx.* param to be visible with no type declaration at all"
 
-  if typeDeclarations (unsafeParse "type A = string\ntype B = number\ntrue") == Set.fromFoldable [ "A", "B" ] then pure unit
+  if typeDeclarations (unsafeParse "type A = string\ntype B = float\ntrue") == Set.fromFoldable [ "A", "B" ] then pure unit
   else throw "typeDeclarations: expected {A, B}"
 
   log "ok - type parameters through imports"
@@ -811,9 +822,9 @@ runTypedEvalChecks = do
   if runMode Concrete "@d : string = \"x\"\n$d" jsonNull == runMode Concrete "@d = \"x\"\n$d" jsonNull then pure unit
   else throw "erasure invariant: an annotated program's concrete output should equal the unannotated one"
 
-  case runMode Symbolic "type Deployment = { replicas : number }\n@d : Deployment = {\"replicas\": 3}\n$d" jsonNull of
+  case runMode Symbolic "type Deployment = { replicas : int }\n@d : Deployment = {\"replicas\": 3}\n$d" jsonNull of
     Right v -> case toObjectField v "types" of
-      Just types -> case jsonParser "[{\"id\":\"root:Deployment\",\"definition\":{\"kind\":\"record\",\"fields\":[{\"name\":\"replicas\",\"type\":{\"kind\":\"prim\",\"name\":\"number\"}}]}}]" of
+      Just types -> case jsonParser "[{\"id\":\"root:Deployment\",\"definition\":{\"kind\":\"record\",\"fields\":[{\"name\":\"replicas\",\"type\":{\"kind\":\"prim\",\"name\":\"int\"}}]}}]" of
         Right expected | types == expected -> pure unit
         _ -> throw ("expected the types table to carry Deployment's own definition, got: " <> stringify types)
       Nothing -> throw "expected a \"types\" field in the symbolic envelope"
@@ -856,6 +867,8 @@ runNodeJsonChecks :: Effect Unit
 runNodeJsonChecks = do
   traverse_ roundTrips
     [ NText (unsafeJson "3") noAnnotations
+    , NText (unsafeJson "3.0") noAnnotations
+    , NElement "p" [ NAttr "f" (unsafeJson "[2.0, 2]") ] (unsafeJson "1e21") [] noAnnotations
     , NText (unsafeJson "\"hello\"") noAnnotations
     , NText (unsafeJson "null") noAnnotations
     , NElement "div" [] (unsafeJson "null") [] noAnnotations
@@ -878,7 +891,15 @@ runNodeJsonChecks = do
     , "{\"type\": \"element\", \"tag\": \"p\", \"attributes\": [], \"children\": [], \"annotations\": {}}"
     , "{\"type\": \"fragment\", \"children\": [{\"type\": \"text\"}], \"annotations\": {}}"
     , "42"
+    -- A `Value` holding a number outside the value domain
+    -- (specs/node-json.md, *Decoding*).
+    , "{\"type\": \"text\", \"value\": 9007199254740992, \"annotations\": {}}"
+    , "{\"type\": \"text\", \"value\": [{\"n\": -9223372036854775809}], \"annotations\": {}}"
+    , "{\"type\": \"text\", \"value\": 1e400, \"annotations\": {}}"
     ]
+  -- The encoding keeps the type of a number (specs/node-json.md, *Numbers*).
+  writes (NElement "p" [ NAttr "i" (unsafeJson "2"), NAttr "f" (unsafeJson "2.0") ] (unsafeJson "null") [] noAnnotations)
+    "{\"type\":\"element\",\"tag\":\"p\",\"attributes\":[{\"kind\":\"attribute\",\"name\":\"i\",\"value\":2},{\"kind\":\"attribute\",\"name\":\"f\",\"value\":2.0}],\"value\":null,\"children\":[],\"annotations\":{}}"
   log "ok - node JSON round-trip and strict decoding"
   where
   roundTrips n = case nodeFromJson (nodeToJson n) of
@@ -891,6 +912,158 @@ runNodeJsonChecks = do
     case nodeFromJson j of
       Left _ -> pure unit
       Right n -> throw ("expected " <> src <> " to be rejected, decoded to " <> show n)
+
+  writes n expected =
+    if stringify (nodeToJson n) == expected then pure unit
+    else throw ("node encoded as\n  " <> stringify (nodeToJson n) <> "\nexpected\n  " <> expected)
+
+-- Typed JSON -------------------------------------------------------------
+
+-- | `Tramaj.Json`: the reader types a number by its text and the writer
+-- | keeps the type (reference.md §3, specs/node-json.md *Numbers*), which
+-- | the host's `JSON.parse`/`JSON.stringify` do not.
+runJsonChecks :: Effect Unit
+runJsonChecks = do
+  traverse_ (uncurry readsAs)
+    [ Tuple "3" (JInt 3.0)
+    , Tuple "3.0" (JFloat 3.0)
+    , Tuple "3e0" (JFloat 3.0)
+    , Tuple "3E+0" (JFloat 3.0)
+    , Tuple "-7" (JInt (-7.0))
+    , Tuple "0" (JInt 0.0)
+    , Tuple "0.5" (JFloat 0.5)
+    , Tuple "1e-400" (JFloat 0.0)
+    , Tuple "9007199254740991" (JInt 9007199254740991.0)
+    , Tuple " [ 1 , 1.0 , \"1\" , true , false , null ] " (JArray [ JInt 1.0, JFloat 1.0, JString "1", JBool true, JBool false, JNull ])
+    , Tuple "{\"a\": {\"b\": []}, \"c\": {}}"
+        (JObject (Object.fromFoldable [ Tuple "a" (JObject (Object.singleton "b" (JArray []))), Tuple "c" (JObject Object.empty) ]))
+    , Tuple "{\"a\": 1, \"a\": 2}" (JObject (Object.singleton "a" (JInt 2.0)))
+    , Tuple "\"a\\n\\t\\\"\\\\\\/\\u00e9\"" (JString "a\n\t\"\\/\xE9")
+    , Tuple "\"\\ud83d\\ude00\"" (JString "\x1F600")
+    , Tuple "\"\x1F600 \xE9\"" (JString "\x1F600 \xE9")
+    ]
+  traverse_ rejectsJson
+    [ ""
+    , "01"
+    , "1."
+    , ".5"
+    , "+1"
+    , "- 1"
+    , "1e"
+    , "0x10"
+    , "NaN"
+    , "nul"
+    , "[1,]"
+    , "[1 2]"
+    , "{\"a\":1,}"
+    , "{a: 1}"
+    , "\"a\\qb\""
+    , "\"a\nb\""
+    , "\"\\u12\""
+    , "\"unterminated"
+    , "1 2"
+    ]
+  traverse_ (uncurry writesAs)
+    [ Tuple "[1, 1.0, -7, -7.0, 100000000000, 100000000000.0, 1e21, 1e-7, 0.1, 1.5]" "[1,1.0,-7,-7.0,100000000000,100000000000.0,1e+21,1e-7,0.1,1.5]"
+    , Tuple "9007199254740991" "9007199254740991"
+    , Tuple "{\"b\": 2.0, \"a\": \"x\\ny\"}" "{\"b\":2.0,\"a\":\"x\\ny\"}"
+    , Tuple "[[], {}, null, true]" "[[],{},null,true]"
+    ]
+  if stringifyWithIndent 2 (unsafeJson "{\"a\": [1, 2.0], \"b\": {}, \"c\": []}") == "{\n  \"a\": [\n    1,\n    2.0\n  ],\n  \"b\": {},\n  \"c\": []\n}" then pure unit
+  else throw ("stringifyWithIndent: unexpected layout:\n" <> stringifyWithIndent 2 (unsafeJson "{\"a\": [1, 2.0], \"b\": {}, \"c\": []}"))
+
+  -- The reader refuses no number; `normalizeNumbers` is where one outside
+  -- the value domain is refused, or a negative zero made a zero.
+  traverse_ (uncurry normalizesTo)
+    [ Tuple "[-0.0, -0, -1e-400, 3, 3.0]" (Just "[0.0,0,0.0,3,3.0]")
+    , Tuple "[9007199254740991, -9007199254740991]" (Just "[9007199254740991,-9007199254740991]")
+    , Tuple "1e19" (Just "10000000000000000000.0")
+    , Tuple "9007199254740992" Nothing
+    , Tuple "-9007199254740992" Nothing
+    , Tuple "9223372036854775808" Nothing
+    , Tuple "{\"a\": [1, {\"b\": 12345678901234567890}]}" Nothing
+    , Tuple "1e400" Nothing
+    , Tuple "[-1e400]" Nothing
+    ]
+
+  -- The host's own JSON has one number type; `fromArgonaut` is where this
+  -- port classifies one, and `toArgonaut` where the type is given up.
+  case Argonaut.jsonParser "[3, 3.0, 1.5, 9007199254740992, \"s\", null, {\"k\": true}]" of
+    Left err -> throw ("the host parser refused a fixture: " <> err)
+    Right host ->
+      if stringify (fromArgonaut host) == "[3,3,1.5,9007199254740992.0,\"s\",null,{\"k\":true}]" then pure unit
+      else throw ("fromArgonaut classified a host value as " <> stringify (fromArgonaut host))
+  if Argonaut.stringify (toArgonaut (unsafeJson "[3, 3.0, 1.5]")) == "[3,3,1.5]" then pure unit
+  else throw "toArgonaut: expected the host encoding of [3, 3.0, 1.5] to be [3,3,1.5]"
+
+  log "ok - typed JSON reading and writing"
+  where
+  readsAs src expected = case jsonParser src of
+    Right j | j == expected -> pure unit
+    Right j -> throw ("expected " <> src <> " to read as " <> stringify expected <> ", got " <> stringify j)
+    Left err -> throw ("expected " <> src <> " to parse, got: " <> err)
+
+  rejectsJson src = case jsonParser src of
+    Left _ -> pure unit
+    Right j -> throw ("expected " <> show src <> " not to be JSON, read " <> stringify j)
+
+  writesAs src expected = do
+    j <- mustParseJson "typed JSON" src
+    if stringify j == expected then pure unit
+    else throw ("expected " <> src <> " to be written as " <> expected <> ", got " <> stringify j)
+
+  normalizesTo src expected = do
+    j <- mustParseJson "typed JSON" src
+    case normalizeNumbers j, expected of
+      Right j', Just text | stringify j' == text -> pure unit
+      Left _, Nothing -> pure unit
+      Right j', _ -> throw ("normalizeNumbers: unexpected result for " <> src <> ": " <> stringify j')
+      Left err, _ -> throw ("normalizeNumbers: " <> src <> " was refused: " <> err)
+
+-- Numbers ------------------------------------------------------------------
+
+-- | The integer/float split where the shared corpus does not reach yet:
+-- | what the context decoder does with a number outside the value domain
+-- | (reference.md §3), and this port's own choices.
+runNumberChecks :: Effect Unit
+runNumberChecks = do
+  traverse_ (\f -> evaluatesTo f.template f.ctx f.expected)
+    [ { template: "[$ctx.a, $ctx.b, str($ctx.a), str($ctx.b)]", ctx: "{\"a\": -0.0, \"b\": -0}", expected: "[0.0,0,\"0.0\",\"0\"]" }
+    , { template: "$ctx.x", ctx: "{\"x\": 1e19}", expected: "10000000000000000000.0" }
+    , { template: "$ctx.x", ctx: "{\"x\": -1e-400}", expected: "0.0" }
+    , { template: "[cardinality([1, 2]), cardinality({\"a\": 1})]", ctx: "null", expected: "[2,1]" }
+    -- An index is an integer: a float is not one, whole-valued or not.
+    , { template: "[has([7, 8], 1), has([7, 8], 1.0), lookup([7, 8], 1, null), lookup([7, 8], 1.0, null)]", ctx: "null", expected: "[true,false,8,null]" }
+    , { template: "[lookup($ctx.xs, $ctx.i, null), lookup($ctx.xs, $ctx.f, null)]", ctx: "{\"xs\": [7, 8], \"i\": 1, \"f\": 1.0}", expected: "[8,null]" }
+    ]
+  traverse_ (\f -> refusesContext f.template f.ctx)
+    [ { template: "$ctx.a", ctx: "{\"a\": 9007199254740992}" }
+    , { template: "$ctx.a", ctx: "{\"a\": -9007199254740992}" }
+    , { template: "$ctx.a", ctx: "{\"a\": 1e400}" }
+    -- Decoded whole: the program does not read the refused number.
+    , { template: "1", ctx: "{\"deep\": [{\"n\": 9223372036854775808}]}" }
+    , { template: "1", ctx: "[-1e400]" }
+    ]
+  log "ok - number types at the context boundary"
+  where
+  evaluatesTo template ctxSrc expected = do
+    ctx <- mustParseJson template ctxSrc
+    program <- mustParse template template
+    case runProgram Concrete Map.empty ctx program of
+      Right v | stringify v == expected -> pure unit
+      Right v -> throw (template <> " with " <> ctxSrc <> ": expected " <> expected <> ", got " <> stringify v)
+      Left err -> throw (template <> " with " <> ctxSrc <> ": eval failed: " <> show err)
+
+  refusesContext template ctxSrc = do
+    ctx <- mustParseJson template ctxSrc
+    program <- mustParse template template
+    traverse_
+      ( \mode -> case runProgram mode Map.empty ctx program of
+          Left (TypeMismatch _) -> pure unit
+          Left err -> throw (template <> " with " <> ctxSrc <> ": expected a TypeMismatch, got " <> show err)
+          Right v -> throw (template <> " with " <> ctxSrc <> ": expected a TypeMismatch, got " <> stringify v)
+      )
+      [ Concrete, Symbolic ]
 
 -- Helpers ------------------------------------------------------------------
 

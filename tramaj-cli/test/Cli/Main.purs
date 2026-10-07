@@ -2,7 +2,6 @@ module Test.Cli.Main where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify, toArray, toObject, toString)
 import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -17,6 +16,7 @@ import Foreign.Object as Object
 import Main (AnalyzeSubcommand(..), analyzeToJson)
 import Partial.Unsafe (unsafeCrashWith)
 import Tramaj.Ast (Program)
+import Tramaj.Json (Json, stringify, toArray, toObject, toString)
 import Tramaj.Parser (parseProgram)
 
 main :: Effect Unit

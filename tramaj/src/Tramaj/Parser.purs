@@ -46,7 +46,7 @@ import Data.Either (Either)
 import Data.Int as Int
 import Data.Foldable (foldMap)
 import Data.List.NonEmpty as NEL
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Number as Number
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
@@ -57,6 +57,7 @@ import Parsing.String (anyChar, char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
 import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), TypeConstraintArg(..), TypeExpr(..), numberAllocs, stmts)
+import Tramaj.Json (inIntegerRange)
 
 type P a = Parser String a
 
@@ -259,6 +260,12 @@ desugarString parts = case Array.uncons (map partExpr (coalesce parts)) of
 -- | or `_` is left for the caller to reject. The underscores are dropped
 -- | before the text reaches `Number.fromString`, which already refuses an
 -- | overflow to infinity; a zero is normalized so `-0` never escapes.
+-- |
+-- | The form decides the type: with neither a fraction nor an exponent the
+-- | literal is an integer, with either it is a float. An integer outside
+-- | the integer range is refused rather than rounded. `Number.fromString`
+-- | rounds such a text to a double of magnitude at least `2^53`, which
+-- | `inIntegerRange` never accepts, so the test on the double is exact.
 numberLit :: P Expr
 numberLit = lexeme $ try do
   sign <- optionMaybe (char '-')
@@ -274,9 +281,12 @@ numberLit = lexeme $ try do
       <> intPart
       <> maybe "" ("." <> _) fracPart
       <> maybe "" ("e" <> _) expPart
+    isFloat = isJust fracPart || isJust expPart
   case Number.fromString fullStr of
-    Just n -> pure (NumberLit (if n == 0.0 then 0.0 else n))
-    Nothing -> fail ("number literal out of range: " <> fullStr)
+    Just n
+      | isFloat -> pure (FloatLit (if n == 0.0 then 0.0 else n))
+      | inIntegerRange n -> pure (IntLit (if n == 0.0 then 0.0 else n))
+    _ -> fail ("number literal out of range: " <> fullStr)
   where
   digits = do
     first <- many1Chars digit
@@ -640,11 +650,13 @@ specialForm = do
 
 -- Types ---------------------------------------------------------------------
 
--- | The five value-domain shapes v4-types §1 reserves as type primitives.
+-- | The six value-domain shapes v4-types §1 reserves as type primitives.
 -- | Fixed and closed, so recognized here rather than left for a later
--- | resolution pass to classify.
+-- | resolution pass to classify. `int` and `float` are the two number
+-- | types; `number` is not a primitive, so it reads as an ordinary name and
+-- | resolves, or fails to, like any other.
 primNames :: Array String
-primNames = [ "string", "number", "bool", "null", "document" ]
+primNames = [ "string", "int", "float", "bool", "null", "document" ]
 
 -- | A type expression (v4-types §1), in the position a full `TypeExpr` may
 -- | appear: a declaration's right-hand side, a record field's type, an
@@ -790,7 +802,8 @@ typeConstraintArg = (TCType <$> markedTypeExpr) <|> scalarArg
       <|> (asScalar <$> keywordLit)
 
   asScalar :: Expr -> TypeConstraintArg
-  asScalar (NumberLit n) = TCScalarNum n
+  asScalar (IntLit n) = TCScalarInt n
+  asScalar (FloatLit n) = TCScalarFloat n
   asScalar (BoolLit b) = TCScalarBool b
   asScalar NullLit = TCScalarNull
   asScalar (StringLit s) = TCScalarStr s

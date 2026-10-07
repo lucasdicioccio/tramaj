@@ -31,7 +31,6 @@ module Tramaj.Eval
 
 import Prelude
 
-import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, note)
@@ -41,7 +40,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Set as Set
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
-import Data.String (Pattern(..), stripSuffix)
 import Data.String.Common (joinWith)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -49,6 +47,7 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Tramaj.Analysis (symbolSites)
 import Tramaj.Ast (ActionAdaptation, Attribute(..), Expr(..), ParamValue(..), Program, Stmt(..), adaptKey, isHiddenName, letBindings, programRoot, unlets)
+import Tramaj.Json (Json(..), formatFloat, formatInteger, fromArray, fromBoolean, fromInt, fromObject, fromString, jsonNull, normalizeNumbers, stringify, toArray, toObject, toString)
 import Tramaj.Node (Node(..), NodeAttribute(..), mapActions, nodeToJson, noAnnotations)
 import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError, canonicalId, deepTypeConstraints, eraseTypes, programTypeRoots, typeClosure)
 
@@ -148,10 +147,16 @@ type LibraryTable = Map String Program
 -- |
 -- | There is no recursion: `Let` inserts a binding only after evaluating
 -- | its right-hand side, so a closure cannot see its own name.
+-- |
+-- | A number is an integer or a float (reference.md §3), and nothing here
+-- | converts one into the other. Both hold a double: `VInt` a whole number
+-- | in the integer range, which a double holds exactly, and `VFloat` a
+-- | finite one. Neither holds a negative zero.
 data Value
   = VNull
   | VBool Boolean
-  | VNumber Number
+  | VInt Number
+  | VFloat Number
   | VString String
   | VArray (Array Value)
   | VObject (Map String Value)
@@ -471,7 +476,8 @@ typeConstraintToJson (Tuple name args) =
   where
   arg (RCType rt) = fromObject (Object.fromFoldable [ Tuple "$type" (fromString (canonicalId rt)) ])
   arg (RCScalarStr s) = fromString s
-  arg (RCScalarNum n) = fromNumber n
+  arg (RCScalarInt n) = JInt n
+  arg (RCScalarFloat n) = JFloat n
   arg (RCScalarBool b) = fromBoolean b
   arg RCScalarNull = jsonNull
 
@@ -503,7 +509,7 @@ symbolEntryToJson (SymbolEntry { id, origin, binding }) =
     )
   where
   originToJson (OAlloc site key) =
-    fromObject (Object.fromFoldable [ Tuple "kind" (fromString "alloc"), Tuple "site" (fromNumber (Int.toNumber site)), Tuple "key" key ])
+    fromObject (Object.fromFoldable [ Tuple "kind" (fromString "alloc"), Tuple "site" (fromInt site), Tuple "key" key ])
   originToJson (ODemand path) =
     fromObject (Object.fromFoldable [ Tuple "kind" (fromString "demand"), Tuple "path" (fromArray (map fromString path)) ])
 
@@ -564,7 +570,8 @@ evalExpr ctx env = case _ of
     evalExpr ctx (Map.insert name v env) body
 
   StringLit s -> pure (VString s)
-  NumberLit n -> pure (VNumber n)
+  IntLit n -> pure (VInt n)
+  FloatLit n -> pure (VFloat n)
   BoolLit b -> pure (VBool b)
   NullLit -> pure VNull
 
@@ -1051,7 +1058,8 @@ walkFields ctx context v fields = case Array.uncons fields of
 toJson :: Value -> Either EvalError Json
 toJson VNull = Right jsonNull
 toJson (VBool b) = Right (fromBoolean b)
-toJson (VNumber n) = Right (fromNumber n)
+toJson (VInt n) = Right (JInt n)
+toJson (VFloat n) = Right (JFloat n)
 toJson (VString s) = Right (fromString s)
 toJson (VArray xs) = fromArray <$> traverse toJson xs
 toJson (VObject o) =
@@ -1082,40 +1090,43 @@ toJson (VImport (PendingImport p)) =
         )
     )
 
+-- | A JSON value this evaluator produced, back as a `Value`, so its numbers
+-- | are already values: nothing is checked. The context goes through
+-- | `checkedFromJson` instead.
 fromJson :: Json -> Value
-fromJson j =
-  case toString j of
-    Just s -> VString s
-    Nothing -> case toNumber j of
-      Just n -> VNumber n
-      Nothing -> case toBoolean j of
-        Just b -> VBool b
-        Nothing -> case toArray j of
-          Just xs -> VArray (map fromJson xs)
-          Nothing -> case toObject j of
-            Just o -> VObject (Map.fromFoldable (map (\(Tuple k v) -> Tuple k (fromJson v)) (Object.toUnfoldable o :: Array (Tuple String Json))))
-            Nothing -> VNull
+fromJson = case _ of
+  JNull -> VNull
+  JBool b -> VBool b
+  JInt n -> VInt n
+  JFloat n -> VFloat n
+  JString s -> VString s
+  JArray xs -> VArray (map fromJson xs)
+  JObject o -> VObject (Map.fromFoldable (map (\(Tuple k v) -> Tuple k (fromJson v)) (Object.toUnfoldable o :: Array (Tuple String Json))))
 
--- | The input context's boundary: as `fromJson`, but recursively refusing
--- | `"$sym"` and `"$type"` as ordinary object keys (v3-symbols §5.3). In
--- | concrete mode either key is refused unconditionally. In symbolic mode,
--- | seeding (§5.4) accepts a well-formed `{"$sym": ..., "path": [...]}`
--- | back as an actual symbol — anything else carrying `"$sym"`, or
--- | `"$type"` at all (v3 has no valid shape for it yet), is still refused.
+-- | The input context's boundary. It is decoded whole, before evaluation
+-- | starts, so what it refuses does not depend on what the program reads,
+-- | and every refusal is a `TypeMismatch`.
+-- |
+-- | Numbers first (reference.md §3): a JSON number is read as the literal
+-- | of the same text, so `3` is an integer and `3.0` a float, and one the
+-- | value domain does not hold is refused or normalized by
+-- | `normalizeNumbers`, which lists the cases.
+-- |
+-- | Then the reserved keys: `"$sym"` and `"$type"` are recursively refused
+-- | as ordinary object keys (v3-symbols §5.3). In concrete mode either key
+-- | is refused unconditionally. In symbolic mode, seeding (§5.4) accepts a
+-- | well-formed `{"$sym": ..., "path": [...]}` back as an actual symbol;
+-- | anything else carrying `"$sym"`, or `"$type"` at all (v3 has no valid
+-- | shape for it yet), is still refused.
 checkedFromJson :: Mode -> Json -> Either EvalError Value
-checkedFromJson mode j =
-  case toString j of
-    Just s -> Right (VString s)
-    Nothing -> case toNumber j of
-      Just n -> Right (VNumber n)
-      Nothing -> case toBoolean j of
-        Just b -> Right (VBool b)
-        Nothing -> case toArray j of
-          Just xs -> VArray <$> traverse (checkedFromJson mode) xs
-          Nothing -> case toObject j of
-            Just o -> decodeObject o
-            Nothing -> Right VNull
+checkedFromJson mode input =
+  lmap (\why -> TypeMismatch ("the context holds a number that is not a value: " <> why)) (normalizeNumbers input) >>= decode
   where
+  decode = case _ of
+    JArray xs -> VArray <$> traverse decode xs
+    JObject o -> decodeObject o
+    scalar -> Right (fromJson scalar)
+
   decodeObject o
     | isJust (Object.lookup "$type" o) =
         Left (TypeMismatch "the context carries the reserved key \"$type\", which only a typed envelope may use")
@@ -1129,14 +1140,15 @@ checkedFromJson mode j =
             _, _ -> Left (TypeMismatch "a \"$sym\" object must be exactly {\"$sym\": <id>, \"path\": [<segment>, ...]}")
     | otherwise =
         VObject <<< Map.fromFoldable
-          <$> traverse (\(Tuple k v) -> Tuple k <$> checkedFromJson mode v) (Object.toUnfoldable o :: Array (Tuple String Json))
+          <$> traverse (\(Tuple k v) -> Tuple k <$> decode v) (Object.toUnfoldable o :: Array (Tuple String Json))
 
   expectString j' = note (TypeMismatch "a symbol reference's \"path\" must be an array of strings") (toString j')
 
 describeValue :: Value -> String
 describeValue VNull = "null"
 describeValue (VBool _) = "a boolean"
-describeValue (VNumber _) = "a number"
+describeValue (VInt _) = "an integer"
+describeValue (VFloat _) = "a float"
 describeValue (VString _) = "a string"
 describeValue (VArray _) = "an array"
 describeValue (VObject _) = "an object"
@@ -1181,7 +1193,9 @@ requireConcrete who v
 -- | `str` renders raw and this quotes — the difference that makes it
 -- | injective. This is exactly `compactJson`, which already quotes a
 -- | string unconditionally; the two are one function under two names
--- | because they serve the same requirement for the same reason.
+-- | because they serve the same requirement for the same reason. It writes
+-- | an integer and a float differently (`1` and `1.0`), which injectivity
+-- | needs now that they are two values.
 canon :: Json -> String
 canon = compactJson
 
@@ -1198,6 +1212,8 @@ evalBuiltin name args = case name of
   "not" -> arity1 (\v -> VBool <<< not <$> asBool v)
   "and" -> variadicBool (&&) true
   "or" -> variadicBool (||) false
+  -- No coercion across types: `Json` equality never equates an integer
+  -- with a float, so `eq(1, 1.0)` is `false`, like `eq(1, "1")`.
   "eq" -> binary (\a b -> (\ja jb -> VBool (ja == jb)) <$> requireConcrete name a <*> requireConcrete name b)
   "lt" -> comparison (<)
   "lte" -> comparison (<=)
@@ -1226,19 +1242,14 @@ evalBuiltin name args = case name of
 
   cardinality :: Either EvalError Value
   cardinality = arity1 case _ of
-    VArray xs -> Right (VNumber (Int.toNumber (Array.length xs)))
-    VObject o -> Right (VNumber (Int.toNumber (Map.size o)))
+    VArray xs -> Right (VInt (Int.toNumber (Array.length xs)))
+    VObject o -> Right (VInt (Int.toNumber (Map.size o)))
     VSymbol _ _ -> Left (NotConcrete name)
     other -> Left (TypeMismatch (name <> " expects an array or object, got " <> describeValue other))
 
   asBool :: Value -> Either EvalError Boolean
   asBool (VBool b) = Right b
   asBool other = Left (TypeMismatch (name <> " expects a boolean argument, got " <> describeValue other))
-
-  asNumber :: Value -> Either EvalError Number
-  asNumber (VNumber n) = Right n
-  asNumber (VSymbol _ _) = Left (NotConcrete name)
-  asNumber other = Left (TypeMismatch (name <> " expects a number argument, got " <> describeValue other))
 
   asArray :: Value -> Either EvalError (Array Value)
   asArray (VArray xs) = Right xs
@@ -1249,8 +1260,25 @@ evalBuiltin name args = case name of
   variadicBool :: (Boolean -> Boolean -> Boolean) -> Boolean -> Either EvalError Value
   variadicBool op identityVal = VBool <<< foldl op identityVal <$> traverse asBool args
 
+  -- | A number operand, returned as it is so that its type is still there
+  -- | to check. A symbol is `NotConcrete` (v3-symbols §1.5).
+  asNumber :: Value -> Either EvalError Value
+  asNumber v@(VInt _) = Right v
+  asNumber v@(VFloat _) = Right v
+  asNumber (VSymbol _ _) = Left (NotConcrete name)
+  asNumber other = Left (TypeMismatch (name <> " expects a number argument, got " <> describeValue other))
+
+  -- | Two integers or two floats (reference.md §6). A mixed pair is a
+  -- | `TypeMismatch` like any other pair of two types: nothing is
+  -- | promoted, so `gt(1.5, 0)` is written `gt(1.5, 0.0)`.
   comparison :: (Number -> Number -> Boolean) -> Either EvalError Value
-  comparison op = binary \a b -> (\na nb -> VBool (op na nb)) <$> asNumber a <*> asNumber b
+  comparison op = binary \a b -> do
+    na <- asNumber a
+    nb <- asNumber b
+    case na, nb of
+      VInt x, VInt y -> Right (VBool (op x y))
+      VFloat x, VFloat y -> Right (VBool (op x y))
+      _, _ -> Left (TypeMismatch (name <> " expects two integers or two floats, got " <> describeValue na <> " and " <> describeValue nb))
 
   -- | Deliberately tolerant: a missing key, an out-of-range index, or a
   -- | container of the wrong shape all answer `false` rather than
@@ -1264,7 +1292,7 @@ evalBuiltin name args = case name of
     where
     present = case container, key of
       VObject o, VString k -> isJust (Map.lookup k o)
-      VArray xs, VNumber n -> maybe false (\i -> isJust (Array.index xs i)) (asIndex n)
+      VArray xs, VInt n -> maybe false (\i -> isJust (Array.index xs i)) (asIndex n)
       _, _ -> false
 
   -- | Dynamic access by a computed key or index — the counterpart to a
@@ -1275,11 +1303,12 @@ evalBuiltin name args = case name of
   lookupImpl (VSymbol _ _) _ _ = Left (NotConcrete name)
   lookupImpl container key fallback = Right case container, key of
     VObject o, VString k -> fromMaybe fallback (Map.lookup k o)
-    VArray xs, VNumber n -> fromMaybe fallback (asIndex n >>= Array.index xs)
+    VArray xs, VInt n -> fromMaybe fallback (asIndex n >>= Array.index xs)
     _, _ -> fallback
 
-  -- | An index must be a non-negative whole number: `2.5` and `-1` are not
-  -- | indices.
+  -- | An index must be a non-negative integer: `-1` is not an index, and
+  -- | neither is a float, `1.0` included, since nothing converts a float
+  -- | into an integer here.
   asIndex :: Number -> Maybe Int
   asIndex n = case Int.fromNumber n of
     Just i | i >= 0 -> Just i
@@ -1303,36 +1332,28 @@ evalBuiltin name args = case name of
 -- | across implementations character for character — it is what a template
 -- | interpolates into its output. See `specs/reference.md`.
 displayString :: Json -> String
-displayString j =
-  caseJson
-    (const "")
-    (\b -> if b then "true" else "false")
-    formatNumber
-    identity
-    compactArray
-    compactObject
-    j
+displayString = case _ of
+  JNull -> ""
+  JString s -> s
+  other -> compactJson other
 
--- | Compact JSON, with object keys in sorted order and numbers formatted by
--- | `formatNumber`.
+-- | Compact JSON, with object keys in sorted order and a number written by
+-- | its type (specs/node-json.md, *Numbers*): an integer as its digits, a
+-- | float always with a fraction or an exponent.
 -- |
--- | Deliberately not argonaut's own `stringify` for the whole value: that
--- | would leave object keys in whatever order the underlying object happens
--- | to hold them, and key order is not semantically significant — so it must
--- | not be observable through `str` either.
+-- | Deliberately not `stringify` for the whole value: that would leave
+-- | object keys in whatever order the underlying object happens to hold
+-- | them, and key order is not semantically significant, so it must not be
+-- | observable through `str` either.
 compactJson :: Json -> String
-compactJson j =
-  caseJson
-    (const "null")
-    (\b -> if b then "true" else "false")
-    formatNumber
-    quoteString
-    compactArray
-    compactObject
-    j
-
-compactArray :: Array Json -> String
-compactArray xs = "[" <> joinWith "," (map compactJson xs) <> "]"
+compactJson = case _ of
+  JNull -> "null"
+  JBool b -> if b then "true" else "false"
+  JInt n -> formatInteger n
+  JFloat n -> formatFloat n
+  JString s -> quoteString s
+  JArray xs -> "[" <> joinWith "," (map compactJson xs) <> "]"
+  JObject o -> compactObject o
 
 compactObject :: Object Json -> String
 compactObject o = "{" <> joinWith "," (map entry sorted) <> "}"
@@ -1340,19 +1361,7 @@ compactObject o = "{" <> joinWith "," (map entry sorted) <> "}"
   sorted = Array.sortWith fst (Object.toUnfoldable o :: Array (Tuple String Json))
   entry (Tuple k v) = quoteString k <> ":" <> compactJson v
 
--- | A JSON string literal, escaped by argonaut itself so this does not grow
--- | a second, subtly different escaping table.
+-- | A JSON string literal, escaped as `stringify` escapes one, so this does
+-- | not grow a second, subtly different escaping table.
 quoteString :: String -> String
 quoteString = stringify <<< fromString
-
--- | A number as ECMAScript's `Number::toString` renders it — which is what
--- | PureScript's own `show` gives, except that `show` appends `.0` to a
--- | value with no fractional part. Stripping that suffix undoes exactly
--- | that: `Number::toString` never produces a trailing `.0` itself.
--- |
--- | v1 tested integrality with `Int.fromNumber`, which quietly failed above
--- | 2^31 and rendered `100000000000` as `100000000000.0`.
-formatNumber :: Number -> String
-formatNumber n = fromMaybe shown (stripSuffix (Pattern ".0") shown)
-  where
-  shown = show n

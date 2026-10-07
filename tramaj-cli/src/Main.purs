@@ -20,12 +20,9 @@ module Main (main, Command(..), AnalyzeSubcommand(..), analyzeToJson) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringify)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (drop, uncons, zipWith)
 import Data.Array as Array
 import Data.Either (Either(..))
-import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Set (Set)
@@ -42,6 +39,7 @@ import Tramaj.Analysis (deepActionKeys, deepConstraintKinds, deepContextHoles, d
 import Tramaj.Analysis.Card (Card, ProgramKind(..), programCard)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (LibraryTable, Mode(..), runProgram)
+import Tramaj.Json (Json(..), fromArray, fromBoolean, fromInt, fromObject, fromString, jsonNull, jsonParser, stringify)
 import Tramaj.Parser (parseProgram)
 import Tramaj.Types (ResolvedConstraintArg(..), TypeError, canonicalId, checkTypeParamCollisions, deepTypeConstraints, deepTypeReferences)
 
@@ -255,7 +253,7 @@ pathSetToJson :: Set (Array String) -> Json
 pathSetToJson = fromArray <<< map (fromArray <<< map fromString) <<< Set.toUnfoldable
 
 intSetToJson :: Set Int -> Json
-intSetToJson = fromArray <<< map (fromNumber <<< Int.toNumber) <<< Set.toUnfoldable
+intSetToJson = fromArray <<< map fromInt <<< Set.toUnfoldable
 unsuppliedToJson :: Array (Tuple String (Set (Array String))) -> Array (Tuple String (Set (Array String))) -> Json
 unsuppliedToJson valueParams typeParams' = fromArray (zipWith entry valueParams typeParams')
   where
@@ -301,7 +299,8 @@ cardToJson c =
 resolvedConstraintArgToJson :: ResolvedConstraintArg -> Json
 resolvedConstraintArgToJson (RCType rt) = fromObject (Object.fromFoldable [ Tuple "$type" (fromString (canonicalId rt)) ])
 resolvedConstraintArgToJson (RCScalarStr s) = fromString s
-resolvedConstraintArgToJson (RCScalarNum n) = fromNumber n
+resolvedConstraintArgToJson (RCScalarInt n) = JInt n
+resolvedConstraintArgToJson (RCScalarFloat n) = JFloat n
 resolvedConstraintArgToJson (RCScalarBool b) = fromBoolean b
 resolvedConstraintArgToJson RCScalarNull = jsonNull
 

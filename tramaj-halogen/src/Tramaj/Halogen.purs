@@ -37,7 +37,6 @@ module Tramaj.Halogen
 
 import Prelude
 
-import Data.Argonaut.Core (Json, isNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Array as Array
 import Data.Foldable (foldMap, intercalate)
 import Data.Int as Int
@@ -53,6 +52,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Tramaj.Analysis.Card (Card, ProgramKind(..))
+import Tramaj.Json (Json, isNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Tramaj.Node (Node(..), NodeAttribute(..))
 import Web.HTML.Common (AttrName(..))
 
