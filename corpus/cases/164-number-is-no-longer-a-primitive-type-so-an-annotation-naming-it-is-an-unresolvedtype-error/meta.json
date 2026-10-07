@@ -1,0 +1,8 @@
+{
+  "name": "number is no longer a primitive type, so an annotation naming it is an UnresolvedType error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeErr",
+  "requires": ["int-float"]
+}

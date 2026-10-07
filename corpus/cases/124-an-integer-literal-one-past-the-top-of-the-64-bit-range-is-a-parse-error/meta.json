@@ -1,0 +1,7 @@
+{
+  "name": "an integer literal one past the top of the 64-bit range is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error",
+  "requires": ["int-float"]
+}

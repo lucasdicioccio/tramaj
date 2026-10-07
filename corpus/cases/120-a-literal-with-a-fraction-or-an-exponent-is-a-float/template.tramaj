@@ -1,0 +1,2 @@
+-- reference.md §5: `1.0`, `-1.5`, `1e5` are floats; so is `3e0` (§3)
+[1.0, -1.5, 1e5, 3e0]

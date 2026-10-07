@@ -1,0 +1,2 @@
+-- reference.md §5: the sign is part of the literal, so the lower end is in range
+[9223372036854775807, -9223372036854775808]

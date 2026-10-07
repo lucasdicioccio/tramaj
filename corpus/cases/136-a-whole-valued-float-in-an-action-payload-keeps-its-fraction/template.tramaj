@@ -1,0 +1,1 @@
+.button(action("on-click", "set", {"f": 4.0, "i": 4}))

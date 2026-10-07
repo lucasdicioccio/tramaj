@@ -1,0 +1,6 @@
+{
+  "name": "str of a structure renders each nested number by its type",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

@@ -1,0 +1,2 @@
+-- node-json.md, Numbers: a float MUST carry a fraction or an exponent
+.p(i: 2, f: 2.0)

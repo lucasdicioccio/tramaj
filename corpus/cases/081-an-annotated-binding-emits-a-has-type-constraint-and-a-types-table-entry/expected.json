@@ -27,7 +27,7 @@
             "name": "replicas",
             "type": {
               "kind": "prim",
-              "name": "number"
+              "name": "int"
             }
           }
         ],

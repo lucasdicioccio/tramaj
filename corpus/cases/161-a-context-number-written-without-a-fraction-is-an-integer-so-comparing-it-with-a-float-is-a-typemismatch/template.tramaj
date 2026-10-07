@@ -1,0 +1,2 @@
+-- reference.md §3: a producer with one number type writes the float 3.0 as `3`
+gt($ctx.n, 0.5)
