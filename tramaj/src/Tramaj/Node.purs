@@ -23,7 +23,7 @@ module Tramaj.Node
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, stringify, toArray, toObject, toString)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Map (Map)
 import Data.Map as Map
@@ -31,6 +31,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Tramaj.Json (Json, fromArray, fromObject, fromString, normalizeNumbers, stringify, toArray, toObject, toString)
 
 -- | Arbitrary host/tooling metadata hung off any node. The core language
 -- | assigns no meaning to any key; unknown annotations must not affect
@@ -155,12 +156,12 @@ nodeFromJson json = do
   fields <- note "expected a JSON object for a node" (toObject json)
   ty <- reqString "node" "type" fields
   case ty of
-    "text" -> NText <$> req "text node" "value" fields <*> reqAnnotations fields
+    "text" -> NText <$> reqValue "text node" "value" fields <*> reqAnnotations fields
     "element" ->
       NElement
         <$> reqString "element node" "tag" fields
         <*> (reqArray "element node" "attributes" fields >>= traverse nodeAttributeFromJson)
-        <*> req "element node" "value" fields
+        <*> reqValue "element node" "value" fields
         <*> (reqArray "element node" "children" fields >>= traverse nodeFromJson)
         <*> reqAnnotations fields
     "fragment" ->
@@ -174,17 +175,26 @@ nodeAttributeFromJson json = do
   fields <- note "expected a JSON object for a node attribute" (toObject json)
   kind <- reqString "node attribute" "kind" fields
   case kind of
-    "attribute" -> NAttr <$> reqString "attribute" "name" fields <*> req "attribute" "value" fields
+    "attribute" -> NAttr <$> reqString "attribute" "name" fields <*> reqValue "attribute" "value" fields
     "action" ->
       NAction
         <$> reqString "action" "event" fields
         <*> reqString "action" "key" fields
-        <*> req "action" "payload" fields
+        <*> reqValue "action" "payload" fields
     other -> Left ("unknown node attribute kind: " <> show other)
 
 req :: String -> String -> Object Json -> Either String Json
 req what field fields =
   note (what <> ": missing required field " <> show field) (Object.lookup field fields)
+
+-- | A field holding a `Value` (specs/node-json.md, *Numbers* and
+-- | *Decoding*): an integer-form number outside the integer range or a
+-- | float too large for a double is refused rather than rounded, at any
+-- | depth, and a negative zero decodes as zero.
+reqValue :: String -> String -> Object Json -> Either String Json
+reqValue what field fields = do
+  v <- req what field fields
+  lmap (\why -> what <> ": field " <> show field <> ": " <> why) (normalizeNumbers v)
 
 reqString :: String -> String -> Object Json -> Either String String
 reqString what field fields = do

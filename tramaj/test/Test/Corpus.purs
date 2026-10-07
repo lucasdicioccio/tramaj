@@ -8,8 +8,6 @@ module Test.Corpus (runCorpus) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify, toArray, toObject, toString)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (sort)
 import Data.Array as Array
 import Data.Either (Either(..))
@@ -28,7 +26,8 @@ import Node.Encoding (Encoding(UTF8))
 import Node.FS.Stats (isDirectory)
 import Node.FS.Sync (exists, readTextFile, readdir, stat)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (EvalError, LibraryTable, Mode(..), evalProgram, runProgram)
+import Tramaj.Eval (EvalError, LibraryTable, Mode(..), runProgram)
+import Tramaj.Json (Json, jsonParser, stringify, toArray, toObject, toString)
 import Tramaj.Parser (parseProgram)
 
 corpusRoot :: String
@@ -36,8 +35,12 @@ corpusRoot = "corpus/cases"
 
 -- | The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
 -- this port declares. A case naming any other one is skipped.
+--
+-- `int-float`: integers and floats are two types. Not `int64`: integers
+-- have the guaranteed 53-bit range only (`Tramaj.Json`). Not `arithmetic`:
+-- the builtins are not implemented yet.
 supportedRequirements :: Array String
-supportedRequirements = []
+supportedRequirements = [ "int-float" ]
 
 -- | What `runCase` did with a case. A failing case throws instead.
 data Outcome
@@ -108,7 +111,11 @@ runSupportedCase dir name meta = do
       errorKind <- field meta "errorKind"
       ctx <- mustParseJsonFile (name <> "/ctx.json") (dir <> "/ctx.json")
       program <- mustParse name templateSrc
-      case evalProgram mode libs ctx program of
+      -- `runProgram`, like a success case and as corpus/README.md says of
+      -- `mode`: in symbolic mode a static type error can come from
+      -- building the envelope's `"types"` table, after an evaluation that
+      -- itself succeeds (case 164), and `evalProgram` stops before that.
+      case runProgram mode libs ctx program of
         Right _ -> throw (name <> ": expected eval error " <> errorKind <> ", but evaluation succeeded")
         Left err ->
           let actualKind = errorConstructor err
@@ -173,6 +180,15 @@ mustParse label src = case parseProgram src of
   Left err -> throw (label <> ": parse failed: " <> show err)
   Right p -> pure p
 
+-- | Reads a fixture with `Tramaj.Json.jsonParser`, which types each number
+-- by its text, so `3` and `3.0` in `ctx.json` are two contexts and in
+-- `expected.json` two expected values (corpus/README.md). `Json` equality
+-- never equates an integer with a float, so comparing the parsed
+-- `expected.json` with a result is comparing the text of every number, up
+-- to the spelling of one value of one type (`1.0`, `1.00` and `1e0` are the
+-- same float). The parser refuses no number: an out-of-range one in
+-- `ctx.json` reaches the evaluator, whose refusal is what such a case
+-- tests.
 mustParseJsonFile :: String -> String -> Effect Json
 mustParseJsonFile label path = do
   src <- readTextFile UTF8 path

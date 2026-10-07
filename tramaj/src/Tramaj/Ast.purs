@@ -129,7 +129,12 @@ data Expr
   | Lambda (Array String) Expr
   | Let String Expr Expr
   | StringLit String
-  | NumberLit Number
+  -- | A number literal is an integer or a float by its form (reference.md
+  -- | §5): `IntLit` holds a whole number in the integer range
+  -- | (`Tramaj.Json.inIntegerRange`), `FloatLit` a finite double, and
+  -- | neither holds a negative zero.
+  | IntLit Number
+  | FloatLit Number
   | BoolLit Boolean
   | NullLit
   | ArrayLit (Array Expr)
@@ -204,7 +209,8 @@ derive instance eqExpr :: Eq Expr
 data TypeConstraintArg
   = TCType TypeExpr
   | TCScalarStr String
-  | TCScalarNum Number
+  | TCScalarInt Number
+  | TCScalarFloat Number
   | TCScalarBool Boolean
   | TCScalarNull
 
@@ -213,7 +219,8 @@ derive instance eqTypeConstraintArg :: Eq TypeConstraintArg
 instance showTypeConstraintArg :: Show TypeConstraintArg where
   show (TCType t) = "TCType (" <> show t <> ")"
   show (TCScalarStr s) = "TCScalarStr " <> show s
-  show (TCScalarNum n) = "TCScalarNum " <> show n
+  show (TCScalarInt n) = "TCScalarInt " <> show n
+  show (TCScalarFloat n) = "TCScalarFloat " <> show n
   show (TCScalarBool b) = "TCScalarBool " <> show b
   show TCScalarNull = "TCScalarNull"
 
@@ -224,7 +231,8 @@ instance showExpr :: Show Expr where
   show (Lambda params body) = "Lambda " <> show params <> " (" <> show body <> ")"
   show (Let name value body) = "Let " <> show name <> " (" <> show value <> ") (" <> show body <> ")"
   show (StringLit s) = "StringLit " <> show s
-  show (NumberLit n) = "NumberLit " <> show n
+  show (IntLit n) = "IntLit " <> show n
+  show (FloatLit n) = "FloatLit " <> show n
   show (BoolLit b) = "BoolLit " <> show b
   show NullLit = "NullLit"
   show (ArrayLit elems) = "ArrayLit " <> show elems
@@ -259,7 +267,7 @@ instance showExpr :: Show Expr where
 -- | declaration name from a typo.
 -- |
 -- | `TPrim` is recognized here, at parse time, rather than left for
--- | resolution to classify: the five primitive names are a closed, reserved
+-- | resolution to classify: the six primitive names are a closed, reserved
 -- | lexical set (v4-types §1), not ordinary identifiers that happen to
 -- | resolve to a primitive.
 data TypeExpr
@@ -475,7 +483,8 @@ subExprs (Call fn args) = Array.cons fn args
 subExprs (Lambda _ body) = [ body ]
 subExprs (Let _ value body) = [ value, body ]
 subExprs (StringLit _) = []
-subExprs (NumberLit _) = []
+subExprs (IntLit _) = []
+subExprs (FloatLit _) = []
 subExprs (BoolLit _) = []
 subExprs NullLit = []
 subExprs (ArrayLit elems) = elems
@@ -545,7 +554,8 @@ numberAllocs e = (go 0 e).expr
         r2 = go r1.next body
     in { next: r2.next, expr: Let name r1.expr r2.expr }
   go n e'@(StringLit _) = { next: n, expr: e' }
-  go n e'@(NumberLit _) = { next: n, expr: e' }
+  go n e'@(IntLit _) = { next: n, expr: e' }
+  go n e'@(FloatLit _) = { next: n, expr: e' }
   go n e'@(BoolLit _) = { next: n, expr: e' }
   go n NullLit = { next: n, expr: NullLit }
   go n (ArrayLit elems) = let r = goArray n elems in { next: r.next, expr: ArrayLit r.arr }
