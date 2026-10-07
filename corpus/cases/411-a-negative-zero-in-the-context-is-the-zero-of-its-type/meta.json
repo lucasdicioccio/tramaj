@@ -1,0 +1,6 @@
+{
+  "name": "a negative zero in the context is the zero of its type",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

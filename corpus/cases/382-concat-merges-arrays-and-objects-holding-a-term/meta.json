@@ -1,0 +1,6 @@
+{
+  "name": "concat merges arrays and objects holding a term",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

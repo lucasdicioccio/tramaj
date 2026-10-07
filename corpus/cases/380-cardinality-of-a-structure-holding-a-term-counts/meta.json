@@ -1,0 +1,6 @@
+{
+  "name": "cardinality of a structure holding a term counts",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

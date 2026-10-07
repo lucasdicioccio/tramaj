@@ -1,0 +1,5 @@
+{
+  "name": "an unsupplied demand used inline has a null binding and an origin path without ctx",
+  "kind": "expression",
+  "mode": "symbolic"
+}

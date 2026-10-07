@@ -1,0 +1,8 @@
+{
+  "name": "a seeded floor-quotient term with a float argument is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

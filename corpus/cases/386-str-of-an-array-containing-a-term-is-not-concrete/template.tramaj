@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: eq, str and an allocation key refuse anything containing a term
+@s = ?("s")
+@t = sum($s, 1)
+str([$t])

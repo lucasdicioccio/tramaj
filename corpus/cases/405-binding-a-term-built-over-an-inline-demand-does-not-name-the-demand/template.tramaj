@@ -1,0 +1,3 @@
+-- v3-symbols §5.2: x names the term, not the symbol
+@x = sum(?ctx.s, 1)
+$x

@@ -1,0 +1,8 @@
+{
+  "name": "a seeded term with an integer argument past the 64-bit range is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

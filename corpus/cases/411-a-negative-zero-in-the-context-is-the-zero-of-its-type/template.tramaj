@@ -1,0 +1,2 @@
+-- reference.md §3: a JSON number is read as the literal of the same text; there is no negative zero
+[$ctx.a, $ctx.b, $ctx.c, str($ctx.a), eq($ctx.a, 0.0)]

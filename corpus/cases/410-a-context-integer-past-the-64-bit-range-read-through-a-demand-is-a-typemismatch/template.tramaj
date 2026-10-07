@@ -1,0 +1,2 @@
+-- reference.md §3: an integer-form context number outside the range is refused, not rounded
+?ctx.n

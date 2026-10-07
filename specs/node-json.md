@@ -148,6 +148,12 @@ decodes as a float. The round-trip invariant above depends on it, so a decoder
 needs a JSON parser that keeps that difference, and that keeps the digits of
 an integer it would otherwise round.
 
+A number is read as the `reference.md` §5 literal of the same text. A float
+has no negative zero, so `-0.0` decodes as `0.0`, and `-0` as the integer
+`0`; an encoder never writes either. A float too small for a double decodes
+as `0.0`. A float too large for one (`1e400`) is rejected, like an
+integer-form number outside the integer range (see *Decoding*).
+
 Every `Value` written as JSON follows this rule: attribute values, payloads,
 value slots, text values, and an expression program's result.
 
@@ -173,8 +179,12 @@ A decoder MUST reject:
 - a non-string `tag`, `name`, `event`, or `key`;
 - a non-array `attributes` or `children`, or a non-object `annotations`;
 - in a `Value`, an integer-form number outside its integer range
-  (`reference.md` §13), which it MUST NOT round (see *Numbers*; not yet
+  (`reference.md` §13), which it MUST NOT round, and a float too large for a
+  double, which it MUST NOT read as an infinity (see *Numbers*; not yet
   implemented).
+
+The same two refusals apply to a number in the input context, where the
+evaluator reports them as a `TypeMismatch` (`reference.md` §3).
 
 A decoder MUST NOT infer a missing field from a default. Defaults are an encoder's
 job; on the wire the representation is explicit, so that a missing field is a bug
