@@ -1,0 +1,2 @@
+-- reference.md §11: real accepts both types so that it can normalize
+[real(1.5), real(-0.25), real(0.0)]

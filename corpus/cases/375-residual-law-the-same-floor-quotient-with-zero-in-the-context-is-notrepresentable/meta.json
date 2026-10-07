@@ -1,0 +1,8 @@
+{
+  "name": "residual law: the same floor-quotient with zero in the context is NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic"]
+}

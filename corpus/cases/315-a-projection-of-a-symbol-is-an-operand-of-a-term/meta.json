@@ -1,0 +1,6 @@
+{
+  "name": "a projection of a symbol is an operand of a term",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

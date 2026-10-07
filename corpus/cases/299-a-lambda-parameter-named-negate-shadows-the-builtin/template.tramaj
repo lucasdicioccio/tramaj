@@ -1,0 +1,3 @@
+-- reference.md §11: a lambda parameter shadows the builtin
+@apply = (negate) => negate(1)
+apply((x) => "mine")

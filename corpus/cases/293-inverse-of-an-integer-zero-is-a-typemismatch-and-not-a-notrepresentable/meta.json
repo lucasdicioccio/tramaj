@@ -1,0 +1,8 @@
+{
+  "name": "inverse of an integer zero is a TypeMismatch and not a NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

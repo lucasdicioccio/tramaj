@@ -1,0 +1,3 @@
+-- v3-symbols §1.6, §1.9
+@d = ?("d")
+sum($d.replicas, 1)

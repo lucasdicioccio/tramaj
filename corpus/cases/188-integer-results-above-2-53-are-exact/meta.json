@@ -1,0 +1,6 @@
+{
+  "name": "integer results above 2^53 are exact",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic", "int64"]
+}

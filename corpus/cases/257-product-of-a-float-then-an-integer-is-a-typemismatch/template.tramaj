@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 1: no coercion and no promotion
+product(2.0, 2)

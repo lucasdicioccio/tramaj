@@ -1,0 +1,6 @@
+{
+  "name": "a seeded term is an operand of a new term",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

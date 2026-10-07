@@ -1,0 +1,6 @@
+{
+  "name": "floor-quotient rounds toward negative infinity for each sign combination",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

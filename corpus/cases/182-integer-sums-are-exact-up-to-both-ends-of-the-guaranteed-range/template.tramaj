@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 2: 2^53 - 1 and its negation
+[sum(9007199254740990, 1), sum(-9007199254740990, -1)]

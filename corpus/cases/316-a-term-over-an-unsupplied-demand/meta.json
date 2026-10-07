@@ -1,0 +1,6 @@
+{
+  "name": "a term over an unsupplied demand",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

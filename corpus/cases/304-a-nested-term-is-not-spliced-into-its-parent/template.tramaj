@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: a term whose second argument is a term
+@a = ?("a")
+@b = ?("b")
+sum($a, sum($b, 1))

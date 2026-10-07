@@ -1,0 +1,6 @@
+{
+  "name": "str shows no sign on a float zero result",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

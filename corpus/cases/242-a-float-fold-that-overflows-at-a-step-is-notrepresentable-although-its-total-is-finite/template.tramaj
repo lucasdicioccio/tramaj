@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 3 and 4: (1e308 + 1e308) + -1e308, a left fold
+sum(1e308, 1e308, -1e308)

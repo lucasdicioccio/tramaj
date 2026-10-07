@@ -1,0 +1,5 @@
+-- v3-symbols §1.9, reference.md §11 Arrays as arguments
+@a = ?("a")
+@b = ?("b")
+@xs = [$a, [$b]]
+product($xs)

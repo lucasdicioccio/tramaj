@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 6
+floor(-9223372036854775808.0)

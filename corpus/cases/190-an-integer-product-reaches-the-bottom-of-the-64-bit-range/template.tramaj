@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 2: -(2^32) * 2^31 is -2^63
+product(-4294967296, 2147483648)

@@ -1,0 +1,3 @@
+-- reference.md §11: the nine names are ordinary bindings
+@sum = (a, b) => "mine"
+sum(1, 2)

@@ -1,0 +1,8 @@
+{
+  "name": "a seeded term whose arguments are not an array is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

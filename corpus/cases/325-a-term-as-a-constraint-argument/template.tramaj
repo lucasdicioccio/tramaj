@@ -1,0 +1,5 @@
+-- v3-symbols §1.9: constraint("lte", sum($a, $b), 10)
+@a = ?("a")
+@b = ?("b")
+!constraint("lte", sum($a, $b), 10)
+1

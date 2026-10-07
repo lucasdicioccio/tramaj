@@ -1,0 +1,6 @@
+{
+  "name": "a term is stored in an array and an object and passed to a lambda",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

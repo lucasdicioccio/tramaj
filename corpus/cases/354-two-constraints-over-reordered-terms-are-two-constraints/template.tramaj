@@ -1,0 +1,5 @@
+-- v3-symbols §1.9: sum($a, 1) and sum(1, $a) are two terms
+@a = ?("a")
+!constraint("lte", sum($a, 1), 10)
+!constraint("lte", sum(1, $a), 10)
+1

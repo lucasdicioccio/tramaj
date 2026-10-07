@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 1: an operand that is not a number
+sum([1, ["a"]])

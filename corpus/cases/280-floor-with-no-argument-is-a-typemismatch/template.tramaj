@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 1: a wrong argument count for a fixed-arity builtin
+floor()

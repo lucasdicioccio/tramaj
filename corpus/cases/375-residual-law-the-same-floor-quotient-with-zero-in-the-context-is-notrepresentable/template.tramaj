@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: errors included
+@d = ?ctx.d
+floor-quotient(10, $d)

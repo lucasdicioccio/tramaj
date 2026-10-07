@@ -1,0 +1,2 @@
+-- reference.md §11, Arrays as arguments: the fixed-arity builtins do not flatten
+negate([1])

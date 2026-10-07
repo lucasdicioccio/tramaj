@@ -1,0 +1,3 @@
+-- v3-symbols §5.3: a context carrying a reserved key is rejected in concrete mode, always.
+-- The error kind follows cases 041 and 042.
+$ctx.t

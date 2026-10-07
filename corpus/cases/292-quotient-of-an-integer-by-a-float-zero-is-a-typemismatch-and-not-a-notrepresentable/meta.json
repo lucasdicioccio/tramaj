@@ -1,0 +1,8 @@
+{
+  "name": "quotient of an integer by a float zero is a TypeMismatch and not a NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

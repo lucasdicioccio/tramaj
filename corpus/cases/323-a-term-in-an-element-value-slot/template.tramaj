@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: a term may be placed in a value slot
+@s = ?("s")
+@t = sum($s, 1)
+.p(value($t))

@@ -1,0 +1,2 @@
+-- reference.md §11, Arrays as arguments: the seed is the identity of the intended type
+[sum(0, []), sum(0, $ctx.xs), product(1, $ctx.xs)]

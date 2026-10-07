@@ -1,0 +1,6 @@
+{
+  "name": "residual law: an integer sum at the top of the 64-bit range over an unsupplied demand is a term",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic", "int64"]
+}

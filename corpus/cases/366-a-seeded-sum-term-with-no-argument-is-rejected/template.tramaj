@@ -1,0 +1,3 @@
+-- v3-symbols §5.3, §5.4: a term that is not well-formed is rejected by the decoder.
+-- The error kind follows cases 041 and 042, which reject a reserved key the same way.
+$ctx.t

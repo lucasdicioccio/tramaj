@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2: floor-quotient(x, 0) for every x
+floor-quotient(0, 0)

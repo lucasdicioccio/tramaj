@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 4 and 5: 1e-400 rounds to zero, 1e-320 is subnormal
+[product(1e-200, 1e-200), product(-1e-200, 1e-200), product(1e-160, 1e-160)]

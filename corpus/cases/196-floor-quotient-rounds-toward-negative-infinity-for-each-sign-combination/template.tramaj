@@ -1,0 +1,2 @@
+-- reference.md §11: the largest integer not above a / b
+[floor-quotient(7, 2), floor-quotient(-7, 2), floor-quotient(7, -2), floor-quotient(-7, -2)]

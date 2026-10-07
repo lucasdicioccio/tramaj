@@ -1,0 +1,3 @@
+-- v3-symbols §5.3: "$term" is reserved in the value domain in both modes.
+-- The error kind follows cases 041 and 042.
+$ctx.a

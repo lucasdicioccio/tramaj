@@ -1,0 +1,2 @@
+-- reference.md §11: the result is an integer, written without a fraction
+[floor(2.0), floor(-2.0), floor(0.0)]

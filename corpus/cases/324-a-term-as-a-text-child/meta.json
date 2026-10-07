@@ -1,0 +1,6 @@
+{
+  "name": "a term as a text child",
+  "kind": "document",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

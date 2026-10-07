@@ -1,0 +1,6 @@
+{
+  "name": "a library builds a term from a symbolic parameter",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

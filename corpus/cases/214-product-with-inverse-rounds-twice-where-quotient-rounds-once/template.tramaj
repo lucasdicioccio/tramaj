@@ -1,0 +1,2 @@
+-- reference.md §11: product(a, inverse(b)) is not quotient(a, b)
+[quotient(49.0, 49.0), product(49.0, inverse(49.0))]

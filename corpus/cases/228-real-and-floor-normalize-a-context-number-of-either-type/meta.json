@@ -1,0 +1,6 @@
+{
+  "name": "real and floor normalize a context number of either type",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

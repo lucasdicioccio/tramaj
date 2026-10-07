@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Semantics 2: 2^53 + 1, and 3037000499 squared
+[sum(9007199254740991, 2), product(3037000499, 3037000499)]

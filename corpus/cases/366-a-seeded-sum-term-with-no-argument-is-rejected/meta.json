@@ -1,0 +1,8 @@
+{
+  "name": "a seeded sum term with no argument is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

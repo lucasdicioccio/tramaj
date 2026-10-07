@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 6: 2^63 is one past the top of the 64-bit range
+floor(9223372036854775808.0)

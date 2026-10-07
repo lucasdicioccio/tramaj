@@ -1,0 +1,6 @@
+{
+  "name": "sum and product of one operand return it with its type",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "floor of floats at both ends of the guaranteed range is exact",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

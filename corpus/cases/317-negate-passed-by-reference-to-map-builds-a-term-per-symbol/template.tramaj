@@ -1,0 +1,4 @@
+-- v3-symbols §1.9, reference.md §6
+@a = ?("a")
+@b = ?("b")
+map([$a, $b], $negate)

@@ -1,0 +1,2 @@
+-- v3-symbols §1.9, §5.4: the seeded term is nested, not spliced
+sum(?ctx.t, 1)

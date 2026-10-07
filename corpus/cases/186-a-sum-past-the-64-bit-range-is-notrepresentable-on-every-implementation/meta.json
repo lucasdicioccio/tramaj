@@ -1,0 +1,8 @@
+{
+  "name": "a sum past the 64-bit range is NotRepresentable on every implementation",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic"]
+}
