@@ -67,7 +67,7 @@ direction, noted in §11 and deliberately not taken here.
 
 ```text
 TypeExpr
-  = Prim     name: String                              -- string number bool null document
+  = Prim     name: String                              -- string int float bool null document
   | Array    element: TypeExpr                         -- [T]
   | Record   fields: Map<String, TypeExpr>             -- { a : T, b : U }
   | Union    arms:   Map<String, Optional<TypeExpr>>   -- | A T | B U | C
@@ -80,18 +80,22 @@ Six constructors, closed. There is no function type, no type-level
 abstraction, and no way for a type to depend on a value.
 
 **The primitives are exactly the value domain's own shapes** and nothing else.
-`string`, `number`, `bool`, `null` and `document` are what ref §3 already
-fixes, so Tramaj can be said to know them without learning anything new.
-`Int` is deliberately absent: numbers are doubles and their precision past
-2^53 is implementation-defined (ref §13), so an integer type is a host-side
-refinement of `number`, not a language primitive. Building it in would oblige
-both implementations to agree on a boundary the value domain does not have.
+`string`, `int`, `float`, `bool`, `null` and `document` are what ref §3
+already fixes, so Tramaj can be said to know them without learning anything
+new. `int` and `float` are the value domain's two number types, and they
+replace the single primitive `number`, which is no longer one.
+
+*Not yet implemented (decisions §18).* Implementations still have `number`,
+as this section used to define it, and have neither `int` nor `float`. They
+change with the number split (ref §3). An earlier draft left `Int` out
+because the value domain had no integer boundary to agree on; ref §3 now
+gives it one.
 
 ### 1.1 Declarations
 
 ```
-type Point   = { x : number, y : number }
-type Shape   = | Circle { r : number } | Square { s : number }
+type Point   = { x : float, y : float }
+type Shape   = | Circle { r : float } | Square { s : float }
 type UserId  = string
 type Message = { to : string, payload : %ctx.payload }
 ```
@@ -108,7 +112,7 @@ type Message = { to : string, payload : %ctx.payload }
   keys, aliasing is impossible.
 * Records and unions are **structural** where they appear anonymously, and get
   nominal identity only by being the definition of a declaration. `{x:
-  number}` written in two annotations is one type; `Point` and `Vec2` with
+  float}` written in two annotations is one type; `Point` and `Vec2` with
   identical bodies are two.
 * A union arm may carry a payload or not. `| Dev | Staging | Prod` is an
   enum — the case that matters most, because a hole of that type is a
@@ -202,15 +206,15 @@ var    ::= "%" path
 ```
 
 ```text
-number
+float
 [string]
-{x:number,y:number}
+{x:float,y:float}
 message:Envelope[payload=json:Value]
 list:T[elem=message:Envelope[payload=json:Value]]
 message:Envelope[payload=%ctx.p]        -- partial
 ```
 
-`list:T[elem=number]` written in two libraries a thousand lines apart is one
+`list:T[elem=int]` written in two libraries a thousand lines apart is one
 string, hence one type. That is the whole of the equality story, and it is why
 type arguments need no allocation the way symbols do: a symbol's two
 instantiations are genuinely two variables, whereas `List[Int]` and
@@ -480,9 +484,9 @@ evaluation time there are no types.
    default and gives newtyping for free (§1.1); transparency is occasionally
    what you want for a host schema that is structural. Cheap to add, easy to
    regret, so: not until something needs it.
-2. **Application sugar.** `list:T[elem=number]` is spelled today as an import
+2. **Application sugar.** `list:T[elem=int]` is spelled today as an import
    plus a field read, which is verbose for what a Haskeller writes `List Int`.
-   A sugar `%list.T[elem: number]` desugaring to a fresh wiring would be safe
+   A sugar `%list.T[elem: int]` desugaring to a fresh wiring would be safe
    — identity is structural, so a sugared and a spelled-out application are
    the same type — but it is sugar, and should follow a real complaint.
 3. **The `Program` change.** Adding a declaration block breaks
