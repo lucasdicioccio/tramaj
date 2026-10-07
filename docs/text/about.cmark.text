@@ -1,0 +1,12 @@
+# About
+
+tramaj is written by Lucas DiCioccio, who also writes about it, and about the other tools it grows alongside, on his blog at [dicioccio.fr](https://dicioccio.fr/ ). The source is on [GitHub](https://github.com/lucasdicioccio/tramaj ).
+
+## Related sites
+
+- [Kitchen Sink](https://kitchensink-tech.github.io/ ) — the static-site generator this site is made with. Its templating sections are evaluated by `tramaj-hs`, the Haskell implementation of tramaj.
+
+- [dicioccio.fr](https://dicioccio.fr/ ) — the author's blog, also built with Kitchen Sink.
+
+
+
