@@ -92,7 +92,7 @@ list is empty today. An implementation
 that gains a capability adds the name there, and the cases marked with it
 start running in that suite; no case needs editing.
 
-In the Haskell implementation the arithmetic profile is an option of each
+In the Haskell and Purescript implementations the arithmetic profile is an option of each
 evaluation, off by default. Its runner turns it on for a case that names
 `"arithmetic"` and leaves it off for every other case, where the nine
 arithmetic names are unbound.

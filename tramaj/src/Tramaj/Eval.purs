@@ -23,9 +23,13 @@ module Tramaj.Eval
   ( EvalError(..)
   , Output(..)
   , Mode(..)
+  , Options
+  , defaultOptions
   , LibraryTable
   , evalProgram
+  , evalProgramWith
   , runProgram
+  , runProgramWith
   , builtinNames
   ) where
 
@@ -36,6 +40,8 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, note)
 import Data.Foldable (and, any, foldMap, foldl, traverse_)
 import Data.Int as Int
+import Data.Number ((%))
+import Data.Number as Number
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Set as Set
@@ -45,9 +51,9 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Tramaj.Analysis (symbolSites)
+import Tramaj.Analysis (arithmeticNames, symbolSites)
 import Tramaj.Ast (ActionAdaptation, Attribute(..), Expr(..), ParamValue(..), Program, Stmt(..), adaptKey, isHiddenName, letBindings, programRoot, unlets)
-import Tramaj.Json (Json(..), formatFloat, formatInteger, fromArray, fromBoolean, fromInt, fromObject, fromString, jsonNull, normalizeNumbers, stringify, toArray, toObject, toString)
+import Tramaj.Json (Json(..), formatFloat, formatInteger, fromArray, fromBoolean, fromInt, fromObject, fromString, inIntegerRange, jsonNull, normalizeNumbers, stringify, toArray, toObject, toString)
 import Tramaj.Node (Node(..), NodeAttribute(..), mapActions, nodeToJson, noAnnotations)
 import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError, canonicalId, deepTypeConstraints, eraseTypes, programTypeRoots, typeClosure)
 
@@ -89,6 +95,11 @@ data EvalError
   -- | — but `Tramaj.Types.TypeError` still needs a home in the one error
   -- | type every entry point already returns.
   | TypeErr TypeError
+  -- | An arithmetic operation has no result in the type of its operands
+  -- | (reference.md §11, §12): an integer result outside the integer range,
+  -- | a zero divisor, a float result that is not finite. Nothing wraps,
+  -- | saturates or rounds instead.
+  | NotRepresentable String
 
 derive instance eqEvalError :: Eq EvalError
 
@@ -104,6 +115,7 @@ instance showEvalError :: Show EvalError where
   show (NotConcrete who) = "NotConcrete " <> show who
   show (AllocationInLibrary name) = "AllocationInLibrary " <> show name
   show (TypeErr e) = "TypeErr (" <> show e <> ")"
+  show (NotRepresentable who) = "NotRepresentable " <> show who
 
 -- | What a program produced. Which one it is follows from the value the
 -- | root actually evaluated to, not from how the root was written: a
@@ -132,6 +144,29 @@ derive instance eqMode :: Eq Mode
 instance showMode :: Show Mode where
   show Concrete = "Concrete"
   show Symbolic = "Symbolic"
+
+-- | What a host chooses for one evaluation. Like `Mode`, each field is a
+-- | host parameter and not a property of the program.
+-- |
+-- | `arithmetic` is reference.md §11's arithmetic profile, per evaluation:
+-- | with it on, the nine names of `Tramaj.Analysis.arithmeticNames` are in
+-- | the initial environment of the program and of every library it runs,
+-- | and a seeded term is accepted in symbolic mode (v3-symbols §5.4). With
+-- | it off they are unbound, so a program that uses one fails with
+-- | `UnboundName`, and every seeded term is refused. The two number types
+-- | and the reserved `"$term"` key do not depend on it.
+type Options =
+  { mode :: Mode
+  , arithmetic :: Boolean
+  }
+
+-- | Concrete mode, without the arithmetic profile. `evalProgram` and
+-- | `runProgram` run with these options and the mode they are given. The
+-- | profile is off unless a host asks for it, so that a host which has not
+-- | opted in never receives a term, and can refuse a program up front with
+-- | `Tramaj.Analysis.deepArithmeticOps`.
+defaultOptions :: Options
+defaultOptions = { mode: Concrete, arithmetic: false }
 
 -- | Host-supplied library store. Where a library came from — a file, an
 -- | embedded string, a fetch — is entirely the host's business; the
@@ -176,6 +211,13 @@ data Value
     -- | demand (`?ctx.path`) once minted — its own path is baked into the
     -- | id, not carried here.
     VSymbol SymbolId (Array String)
+  | -- | A term (§1.9): an arithmetic operation left unevaluated because one
+    -- | of its operands is a symbol or a term. It holds the name of the
+    -- | builtin and its operands exactly as the call had them once
+    -- | flattened: each a `VInt`, a `VFloat`, a `VSymbol` or a `VTerm`,
+    -- | nothing folded and no nested term spliced. It is data as a symbol
+    -- | is, and is refused wherever a symbol is.
+    VTerm String (Array Value)
 
 type Env = Map String Value
 
@@ -235,6 +277,9 @@ type EvalCtx =
   , inProgress :: InProgress
   , mode :: Mode
   , isRoot :: Boolean
+  -- | Whether the arithmetic profile is on (`Options`). It is the same for
+  -- | the root and for every library, since it is what the host enabled.
+  , arithmetic :: Boolean
   }
 
 -- | Enters a library: adds it to the in-progress set (so re-entering it is
@@ -335,20 +380,24 @@ foldMEval f acc xs = case Array.uncons xs of
 -- | `SymbolsUnavailable` in concrete mode. There is no mode-independent
 -- | evaluation any more, so every entry point takes one.
 evalProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Output
-evalProgram mode libs input prog = map fst (evalProgramWithEmissions mode libs input prog)
+evalProgram mode = evalProgramWith (defaultOptions { mode = mode })
+
+-- | As `evalProgram`, with every per-evaluation option given (`Options`).
+evalProgramWith :: Options -> LibraryTable -> Json -> Program -> Either EvalError Output
+evalProgramWith options libs input prog = map fst (evalProgramWithEmissions options libs input prog)
 
 -- | As `evalProgram`, but also returns the deduplicated `Emissions`
 -- | (v3-symbols §4) — empty for any program that emits or allocates
 -- | nothing, and always empty in what concrete mode goes on to serialize,
 -- | since concrete mode discards them (§5.1) and cannot produce a symbol
 -- | at all.
-evalProgramWithEmissions :: Mode -> LibraryTable -> Json -> Program -> Either EvalError (Tuple Output Emissions)
-evalProgramWithEmissions mode libs input prog = do
+evalProgramWithEmissions :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Tuple Output Emissions)
+evalProgramWithEmissions options libs input prog = do
   erased <- lmap TypeErr (eraseTypes libs prog)
   Tuple v emitted <- runEval do
-    ctx <- liftEither (checkedFromJson mode input)
-    let evalCtx = { libs, inProgress: Map.empty, mode, isRoot: true }
-    evalExpr evalCtx (initialEnv ctx) (programRoot erased)
+    ctx <- liftEither (checkedFromJson options input)
+    let evalCtx = { libs, inProgress: Map.empty, mode: options.mode, isRoot: true, arithmetic: options.arithmetic }
+    evalExpr evalCtx (initialEnv options.arithmetic ctx) (programRoot erased)
   output <- case v of
     VNode n -> Right (ONode n)
     other -> OValue <$> toJson other
@@ -397,12 +446,16 @@ constraintEq _ _ = false
 -- | `Output` in the v3 envelope (§5.2), including the deduplicated symbol
 -- | table and constraint list.
 runProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Json
-runProgram mode libs input prog = do
-  result <- evalProgramWithEmissions mode libs input prog
-  typesInfo <- case mode of
+runProgram mode = runProgramWith (defaultOptions { mode = mode })
+
+-- | As `runProgram`, with every per-evaluation option given (`Options`).
+runProgramWith :: Options -> LibraryTable -> Json -> Program -> Either EvalError Json
+runProgramWith options libs input prog = do
+  result <- evalProgramWithEmissions options libs input prog
+  typesInfo <- case options.mode of
     Concrete -> Right (Tuple Map.empty [])
     Symbolic -> lmap TypeErr (buildTypesInfo libs prog)
-  pure (renderOutput mode typesInfo result)
+  pure (renderOutput options.mode typesInfo result)
 
 -- | The `"types"` table's entries and the deduplicated `"type-constraints"`
 -- | list (v4-types §8, roadmap Phase 13), computed from `prog` *before*
@@ -513,11 +566,17 @@ symbolEntryToJson (SymbolEntry { id, origin, binding }) =
   originToJson (ODemand path) =
     fromObject (Object.fromFoldable [ Tuple "kind" (fromString "demand"), Tuple "path" (fromArray (map fromString path)) ])
 
-initialEnv :: Value -> Env
-initialEnv ctx =
-  Map.insert "ctx" ctx (Map.fromFoldable (map (\n -> Tuple n (VBuiltin n)) builtinNames))
+-- | `$ctx` and the builtins. The nine arithmetic names are bound only with
+-- | the arithmetic profile on (reference.md §11); without it they are
+-- | ordinary unbound names.
+initialEnv :: Boolean -> Value -> Env
+initialEnv arithmeticOn ctx =
+  Map.insert "ctx" ctx (Map.fromFoldable (map (\n -> Tuple n (VBuiltin n)) names))
+  where
+  names = if arithmeticOn then builtinNames <> arithmeticNames else builtinNames
 
--- | The fixed builtin vocabulary. Builtins are ordinary values in the
+-- | The fixed builtin vocabulary of every profile; the arithmetic profile
+-- | adds `Tramaj.Analysis.arithmeticNames` to it. Builtins are ordinary values in the
 -- | initial environment rather than a separate call form, so
 -- | `cardinality($xs)`, `$f($x)` and `map($xs, $not)` all go through
 -- | `Call`.
@@ -859,18 +918,18 @@ evalCollection ctx env who e = do
   case v of
     VArray xs -> pure xs
     VSymbol _ _ -> evalError (NotConcrete who)
+    VTerm _ _ -> evalError (NotConcrete who)
     other -> evalError (TypeMismatch (who <> " expects an array as its first argument, got " <> describeValue other))
 
 -- Concat -------------------------------------------------------------------------
 
 -- | The monoid operation over the three types that have one. Mixed types
 -- | are an error rather than a coercion, and objects merge right-biased.
--- | Either side being a symbol is `NotConcrete` (v3-symbols §1.5), ahead of
--- | the generic mismatch: the spine of a concatenation must be known,
--- | unlike an element it might merely carry.
+-- | Either side being a symbol or a term is `NotConcrete` (v3-symbols
+-- | §1.5, §1.9), ahead of the generic mismatch: the spine of a
+-- | concatenation must be known, unlike an element it might merely carry.
 concatValues :: Value -> Value -> Either EvalError Value
-concatValues (VSymbol _ _) _ = Left (NotConcrete "<>")
-concatValues _ (VSymbol _ _) = Left (NotConcrete "<>")
+concatValues l r | isSymbolic l || isSymbolic r = Left (NotConcrete "<>")
 concatValues (VString a) (VString b) = Right (VString (a <> b))
 concatValues (VArray a) (VArray b) = Right (VArray (a <> b))
 concatValues (VObject a) (VObject b) = Right (VObject (Map.union b a))
@@ -919,7 +978,7 @@ runLibrary ctx name ctxVal =
       let
         ctx' = enterLibrary name ctx
         peeled = unlets (programRoot prog)
-      libEnv <- foldMEval (bindStep ctx') (initialEnv ctxVal) peeled.statements
+      libEnv <- foldMEval (bindStep ctx') (initialEnv ctx.arithmetic ctxVal) peeled.statements
       rendered <- evalExpr ctx' libEnv peeled.root
       let
         bindings = Array.filter (not <<< isHiddenName <<< fst) (letBindings peeled.statements)
@@ -1038,6 +1097,8 @@ walkFields ctx context v fields = case Array.uncons fields of
     -- every remaining segment at once, since a projection just extends
     -- the path.
     VSymbol sid path -> pure (VSymbol sid (path <> fields))
+    -- A term has no projection (§1.9): it stands for a number, and a number
+    -- has no fields, so it gets the `TypeMismatch` a number gets.
     other ->
       evalError
         ( TypeMismatch
@@ -1076,6 +1137,13 @@ toJson (VConstraint name _) =
 -- | decoder in `checkedFromJson` accepts back.
 toJson (VSymbol sid path) =
   Right (fromObject (Object.fromFoldable [ Tuple "$sym" (fromString sid), Tuple "path" (fromArray (map fromString path)) ]))
+-- | A term crosses wherever a symbol does, as §5.3's other tagged shape.
+-- | Its operands are numbers, symbols and terms, so they always cross, and
+-- | each number keeps its type (`1` and `1.0` stay distinct), which the
+-- | residual law depends on.
+toJson (VTerm op operands) =
+  (\args -> fromObject (Object.fromFoldable [ Tuple "$term" (fromString op), Tuple "arguments" (fromArray args) ]))
+    <$> traverse toJson operands
 toJson (VClosure _ _ _) =
   Left (TypeMismatch "expected a value, got a function -- call it first, e.g. $my-fn(...)")
 toJson (VBuiltin name) =
@@ -1112,14 +1180,16 @@ fromJson = case _ of
 -- | value domain does not hold is refused or normalized by
 -- | `normalizeNumbers`, which lists the cases.
 -- |
--- | Then the reserved keys: `"$sym"` and `"$type"` are recursively refused
--- | as ordinary object keys (v3-symbols §5.3). In concrete mode either key
--- | is refused unconditionally. In symbolic mode, seeding (§5.4) accepts a
--- | well-formed `{"$sym": ..., "path": [...]}` back as an actual symbol;
--- | anything else carrying `"$sym"`, or `"$type"` at all (v3 has no valid
--- | shape for it yet), is still refused.
-checkedFromJson :: Mode -> Json -> Either EvalError Value
-checkedFromJson mode input =
+-- | Then the reserved keys: `"$sym"`, `"$type"` and `"$term"` are
+-- | recursively refused as ordinary object keys (v3-symbols §5.3), in every
+-- | profile. In concrete mode each is refused unconditionally. In symbolic
+-- | mode, seeding (§5.4) accepts a well-formed
+-- | `{"$sym": ..., "path": [...]}` back as an actual symbol and, with the
+-- | arithmetic profile on, a well-formed term back as an actual term;
+-- | anything else carrying `"$sym"` or `"$term"`, or `"$type"` at all (v3
+-- | has no valid shape for it yet), is still refused.
+checkedFromJson :: Options -> Json -> Either EvalError Value
+checkedFromJson options input =
   lmap (\why -> TypeMismatch ("the context holds a number that is not a value: " <> why)) (normalizeNumbers input) >>= decode
   where
   decode = case _ of
@@ -1131,16 +1201,43 @@ checkedFromJson mode input =
     | isJust (Object.lookup "$type" o) =
         Left (TypeMismatch "the context carries the reserved key \"$type\", which only a typed envelope may use")
     | Just symVal <- Object.lookup "$sym" o =
-        case mode of
+        case options.mode of
           Concrete -> Left (TypeMismatch "the context carries the reserved key \"$sym\", which only a symbolic envelope may use")
           Symbolic -> case toString symVal, Object.toUnfoldable (Object.delete "$sym" o) :: Array (Tuple String Json) of
             Just sid, [ Tuple "path" pathJson ] -> case toArray pathJson of
               Just pathArr -> VSymbol sid <$> traverse expectString pathArr
               Nothing -> Left (TypeMismatch "a symbol reference's \"path\" must be an array of strings")
             _, _ -> Left (TypeMismatch "a \"$sym\" object must be exactly {\"$sym\": <id>, \"path\": [<segment>, ...]}")
+    | Just opVal <- Object.lookup "$term" o =
+        case options.mode of
+          Concrete -> Left (TypeMismatch "the context carries the reserved key \"$term\", which only a symbolic envelope may use")
+          Symbolic -> case toString opVal, Object.toUnfoldable (Object.delete "$term" o) :: Array (Tuple String Json) of
+            Just op, [ Tuple "arguments" argsJson ] -> case toArray argsJson of
+              Just args -> traverse decode args >>= seededTerm op
+              Nothing -> Left (TypeMismatch "a term's \"arguments\" must be an array")
+            _, _ -> Left (TypeMismatch "a \"$term\" object must be exactly {\"$term\": <op>, \"arguments\": [<argument>, ...]}")
     | otherwise =
         VObject <<< Map.fromFoldable
           <$> traverse (\(Tuple k v) -> Tuple k <$> decode v) (Object.toUnfoldable o :: Array (Tuple String Json))
+
+  -- | A well-formed term is one a call could have built (§5.3), so this is
+  -- | the call's own check, `arithmeticOperands`, on arguments already
+  -- | decoded, which holds a nested term to the same rule. Two things a
+  -- | call accepts are refused first: an array, since a term holds its
+  -- | operands already flattened, and operands that are all numbers, since
+  -- | the call would have computed. Without the arithmetic profile no `op`
+  -- | is known, so every term is refused.
+  seededTerm op args
+    | not options.arithmetic = Left (TypeMismatch ("the context carries a term (" <> show op <> "), which needs the arithmetic profile"))
+    | not (Array.elem op arithmeticNames) = Left (TypeMismatch ("a term names an unknown operation: " <> show op))
+    | Array.any isArray args = Left (TypeMismatch ("a term (" <> show op <> ") holds its operands flattened, not in an array"))
+    | otherwise = do
+        operands <- arithmeticOperands op args
+        if Array.any isSymbolic operands then Right (VTerm op operands)
+        else Left (TypeMismatch ("a term (" <> show op <> ") must hold a symbol or a term among its arguments"))
+
+  isArray (VArray _) = true
+  isArray _ = false
 
   expectString j' = note (TypeMismatch "a symbol reference's \"path\" must be an array of strings") (toString j')
 
@@ -1159,21 +1256,33 @@ describeValue (VEnv _) = "an import result"
 describeValue (VImport (PendingImport p)) = "the not-yet-run import of " <> show p.name
 describeValue (VConstraint name _) = "a constraint (" <> show name <> ")"
 describeValue (VSymbol _ _) = "a symbol"
+describeValue (VTerm op _) = "a term (" <> show op <> ")"
 
 -- | Control flow must be concrete (v3-symbols §1.5): a symbolic condition
 -- | is `NotConcrete`, not merely the wrong type.
 requireBool :: String -> Value -> Either EvalError Boolean
 requireBool _ (VBool b) = Right b
 requireBool who (VSymbol _ _) = Left (NotConcrete who)
+requireBool who (VTerm _ _) = Left (NotConcrete who)
 requireBool who other = Left (TypeMismatch (who <> " must be a boolean, got " <> describeValue other))
 
--- | Whether a value is, or contains, a symbol — what makes a value
+-- | Whether a value is itself a symbol or a term (v3-symbols §1.9), which is
+-- | the depth at which a container, a collection, a condition or an operand
+-- | is refused: a concrete structure that merely holds one is not special
+-- | (§1.7). `containsSymbol` is the other depth.
+isSymbolic :: Value -> Boolean
+isSymbolic (VSymbol _ _) = true
+isSymbolic (VTerm _ _) = true
+isSymbolic _ = false
+
+-- | Whether a value is, or contains, a symbol or a term — what makes a value
 -- | concrete's negation (§1.5, §1.7): a structure built of concrete pieces
 -- | is itself concrete and every structural operation on it works as
 -- | normal; only a symbol itself, wherever it sits, makes the whole not
 -- | concrete.
 containsSymbol :: Value -> Boolean
 containsSymbol (VSymbol _ _) = true
+containsSymbol (VTerm _ _) = true
 containsSymbol (VArray xs) = Array.any containsSymbol xs
 containsSymbol (VObject o) = any containsSymbol o
 containsSymbol _ = false
@@ -1223,7 +1332,9 @@ evalBuiltin name args = case name of
   "lookup" -> ternary lookupImpl
   "concat" -> concatImpl
   "append" -> binary appendImpl
-  _ -> Left (UnboundName name)
+  _
+    | Array.elem name arithmeticNames -> arithmetic name args
+    | otherwise -> Left (UnboundName name)
   where
   arity1 :: forall a. (Value -> Either EvalError a) -> Either EvalError a
   arity1 f = case args of
@@ -1245,6 +1356,7 @@ evalBuiltin name args = case name of
     VArray xs -> Right (VInt (Int.toNumber (Array.length xs)))
     VObject o -> Right (VInt (Int.toNumber (Map.size o)))
     VSymbol _ _ -> Left (NotConcrete name)
+    VTerm _ _ -> Left (NotConcrete name)
     other -> Left (TypeMismatch (name <> " expects an array or object, got " <> describeValue other))
 
   asBool :: Value -> Either EvalError Boolean
@@ -1261,11 +1373,12 @@ evalBuiltin name args = case name of
   variadicBool op identityVal = VBool <<< foldl op identityVal <$> traverse asBool args
 
   -- | A number operand, returned as it is so that its type is still there
-  -- | to check. A symbol is `NotConcrete` (v3-symbols §1.5).
+  -- | to check. A symbol or a term is `NotConcrete` (v3-symbols §1.5).
   asNumber :: Value -> Either EvalError Value
   asNumber v@(VInt _) = Right v
   asNumber v@(VFloat _) = Right v
   asNumber (VSymbol _ _) = Left (NotConcrete name)
+  asNumber (VTerm _ _) = Left (NotConcrete name)
   asNumber other = Left (TypeMismatch (name <> " expects a number argument, got " <> describeValue other))
 
   -- | Two integers or two floats (reference.md §6). A mixed pair is a
@@ -1288,6 +1401,7 @@ evalBuiltin name args = case name of
   -- | into.
   hasImpl :: Value -> Value -> Either EvalError Value
   hasImpl (VSymbol _ _) _ = Left (NotConcrete name)
+  hasImpl (VTerm _ _) _ = Left (NotConcrete name)
   hasImpl container key = Right (VBool present)
     where
     present = case container, key of
@@ -1301,6 +1415,7 @@ evalBuiltin name args = case name of
   -- | which would silently discard the symbol (§1.5).
   lookupImpl :: Value -> Value -> Value -> Either EvalError Value
   lookupImpl (VSymbol _ _) _ _ = Left (NotConcrete name)
+  lookupImpl (VTerm _ _) _ _ = Left (NotConcrete name)
   lookupImpl container key fallback = Right case container, key of
     VObject o, VString k -> fromMaybe fallback (Map.lookup k o)
     VArray xs, VInt n -> fromMaybe fallback (asIndex n >>= Array.index xs)
@@ -1323,6 +1438,163 @@ evalBuiltin name args = case name of
   -- | appended as a single element, not spliced — `concat` splices.
   appendImpl :: Value -> Value -> Either EvalError Value
   appendImpl arr item = (\xs -> VArray (Array.snoc xs item)) <$> asArray arr
+
+-- Arithmetic (reference.md §11) ----------------------------------------------------------------
+
+-- | One of the nine arithmetic builtins, applied. Operands that are all
+-- | numbers compute; if one is a symbol or a term the result is a term
+-- | holding the flattened operands exactly as written (v3-symbols §1.9).
+-- | Every operand is checked before either happens, so a `TypeMismatch`
+-- | takes precedence over a `NotRepresentable`.
+arithmetic :: String -> Array Value -> Either EvalError Value
+arithmetic name args = do
+  operands <- arithmeticOperands name args
+  if Array.any isSymbolic operands then Right (VTerm name operands)
+  else compute name operands
+
+-- | The operands of a call, checked as far as they can be without knowing
+-- | what a symbol stands for; every refusal is a `TypeMismatch`.
+-- |
+-- | * `sum` and `product` flatten their arguments by the rule children use:
+-- |   an array contributes each of its elements, recursively, in order.
+-- |   They need at least one operand afterwards. The seven others take a
+-- |   fixed count and do not flatten, so an array given to one is refused
+-- |   whatever it holds.
+-- | * Each operand is a number, a symbol or a term. A symbol or a term
+-- |   stands for one number of either type and is not looked into.
+-- | * The operands that are numbers agree with each other in type and with
+-- |   what the builtin accepts. Nothing is converted or promoted.
+arithmeticOperands :: String -> Array Value -> Either EvalError (Array Value)
+arithmeticOperands name args = do
+  operands <- shape
+  traverse_ requireOperand operands
+  let numbers = Array.filter (not <<< isSymbolic) operands
+  if accepted numbers then Right operands
+  else Left (TypeMismatch (name <> " expects " <> wanted <> ", got " <> joinWith ", " (map describeValue numbers)))
+  where
+  shape = case name of
+    "sum" -> variadic
+    "product" -> variadic
+    "quotient" -> fixed 2
+    "floor-quotient" -> fixed 2
+    "modulo" -> fixed 2
+    _ -> fixed 1
+
+  variadic = case flatten args of
+    [] -> Left (TypeMismatch (name <> " expects at least one operand: seed it with the zero or the one of the intended type"))
+    operands -> Right operands
+
+  fixed n
+    | Array.length args == n = Right args
+    | otherwise = Left (TypeMismatch (name <> " expects exactly " <> show n <> " argument(s), got " <> show (Array.length args)))
+
+  flatten = Array.concatMap case _ of
+    VArray xs -> flatten xs
+    other -> [ other ]
+
+  requireOperand v
+    | isInt v || isFloat v || isSymbolic v = Right unit
+    | otherwise = Left (TypeMismatch (name <> " expects number operands, got " <> describeValue v))
+
+  isInt (VInt _) = true
+  isInt _ = false
+
+  isFloat (VFloat _) = true
+  isFloat _ = false
+
+  accepted numbers = case name of
+    "quotient" -> Array.all isFloat numbers
+    "inverse" -> Array.all isFloat numbers
+    "floor-quotient" -> Array.all isInt numbers
+    "modulo" -> Array.all isInt numbers
+    "sum" -> Array.all isInt numbers || Array.all isFloat numbers
+    "product" -> Array.all isInt numbers || Array.all isFloat numbers
+    -- `negate`, `floor` and `real` take a number of either type.
+    _ -> true
+
+  wanted = case name of
+    "quotient" -> "two floats"
+    "inverse" -> "a float"
+    "floor-quotient" -> "two integers"
+    "modulo" -> "two integers"
+    _ -> "all integers or all floats"
+
+-- | The concrete rules (reference.md §11, *Semantics*), over operands
+-- | `arithmeticOperands` accepted and that are all numbers.
+-- |
+-- | Both number types hold a double. Float arithmetic is therefore the
+-- | host's, one correctly rounded operation at a time. Integer arithmetic
+-- | is exact as long as each result is checked: the sum or the product of
+-- | two integers of the guaranteed range that leaves it rounds to a double
+-- | of magnitude at least `2^53`, which `inIntegerRange` refuses.
+compute :: String -> Array Value -> Either EvalError Value
+compute name operands = case name, operands of
+  "sum", _ -> leftFold (+)
+  "product", _ -> leftFold (*)
+  "negate", [ VInt x ] -> integer (negate x)
+  "negate", [ VFloat x ] -> float (negate x)
+  "quotient", [ VFloat a, VFloat b ] -> float (a / b)
+  "inverse", [ VFloat x ] -> float (1.0 / x)
+  "floor-quotient", [ VInt a, VInt b ] -> _.quotient <$> floorDivision a b
+  "modulo", [ VInt a, VInt b ] -> _.remainder <$> floorDivision a b
+  "floor", [ VInt x ] -> Right (VInt x)
+  "floor", [ VFloat x ] -> integer (Number.floor x)
+  "real", [ VInt x ] -> Right (VFloat x)
+  "real", [ VFloat x ] -> Right (VFloat x)
+  _, _ -> Left (TypeMismatch (name <> " cannot be applied to " <> joinWith ", " (map describeValue operands)))
+  where
+  -- | A left fold from the first operand, each step checked: an integer
+  -- | step out of range is an error although the total would be in range.
+  leftFold :: (Number -> Number -> Number) -> Either EvalError Value
+  leftFold op = case Array.uncons operands of
+    Just { head: VInt x, tail } -> foldl (\acc v -> acc >>= step integer v) (Right (VInt x)) tail
+    Just { head: VFloat x, tail } -> foldl (\acc v -> acc >>= step float v) (Right (VFloat x)) tail
+    _ -> Left (TypeMismatch (name <> " expects at least one operand"))
+    where
+    step result v acc = result (op (numberOf acc) (numberOf v))
+
+  numberOf :: Value -> Number
+  numberOf (VInt n) = n
+  numberOf (VFloat n) = n
+  numberOf _ = 0.0
+
+  -- | An integer result, or `NotRepresentable` outside the integer range.
+  integer :: Number -> Either EvalError Value
+  integer n
+    | inIntegerRange n = Right (VInt (positiveZero n))
+    | otherwise = Left (NotRepresentable (name <> ": the result is outside the integer range, -(2^53 - 1) to 2^53 - 1"))
+
+  -- | A float result, or `NotRepresentable` when it is not finite, which
+  -- | covers overflow and a zero divisor alike.
+  float :: Number -> Either EvalError Value
+  float n
+    | Number.isFinite n = Right (VFloat (positiveZero n))
+    | otherwise = Left (NotRepresentable (name <> ": the result is not a finite float"))
+
+  -- | There is no negative zero, of either type.
+  positiveZero :: Number -> Number
+  positiveZero n = if n == 0.0 then 0.0 else n
+
+  -- | `floor-quotient` and `modulo` together: `a` is
+  -- | `b * quotient + remainder`, the quotient rounded toward negative
+  -- | infinity and the remainder zero or of the sign of `b`.
+  -- |
+  -- | `a / b` is not used, since its rounding can land on the integer above
+  -- | the true quotient. The host's `%` is exact and truncates; `a - r` is
+  -- | then a multiple of `b` no larger than `a`, so its division is exact
+  -- | too, and one step moves the truncated pair to the floored one.
+  floorDivision :: Number -> Number -> Either EvalError { quotient :: Value, remainder :: Value }
+  floorDivision a b
+    | b == 0.0 = Left (NotRepresentable (name <> ": the divisor is zero"))
+    | otherwise =
+        let
+          r = a % b
+          q = (a - r) / b
+          adjust = r /= 0.0 && (r < 0.0) /= (b < 0.0)
+        in
+          (\quotient remainder -> { quotient, remainder })
+            <$> integer (if adjust then q - 1.0 else q)
+            <*> integer (if adjust then r + b else r)
 
 -- | How a value reads when it is rendered into a string by `str` (and so by
 -- | string interpolation): a string is itself, `null` is empty, and

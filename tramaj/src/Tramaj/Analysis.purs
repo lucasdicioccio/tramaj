@@ -31,6 +31,9 @@ module Tramaj.Analysis
   , symbolSites
   , symbolDemands
   , deepSymbolDemands
+  , arithmeticNames
+  , arithmeticOps
+  , deepArithmeticOps
   , typeDeclarations
   , typeParams
   , unsuppliedTypeParams
@@ -289,6 +292,58 @@ deepSymbolDemands :: Map String Program -> Program -> Set (Array String)
 deepSymbolDemands libs prog =
   symbolDemands prog
     <> foldMap (maybe Set.empty symbolDemands <<< flip Map.lookup libs) (transitiveImportNames libs prog)
+
+-- Arithmetic -------------------------------------------------------------------
+
+-- | The nine names of the arithmetic profile (reference.md §11). They are
+-- | names and not syntax: an implementation with the profile binds them in
+-- | the initial environment, and a program may bind any of them itself.
+arithmeticNames :: Array String
+arithmeticNames =
+  [ "sum"
+  , "product"
+  , "negate"
+  , "inverse"
+  , "quotient"
+  , "floor-quotient"
+  , "modulo"
+  , "floor"
+  , "real"
+  ]
+
+-- | Which of `arithmeticNames` this program references free (reference.md
+-- | §9), called (`sum(1, 2)`) or passed by reference (`fold($xs, 0, $sum)`)
+-- | alike, since both are a `Path` rooted at the name.
+-- |
+-- | Scope-aware: a name bound by a binding, a lambda parameter or a pattern
+-- | name is not reported where that binding is in scope. A pattern is
+-- | lowered to plain bindings by the parser, so it needs no case here.
+-- | A binding's own right-hand side is outside its scope, so
+-- | `@sum = sum(1, 2)` reports `sum`.
+-- |
+-- | Over-approximates like every analysis here: a name used only under a
+-- | `Branch` arm no context will select is still reported.
+arithmeticOps :: Program -> Set String
+arithmeticOps = go Set.empty <<< programRoot
+  where
+  go bound = case _ of
+    Path root _
+      | Array.elem root arithmeticNames && not (Set.member root bound) -> Set.singleton root
+      | otherwise -> Set.empty
+    Let name value body -> go bound value <> go (Set.insert name bound) body
+    TypeAnnotate name _ value body -> go bound value <> go (Set.insert name bound) body
+    Lambda params body -> go (Set.union (Set.fromFoldable params) bound) body
+    other -> foldMap (go bound) (subExprs other)
+
+-- | `arithmeticOps` of this program and of every library it imports,
+-- | directly or not. A library has its own scope, so a binding in the
+-- | importing program shadows nothing there. This is what a host without
+-- | the arithmetic profile checks before running a program: non-empty means
+-- | the program would fail with `UnboundName`, or hand back a term.
+deepArithmeticOps :: Map String Program -> Program -> Set String
+deepArithmeticOps libs prog =
+  arithmeticOps prog
+    <> foldMap (maybe Set.empty arithmeticOps <<< flip Map.lookup libs) (transitiveImportNames libs prog)
 
 -- Types -----------------------------------------------------------------------
 
