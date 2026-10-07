@@ -1,0 +1,2 @@
+-- reference.md §3: the guaranteed range is -(2^53 - 1) to 2^53 - 1
+[9007199254740991, -9007199254740991]

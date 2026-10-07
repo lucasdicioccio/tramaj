@@ -1,0 +1,2 @@
+-- reference.md §6: `str(1)` is `1` and `str(1.0)` is `1.0`
+[str(1), str(1.0), str(-7), str(-7.0), str(100000000000), str(100000000000.0)]

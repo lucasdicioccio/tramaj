@@ -64,6 +64,15 @@ cases/<NNN-slug>/
   A case without `requires` runs everywhere, as before. A case that names
   several requirements runs only where all of them are declared.
 
+  In a case that requires `"int-float"`, the text of a number in `ctx.json`
+  and `expected.json` is significant: `3` is an integer and `3.0` a float
+  (reference.md §3, node-json.md *Numbers*), so the two are different
+  contexts and different expected values. A runner that declares
+  `"int-float"` reads both files with a parser that keeps that difference,
+  and one that declares `"int64"` keeps the digits of an integer beyond
+  2^53 as well. These files are written by hand; do not regenerate them
+  with a tool that rewrites numbers.
+
 ## Skipped cases
 
 Each runner holds the list of requirements its implementation declares, next

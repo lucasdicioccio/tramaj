@@ -1,0 +1,6 @@
+{
+  "name": "str renders a context number by the type its text gave it",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

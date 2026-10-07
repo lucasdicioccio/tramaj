@@ -1,0 +1,9 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [3, 3.0],
+  "symbols": [],
+  "type-constraints": [],
+  "types": []
+}

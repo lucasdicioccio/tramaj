@@ -1,0 +1,6 @@
+{
+  "name": "a whole-valued float in a value slot and in a text child keeps its fraction",
+  "kind": "document",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

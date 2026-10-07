@@ -1,0 +1,2 @@
+-- reference.md §6: array / object numbers follow the same two rules
+str([1, 1.0, {"b": 2.0, "a": 2}])

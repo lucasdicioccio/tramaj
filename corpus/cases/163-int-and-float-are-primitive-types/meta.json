@@ -1,0 +1,6 @@
+{
+  "name": "int and float are primitive types",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float"]
+}
