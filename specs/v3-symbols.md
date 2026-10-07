@@ -13,6 +13,13 @@ and §9 says how far it gets on its own.
 Status: frozen as a design. Not implemented in either `tramaj/` or
 `tramaj-hs/`.
 
+**Terms are specified ahead of the implementations.** §1.9, and what the rest
+of this document says about terms and about `"$term"`, is accepted design
+(decisions §18) that no implementation has yet. It depends on ref §11's
+arithmetic profile, which none has either. The same holds for the two number
+types (ref §3) wherever this document writes a number: in canon (§1.4) and in
+the envelope (§5.2).
+
 ---
 
 ## 0. What v3 adds, and the rule it follows
@@ -50,12 +57,14 @@ vocabulary it does not implement.
 Value
   = ... as in ref §3 ...
   | Symbol  id: SymbolId, path: List<String>
+  | Term    op: String, arguments: List<Value>   -- §1.9; arguments: numbers, symbols, terms
 ```
 
 A `Symbol` with an empty `path` is an **allocation**; one with a non-empty
 path is a **projection** of an allocation (§1.6). A symbol is opaque to the
 language: nothing inspects it, and nothing but §1.6's projection derives a new
-one from it.
+one from it. A `Term` is an arithmetic operation left unevaluated because one
+of its operands is a symbol (§1.9).
 
 ### 1.2 `?(key)` — allocation
 
@@ -132,7 +141,9 @@ implementation:
   ref §6's `str` rule, and strings JSON-quoted. It agrees with `str` on arrays
   and objects and differs at the top level for strings, where `str` renders
   raw. The difference is required: canon MUST be injective, and `str(3)` and
-  `str("3")` are the same characters.
+  `str("3")` are the same characters. An integer and a float are two values
+  (ref §3) and `str` keeps them apart, so canon does too: `?(1)` is `#0:1`
+  and `?(1.0)` is `#0:1.0`.
 * The two forms cannot collide: an allocation id continues with a digit, a
   demand id with `ctx`. A path segment cannot contain `.` (ref §5), so the
   demand form is unambiguous.
@@ -176,7 +187,12 @@ length is known, and cannot constrain a list whose length is symbolic. That is
 the ceiling, and it is where a real symbolic evaluator would have to begin.
 Declining to go there is what keeps `map` free of any `if value is Symbol`
 branch — no evaluator rule in ref §6 changes, and no builtin learns a new
-case beyond refusing.
+case beyond refusing. The nine arithmetic builtins are the one exception:
+over a symbol they build a term (§1.9).
+
+A term is data in the same way, and every row above that refuses a symbol
+refuses anything containing a term. The one difference is projection, which a
+term does not have (§1.9).
 
 ### 1.6 Projection
 
@@ -241,6 +257,73 @@ the same three text children.
 Reconstructing a string from those pieces, if a downstream consumer wants one,
 is that consumer's job. It has them in order and knows what its target does
 with them, which the language does not.
+
+### 1.9 Terms
+
+*Specified, not yet implemented (decisions §18).* This section applies to an
+implementation with the arithmetic profile (ref §11, §5.5).
+
+```
+!constraint("lte", sum($a, $b), 10)
+```
+
+A call to one of the nine arithmetic builtins whose flattened operands are all
+numbers computes, by ref §11. If at least one operand is a symbol or a term,
+the result is a `Term` with that `op` and **the flattened operands exactly as
+written**: same order, nothing folded, nothing simplified, no nested term
+spliced.
+
+| expression | result |
+|---|---|
+| `sum(1, $s, 2)` | `sum(1, $s, 2)`, not `sum($s, 3)` |
+| `sum(1, [$s, 2])` | `sum(1, $s, 2)` — arrays are flattened (ref §11) |
+| `sum($a, sum($b, 1))` | a term whose second argument is a term |
+| `inverse($s)` | `inverse($s)`, not `quotient(1.0, $s)` |
+| `floor($s)`, `real($s)` | terms; neither is the identity over a symbol |
+
+Preserving is required, not stylistic: `(1.0 + s) + 2.0` and `s + 3.0` are
+different doubles for some `s`, and for integers one grouping can overflow
+where the other does not. It gives the **residual law**:
+
+> A host that evaluates a term by ref §11's concrete rules, after substituting
+> numbers for its symbols, gets byte for byte what the program would have
+> produced had those numbers been in the context, errors included.
+
+Tramaj still solves nothing (§0). A term is the computation the language would
+have performed had it known the operands, handed over undone, and its
+vocabulary is closed: nine operations whose meaning ref §11 defines, so an
+`op` is not host vocabulary the way a constraint name is.
+
+* **A symbol operand stands for one number, of either type**, and a term
+  carries no type. Concrete operands are checked as far as they can be without
+  one: each MUST be a number, and those of one call MUST agree with each other
+  and with what the builtin accepts. `sum("a", $s)`, `sum(1, $s, 2.0)` and
+  `quotient(1, $s)` are `TypeMismatch`, and so is a wrong argument count.
+* **Nothing is inferred through a symbol or a nested term.**
+  `sum(real($s), 1)` is built, and fails when the host evaluates it, as the
+  residual law says it should. `inverse($s)` is a term even if the host later
+  supplies `0.0`; an author who cares writes `!constraint("ne", $s, 0.0)` in
+  the host's vocabulary.
+* **A term is data, exactly as a symbol is** (§1.5). It may be bound, passed,
+  stored, placed in an attribute, a payload, a value slot or a text child,
+  used as a constraint argument, and used as an operand.
+* **Everything that inspects refuses**, as for a symbol: `branch`, `eq`, `lt`,
+  `lte`, `gt`, `gte`, `str` and interpolation, `cardinality`, `has`, `lookup`,
+  `<>`, a `map` spine and an allocation key are `NotConcrete` on anything
+  containing a term. The comparisons do **not** become symbolic: a boolean
+  term could only feed `branch`, and control flow must be concrete.
+* **A term has no projection.** `$t.field` is a `TypeMismatch`: a term stands
+  for a number, and a number has no fields.
+* A symbol standing for a whole array cannot be summed. It counts as one
+  number; that is §1.7's ceiling, unchanged.
+* **Equality of terms is structural**, for §4's deduplication: same `op`,
+  equal arguments in the same order. `sum($a, 1)` and `sum(1, $a)` are two
+  terms.
+* A term does not emit and does not allocate. It has no id and no entry in
+  the symbol table, so a library may build one from a symbolic parameter
+  (§1.4 is about `?`).
+* Concrete mode is untouched: no symbol can exist there (§5.1), so no term
+  can.
 
 ---
 
@@ -530,6 +613,16 @@ about `!` and two refusals.
 * Every field is REQUIRED. A decoder MUST reject an object missing any of
   them, and MUST NOT infer one from a default — the discipline `node-json.md`
   already sets.
+* Numbers are written by `node-json.md`'s rule everywhere in the envelope, so
+  `1` and `1.0` stay distinct, inside a term in particular. The residual law
+  (§1.9) depends on it, and a host that evaluates terms must read them with a
+  parser that keeps the difference.
+* A term (§1.9) is carried where it is used, as §5.3's shape. No list is
+  added for terms, the envelope's own fields do not change and the format
+  stays `tramaj/symbolic/1`. A term can reach a host only if that host
+  enabled the arithmetic profile (§5.5), which is the host changing its mind,
+  and `deepArithmeticOps` (ref §9) tells it beforehand which operations can
+  appear.
 
 A host fold may then: run a solver over `"constraints"`; render an input for
 every symbol reachable in `"root"`; ask a user and re-run with the answers
@@ -538,34 +631,51 @@ implements and fail with an unsupported-kind error before doing anything else.
 
 ### 5.3 Telling a symbol from an object
 
-`Value` in symbolic mode is JSON extended with one tagged shape, in the style
+`Value` in symbolic mode is JSON extended with tagged shapes, in the style
 `node-json.md` already uses to discriminate nodes by `"type"` and attributes
-by `"kind"`:
+by `"kind"`. A symbol:
 
 ```json
 {"$sym": "#0:\"d\"", "path": ["replicas"]}
 ```
 
-Both fields are required. The ambiguity to rule out is a template, or a
-context, carrying a data object whose key is `"$sym"`. Neither can:
+and a term (§1.9; not yet implemented):
+
+```json
+{"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
+```
+
+Both fields of each are required. `"$term"` is the `op`; `"arguments"` holds
+the term's operands in order, each a number, a symbol or a term.
+
+The ambiguity to rule out is a template, or a context, carrying a data object
+whose key is `"$sym"` or `"$term"`. Neither can:
 
 * **Object keys in Tramaj are always static.** An object key is a quoted
   string literal or a bare identifier, and ref §5 forbids interpolation there,
   so nothing computes one. `{"$sym": 1}` written in a program is a **parse
-  error**, in the same family as ``import("lib-`$x`")``.
-* **`"$sym"` and `"$type"` are reserved in the value domain in both modes**,
-  in programs and in contexts alike. A context carrying either key is rejected
-  by the decoder: in symbolic mode unless it is a well-formed symbol
-  reference, and in concrete mode always. One rule, so a program's legality
-  never depends on how a host runs it and a context does not change meaning
-  when a host changes mode.
+  error**, in the same family as ``import("lib-`$x`")``, and so is
+  `{"$term": 1}`.
+* **`"$sym"`, `"$type"` and `"$term"` are reserved in the value domain in
+  both modes and in every profile**, in programs and in contexts alike. A
+  context carrying one of these keys is rejected by the decoder: in symbolic
+  mode unless it is a well-formed symbol reference or a well-formed term, and
+  in concrete mode always. One rule, so a program's legality never depends on
+  how a host runs it and a context does not change meaning when a host
+  changes mode. Reserving `"$term"` rejects a context that carries that key
+  as data, which implementations accept today.
+* **A well-formed term** has a known `op`, the argument count that builtin
+  takes (one or more for `sum` and `product`), and arguments that are
+  numbers, symbols or terms, with at least one symbol somewhere inside. An
+  implementation without the arithmetic profile knows no `op`, so it rejects
+  every term.
 * Objects are otherwise built only by `<>`, which merges keys from objects
   that came from one of those two sources, so the sources are exhaustive.
 
 `"$type"` is reserved by v3 but unused by it; it is v4's (`v4-types.md`).
-Reserving it now costs two key names and avoids breaking the grammar later.
+Reserving it now costs a key name and avoids breaking the grammar later.
 
-The cost is those two names. The benefit is that the tag sits where a reader
+The cost is those three names. The benefit is that the tag sits where a reader
 looks for it and plain JSON stays plain: `{"replicas": 3}` remains
 `{"replicas": 3}`, rather than the
 `{"k":"obj","v":{"replicas":{"k":"num","v":3}}}` that a fully tagged value
@@ -580,6 +690,9 @@ and the template is being re-run — supplies it as an ordinary context value,
 and `?ctx.path` reads it with no allocation. This is what makes the
 ask-a-user and re-solve loops work without the template changing.
 
+A well-formed term (§5.3) is accepted the same way, and round-trips. A
+malformed one, or one with no symbol inside, is rejected.
+
 ### 5.5 Profiles
 
 An implementation MAY implement the **core profile** only — the language of
@@ -590,6 +703,15 @@ holes and its constraints. §5.3's reserved-key rule belongs to the core
 profile too, so that the two grammars agree.
 
 An implementation of the **symbolic profile** implements both modes.
+
+The **arithmetic profile** (ref §11; not yet implemented) is a third,
+independent of both: either of the above may have it or not. It is not
+refused at parse time, since its nine builtins are names and not syntax; a
+program that uses one on an implementation without it fails with
+`UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms
+(§1.9) exist only where the symbolic and arithmetic profiles meet. The two
+number types (ref §3) and the reserved `"$term"` key (§5.3) belong to every
+profile.
 
 ---
 
@@ -604,7 +726,9 @@ Three kinds join ref §12's table.
 | `SymbolsUnavailable` | a symbol would have to be minted in concrete mode (§5.1) |
 
 `TypeMismatch` covers the rest: a constraint value crossing a JSON boundary,
-and a `!` over something that is neither a constraint nor an array of them. An
+a `!` over something that is neither a constraint nor an array of them, and a
+projection of a term (§1.9). A term is a symbolic value, so `NotConcrete`
+covers it wherever it covers a symbol. An
 unsupplied `?ctx.path` inside a library is the existing `PathNotFound`,
 `InLibrary`-wrapped.
 
@@ -649,6 +773,9 @@ symbols is a runtime fact; the number of sites is not, and a site inside a
 Like the existing analyses, these over-approximate: a kind emitted only under
 a `Branch` arm that no context will select is still reported.
 
+Which operations a program's terms can carry is answered by ref §9's
+`arithmeticOps` / `deepArithmeticOps`; terms have no analysis of their own.
+
 ---
 
 ## 8. Conformance
@@ -659,6 +786,11 @@ a `Branch` arm that no context will select is still reported.
   the same ids, the same symbol table order and the same constraint order for
   the same program and context — which is what §4's prescribed evaluation
   order and §1.4's structural identity exist to guarantee.
+* **The residual law** (§1.9): evaluating a term by ref §11's rules, with
+  numbers substituted for its symbols, MUST give byte for byte what the
+  program gives with those numbers in the context, errors included. A term's
+  `op`, its argument order and the type of each number in it are therefore
+  exact, like a symbol id.
 * The shared corpus `reference.md` §14 calls for is where that is proved. The
   astral-escape divergence recorded in `limitations` is the precedent for why
   neither implementation's own suite would find a disagreement on its own.
@@ -668,7 +800,13 @@ under `map`; demand supplied concretely vs. symbolically vs. not at all;
 symbols in attributes, payloads, value slots and text children; `!` over a
 single constraint, an array, a nested array, and a `branch`; constraint
 deduplication; library-emitted constraints; concrete mode refusing a mint and
-discarding an emission; every row of §1.5's table.
+discarding an emission; every row of §1.5's table. For terms (§1.9): mixed
+operands preserved in order; a nested term; a flattened array of symbols;
+concrete operands of two types refused; an integer and a float operand each
+surviving the envelope; a term in each position a symbol may take; every
+refusal; deduplication over equal and over reordered terms; seeding; and the
+residual law, as one program run symbolically, then concretely with the symbol
+seeded as a number.
 
 ---
 
@@ -699,5 +837,8 @@ Recorded as considered and declined, to be revisited only if practice asks:
 2. **A `label` field on the symbol table entry.**
    `!constraint("label", $x, "Replicas")` already says it, and says it in the
    host's vocabulary rather than the language's.
-3. **Symbolic strings.** §1.8 has the cost: the value domain would gain terms,
-   not just variables.
+3. **Symbolic strings.** §1.8 has the cost: the value domain would gain string
+   terms, over a vocabulary that is not closed. Arithmetic took that step for
+   numbers (§1.9) because numbers have no alternative and its nine operations
+   are closed; text has one, separate children, which a form renderer wants
+   anyway.

@@ -43,12 +43,13 @@ NodeAttribute
 ```
 
 `Value` is the ordinary JSON value domain — `null`, boolean, number, string,
-array, object. It is *not* a `Node`: a document tree never nests through an
+array, object — with a number being an integer or a float (see *Numbers*
+below). It is *not* a `Node`: a document tree never nests through an
 attribute value, an element value slot, or an action payload.
 
 `Text` carries a `Value`, not a `String`, so scalars survive evaluation without
 implicit conversion: `.p($ctx.count)` with `count = 3` produces a text node whose
-value is the number `3`, not the string `"3"`. A host that wants a string renders
+value is the integer `3`, not the string `"3"`. A host that wants a string renders
 one; the interchange format does not decide that for it.
 
 `Element` carries a `value` slot alongside its children, for hosts whose target
@@ -117,6 +118,39 @@ decides what a repeated name means for its target.
 }
 ```
 
+### Numbers
+
+*Status: specified, not yet implemented (`decisions.md` §18). Today's encoders
+write every number by ECMAScript's `Number::toString`, so a whole-valued float
+is written without a fraction.*
+
+A `Value` number is an integer or a float (`reference.md` §3), and the
+encoding keeps the type.
+
+- An **integer** MUST be written as its decimal digits, with a `-` when
+  negative, and with no fraction and no exponent: `3`, `-7`, `100000000000`.
+- A **float** MUST carry a fraction or an exponent. It is written as the
+  shortest round-trip text of ECMAScript's `Number::toString`, with `.0`
+  appended when that text has neither: `1.0`, `0.1`, `100000000000.0`,
+  `1e+21`, `1e-7`.
+
+```json
+{"type": "text", "value": 3, "annotations": {}}
+```
+
+```json
+{"type": "text", "value": 3.0, "annotations": {}}
+```
+
+are two different nodes. A decoder MUST type a number by its text, by the same
+rule: no fraction and no exponent is an integer, either is a float, so `3e0`
+decodes as a float. The round-trip invariant above depends on it, so a decoder
+needs a JSON parser that keeps that difference, and that keeps the digits of
+an integer it would otherwise round.
+
+Every `Value` written as JSON follows this rule: attribute values, payloads,
+value slots, text values, and an expression program's result.
+
 ## Annotations
 
 `annotations` is a JSON object mapping annotation keys to arbitrary JSON.
@@ -137,7 +171,10 @@ A decoder MUST reject:
 - an attribute with no `"kind"`, or a `"kind"` outside `{attribute, action}`;
 - any object missing a field required for its discriminator;
 - a non-string `tag`, `name`, `event`, or `key`;
-- a non-array `attributes` or `children`, or a non-object `annotations`.
+- a non-array `attributes` or `children`, or a non-object `annotations`;
+- in a `Value`, an integer-form number outside its integer range
+  (`reference.md` §13), which it MUST NOT round (see *Numbers*; not yet
+  implemented).
 
 A decoder MUST NOT infer a missing field from a default. Defaults are an encoder's
 job; on the wire the representation is explicit, so that a missing field is a bug
