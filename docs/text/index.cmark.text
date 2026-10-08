@@ -49,6 +49,8 @@ Go straight to [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/b
 
 - [**Roadmap**](/roadmap.html ) — where the five implementations stand, and the folds and registry releases that are wanted next.
 
+- [**Two designs accepted**](/design-arithmetic-and-shapes.html ) — arithmetic with integers and floats as two types, and `?shape`, a form that allocates a structure of symbols.
+
 - [**About**](/about.html ) — who writes tramaj, and the sites it is related to.
 
 

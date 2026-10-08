@@ -1,0 +1,194 @@
+=base:build-info.json
+{"layout":"article"
+,"publicationStatus":"Public"
+}
+
+=base:preamble.json
+{"author": "Lucas DiCioccio"
+,"date": "2026-10-08T12:00:00Z"
+,"title": "Two designs accepted: arithmetic, and shapes of symbols"
+}
+
+=base:topic.json
+{"topics":["roadmap", "design"]
+,"keywords":["arithmetic", "integers", "floats", "symbols", "allocation", "traverse", "design"]
+}
+
+=base:social.json
+{"twitter": "lucasdicioccio"
+,"linkedin": "lucasdicioccio"
+,"github": "lucasdicioccio"
+,"mastodon": "https://fosstodon.org/@lucasdicioccio"
+}
+
+=base:summary.cmark
+A template can now compute with numbers, and will soon declare a whole structure of solver variables in one form. Both designs are written down and accepted; neither is in a release yet.
+
+=base:main-content.cmark
+
+# Two designs accepted: arithmetic, and shapes of symbols
+
+Two language designs were accepted this week. This page says what each one
+is and how far along it is. The short version:
+
+<table>
+<tr><th>design</th><th>accepted</th><th>specified</th><th>implemented</th></tr>
+<tr><td>arithmetic, and integers and floats as two types</td><td>2026-10-06</td><td>yes, in the reference</td><td>PureScript and Haskell, on <code>main</code>, not released</td></tr>
+<tr><td><code>?shape</code>, a form that allocates a structure of symbols</td><td>2026-10-08</td><td>design only</td><td>no</td></tr>
+</table>
+
+
+Both are recorded in
+[`specs/decisions.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md),
+sections 18 and 19, with the alternatives that were rejected and why.
+
+## Arithmetic
+
+Until now the reference said a template "compares and selects, it does not
+compute". Every derived number was the host's job. That works when the host
+and the template author are the same party. It fails when a template is
+handed counters by a host it does not control: it cannot show a subtotal or a
+share in percent unless someone upstream precomputes each one and stores it
+next to the raw numbers.
+
+So the position is reversed, narrowly. The grammar does not change. There are
+no infix operators. Arithmetic is nine named builtins:
+
+<table>
+<tr><th>builtin</th><th>operands</th><th>result</th></tr>
+<tr><td><code>sum(…)</code>, <code>product(…)</code></td><td>all integers or all floats</td><td>the sum, the product</td></tr>
+<tr><td><code>negate(x)</code></td><td>an integer or a float</td><td><code>-x</code>, of the same type</td></tr>
+<tr><td><code>quotient(a, b)</code>, <code>inverse(x)</code></td><td>floats</td><td>float division</td></tr>
+<tr><td><code>floor-quotient(a, b)</code>, <code>modulo(a, b)</code></td><td>integers</td><td>integer division and its remainder</td></tr>
+<tr><td><code>floor(x)</code></td><td>either</td><td>the largest integer not above <code>x</code></td></tr>
+<tr><td><code>real(x)</code></td><td>either</td><td>the float nearest to <code>x</code></td></tr>
+</table>
+
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@total    = sum(0.0, map($ctx.lines,
+                         (l) => product(real($l.qty), real($l.price))))
+```
+
+### Integers and floats are two types
+
+A counter must add exactly and a ratio must not, so the single number type
+splits in two. A literal with neither a fraction nor an exponent is an
+integer (`1`, `-7`); one with either is a float (`1.0`, `1e5`). A JSON number
+in the context is read by the same rule.
+
+Nothing converts between the two unless the program says so. `sum(1, 2.5)` is
+an error, `eq(1, 1.0)` is `false`, and `gt(1.5, 0)` is written
+`gt(1.5, 0.0)`. `real` and `floor` are the two conversions, and each accepts
+both types, so a template that does not know which one its host sends
+normalizes with `real($x)`.
+
+**This changes existing output in one case.** A float keeps its type when it
+is written, so a whole-valued float renders with a fraction: `str(1.0)` is
+`1.0` where it was `1`. An integer renders as before.
+
+### Over a symbol, arithmetic builds a term
+
+In symbolic mode a number may not be known yet. `sum(1, $s, 2)` with a
+symbol `$s` does not fail and does not guess. It evaluates to a *term*, the
+computation handed to the host undone:
+
+```json
+{"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
+```
+
+The operands are kept exactly as written, with nothing folded. That buys one
+law: a host that substitutes numbers for the symbols and evaluates the term
+by the reference's rules gets what the template would have produced had
+those numbers been in the context. Tramaj still solves nothing.
+
+### Where it stands
+
+The normative text is in the
+[language reference](/reference-language.html) and the
+[symbols reference](/reference-v3-symbols.html), and the conformance corpus
+has the fixtures. The PureScript and Haskell implementations have the number
+split and the nine builtins on `main`. They are not in a release, and the
+command-line tool and the [playground](/playground.html) do not have them
+yet. The Rust, JavaScript, Python and Go implementations follow.
+
+## `?shape`: a structure of symbols in one form
+
+In symbolic mode a template allocates a solver variable with `?(key)`. One
+variable at a time is fine. A structure of them is not: every variable is
+its own form, with a key composed by hand.
+
+```
+@cluster = {
+  lb:         ?(["cluster", "lb"]),
+  placements: map($ctx.vms, (vm) => {
+    vm:   $vm.name,
+    host: ?(["cluster", "host", $vm.name]),
+    zone: ?(["cluster", "zone", $vm.name])
+  })
+}
+```
+
+The accepted design adds a second allocation form. `?shape(key, shape)`
+takes the key once, and the shape says where the symbols go with a named
+marker, `~name`:
+
+```
+@cluster = ?shape("cluster", {
+  ~lb,
+  placements: map($ctx.vms, (vm) => {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
+})
+```
+
+This is "traverse" in the functional-programming sense: walk a structure, run
+an effect at each position, get the same structure back. The effect is
+allocation. The number of placements is whatever the caller's `vms` holds.
+
+The rules are few:
+
+- **A marker is explicit and named.** `~lb` is a symbol; nothing else in the
+  shape is. `{~lb}` is short for `{lb: ~lb}`.
+- **A marker may be written anywhere in the shape**: a field, an array
+  element, a call's argument, the body of a `map`.
+- **Under a lambda a marker carries its own key**, `~host($vm.name)`, which
+  says which iteration it belongs to. A bare marker there is a parse error,
+  so one variable is never shared across iterations by accident.
+- **Identity is what the author wrote.** The symbols above are
+  `#0:["cluster","lb"]`, `#0:["cluster","host","a"]` and so on: the form's
+  key, the marker's name and the marker's key. No position and no index is
+  involved, so reordering the `vms` keeps every variable's identity.
+- **Mistakes are parse errors**: the same marker name twice in one form, or a
+  shape with no marker at all.
+
+It is a pure rewriting onto `?(key)`. The form above means exactly what the
+hand-written version means, so the core language, the output envelope and
+every host decoder stay as they are.
+
+### Where it stands
+
+This one is a design only. The normative text is not written and no
+implementation has it. PureScript and Haskell come first, as for arithmetic.
+One thing it does not cover is a caller that supplies a *count* rather than
+a list: that needs a `range`, which is a separate question.
+
+## Also accepted: sorting and number formatting
+
+A third design was accepted on the same day, in section 20 of the same file:
+`sort-by(list, fn)` and `sort-by-descending(list, fn)`, which take a key
+function as `map` does, and `format-number(x, decimals, group)`, which turns
+`1234567.891` into `1,234,567.89` by one rounding rule every implementation
+must agree on. It is a design only as well.
+
+=base:main-css.tramaj-json
+{ "format": "css"
+, "contents":
+  [ ""
+  , "@import \"`$ctx.pathPrefix`/css/dev.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/article.css\";"
+  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"
+  ]
+}

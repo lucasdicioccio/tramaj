@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-07T11:23:22Z"><meta name="article:modified_time" content="2026-10-07T11:23:22Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-07T11:23:22Z","datePublished":"2026-10-07T11:23:22Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Wed, 07 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 4760 words, 20 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-08T08:31:40Z"><meta name="article:modified_time" content="2026-10-08T08:31:40Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T08:31:40Z","datePublished":"2026-10-08T08:31:40Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 5258 words, 20 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
 <h2 id="tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</h2>
 <p>This document is <strong>normative</strong> for the symbolic extension. It builds on
 <code>reference.md</code>, which remains normative for everything else; section numbers
@@ -89,6 +89,11 @@ library — the same error an ordinary unsupplied read already produces
 (ref §7).
 </li>
 </ul>
+<p>A demand is an expression and may be written wherever one may: as a call
+argument, an array element, an operand of an arithmetic builtin (§1.9). It
+does not need binding first. <code>sum(?ctx.s, 1)</code> and <code>@s = ?ctx.s</code> followed by
+<code>sum($s, 1)</code> allocate the same symbol and build the same term; they differ
+only in the <code>&quot;binding&quot;</code> the symbol table reports (§5.2).</p>
 <h4 id="14-identity">1.4 Identity</h4>
 <blockquote>
 <p><strong>Only a root program may allocate. A library MUST NOT</strong>, because the root
@@ -145,8 +150,9 @@ language to <em>know</em> something about it is an error:</p>
 <tr><td><code>$s.field</code></td><td>a projection (§1.6) — <strong>the one exception</strong></td></tr>
 <tr><td><code>branch($s, …)</code></td><td><code>NotConcrete</code> — no arm can be selected</td></tr>
 <tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
-<tr><td><code>eq</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> on anything <em>containing</em> a symbol</td><td><code>NotConcrete</code></td></tr>
-<tr><td><code>str($s)</code>, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
+<tr><td><code>eq</code> on anything <em>containing</em> a symbol</td><td><code>NotConcrete</code> — deep equality needs the whole value</td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> with a symbol as an operand</td><td><code>NotConcrete</code>; an array or object operand is the <code>TypeMismatch</code> it always was, whatever it holds</td></tr>
+<tr><td><code>str</code> of anything <em>containing</em> a symbol, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
 <tr><td><code>cardinality($s)</code>, <code>has($s, k)</code>, <code>lookup($s, k, d)</code></td><td><code>NotConcrete</code></td></tr>
 <tr><td><code>$s &lt;&gt; x</code></td><td><code>NotConcrete</code></td></tr>
 </table>
@@ -161,8 +167,9 @@ Declining to go there is what keeps <code>map</code> free of any <code>if value 
 branch — no evaluator rule in ref §6 changes, and no builtin learns a new
 case beyond refusing. The nine arithmetic builtins are the one exception:
 over a symbol they build a term (§1.9).</p>
-<p>A term is data in the same way, and every row above that refuses a symbol
-refuses anything containing a term. The one difference is projection, which a
+<p>A term is data in the same way. Every row above that refuses a symbol refuses
+a term in the same position, and a row that says <em>containing</em> looks as deep
+for a term as it does for a symbol. The one difference is projection, which a
 term does not have (§1.9).</p>
 <h4 id="16-projection">1.6 Projection</h4>
 <p><code>$s.field</code> reads nothing. It produces a symbol with the same <code>id</code> and the path
@@ -188,6 +195,8 @@ operations that <em>inspect</em> a value refuse.</p>
 .ul(map($ports, (p) =&gt; .li($p)))
 </code></pre>
 <p>is legal end to end.</p>
+<p>A concrete structure containing terms (§1.9) is not special either, and the
+same operations work on it: <code>cardinality([sum($a, 1), 2])</code> is <code>2</code>.</p>
 <p><strong>A symbol that is itself structured is the ceiling.</strong> <code>$d.replicas</code> projects
 fine; <code>map($d.items, f)</code> is <code>NotConcrete</code>, because the length is unknown. A
 symbol may <em>have</em> structure as far as its host-side meaning is concerned; the
@@ -240,44 +249,73 @@ have performed had it known the operands, handed over undone, and its
 vocabulary is closed: nine operations whose meaning ref §11 defines, so an
 <code>op</code> is not host vocabulary the way a constraint name is.</p>
 <ul>
-<li><strong>A symbol operand stands for one number, of either type</strong>, and a term
+<li>
+<p><strong>A symbol operand stands for one number, of either type</strong>, and a term
 carries no type. Concrete operands are checked as far as they can be without
 one: each MUST be a number, and those of one call MUST agree with each other
 and with what the builtin accepts. <code>sum(&quot;a&quot;, $s)</code>, <code>sum(1, $s, 2.0)</code> and
-<code>quotient(1, $s)</code> are <code>TypeMismatch</code>, and so is a wrong argument count.
+<code>quotient(1, $s)</code> are <code>TypeMismatch</code>, and so is a wrong argument count.</p>
 </li>
-<li><strong>Nothing is inferred through a symbol or a nested term.</strong>
+<li>
+<p><strong>An operand is a symbol or a term only when it is one itself.</strong> The seven
+fixed-arity builtins do not flatten (ref §11), so an array given to one is
+a <code>TypeMismatch</code> whatever it holds: <code>negate([$s])</code> is a <code>TypeMismatch</code>,
+like <code>negate([1])</code>, and not a <code>NotConcrete</code>. Nothing looks inside the
+array. <code>sum</code> and <code>product</code> flatten first, and <code>sum({k: $s})</code> is a
+<code>TypeMismatch</code> for the same reason: an object is not a number.</p>
+</li>
+<li>
+<p><strong>Nothing is inferred through a symbol or a nested term.</strong>
 <code>sum(real($s), 1)</code> is built, and fails when the host evaluates it, as the
 residual law says it should. <code>inverse($s)</code> is a term even if the host later
 supplies <code>0.0</code>; an author who cares writes <code>!constraint(&quot;ne&quot;, $s, 0.0)</code> in
-the host’s vocabulary.
+the host’s vocabulary.</p>
 </li>
-<li><strong>A term is data, exactly as a symbol is</strong> (§1.5). It may be bound, passed,
+<li>
+<p><strong>A term is data, exactly as a symbol is</strong> (§1.5). It may be bound, passed,
 stored, placed in an attribute, a payload, a value slot or a text child,
-used as a constraint argument, and used as an operand.
+used as a constraint argument, and used as an operand.</p>
 </li>
-<li><strong>Everything that inspects refuses</strong>, as for a symbol: <code>branch</code>, <code>eq</code>, <code>lt</code>,
-<code>lte</code>, <code>gt</code>, <code>gte</code>, <code>str</code> and interpolation, <code>cardinality</code>, <code>has</code>, <code>lookup</code>,
-<code>&lt;&gt;</code>, a <code>map</code> spine and an allocation key are <code>NotConcrete</code> on anything
-containing a term. The comparisons do <strong>not</strong> become symbolic: a boolean
-term could only feed <code>branch</code>, and control flow must be concrete.
+<li>
+<p><strong>Everything that inspects refuses, exactly where it refuses a symbol</strong>
+(§1.5), with <code>NotConcrete</code>. There are two depths, as for a symbol:</p>
+<ul>
+<li><code>eq</code>, <code>str</code> and so interpolation, and an allocation key need the whole
+value, so they refuse anything <em>containing</em> a term: <code>eq([$t], [1])</code> and
+<code>str({k: $t})</code> are <code>NotConcrete</code>.
 </li>
-<li><strong>A term has no projection.</strong> <code>$t.field</code> is a <code>TypeMismatch</code>: a term stands
-for a number, and a number has no fields.
+<li><code>branch</code>, the comparisons, <code>cardinality</code>, <code>has</code>, <code>lookup</code>, <code>&lt;&gt;</code> and the
+spine of <code>map</code>, <code>filter</code>, <code>scan</code> and <code>fold</code> refuse a term given <em>as</em> the
+condition, the operand, the container or the collection. A concrete
+structure that holds a term is not special (§1.7): <code>cardinality([$t])</code>
+is <code>1</code>, <code>[$t] &lt;&gt; [1]</code> has two elements, and <code>map([$t], f)</code> applies <code>f</code> to
+the term.
 </li>
-<li>A symbol standing for a whole array cannot be summed. It counts as one
-number; that is §1.7’s ceiling, unchanged.
+</ul>
+<p>The comparisons do <strong>not</strong> become symbolic: a boolean term could only feed
+<code>branch</code>, and control flow must be concrete.</p>
 </li>
-<li><strong>Equality of terms is structural</strong>, for §4’s deduplication: same <code>op</code>,
+<li>
+<p><strong>A term has no projection.</strong> <code>$t.field</code> is a <code>TypeMismatch</code>: a term stands
+for a number, and a number has no fields.</p>
+</li>
+<li>
+<p>A symbol standing for a whole array cannot be summed. It counts as one
+number; that is §1.7’s ceiling, unchanged.</p>
+</li>
+<li>
+<p><strong>Equality of terms is structural</strong>, for §4’s deduplication: same <code>op</code>,
 equal arguments in the same order. <code>sum($a, 1)</code> and <code>sum(1, $a)</code> are two
-terms.
+terms.</p>
 </li>
-<li>A term does not emit and does not allocate. It has no id and no entry in
+<li>
+<p>A term does not emit and does not allocate. It has no id and no entry in
 the symbol table, so a library may build one from a symbolic parameter
-(§1.4 is about <code>?</code>).
+(§1.4 is about <code>?</code>).</p>
 </li>
-<li>Concrete mode is untouched: no symbol can exist there (§5.1), so no term
-can.
+<li>
+<p>Concrete mode is untouched: no symbol can exist there (§5.1), so no term
+can.</p>
 </li>
 </ul>
 <hr />
@@ -482,7 +520,7 @@ about <code>!</code> and two refusals.</p>
 <span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;alloc&quot;</span><span class="fu">,</span> <span class="dt">&quot;site&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;web&quot;</span><span class="fu">},</span></span>
 <span id="11"><a href="#11" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">}</span><span class="ot">,</span></span>
 <span id="12"><a href="#12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;#ctx.threshold&quot;</span><span class="fu">,</span></span>
-<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;demand&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;ctx&quot;</span><span class="ot">,</span> <span class="st">&quot;threshold&quot;</span><span class="ot">]</span><span class="fu">},</span></span>
+<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;origin&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;demand&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;threshold&quot;</span><span class="ot">]</span><span class="fu">},</span></span>
 <span id="14"><a href="#14" aria-hidden="true" tabindex="-1"></a>     <span class="dt">&quot;binding&quot;</span><span class="fu">:</span> <span class="st">&quot;t&quot;</span><span class="fu">}</span></span>
 <span id="15"><a href="#15" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
 <span id="16"><a href="#16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;constraints&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
@@ -508,9 +546,16 @@ declarations.
 <li>A symbol the host seeded (§5.4) arrives as a value and is echoed wherever it
 was used; the language has nothing to add about it, so it is not listed.
 </li>
-<li><code>&quot;binding&quot;</code> is the name the allocation was bound to, or <code>null</code>. It is
+<li><code>&quot;binding&quot;</code> is the name the allocation was bound to, or <code>null</code>. It is a
+name only when the <code>?(k)</code> or <code>?ctx.path</code> is the whole right-hand side of an
+<code>@name = …</code> binding. Used inline it is <code>null</code>, and so it is in
+<code>@x = sum(?ctx.s, 1)</code>, where <code>x</code> names the term and not the symbol. It is
 provenance for humans. <code>&quot;origin&quot;</code> is the structured form of <code>&quot;id&quot;</code>, so a
 host never has to parse the id.
+</li>
+<li>A demand’s origin <code>&quot;path&quot;</code> is the <code>Demand</code> path of §3: the segments after
+<code>ctx</code>, so <code>?ctx.a.b</code> has <code>[&quot;a&quot;, &quot;b&quot;]</code>. The <code>ctx</code> root is not repeated; it
+is what <code>&quot;kind&quot;: &quot;demand&quot;</code> says.
 </li>
 <li>Every field is REQUIRED. A decoder MUST reject an object missing any of
 them, and MUST NOT infer one from a default — the discipline <code>node-json.md</code>
@@ -543,29 +588,61 @@ the term’s operands in order, each a number, a symbol or a term.</p>
 <p>The ambiguity to rule out is a template, or a context, carrying a data object
 whose key is <code>&quot;$sym&quot;</code> or <code>&quot;$term&quot;</code>. Neither can:</p>
 <ul>
-<li><strong>Object keys in Tramaj are always static.</strong> An object key is a quoted
+<li>
+<p><strong>Object keys in Tramaj are always static.</strong> An object key is a quoted
 string literal or a bare identifier, and ref §5 forbids interpolation there,
 so nothing computes one. <code>{&quot;$sym&quot;: 1}</code> written in a program is a <strong>parse
 error</strong>, in the same family as <code>import(&quot;lib-`$x`&quot;)</code>, and so is
-<code>{&quot;$term&quot;: 1}</code>.
+<code>{&quot;$term&quot;: 1}</code>.</p>
 </li>
-<li><strong><code>&quot;$sym&quot;</code>, <code>&quot;$type&quot;</code> and <code>&quot;$term&quot;</code> are reserved in the value domain in
+<li>
+<p><strong><code>&quot;$sym&quot;</code>, <code>&quot;$type&quot;</code> and <code>&quot;$term&quot;</code> are reserved in the value domain in
 both modes and in every profile</strong>, in programs and in contexts alike. A
 context carrying one of these keys is rejected by the decoder: in symbolic
 mode unless it is a well-formed symbol reference or a well-formed term, and
 in concrete mode always. One rule, so a program’s legality never depends on
 how a host runs it and a context does not change meaning when a host
 changes mode. Reserving <code>&quot;$term&quot;</code> rejects a context that carries that key
-as data, which implementations accept today.
+as data, which implementations accept today.</p>
 </li>
-<li><strong>A well-formed term</strong> has a known <code>op</code>, the argument count that builtin
-takes (one or more for <code>sum</code> and <code>product</code>), and arguments that are
-numbers, symbols or terms, with at least one symbol somewhere inside. An
-implementation without the arithmetic profile knows no <code>op</code>, so it rejects
-every term.
+<li>
+<p><strong>The rejection is a <code>TypeMismatch</code></strong>, in both modes, for a reserved key
+and for a malformed symbol reference or term alike. The context is decoded
+whole before evaluation starts, so a context is rejected whether or not
+the program reads the offending part.</p>
 </li>
-<li>Objects are otherwise built only by <code>&lt;&gt;</code>, which merges keys from objects
-that came from one of those two sources, so the sources are exhaustive.
+<li>
+<p><strong>A well-formed term is one a call could have built</strong> (§1.9). Its object
+has exactly the two keys <code>&quot;$term&quot;</code> and <code>&quot;arguments&quot;</code>; any other key beside
+them is rejected, as it is beside <code>&quot;$sym&quot;</code> and <code>&quot;path&quot;</code>. And:</p>
+<ul>
+<li><code>&quot;$term&quot;</code> is a string naming a known <code>op</code>, and <code>&quot;arguments&quot;</code> is an array
+with the argument count that builtin takes (one or more for <code>sum</code> and
+<code>product</code>);
+</li>
+<li>each argument is a number, a well-formed symbol reference or a
+well-formed term. An array is not an argument: a term holds its operands
+already flattened;
+</li>
+<li>at least one argument is a symbol reference or a term. A nested term is
+held to this whole rule itself, so every term contains a symbol at each
+level;
+</li>
+<li>the arguments that are numbers pass the check a call makes (§1.9): they
+agree with each other in type and with what the builtin accepts. A <code>sum</code>
+over <code>1</code>, a symbol and <code>2.0</code> is rejected, and so is a <code>quotient</code> of <code>1</code>
+by a symbol;
+</li>
+<li>each number is read by ref §3’s rule, so an integer outside the
+implementation’s range is rejected.
+</li>
+</ul>
+<p>An implementation without the arithmetic profile knows no <code>op</code>, so it
+rejects every term.</p>
+</li>
+<li>
+<p>Objects are otherwise built only by <code>&lt;&gt;</code>, which merges keys from objects
+that came from one of those two sources, so the sources are exhaustive.</p>
 </li>
 </ul>
 <p><code>&quot;$type&quot;</code> is reserved by v3 but unused by it; it is v4’s (<code>v4-types.md</code>).
@@ -583,7 +660,9 @@ and the template is being re-run — supplies it as an ordinary context value,
 and <code>?ctx.path</code> reads it with no allocation. This is what makes the
 ask-a-user and re-solve loops work without the template changing.</p>
 <p>A well-formed term (§5.3) is accepted the same way, and round-trips. A
-malformed one, or one with no symbol inside, is rejected.</p>
+malformed one, or one with no symbol inside, is rejected with a
+<code>TypeMismatch</code>. A seeded number is read by ref §3’s rule, like any other
+context number.</p>
 <h4 id="55-profiles">5.5 Profiles</h4>
 <p>An implementation MAY implement the <strong>core profile</strong> only — the language of
 <code>reference.md</code>, concrete output, no symbolic extension — and remain
@@ -610,9 +689,11 @@ profile.</p>
 <tr><td><code>SymbolsUnavailable</code></td><td>a symbol would have to be minted in concrete mode (§5.1)</td></tr>
 </table>
 <p><code>TypeMismatch</code> covers the rest: a constraint value crossing a JSON boundary,
-a <code>!</code> over something that is neither a constraint nor an array of them, and a
-projection of a term (§1.9). A term is a symbolic value, so <code>NotConcrete</code>
-covers it wherever it covers a symbol. An
+a <code>!</code> over something that is neither a constraint nor an array of them, a
+projection of a term (§1.9), an array given to a fixed-arity arithmetic
+builtin whatever it holds (§1.9), and a context the decoder rejects (§5.3).
+A term is a symbolic value, so <code>NotConcrete</code> covers it wherever it covers a
+symbol, and to the same depth. An
 unsupplied <code>?ctx.path</code> inside a library is the existing <code>PathNotFound</code>,
 <code>InLibrary</code>-wrapped.</p>
 <p><code>AllocationInLibrary</code> has a static counterpart: a program with a non-empty
