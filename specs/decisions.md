@@ -896,231 +896,179 @@ specs win.
     keeps the type it has and nothing is typed again at the import (ref §3).
     Reason: "typed by its text" has no text to apply to there.
 
-## 19. A traverse form for allocation: `?(key, shape)`
+## 19. A traverse form for allocation: `?(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved.*
-
-*Vocabulary.* A **null position** is a place in the shape whose value is `null`.
-An **implicit symbol** is the symbol the form allocates there: implicit because
-no `?(k)` is written for it, and in every other respect an ordinary allocation.
-The word "hole" is avoided: it already means a context read (§2, §10) and an
-unsupplied type parameter (§16).
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled two points: a symbol in a shape is declared by an explicit marker, and the marker is named.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
 
 **What is awkward today.** v3-symbols §1.7 already gives a flat array of symbols
 over an existing collection (`map($ctx.services, (s) => ?($s.name))`), and a
-grid is two nested `map`s with a `[$r, $c]` key. Those need nothing new. Three
-programs do:
+grid is two nested `map`s with a `[$r, $c]` key. Those need nothing new. A
+record of symbols does:
 
 ```
--- (a) a record of symbols per service: four sites, four hand-composed keys,
---     each one restating the position it is already written at
+-- four sites, and four hand-composed keys that each repeat the iteration key
 @ds = map($ctx.services, (s) => {
   replicas: ?([$s.name, "replicas"]),
   zone:     ?([$s.name, "zone"]),
-  ports:    [?([$s.name, "ports", 0]), ?([$s.name, "ports", 1])]
+  ports:    [?([$s.name, "http"]), ?([$s.name, "admin"])]
 })
-
--- (b) the same, when the record's field list is data rather than source:
---     no builtin iterates an object, and without recursion (ref §6) none can
---     be written, so this is not expressible at all
-
--- (c) partially known data, {"web": {"replicas": 3, "zone": null}, ...}:
---     "a variable wherever the caller left a null" needs one hand-written
---     branch per path, and again cannot follow a shape that is data
 ```
 
-So the gap is: keys that only repeat the position, one site per symbol, no walk
-over objects or over mixed depth, and no way to fill the nulls of a value. It
+The gap is one site per symbol and a key composed by hand at each of them. It
 is *not* "N symbols from the number N": that needs a collection of length N,
-which is a `range`/arithmetic question and stays out of this section.
+which is a `range` question and stays out of this section. It is not "a symbol
+wherever the data has none" either: a shape here is written in the source (see
+*Rejected*).
 
-**Surface form.** The allocation form gains an optional second argument:
-
-```
-alloc ::= "?(" expr ")"              -- v3-symbols §1.2, unchanged
-        | "?(" expr "," expr ")"     -- key, shape
-
-@d  = ?("d", {replicas: null, zone: null, ports: [null, null]})
-@ds = map($ctx.services, (s) => ?($s.name, {replicas: null, ports: [null, null]}))
-@p  = ?("plan", $ctx.plan)
-```
-
-`?(a, b)` is a parse error today, so no existing program changes meaning. Three
-or more arguments stay a parse error. It is a special form and not a builtin
-for the reason `?(k)` is: it needs a site, and a site is assigned by the parser
-(v3-symbols §1.4). A builtin `traverse(shape)` would have none, so two calls
-over equal shapes would denote the same variables, which is exactly what the
-site is in the id to prevent. Keeping the `?` leader also keeps v3-symbols §5.5
-true as written: the core profile rejects it at parse time with no new rule.
-
-**What a declaration inside a structure is: `null`.** Both arguments are
-ordinary expressions, evaluated where they are written, key first. The shape
-evaluates to a value, and the result is that value with **every `null`
-replaced by a symbol** and everything else returned as it is:
-
-| position in the shape | result |
-|---|---|
-| `null` | an implicit symbol, identified by the path to it (below) |
-| array | an array of the same length, each element traversed, in index order |
-| object | an object with the same keys, each value traversed, in sorted key order |
-| boolean, number, string | itself |
-| symbol (allocation or projection) | itself — it is already a variable |
-| closure, builtin, node, import, constraint | `TypeMismatch` — the shape is data |
-
-This sidesteps the eager-`?(k)` problem instead of solving it: a declaration is
-not a new kind of value and not a new token, it is the one JSON value that
-already means "nothing here". No keyless `?` is introduced. A structure literal
-with `null`s is the written-out case; a value from `$ctx` or from `map` is the
-computed one; and the two are the same form.
-
-Consequences, all intended:
-
-- The spine is preserved exactly (same keys, same lengths), so everything
-  structural in v3-symbols §1.7 keeps working on the result.
-- A shape with no `null` is returned unchanged and allocates nothing. `[]` and
-  `{}` are such shapes.
-- It is idempotent on its own output, and a symbol the host seeded (v3-symbols
-  §5.4) into the shape survives: a re-run with half the null positions solved and
-  the other half seeded or still `null` needs no change to the template.
-- A legitimate `null` cannot be kept through the form. An author who needs one
-  merges it back with `<>`. This is the cost of not adding a marker.
-- "Is this leaf `null`?" is asked of concrete values only. A symbol is never
-  inspected (v3-symbols §1.5); it is passed through by constructor, the same way
-  an array literal holds one.
-
-**Identity.** The implicit symbol allocated at path *p* by `?(k, shape)` at site *n* is
-**the symbol `?([k, p])` would allocate at site *n***:
+**Surface form.** The allocation form gains an optional second argument, and
+inside it a **symbol marker**, `~name`:
 
 ```
-id = "#" n ":" canon([k, p])       -- v3-symbols §1.4, with the pair as the key
-p  = the JSON array of steps from the shape's root: an object key as a string,
-     an array index as a number, [] for a shape that is itself null
+alloc  ::= "?(" expr ")"                 -- v3-symbols §1.2, unchanged
+         | "?(" expr "," shape ")"       -- key, shape
+shape  ::= "~" name                      -- a symbol marker
+         | "[" [ shape { "," shape } ] "]"
+         | "{" [ field { "," field } ] "}"   -- field values are shapes
+         | expr                          -- anything else, with no marker in it
 
-?("d", {replicas: null, ports: [null, null]})      -- at site 0
-  #0:["d",["ports",0]]   #0:["d",["ports",1]]   #0:["d",["replicas"]]
+@d  = ?("d", {replicas: ~replicas, zone: "eu", ports: [~http, ~admin]})
+@ds = map($ctx.services, (s) => ?($s.name, {replicas: ~replicas, ports: [~http, ~admin]}))
 ```
 
-- *Both* an author key and the path, for the reason v3-symbols §1.2 gives. The
-  path says which null position of the shape; the key says which evaluation of the site,
-  and under a `map` nothing else does. A constant key under a `map` shares the
-  whole shape's symbols across iterations, as a constant key shares one symbol
-  today. The key MUST be concrete (`NotConcrete` otherwise), as in §1.2.
-- Injective: `canon` is injective (§13), a string step and a number step differ
-  in JSON (`["0"]` vs `[0]`), and a site is one form or the other, so an id from
-  this form cannot meet an id from a plain `?(k)`. Sites are numbered in one
-  sequence across both forms.
-- Order-independent: the id is a function of the program text, the key and the
-  position. No counter is involved.
-- A null position in an array is identified by index. A flat array that should be keyed by
-  name, and so survive reordering, is still `map(xs, (x) => ?($x.name))`. The
-  two are different promises and the source says which was made.
+- `~` is a new leader character. It is used nowhere in the grammar today, and a
+  name starts with a letter (ref §5), so `~name` is a parse error in every
+  existing program. The name follows the `~` directly and obeys the ordinary
+  name rule.
+- A marker is legal only at a **structural position** of a shape: the shape
+  itself, an element of an array literal, or a field value of an object
+  literal, to any depth. Anywhere else (outside a `?(k, shape)`, or inside a
+  call, a lambda, an interpolation or a `<>` within the shape) it is a parse
+  error. So the symbols a form allocates are exactly the markers a reader sees
+  in it.
+- Every other position of the shape is an ordinary expression: `"eu"` above, a
+  `$ctx` read, a `?ctx.path`, a call, or another `?(k, shape)`, whose markers
+  are its own.
+- A shape MUST contain at least one marker; `?("d", [1, 2])` is a parse error.
+  Two markers with the same name in one form are a parse error, as duplicate
+  names in a pattern are (§17).
+- `?(a, b)` is a parse error today, so no existing program changes meaning.
+  Three or more arguments stay a parse error.
 
-**Symbol table and envelope.** No change to the envelope and no format bump.
-Each allocation is an ordinary entry whose origin is an ordinary `alloc`:
+It is a special form and not a builtin for the reason `?(k)` is: it needs a
+site, and a site is assigned by the parser (v3-symbols §1.4). Keeping the `?`
+leader also keeps v3-symbols §5.5 true as written: the core profile rejects the
+form at parse time with no new rule, and the marker with it.
 
-```json
-{"id": "#0:[\"d\",[\"ports\",0]]",
- "origin": {"kind": "alloc", "site": 0, "key": ["d", ["ports", 0]]},
- "binding": "d"}
-```
-
-- **Order.** Entries are appended in walk order: arrays by index, objects by
-  key in the order `canon` sorts them. Object key order is not semantically
-  significant (ref §6), so sorted order is the only one two implementations can
-  agree on. Then v3-symbols §4 applies unchanged: first occurrence kept,
-  deduplicated by id.
-- **`"binding"`** is the name the form is directly bound to (`@d = ?("d", …)`),
-  the same rule as `?(k)`, and `null` otherwise. It names the structure, not the
-  single symbol; with `origin.key[1]` a reader reconstructs `d.ports[0]`.
-- A host decoder needs no new case. A host that wants the path reads
-  `origin.key`, and cannot tell this form from a hand-written `?([k, p])`, which
-  is the point: the form is a way to write allocations, not a new kind of one.
-
-**Interaction with existing rules.**
-
-- *Root only.* The site is a `?(`, so `AllocationInLibrary` applies lexically
-  and unchanged, including to a shape that would have had no `null`.
-- *Concrete mode.* `SymbolsUnavailable` is raised when a `null` is reached, not
-  by the form's presence: "a symbol would have to be minted" (v3-symbols §6) is
-  already the right wording. A shape with no `null` passes through in concrete mode.
-  That makes `?("plan", $ctx.plan)` the root's analogue of a supplied
-  `?ctx.path`. Key and shape are evaluated first in both modes, and the shape's
-  `TypeMismatch` takes precedence over `SymbolsUnavailable`.
-- *Demands and seeding.* `?ctx.path` is unchanged and composes:
-  `?("plan", ?ctx.plan)` demands the path and fills what was supplied. There is
-  no traversing demand form.
-- *Core profile.* Rejected at parse time, as every `?` is.
-- *`symbolSites`.* Reports the site, with no distinction between the forms. It
-  already says that the number of symbols is a runtime fact.
-- *v4 annotations.* `@xs : [T] = ?("xs", [null, null])` is the existing sugar
-  (v4-types §7): one `has-type` whose argument is the whole array and whose type
-  is `[T]`. No per-element `has-type` is emitted. Distributing a type over a
-  value is matching a value against a type, which Tramaj does not do; the host
-  has both and can.
-
-**Core AST.** One constructor, not a lowering:
+**Desugaring** (the core AST does not change). `?(k, shape)` at site *n* lowers
+to the shape with each marker `~name` replaced by
 
 ```text
-  | AllocIn  site: Int, key: Expr, shape: Expr     -- ?(k, shape)
+Alloc n [k, "name"]          -- what ?([k, "name"]) would be at site n
 ```
 
-A lowering onto `Alloc` + `Map` is not faithful. `Map` walks arrays only, there
-is no object iteration, and without recursion nothing in the core can follow a
-shape whose depth is data. The lowering exists only for a *literal* shape (each
-`null` in the literal becomes `Alloc n [k, p]`, all sharing one site), and
-adopting it for literals alone would give the form two semantics. The cost of
-the constructor is one evaluator case and one line in each analysis per port;
-`Alloc` itself is untouched.
+where `k` is bound once to a hidden name (§17's rule for hidden names) and read
+from each marker. Everything else in the shape is left as written. So the form
+means exactly what the hand-written literal means, with two differences a
+literal cannot have: the key is written once, and all the allocations share one
+site. Sites are numbered in one sequence across both forms, and a marker takes
+no number of its own.
 
-**Errors.** No new kind. `NotConcrete` (a symbol in the key), `TypeMismatch` (a
-non-data value in the shape), `SymbolsUnavailable` (a `null` reached in
-concrete mode), `AllocationInLibrary` (lexical), and a parse error for `?()` and for
-three or more arguments.
+**Identity.**
+
+```
+id = "#" n ":" canon([k, "name"])       -- v3-symbols §1.4, with the pair as the key
+
+?("d", {replicas: ~replicas, ports: [~http, ~admin]})      -- at site 0
+  #0:["d","replicas"]   #0:["d","http"]   #0:["d","admin"]
+```
+
+- The name says which symbol of the shape; the key says which evaluation of the
+  site, and under a `map` nothing else does. A constant key under a `map`
+  shares the whole shape's symbols across iterations, as a constant key shares
+  one symbol today (v3-symbols §1.2). The key MUST be concrete (`NotConcrete`
+  otherwise).
+- The position is not in the id. Reordering `[~http, ~admin]`, or moving a
+  marker to another field, keeps every symbol's identity; renaming a marker
+  changes it. Identity is what the author named, as for `?(k)`.
+- Injective: `canon` is injective (§13), names are distinct within a form, and
+  a site is one form or the other, so an id from this form cannot meet an id
+  from a plain `?(k)`.
+- Order-independent: the id is a function of the program text and the key.
+
+**Symbol table and envelope.** No change and no format bump. Each allocation is
+an ordinary entry:
+
+```json
+{"id": "#0:[\"d\",\"http\"]",
+ "origin": {"kind": "alloc", "site": 0, "key": ["d", "http"]},
+ "binding": null}
+```
+
+- **Order** is that of the lowered literal, under v3-symbols §4 unchanged.
+- **`"binding"`** is `null` for every entry: no marker is the whole right-hand
+  side of a binding (v3-symbols §5.2), and the name of `@d = ?("d", …)` names
+  the structure. `origin.key` carries the author's key and the marker's name.
+- A host decoder needs no new case, and cannot tell this form from hand-written
+  `?([k, "name"])` allocations. The form is a way to write allocations, not a
+  new kind of one.
+
+**Interaction with existing rules.** All of these follow from the lowering.
+
+- *Root only.* `AllocationInLibrary` applies lexically, unchanged.
+- *Concrete mode.* `SymbolsUnavailable`, as for `?(k)`. A form always contains
+  a marker, so there is no shape that passes through.
+- *Demands and seeding.* Unrelated to markers; `?ctx.path` is an ordinary
+  expression in a shape: `?("d", {replicas: ~replicas, zone: ?ctx.zone})`.
+- *Core profile.* Rejected at parse time, as every `?` is.
+- *`symbolSites`.* Reports the site once. The number of symbols one evaluation
+  of the site allocates is now static: the number of markers.
+- *v4 annotations.* `@xs : [T] = ?("xs", [~a, ~b])` is the existing sugar
+  (v4-types §7): one `has-type` on the whole array, none per element.
+
+**Errors.** No new kind. `NotConcrete` (a symbol in the key),
+`SymbolsUnavailable` (concrete mode), `AllocationInLibrary` (lexical), and
+parse errors for a marker outside a structural position, a shape with no
+marker, a duplicate marker name, `?()`, and three or more arguments.
 
 **Rejected or deferred**
 
-- *A general `walk(value, (path, leaf) => …)` constructor, with allocation left
-  to an ordinary `?($path)` in the lambda.* This is the more general primitive,
-  and `?(k, shape)` is one use of it. But it is a recursion scheme added to a
-  language that has none, the lambda cannot test a leaf that is a symbol
-  (`eq` is `NotConcrete`), and the common case becomes a four-line idiom. Worth
-  reconsidering only if a second, non-symbolic use appears.
-- *A marker in literals (`?(k, {a: _, b: [_, _]})`).* Desugars cleanly but
-  only covers shapes written in the source, so (b) and (c) stay inexpressible.
-  As a runtime value instead, a marker is a new `Value` constructor in six
-  ports that every JSON boundary must then refuse.
-- *Every scalar leaf gets an implicit symbol.* `?(k, $ctx.services)` would then give one
-  symbol per string, but a record could no longer mix known fields and symbols,
-  and (c) is lost.
-- *Leaves as keys (`?each(["a", "b"])` meaning `[?("a"), ?("b")]`).* That is
-  `map(xs, (k) => ?($k))` with a second spelling, and still invents every key.
-- *A new origin kind carrying the path separately.* Every envelope decoder
-  would change (all fields are REQUIRED, v3-symbols §5.2) to say what
-  `origin.key` already says.
-- *Path-only identity, no key.* A keyless form, with the `map` ambiguity
-  v3-symbols §1.2 refuses.
-- *Symbols from a count.* Belongs with arithmetic or a `range`.
+- *`null` as the place of a symbol (the first draft of this section).* It
+  needed no token and let a shape come from `$ctx`, but it overloaded `null`:
+  a legitimate `null` could not be kept, and data allocated symbols nobody
+  wrote. It also needed a new core constructor, since nothing in the core can
+  walk a value whose depth is data. With it goes "a symbol wherever the caller
+  left a blank", which stays inexpressible.
+- *A bare marker, identified by its path.* Shorter, but an array's symbols
+  would then be identified by index and change identity on reordering.
+- *`_name` as the marker.* `_` is already a name character and a digit
+  separator, and is the likely spelling of "ignore" in a pattern (§17).
+- *A general `walk(value, (path, leaf) => …)` constructor.* A recursion scheme
+  added to a language that has none.
+- *A core `AllocIn` constructor, or a new origin kind.* Neither is needed once
+  the form is a lowering.
+- *Symbols from a count.* Belongs with a `range`.
+- *A shorthand `{~replicas}` for `{replicas: ~replicas}`*, after the object
+  literal's `{foo}`. Deferred; see the questions.
 
 **Follow-up once approved:** normative text in `specs/v3-symbols.md` (§1.2,
-§1.4, §1.7, §3, §5.1, §7, §8 and the §9 table); the parser, evaluator and
-`symbolSites` change in the PureScript reference, then the other five ports.
-Corpus families: a literal shape with nulls at several depths; table order for
-an object written in non-sorted key order; a shape with no `null` in both modes; a
-bare `?(k, null)`; key per iteration under `map`, and a constant key under
-`map` sharing symbols; a shape from `$ctx`; a seeded symbol and an earlier
-allocation inside the shape; an object key `"0"` beside an array index `0`;
-`"binding"` bound and inline; a symbolic key; a closure in the shape; a `null`
-reached in concrete mode; the form in a library; `?()` and three arguments;
-an annotated binding emitting a single `has-type`.
+§1.4, §1.7, §5.2, §7, §8) and `specs/reference.md` (the leader characters and
+the syntax table); the parser change in the PureScript reference, then the
+other five ports. Corpus families: markers at several depths; an expression
+beside a marker; key per iteration under `map`, and a constant key under `map`
+sharing symbols; reordered markers keeping their ids; table order for an
+object written in non-sorted key order; `"binding"` bound and inline; a nested
+form; a symbolic key; concrete mode; the form in a library; an annotated
+binding emitting a single `has-type`; and the parse errors (a marker outside a
+form, inside a call and inside a lambda, a marker-free shape, a duplicate
+name, `?()`, three arguments).
 
-**Questions for the owner.** (1) `null` as the place of an implicit symbol, at the price of not being
-able to keep a `null`, versus a dedicated marker. (2) The spelling `?(key,
-shape)` rather than a named form. (3) Identity as `?([key, path])` with no
-envelope change, so a host cannot tell the form from hand-written allocations.
-(4) `"binding"` reporting the structure's name for every entry, rather than
-`null`. (5) A new `AllocIn` constructor, given that a faithful desugaring only
-exists for literal shapes. (6) Concrete mode accepting a shape with no `null` rather
-than refusing the form outright.
+**Questions for the owner.** (1) A duplicate marker name as a parse error,
+rather than one shared symbol. (2) A shape with no marker as a parse error.
+(3) Markers at structural positions only, so not inside a call or a lambda in
+the shape. (4) `"binding"` as `null` for every entry, which is what the
+lowering gives, rather than the structure's name. (5) Whether to add the
+`{~replicas}` shorthand now, since `replicas: ~replicas` repeats the name.
+(6) The spelling `?(key, shape)` rather than a named form.
