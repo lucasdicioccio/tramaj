@@ -3,6 +3,7 @@ package tramaj
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,8 +24,30 @@ const (
 	Symbolic Mode = "symbolic"
 )
 
+// Options is what a host chooses for one evaluation. The zero value is not
+// usable, since it names no mode; start from DefaultOptions.
+type Options struct {
+	Mode Mode
+	// Arithmetic turns on the arithmetic profile (specs/reference.md section
+	// 11) for this evaluation: the names of ArithmeticNames are in the
+	// initial environment of the root program and of every library it runs,
+	// and a well-formed term is accepted in a symbolic-mode context. Off,
+	// those names are unbound, so sum(1, 2) is an UnboundName, and every
+	// seeded term is refused. The two number types and the reserved "$term"
+	// key do not depend on it.
+	Arithmetic bool
+}
+
+// DefaultOptions is concrete mode without the arithmetic profile, which is
+// what EvalProgram and RunProgram add to the mode they are given. A host that
+// leaves the profile off can refuse a program beforehand with
+// DeepArithmeticOps.
+var DefaultOptions = Options{Mode: Concrete}
+
 // EvalError carries one of the error kinds from specs/reference.md section
-// 12, plus v3's symbol kinds and the one v4 static failure (TypeErr). Error()
+// 12 (NotRepresentable among them: an arithmetic operation with no result in
+// the type of its operands), plus v3's symbol kinds and the one v4 static
+// failure (TypeErr). Error()
 // always leads with the bare kind; the rest is implementation-defined prose.
 type EvalError struct {
 	Kind   string
@@ -51,8 +74,9 @@ func evalFail(kind, format string, args ...any) {
 	panic(&EvalError{Kind: kind, Detail: fmt.Sprintf(format, args...)})
 }
 
-func typeMismatch(format string, args ...any) { evalFail("TypeMismatch", format, args...) }
-func notConcrete(who string)                  { evalFail("NotConcrete", "%s", who) }
+func typeMismatch(format string, args ...any)     { evalFail("TypeMismatch", format, args...) }
+func notRepresentable(format string, args ...any) { evalFail("NotRepresentable", format, args...) }
+func notConcrete(who string)                      { evalFail("NotConcrete", "%s", who) }
 
 // try runs f, returning the *EvalError it panicked with, if any.
 func try(f func()) (err *EvalError) {
@@ -87,9 +111,13 @@ func withTypeErrors[T any](f func() T) T {
 type value interface{ isValue() }
 
 type (
-	vNull    struct{}
-	vBool    bool
-	vNumber  float64
+	vNull struct{}
+	vBool bool
+	// vInt is an integer, in the signed 64-bit range; vFloat is a float,
+	// finite and never a negative zero (specs/reference.md section 3).
+	// Nothing converts one into the other except real and floor.
+	vInt     int64
+	vFloat   float64
 	vStr     string
 	vArray   []value
 	vObject  struct{ fields *OrderedMap[value] }
@@ -118,6 +146,14 @@ type (
 		name string
 		args []value
 	}
+	// vTerm is a term (v3-symbols.md section 1.9): an arithmetic operation
+	// left unevaluated because an operand is a symbol or a term. args are the
+	// flattened operands exactly as written, each a vInt, a vFloat, a
+	// *vSymbol or a *vTerm, nothing folded and no nested term spliced.
+	vTerm struct {
+		op   string
+		args []value
+	}
 )
 
 type queuedAdaptation struct {
@@ -127,7 +163,9 @@ type queuedAdaptation struct {
 
 func (vNull) isValue()          {}
 func (vBool) isValue()          {}
-func (vNumber) isValue()        {}
+func (vInt) isValue()           {}
+func (vFloat) isValue()         {}
+func (*vTerm) isValue()         {}
 func (vStr) isValue()           {}
 func (vArray) isValue()         {}
 func (*vObject) isValue()       {}
@@ -165,10 +203,18 @@ var builtinNames = []string{
 	"has", "lookup", "concat", "append",
 }
 
-func initialEnv(ctxVal value) *env {
+// initialEnv is $ctx and the builtins. The arithmetic names are bound only
+// with the arithmetic profile on (specs/reference.md section 11); without it
+// they are unbound like any other name.
+func initialEnv(arithmetic bool, ctxVal value) *env {
 	var e *env
 	for _, n := range builtinNames {
 		e = e.bind(n, vBuiltin(n))
+	}
+	if arithmetic {
+		for _, n := range ArithmeticNames {
+			e = e.bind(n, vBuiltin(n))
+		}
 	}
 	return e.bind("ctx", ctxVal)
 }
@@ -192,6 +238,9 @@ type evalCtx struct {
 	libs       Libraries
 	inProgress map[string]bool
 	mode       Mode
+	// arithmetic is whether the arithmetic profile is on (Options): a library
+	// runs with the profile of the evaluation that reached it.
+	arithmetic bool
 	isRoot     bool
 	em         *emissions
 }
@@ -222,21 +271,27 @@ func catchEvalError(err *error) {
 	}
 }
 
-// EvalProgram evaluates a program against a context. The error, when there is
-// one, is an *EvalError.
-func EvalProgram(mode Mode, libs Libraries, ctx JSON, prog *Program) (out Output, err error) {
+// EvalProgram evaluates a program against a context, without the arithmetic
+// profile. The error, when there is one, is an *EvalError.
+func EvalProgram(mode Mode, libs Libraries, ctx JSON, prog *Program) (Output, error) {
+	return EvalProgramWith(Options{Mode: mode}, libs, ctx, prog)
+}
+
+// EvalProgramWith is EvalProgram with every option chosen by the host.
+func EvalProgramWith(options Options, libs Libraries, ctx JSON, prog *Program) (out Output, err error) {
 	defer catchEvalError(&err)
-	out, _ = evalProgram(mode, libs, ctx, prog)
+	out, _ = evalProgram(options, libs, ctx, prog)
 	return out, nil
 }
 
-func evalProgram(mode Mode, libs Libraries, ctx JSON, prog *Program) (Output, *emissions) {
+func evalProgram(options Options, libs Libraries, ctx JSON, prog *Program) (Output, *emissions) {
+	mode := options.Mode
 	if mode != Concrete && mode != Symbolic {
 		panic(fmt.Sprintf("tramaj: unknown mode %q", mode))
 	}
 	erased := withTypeErrors(func() *Program { return eraseTypes(libs, prog) })
-	c := &evalCtx{libs: libs, mode: mode, isRoot: true, em: &emissions{}}
-	v := c.eval(initialEnv(checkedFromJSON(mode, ctx)), erased.Root)
+	c := &evalCtx{libs: libs, mode: mode, arithmetic: options.Arithmetic, isRoot: true, em: &emissions{}}
+	v := c.eval(initialEnv(options.Arithmetic, checkedFromJSON(options, ctx)), erased.Root)
 	if n, ok := v.(*vNode); ok {
 		return Output{Node: n.node}, dedupe(c.em)
 	}
@@ -286,10 +341,17 @@ func constraintToJSON(c *vConstraint) JSON {
 // RunProgram evaluates and serializes to the wire JSON a host compares
 // against a corpus case's expected.json: the node-json document or the plain
 // value in concrete mode, the v3-symbols section 5.2 envelope in symbolic
-// mode. The error, when there is one, is an *EvalError.
-func RunProgram(mode Mode, libs Libraries, ctx JSON, prog *Program) (out JSON, err error) {
+// mode. It runs without the arithmetic profile. The error, when there is one,
+// is an *EvalError.
+func RunProgram(mode Mode, libs Libraries, ctx JSON, prog *Program) (JSON, error) {
+	return RunProgramWith(Options{Mode: mode}, libs, ctx, prog)
+}
+
+// RunProgramWith is RunProgram with every option chosen by the host.
+func RunProgramWith(options Options, libs Libraries, ctx JSON, prog *Program) (out JSON, err error) {
 	defer catchEvalError(&err)
-	output, em := evalProgram(mode, libs, ctx, prog)
+	mode := options.Mode
+	output, em := evalProgram(options, libs, ctx, prog)
 	root := output.toJSON()
 	if mode == Concrete {
 		return root, nil
@@ -397,8 +459,10 @@ func (c *evalCtx) eval(en *env, e Expr) value {
 		return c.eval(en.bind(x.Name, c.evalBindable(en, binding, x.Value)), x.Body)
 	case *StringLit:
 		return vStr(x.Value)
-	case *NumberLit:
-		return vNumber(x.Value)
+	case *IntLit:
+		return vInt(x.Value)
+	case *FloatLit:
+		return vFloat(x.Value)
 	case *BoolLit:
 		return vBool(x.Value)
 	case *NullLit:
@@ -542,7 +606,7 @@ func (c *evalCtx) evalAlloc(en *env, binding JSON, a *Alloc) value {
 	id := "#" + strconv.Itoa(a.Site) + ":" + CompactJSON(key)
 	c.em.symbols = append(c.em.symbols, symbolEntry{
 		id:      id,
-		origin:  NewObject("kind", "alloc", "site", float64(a.Site), "key", key),
+		origin:  NewObject("kind", "alloc", "site", int64(a.Site), "key", key),
 		binding: binding,
 	})
 	return &vSymbol{id: id}
@@ -657,7 +721,7 @@ func (c *evalCtx) evalCollection(en *env, who string, e Expr) vArray {
 	switch v := c.eval(en, e).(type) {
 	case vArray:
 		return v
-	case *vSymbol:
+	case *vSymbol, *vTerm:
 		notConcrete(who)
 	default:
 		typeMismatch("%s expects an array as its first argument, got %s", who, describeValue(v))
@@ -668,9 +732,7 @@ func (c *evalCtx) evalCollection(en *env, who string, e Expr) vArray {
 // Concat.
 
 func concatValues(l, r value) value {
-	_, lSym := l.(*vSymbol)
-	_, rSym := r.(*vSymbol)
-	if lSym || rSym {
+	if isSymbolic(l) || isSymbolic(r) {
 		notConcrete("<>")
 	}
 	switch a := l.(type) {
@@ -725,12 +787,12 @@ func (c *evalCtx) runLibrary(name string, ctxVal value) value {
 	for k := range c.inProgress {
 		inProgress[k] = true
 	}
-	lib := &evalCtx{libs: c.libs, inProgress: inProgress, mode: c.mode, isRoot: false, em: c.em}
+	lib := &evalCtx{libs: c.libs, inProgress: inProgress, mode: c.mode, arithmetic: c.arithmetic, isRoot: false, em: c.em}
 
 	var result value
 	err := try(func() {
 		stmts, root := Unlets(prog.Root)
-		en := initialEnv(ctxVal)
+		en := initialEnv(lib.arithmetic, ctxVal)
 		var names []string
 		for _, s := range stmts {
 			switch s.Kind {
@@ -853,10 +915,18 @@ func toJSON(v value) JSON {
 		return nil
 	case vBool:
 		return bool(x)
-	case vNumber:
+	case vInt:
+		return int64(x)
+	case vFloat:
 		return float64(x)
 	case vStr:
 		return string(x)
+	case *vTerm:
+		args := make([]JSON, len(x.args))
+		for i, a := range x.args {
+			args[i] = toJSON(a)
+		}
+		return NewObject("$term", x.op, "arguments", args)
 	case vArray:
 		out := make([]JSON, len(x))
 		for i, item := range x {
@@ -888,9 +958,23 @@ func toJSON(v value) JSON {
 	panic("tramaj: unknown value")
 }
 
+// isSymbolic reports whether a value is itself a symbol or a term
+// (v3-symbols.md section 1.9), which is the depth at which a container, a
+// collection, a condition or an operand is refused: a concrete structure that
+// merely holds one is not special (section 1.7). containsSymbol is the other
+// depth.
+func isSymbolic(v value) bool {
+	switch v.(type) {
+	case *vSymbol, *vTerm:
+		return true
+	}
+	return false
+}
+
+// containsSymbol reports whether a value is, or contains, a symbol or a term.
 func containsSymbol(v value) bool {
 	switch x := v.(type) {
-	case *vSymbol:
+	case *vSymbol, *vTerm:
 		return true
 	case vArray:
 		for _, item := range x {
@@ -927,8 +1011,10 @@ func convertJSON(v JSON, object func(*Object) value) value {
 		return vNull{}
 	case bool:
 		return vBool(x)
+	case int64:
+		return vInt(x)
 	case float64:
-		return vNumber(normalizeNumber(x))
+		return vFloat(normalizeNumber(x))
 	case string:
 		return vStr(x)
 	case []JSON:
@@ -952,38 +1038,94 @@ func convertJSON(v JSON, object func(*Object) value) value {
 	return nil
 }
 
-// checkedFromJSON is the input context's boundary: as fromJSON, but
-// recursively refusing "$sym" and "$type" as ordinary object keys. In
-// symbolic mode, seeding accepts a well-formed {"$sym": ..., "path": [...]}
-// back as a symbol.
-func checkedFromJSON(mode Mode, v JSON) value {
-	return convertJSON(v, func(obj *Object) value {
+// checkedFromJSON is the input context's boundary, decoding the whole
+// context before evaluation starts (specs/reference.md section 3,
+// v3-symbols.md section 5.3). Every refusal is a TypeMismatch.
+//
+// First the numbers, by NormalizeNumbers: an integer outside the integer
+// range and a float too large for a double are refused, at any depth.
+//
+// Then the reserved keys: "$sym", "$type" and "$term" are recursively refused
+// as ordinary object keys, in every profile. In concrete mode each is refused
+// unconditionally. In symbolic mode, seeding (section 5.4) accepts a
+// well-formed {"$sym": ..., "path": [...]} back as a symbol and, with the
+// arithmetic profile on, a well-formed term back as a term.
+func checkedFromJSON(options Options, v JSON) value {
+	normalized, err := NormalizeNumbers(v)
+	if err != nil {
+		typeMismatch("the context holds a number that is not a value: %v", err)
+	}
+	var object func(obj *Object) value
+	object = func(obj *Object) value {
 		if obj.Has("$type") {
 			typeMismatch(`the context carries the reserved key "$type", which only a typed envelope may use`)
 		}
-		sym, isSym := obj.Get("$sym")
-		if !isSym {
+		if sym, isSym := obj.Get("$sym"); isSym {
+			if options.Mode == Concrete {
+				typeMismatch(`the context carries the reserved key "$sym", which only a symbolic envelope may use`)
+			}
+			id, okID := sym.(string)
+			rawPath, _ := obj.Get("path")
+			segments, okPath := rawPath.([]JSON)
+			if !okID || !okPath || obj.Len() != 2 {
+				typeMismatch(`a "$sym" object must be exactly {"$sym": <id>, "path": [<segment>, ...]}`)
+			}
+			path := make([]string, len(segments))
+			for i, s := range segments {
+				seg, ok := s.(string)
+				if !ok {
+					typeMismatch(`a symbol reference's "path" must be an array of strings`)
+				}
+				path[i] = seg
+			}
+			return &vSymbol{id: id, path: path}
+		}
+		term, isTerm := obj.Get("$term")
+		if !isTerm {
 			return nil
 		}
-		if mode == Concrete {
-			typeMismatch(`the context carries the reserved key "$sym", which only a symbolic envelope may use`)
+		if options.Mode == Concrete {
+			typeMismatch(`the context carries the reserved key "$term", which only a symbolic envelope may use`)
 		}
-		id, okID := sym.(string)
-		rawPath, _ := obj.Get("path")
-		segments, okPath := rawPath.([]JSON)
-		if !okID || !okPath || obj.Len() != 2 {
-			typeMismatch(`a "$sym" object must be exactly {"$sym": <id>, "path": [<segment>, ...]}`)
+		op, okOp := term.(string)
+		rawArgs, _ := obj.Get("arguments")
+		arguments, okArgs := rawArgs.([]JSON)
+		if !okOp || !okArgs || obj.Len() != 2 {
+			typeMismatch(`a "$term" object must be exactly {"$term": <op>, "arguments": [<argument>, ...]}`)
 		}
-		path := make([]string, len(segments))
-		for i, s := range segments {
-			seg, ok := s.(string)
-			if !ok {
-				typeMismatch(`a symbol reference's "path" must be an array of strings`)
-			}
-			path[i] = seg
+		args := make([]value, len(arguments))
+		for i, a := range arguments {
+			args[i] = convertJSON(a, object)
 		}
-		return &vSymbol{id: id, path: path}
-	})
+		return seededTerm(options, op, args)
+	}
+	return convertJSON(normalized, object)
+}
+
+// seededTerm checks a term found in the context. A well-formed term is one a
+// call could have built (v3-symbols.md section 5.3), so this is the call's
+// own check, arithmeticOperands, on arguments already decoded, which holds a
+// nested term to the same rule. Two things a call accepts are refused first:
+// an array, since a term holds its operands already flattened, and operands
+// that are all numbers, since the call would have computed. Without the
+// arithmetic profile no op is known, so every term is refused.
+func seededTerm(options Options, op string, args []value) value {
+	if !options.Arithmetic {
+		typeMismatch("the context carries a term (%q), which needs the arithmetic profile", op)
+	}
+	if !slices.Contains(ArithmeticNames, op) {
+		typeMismatch("a term names an unknown operation: %q", op)
+	}
+	for _, a := range args {
+		if _, isArray := a.(vArray); isArray {
+			typeMismatch("a term (%q) holds its operands flattened, not in an array", op)
+		}
+	}
+	operands := arithmeticOperands(op, args)
+	if !slices.ContainsFunc(operands, isSymbolic) {
+		typeMismatch("a term (%q) must hold a symbol or a term among its arguments", op)
+	}
+	return &vTerm{op: op, args: operands}
 }
 
 func describeValue(v value) string {
@@ -992,8 +1134,12 @@ func describeValue(v value) string {
 		return "null"
 	case vBool:
 		return "a boolean"
-	case vNumber:
-		return "a number"
+	case vInt:
+		return "an integer"
+	case vFloat:
+		return "a float"
+	case *vTerm:
+		return fmt.Sprintf("a term (%q)", x.op)
 	case vStr:
 		return "a string"
 	case vArray:
@@ -1022,7 +1168,7 @@ func requireBool(who string, v value) bool {
 	switch x := v.(type) {
 	case vBool:
 		return bool(x)
-	case *vSymbol:
+	case *vSymbol, *vTerm:
 		notConcrete(who)
 	}
 	typeMismatch("%s must be a boolean, got %s", who, describeValue(v))
@@ -1044,15 +1190,17 @@ func evalBuiltin(name string, args []value) value {
 		}
 		return bool(b)
 	}
-	asNumber := func(v value) float64 {
-		switch x := v.(type) {
-		case vNumber:
-			return float64(x)
-		case *vSymbol:
+	// A number operand, returned as it is so that its type is still there to
+	// check. A symbol or a term is NotConcrete (v3-symbols.md section 1.5).
+	asNumber := func(v value) value {
+		switch v.(type) {
+		case vInt, vFloat:
+			return v
+		case *vSymbol, *vTerm:
 			notConcrete(name)
 		}
 		typeMismatch("%s expects a number argument, got %s", name, describeValue(v))
-		return 0
+		return nil
 	}
 	asArray := func(v value) vArray {
 		a, ok := v.(vArray)
@@ -1062,15 +1210,19 @@ func evalBuiltin(name string, args []value) value {
 		return a
 	}
 
+	if slices.Contains(ArithmeticNames, name) {
+		return arithmetic(name, args)
+	}
+
 	switch name {
 	case "cardinality", "count":
 		arity(1)
 		switch a := args[0].(type) {
 		case vArray:
-			return vNumber(len(a))
+			return vInt(len(a))
 		case *vObject:
-			return vNumber(a.fields.Len())
-		case *vSymbol:
+			return vInt(a.fields.Len())
+		case *vSymbol, *vTerm:
 			notConcrete(name)
 		}
 		typeMismatch("%s expects an array or object, got %s", name, describeValue(args[0]))
@@ -1099,16 +1251,35 @@ func evalBuiltin(name string, args []value) value {
 		return vBool(JSONEqual(a, requireConcrete(name, args[1])))
 	case "lt", "lte", "gt", "gte":
 		arity(2)
+		// Two integers or two floats (specs/reference.md section 11). A mixed
+		// pair is a TypeMismatch like any other pair of two types: nothing is
+		// promoted, so gt(1.5, 0) is written gt(1.5, 0.0). Each pair is
+		// compared in its own domain.
 		a, b := asNumber(args[0]), asNumber(args[1])
+		var order int
+		switch x := a.(type) {
+		case vInt:
+			y, ok := b.(vInt)
+			if !ok {
+				typeMismatch("%s expects two integers or two floats, got %s and %s", name, describeValue(a), describeValue(b))
+			}
+			order = compareOrdered(x, y)
+		case vFloat:
+			y, ok := b.(vFloat)
+			if !ok {
+				typeMismatch("%s expects two integers or two floats, got %s and %s", name, describeValue(a), describeValue(b))
+			}
+			order = compareOrdered(x, y)
+		}
 		switch name {
 		case "lt":
-			return vBool(a < b)
+			return vBool(order < 0)
 		case "lte":
-			return vBool(a <= b)
+			return vBool(order <= 0)
 		case "gt":
-			return vBool(a > b)
+			return vBool(order > 0)
 		}
-		return vBool(a >= b)
+		return vBool(order >= 0)
 	case "has":
 		arity(2)
 		_, found := lookupIn(name, args[0], args[1])
@@ -1138,19 +1309,272 @@ func evalBuiltin(name string, args []value) value {
 // container, which is NotConcrete rather than a lie.
 func lookupIn(name string, container, key value) (value, bool) {
 	switch c := container.(type) {
-	case *vSymbol:
+	case *vSymbol, *vTerm:
 		notConcrete(name)
 	case *vObject:
 		if k, ok := key.(vStr); ok {
 			return c.fields.Get(string(k))
 		}
 	case vArray:
-		if k, ok := key.(vNumber); ok {
-			n := float64(k)
-			if n >= 0 && n == math.Trunc(n) && n < float64(len(c)) {
-				return c[int(n)], true
-			}
+		// An index is a non-negative integer: -1 is not an index, and neither
+		// is a float, 1.0 included, since nothing converts a float into an
+		// integer here.
+		if k, ok := key.(vInt); ok && k >= 0 && int64(k) < int64(len(c)) {
+			return c[int(k)], true
 		}
 	}
 	return nil, false
+}
+
+// compareOrdered is -1, 0 or 1 as a is below, equal to or above b. A float
+// here is finite, so the three cases are exhaustive.
+func compareOrdered[T vInt | vFloat](a, b T) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
+
+// Arithmetic (specs/reference.md section 11).
+
+// arithmetic applies one of the arithmetic builtins. Operands that are all
+// numbers compute; if one is a symbol or a term the result is a term holding
+// the flattened operands exactly as written (v3-symbols.md section 1.9).
+// Every operand is checked before either happens, so a TypeMismatch takes
+// precedence over a NotRepresentable.
+func arithmetic(name string, args []value) value {
+	operands := arithmeticOperands(name, args)
+	if slices.ContainsFunc(operands, isSymbolic) {
+		return &vTerm{op: name, args: operands}
+	}
+	return compute(name, operands)
+}
+
+// arithmeticOperands gives the operands of a call, checked as far as they can
+// be without knowing what a symbol stands for; every refusal is a
+// TypeMismatch.
+//
+//   - sum and product flatten their arguments by the rule children use: an
+//     array contributes each of its elements, recursively, in order. They
+//     need at least one operand afterwards. The seven others take a fixed
+//     count and do not flatten, so an array given to one is refused whatever
+//     it holds.
+//   - Each operand is a number, a symbol or a term. A symbol or a term stands
+//     for one number of either type and is not looked into.
+//   - The operands that are numbers agree with each other in type and with
+//     what the builtin accepts. Nothing is converted or promoted.
+func arithmeticOperands(name string, args []value) []value {
+	operands := args
+	switch name {
+	case "sum", "product":
+		operands = flattenOperands(nil, args)
+		if len(operands) == 0 {
+			typeMismatch("%s expects at least one operand: seed it with the zero or the one of the intended type", name)
+		}
+	default:
+		arity := 1
+		if name == "quotient" || name == "floor-quotient" || name == "modulo" {
+			arity = 2
+		}
+		if len(args) != arity {
+			typeMismatch("%s expects exactly %d argument(s), got %d", name, arity, len(args))
+		}
+	}
+	ints, floats := 0, 0
+	for _, v := range operands {
+		switch v.(type) {
+		case vInt:
+			ints++
+		case vFloat:
+			floats++
+		case *vSymbol, *vTerm:
+		default:
+			typeMismatch("%s expects number operands, got %s", name, describeValue(v))
+		}
+	}
+	wanted := ""
+	switch name {
+	case "quotient", "inverse":
+		if ints > 0 {
+			wanted = "floats only"
+		}
+	case "floor-quotient", "modulo":
+		if floats > 0 {
+			wanted = "integers only"
+		}
+	case "sum", "product":
+		if ints > 0 && floats > 0 {
+			wanted = "all integers or all floats"
+		}
+	}
+	// negate, floor and real take a number of either type.
+	if wanted != "" {
+		typeMismatch("%s expects %s, got %d integer(s) and %d float(s)", name, wanted, ints, floats)
+	}
+	return operands
+}
+
+func flattenOperands(out []value, args []value) []value {
+	for _, a := range args {
+		if arr, ok := a.(vArray); ok {
+			out = flattenOperands(out, arr)
+		} else {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// compute applies the concrete rules (specs/reference.md section 11,
+// Semantics) to operands arithmeticOperands accepted and that are all
+// numbers.
+//
+// An integer result is checked at every step of a fold and nothing wraps: Go's
+// own int64 operators wrap silently, so each one is guarded here.
+//
+// A float result is one float64 operation at a time, correctly rounded to
+// nearest, ties to even. Each is written as an explicit float64(...)
+// conversion, which the Go specification says rounds to the precision of the
+// type and so keeps a compiler from fusing a product and a sum into a fused
+// multiply-add on the architectures where it otherwise may.
+func compute(name string, operands []value) value {
+	finite := func(d float64) vFloat {
+		if math.IsNaN(d) || math.IsInf(d, 0) {
+			notRepresentable("%s: the result is not a finite float", name)
+		}
+		// There is no negative zero.
+		return vFloat(normalizeNumber(d))
+	}
+	outOfRange := func() {
+		notRepresentable("%s: the result is outside the integer range, -2^63 to 2^63 - 1", name)
+	}
+	nonZero := func(b vInt) {
+		if b == 0 {
+			notRepresentable("%s: the divisor is zero", name)
+		}
+	}
+
+	switch name {
+	case "sum", "product":
+		// A left fold from the first operand, each step checked: an integer
+		// step out of range is an error although the total would be in range.
+		switch acc := operands[0].(type) {
+		case vInt:
+			for _, o := range operands[1:] {
+				var ok bool
+				if name == "sum" {
+					acc, ok = addInt(acc, o.(vInt))
+				} else {
+					acc, ok = mulInt(acc, o.(vInt))
+				}
+				if !ok {
+					outOfRange()
+				}
+			}
+			return acc
+		case vFloat:
+			for _, o := range operands[1:] {
+				if name == "sum" {
+					acc = finite(float64(float64(acc) + float64(o.(vFloat))))
+				} else {
+					acc = finite(float64(float64(acc) * float64(o.(vFloat))))
+				}
+			}
+			return acc
+		}
+	case "negate":
+		switch x := operands[0].(type) {
+		case vInt:
+			if x == math.MinInt64 {
+				outOfRange()
+			}
+			return -x
+		case vFloat:
+			return finite(-float64(x))
+		}
+	case "quotient":
+		return finite(float64(float64(operands[0].(vFloat)) / float64(operands[1].(vFloat))))
+	case "inverse":
+		return finite(float64(1 / float64(operands[0].(vFloat))))
+	case "floor-quotient":
+		// Go's / truncates toward zero; the floor is one below it when the
+		// division is inexact and the operands differ in sign.
+		a, b := operands[0].(vInt), operands[1].(vInt)
+		nonZero(b)
+		if a == math.MinInt64 && b == -1 {
+			outOfRange()
+		}
+		q := a / b
+		if a%b != 0 && (a < 0) != (b < 0) {
+			q--
+		}
+		return q
+	case "modulo":
+		// The remainder of the floored division: zero or of the sign of the
+		// divisor. It is checked on its own: the remainder of -2^63 by -1 is
+		// 0, although the quotient of the same pair is out of range.
+		a, b := operands[0].(vInt), operands[1].(vInt)
+		nonZero(b)
+		if b == -1 {
+			return vInt(0)
+		}
+		r := a % b
+		if r != 0 && (r < 0) != (b < 0) {
+			r += b
+		}
+		return r
+	case "floor":
+		switch x := operands[0].(type) {
+		case vInt:
+			return x
+		case vFloat:
+			// Both bounds are powers of two, so each is a double exactly:
+			// the floor is in range when it is at least -2^63 and below 2^63.
+			f := math.Floor(float64(x))
+			if f < -9223372036854775808.0 || f >= 9223372036854775808.0 {
+				outOfRange()
+			}
+			return vInt(int64(f))
+		}
+	case "real":
+		switch x := operands[0].(type) {
+		case vInt:
+			// The double nearest to the integer, ties to even: exact up to
+			// 2^53, rounded beyond. This is the machine's own conversion.
+			return vFloat(float64(x))
+		case vFloat:
+			return x
+		}
+	}
+	typeMismatch("%s cannot be applied to its operands", name)
+	return nil
+}
+
+// addInt is a + b, and false when the sum is outside the int64 range.
+func addInt(a, b vInt) (vInt, bool) {
+	s := a + b
+	if (b > 0 && s < a) || (b < 0 && s > a) {
+		return 0, false
+	}
+	return s, true
+}
+
+// mulInt is a * b, and false when the product is outside the int64 range.
+func mulInt(a, b vInt) (vInt, bool) {
+	if a == 0 || b == 0 {
+		return 0, true
+	}
+	// -2^63 * -1 wraps back to -2^63, which the division below would not
+	// notice, so that pair is tested first.
+	if (a == -1 && b == math.MinInt64) || (b == -1 && a == math.MinInt64) {
+		return 0, false
+	}
+	p := a * b
+	if p/b != a {
+		return 0, false
+	}
+	return p, true
 }

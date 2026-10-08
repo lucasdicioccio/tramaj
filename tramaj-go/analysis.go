@@ -1,6 +1,9 @@
 package tramaj
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // Static analysis over the AST alone (specs/reference.md section 9,
 // specs/v3-symbols.md section 7, specs/v4-types.md section 9): no context, no
@@ -82,6 +85,73 @@ func eachLibrary(libs Libraries, prog *Program, f func(*Program)) {
 			f(p)
 		}
 	}
+}
+
+// Arithmetic.
+
+// ArithmeticNames are the names of the arithmetic profile (specs/reference.md
+// section 11), in the order the reference lists them. They are builtins only
+// in an evaluation whose Options turn the profile on.
+var ArithmeticNames = []string{
+	"sum", "product", "negate", "quotient", "inverse", "floor-quotient", "modulo", "floor", "real",
+}
+
+// ArithmeticOps lists which of ArithmeticNames this program references free
+// (specs/reference.md section 9), called (sum(1, 2)) or passed by reference
+// (fold($xs, 0, $sum)) alike, since both are a Path rooted at the name.
+//
+// Scope-aware: a name bound by a binding, a lambda parameter or a pattern
+// name is not reported where that binding is in scope. A pattern is lowered
+// to plain bindings by the parser, so it needs no case here. A binding's own
+// right-hand side is outside its scope, so `@sum = sum(1, 2)` reports sum.
+//
+// Over-approximates like every analysis here: a name used only under a branch
+// arm no context will select is still reported.
+func ArithmeticOps(prog *Program) []string {
+	return sortedStrings(arithmeticOps(nil, prog.Root))
+}
+
+func arithmeticOps(bound map[string]bool, e Expr) []string {
+	with := func(names ...string) map[string]bool {
+		out := make(map[string]bool, len(bound)+len(names))
+		for k := range bound {
+			out[k] = true
+		}
+		for _, n := range names {
+			out[n] = true
+		}
+		return out
+	}
+	switch x := e.(type) {
+	case *Path:
+		if slices.Contains(ArithmeticNames, x.Root) && !bound[x.Root] {
+			return []string{x.Root}
+		}
+		return nil
+	case *Let:
+		return append(arithmeticOps(bound, x.Value), arithmeticOps(with(x.Name), x.Body)...)
+	case *TypeAnnotate:
+		return append(arithmeticOps(bound, x.Value), arithmeticOps(with(x.Name), x.Body)...)
+	case *Lambda:
+		return arithmeticOps(with(x.Params...), x.Body)
+	}
+	var out []string
+	for _, sub := range SubExprs(e) {
+		out = append(out, arithmeticOps(bound, sub)...)
+	}
+	return out
+}
+
+// DeepArithmeticOps is ArithmeticOps of this program and of every library it
+// imports, directly or not. A library has its own scope, so a binding in the
+// importing program shadows nothing there. This is what a host that leaves
+// the arithmetic profile off checks before running a program: non-empty means
+// the program would fail with UnboundName, and with the profile on it names
+// the operations a term can carry (v3-symbols.md section 7).
+func DeepArithmeticOps(libs Libraries, prog *Program) []string {
+	out := arithmeticOps(nil, prog.Root)
+	eachLibrary(libs, prog, func(p *Program) { out = append(out, arithmeticOps(nil, p.Root)...) })
+	return sortedStrings(out)
 }
 
 // Actions.
