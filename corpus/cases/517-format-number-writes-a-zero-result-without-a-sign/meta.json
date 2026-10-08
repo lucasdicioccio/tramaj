@@ -1,0 +1,6 @@
+{
+  "name": "format-number writes a zero result without a sign",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["format-number", "int-float"]
+}

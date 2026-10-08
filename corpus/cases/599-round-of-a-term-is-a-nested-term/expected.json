@@ -1,0 +1,11 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [{"$term": "round", "arguments": [{"$term": "sum", "arguments": [{"$sym": "#0:\"s\"", "path": []}, 0.5]}]}, {"$term": "sum", "arguments": [{"$term": "round", "arguments": [{"$sym": "#0:\"s\"", "path": []}]}, 1]}, {"$term": "round", "arguments": [{"$term": "round", "arguments": [{"$sym": "#0:\"s\"", "path": []}]}]}],
+  "symbols": [
+    {"binding": "s", "id": "#0:\"s\"", "origin": {"key": "s", "kind": "alloc", "site": 0}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

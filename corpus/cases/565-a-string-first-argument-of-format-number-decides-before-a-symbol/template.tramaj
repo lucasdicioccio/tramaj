@@ -1,0 +1,3 @@
+-- reference.md §11, Number formatting, Arguments: examined left to right, the first that is not acceptable decides
+@s = ?("s")
+format-number("a", $s, ",")

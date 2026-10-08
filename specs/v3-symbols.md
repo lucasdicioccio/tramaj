@@ -177,11 +177,13 @@ language to *know* something about it is an error:
 | `.p($s)`, `.div(class: $s)`, `action(e, k, {r: $s})` | fine — §5.2 carries it |
 | `$s.field` | a projection (§1.6) — **the one exception** |
 | `branch($s, …)` | `NotConcrete` — no arm can be selected |
-| `map($s, f)`, `filter`, `scan`, `fold` | `NotConcrete` — the spine has no length |
+| `map($s, f)`, `filter`, `scan`, `fold`, `sort-by`, `sort-by-descending` | `NotConcrete` — the spine has no length |
+| `sort-by(xs, f)` where `f` gives a symbol as a key | `NotConcrete` — a sort inspects its keys; an array or an object as a key is a `TypeMismatch`, whatever it holds |
 | `eq` on anything *containing* a symbol | `NotConcrete` — deep equality needs the whole value |
 | `lt`, `lte`, `gt`, `gte` with a symbol as an operand | `NotConcrete`; an array or object operand is the `TypeMismatch` it always was, whatever it holds |
 | `str` of anything *containing* a symbol, and so any interpolation of one | `NotConcrete` — §1.8 |
 | `cardinality($s)`, `has($s, k)`, `lookup($s, k, d)` | `NotConcrete` |
+| `format-number` with a symbol as any of its three arguments | `NotConcrete` — the result is text (§1.8); an array argument is a `TypeMismatch`, whatever it holds |
 | `$s <> x` | `NotConcrete` |
 
 `has` and `lookup` are called out because both are deliberately *tolerant*
@@ -194,8 +196,19 @@ length is known, and cannot constrain a list whose length is symbolic. That is
 the ceiling, and it is where a real symbolic evaluator would have to begin.
 Declining to go there is what keeps `map` free of any `if value is Symbol`
 branch — no evaluator rule in ref §6 changes, and no builtin learns a new
-case beyond refusing. The nine arithmetic builtins are the one exception:
+case beyond refusing. The ten arithmetic builtins are the one exception:
 over a symbol they build a term (§1.9).
+
+The two sorts and `format-number` (ref §11; decisions §20, not yet
+implemented) follow the rule and only refuse. A sort builds no term, since a
+term stands for a number and the result of a sort is an array: a list whose
+order depends on an unsupplied value cannot be rendered, which is the ceiling
+above. The elements themselves are not inspected, so
+`sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) => $o.k)` sorts. `format-number`
+builds no term either, since its result is text. Its arguments are examined
+left to right and the first that is not acceptable decides between
+`NotConcrete` and `TypeMismatch` (ref §11); a sort's keys are examined in
+index order in the same way.
 
 A term is data in the same way. Every row above that refuses a symbol refuses
 a term in the same position, and a row that says *containing* looks as deep
@@ -278,7 +291,7 @@ implementation with the arithmetic profile (ref §11, §5.5).
 !constraint("lte", sum($a, $b), 10)
 ```
 
-A call to one of the nine arithmetic builtins whose flattened operands are all
+A call to one of the ten arithmetic builtins whose flattened operands are all
 numbers computes, by ref §11. If at least one operand is a symbol or a term,
 the result is a `Term` with that `op` and **the flattened operands exactly as
 written**: same order, nothing folded, nothing simplified, no nested term
@@ -290,7 +303,7 @@ spliced.
 | `sum(1, [$s, 2])` | `sum(1, $s, 2)` — arrays are flattened (ref §11) |
 | `sum($a, sum($b, 1))` | a term whose second argument is a term |
 | `inverse($s)` | `inverse($s)`, not `quotient(1.0, $s)` |
-| `floor($s)`, `real($s)` | terms; neither is the identity over a symbol |
+| `floor($s)`, `real($s)`, `round($s)` | terms; none is the identity over a symbol |
 
 Preserving is required, not stylistic: `(1.0 + s) + 2.0` and `s + 3.0` are
 different doubles for some `s`, and for integers one grouping can overflow
@@ -302,7 +315,7 @@ where the other does not. It gives the **residual law**:
 
 Tramaj still solves nothing (§0). A term is the computation the language would
 have performed had it known the operands, handed over undone, and its
-vocabulary is closed: nine operations whose meaning ref §11 defines, so an
+vocabulary is closed: ten operations whose meaning ref §11 defines, so an
 `op` is not host vocabulary the way a constraint name is.
 
 * **A symbol operand stands for one number, of either type**, and a term
@@ -310,7 +323,7 @@ vocabulary is closed: nine operations whose meaning ref §11 defines, so an
   one: each MUST be a number, and those of one call MUST agree with each other
   and with what the builtin accepts. `sum("a", $s)`, `sum(1, $s, 2.0)` and
   `quotient(1, $s)` are `TypeMismatch`, and so is a wrong argument count.
-* **An operand is a symbol or a term only when it is one itself.** The seven
+* **An operand is a symbol or a term only when it is one itself.** The eight
   fixed-arity builtins do not flatten (ref §11), so an array given to one is
   a `TypeMismatch` whatever it holds: `negate([$s])` is a `TypeMismatch`,
   like `negate([1])`, and not a `NotConcrete`. Nothing looks inside the
@@ -329,9 +342,11 @@ vocabulary is closed: nine operations whose meaning ref §11 defines, so an
   * `eq`, `str` and so interpolation, and an allocation key need the whole
     value, so they refuse anything *containing* a term: `eq([$t], [1])` and
     `str({k: $t})` are `NotConcrete`.
-  * `branch`, the comparisons, `cardinality`, `has`, `lookup`, `<>` and the
-    spine of `map`, `filter`, `scan` and `fold` refuse a term given *as* the
-    condition, the operand, the container or the collection. A concrete
+  * `branch`, the comparisons, `cardinality`, `has`, `lookup`, `<>`, the
+    spine of `map`, `filter`, `scan`, `fold` and the two sorts, a sort key
+    and an argument of `format-number` refuse a term given *as* the
+    condition, the operand, the container, the collection, the key or the
+    argument. A concrete
     structure that holds a term is not special (§1.7): `cardinality([$t])`
     is `1`, `[$t] <> [1]` has two elements, and `map([$t], f)` applies `f` to
     the term.
@@ -671,7 +686,8 @@ by `"kind"`. A symbol:
 {"$sym": "#0:\"d\"", "path": ["replicas"]}
 ```
 
-and a term (§1.9; not yet implemented):
+and a term (§1.9; not yet implemented), whose `op` is one of the ten names
+of ref §11's *Arithmetic*, `round` among them:
 
 ```json
 {"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
@@ -760,7 +776,7 @@ An implementation of the **symbolic profile** implements both modes.
 
 The **arithmetic profile** (ref §11; not yet implemented) is a third,
 independent of both: either of the above may have it or not. It is not
-refused at parse time, since its nine builtins are names and not syntax; a
+refused at parse time, since its ten builtins are names and not syntax; a
 program that uses one on an implementation without it fails with
 `UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms
 (§1.9) exist only where the symbolic and arithmetic profiles meet. The two
@@ -895,6 +911,6 @@ Recorded as considered and declined, to be revisited only if practice asks:
    host's vocabulary rather than the language's.
 3. **Symbolic strings.** §1.8 has the cost: the value domain would gain string
    terms, over a vocabulary that is not closed. Arithmetic took that step for
-   numbers (§1.9) because numbers have no alternative and its nine operations
+   numbers (§1.9) because numbers have no alternative and its ten operations
    are closed; text has one, separate children, which a form renderer wants
    anyway.

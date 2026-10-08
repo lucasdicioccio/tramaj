@@ -1,0 +1,6 @@
+{
+  "name": "sort-by orders floats across magnitudes",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort", "int-float"]
+}

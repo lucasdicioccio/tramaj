@@ -1,0 +1,8 @@
+-- reference.md §11, Number formatting: from its exact value; nothing is converted
+[format-number(0, 0, ""),
+ format-number(0, 2, ""),
+ format-number(1234, 0, ""),
+ format-number(1234, 2, ","),
+ format-number(-5, 2, ""),
+ format-number(-1234567, 0, ","),
+ format-number(7, 1, "")]

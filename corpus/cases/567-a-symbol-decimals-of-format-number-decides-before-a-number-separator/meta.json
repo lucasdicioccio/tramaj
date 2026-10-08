@@ -1,0 +1,8 @@
+{
+  "name": "a symbol decimals of format-number decides before a number separator",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "requires": ["format-number", "int-float"]
+}

@@ -1,0 +1,3 @@
+-- v3-symbols §1.5, §1.9: sorting builds no term
+@s = ?("s")
+sort-by([1, 2], (x) => sum($s, $x))

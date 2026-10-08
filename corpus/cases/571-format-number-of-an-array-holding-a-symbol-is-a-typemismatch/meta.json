@@ -1,0 +1,8 @@
+{
+  "name": "format-number of an array holding a symbol is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["format-number", "int-float"]
+}

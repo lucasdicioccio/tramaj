@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: a term is data
+@s = ?("s")
+!constraint("lte", round($s), 10)
+$s

@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: the keys arrive from the context
+sort-by($ctx.names, (s) => $s)

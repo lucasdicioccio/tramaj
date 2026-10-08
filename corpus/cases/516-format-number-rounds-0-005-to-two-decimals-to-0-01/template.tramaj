@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting: the double is -0.005000000000000000104..., so the result is not zero and keeps its sign
+format-number(-0.005, 2, "")

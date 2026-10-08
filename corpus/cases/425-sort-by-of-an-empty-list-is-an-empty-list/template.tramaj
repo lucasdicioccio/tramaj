@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: an empty list gives [] under both names
+[sort-by([], (x) => $x), sort-by-descending([], (x) => $x)]

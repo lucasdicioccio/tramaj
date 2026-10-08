@@ -1,0 +1,6 @@
+{
+  "name": "sort-by orders symbols by keys taken from another list",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["sort"]
+}

@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+sort-by-descending([1, 3, -2, 2], (x) => $x)

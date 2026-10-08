@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+sort-by([1.5, -2.25, 0.0, -0.5], (x) => $x)

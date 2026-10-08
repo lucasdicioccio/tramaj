@@ -1,0 +1,2 @@
+-- reference.md §5: name(args) and $name(args) are identical
+[$sort-by([2, 1], (x) => $x), $sort-by-descending([1, 2], (x) => $x)]

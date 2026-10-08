@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: the function would fail with PathNotFound, or give a key that is never one
+[sort-by($ctx.xs, (x) => $x.missing.field), sort-by-descending($ctx.xs, (x) => null)]

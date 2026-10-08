@@ -1,0 +1,8 @@
+{
+  "name": "format-number of a symbol with two arguments is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["format-number", "int-float"]
+}

@@ -1,0 +1,4 @@
+-- reference.md §11, Number formatting: 309 digits
+[format-number(1.7976931348623157e308, 0, ""),
+ format-number(-1.7976931348623157e308, 0, ","),
+ format-number(1.7976931348623157e308, 1, "")]

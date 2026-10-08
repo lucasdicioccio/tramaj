@@ -1,0 +1,9 @@
+-- reference.md §11, Number formatting: values a double holds exactly
+[format-number(0.5, 0, ""),
+ format-number(1.5, 0, ""),
+ format-number(-2.5, 0, ""),
+ format-number(-0.5, 0, ""),
+ format-number(0.25, 1, ""),
+ format-number(-0.125, 2, ""),
+ format-number(0.375, 2, ""),
+ format-number(1.0625, 3, "")]

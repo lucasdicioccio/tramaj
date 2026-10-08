@@ -1,0 +1,2 @@
+-- reference.md §6 Children coercion, §11 Sorting
+.p(sort-by-descending(["a", "c", "b"], (s) => $s))

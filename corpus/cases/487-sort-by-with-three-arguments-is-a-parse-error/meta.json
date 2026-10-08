@@ -1,0 +1,7 @@
+{
+  "name": "sort-by with three arguments is a parse error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error",
+  "requires": ["sort"]
+}

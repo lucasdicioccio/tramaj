@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: e followed by U+0301 and the single code point U+00E9 are two different keys
+sort-by(["\u{E9}", "f", "e\u{301}"], (s) => $s)

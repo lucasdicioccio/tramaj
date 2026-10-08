@@ -1,0 +1,8 @@
+{
+  "name": "format-number with null as its separator is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["format-number", "int-float"]
+}

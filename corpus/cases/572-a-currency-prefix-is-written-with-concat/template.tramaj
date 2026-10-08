@@ -1,0 +1,3 @@
+-- reference.md §11, Number formatting: there is no prefix or suffix option
+@money = (x) => "$" <> format-number($x, 2, ",")
+map($ctx.xs, $money)

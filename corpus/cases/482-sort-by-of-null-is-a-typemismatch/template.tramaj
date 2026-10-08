@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Checks: the list must be an array
+sort-by-descending($ctx.rows, (x) => $x)

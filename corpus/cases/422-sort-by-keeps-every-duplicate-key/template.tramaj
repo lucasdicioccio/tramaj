@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+sort-by([2, 1, 2, 1, 3], (x) => $x)

@@ -1,0 +1,3 @@
+-- reference.md §11, Number formatting: an integer is formatted from its exact value
+[format-number(1, 20, ""),
+ format-number(-12, 20, ",")]

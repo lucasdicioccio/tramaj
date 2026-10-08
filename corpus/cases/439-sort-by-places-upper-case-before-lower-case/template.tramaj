@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: code point order, so every ASCII capital precedes every small letter
+sort-by(["b", "B", "a", "A", "Ab", "aB"], (s) => $s)

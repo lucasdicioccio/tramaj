@@ -1,0 +1,2 @@
+-- v3-symbols §5.3: a well-formed term is one a call could have built
+?ctx.t

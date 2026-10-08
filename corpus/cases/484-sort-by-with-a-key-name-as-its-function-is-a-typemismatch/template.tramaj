@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Checks: the key is given by a function, not by a field name
+sort-by($ctx.rows, "spend")

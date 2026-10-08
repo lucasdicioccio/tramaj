@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: a boolean is never a key
+map(sort-by($ctx.rows, (r) => branch(1, $r.active, 0)), (r) => $r.name)

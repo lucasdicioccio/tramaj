@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be: null has no place in the order
+sort-by([1, null, 2], (x) => $x)

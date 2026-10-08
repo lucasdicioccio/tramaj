@@ -1,0 +1,5 @@
+-- reference.md §11, Number formatting
+[format-number(999999.5, 0, ","),
+ format-number(999.5, 0, ","),
+ format-number(999.999, 2, ","),
+ format-number(-999999.999, 0, ",")]

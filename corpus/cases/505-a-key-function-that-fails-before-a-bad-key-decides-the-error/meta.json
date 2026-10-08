@@ -1,0 +1,8 @@
+{
+  "name": "a key function that fails before a bad key decides the error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "PathNotFound",
+  "requires": ["sort"]
+}

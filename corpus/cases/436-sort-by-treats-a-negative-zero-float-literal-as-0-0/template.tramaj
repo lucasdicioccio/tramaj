@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Sorting: there is no negative zero, so the two keys are equal and input order holds
+map(sort-by([{n: "a", k: 0.0}, {n: "b", k: -0.0}, {n: "c", k: -1.0}], (r) => $r.k), (r) => $r.n)

@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Stability
+map(sort-by($ctx.rows, (r) => $r.k), (r) => $r.n)

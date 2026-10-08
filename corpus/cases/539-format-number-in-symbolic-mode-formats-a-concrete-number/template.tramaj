@@ -1,0 +1,2 @@
+-- v3-symbols §5.2: the root is what concrete mode would have produced
+format-number(1234.5, 1, ",")

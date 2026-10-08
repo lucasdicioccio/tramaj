@@ -1,0 +1,5 @@
+-- reference.md §11, Number formatting
+[format-number(9223372036854775807, 0, ","),
+ format-number(-9223372036854775808, 0, ""),
+ format-number(-9223372036854775808, 2, ","),
+ format-number(9223372036854775807, 20, "")]

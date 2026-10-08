@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting, Checks: the first element that fails decides
+@s = ?("s")
+sort-by([1, null, $s], (x) => $x)

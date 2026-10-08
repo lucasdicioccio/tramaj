@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+map(sort-by($ctx.rows, (r) => $r.k), (r) => $r.n)

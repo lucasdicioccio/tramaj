@@ -1,0 +1,6 @@
+{
+  "name": "format-number writes no sign on a result that rounds to zero",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["format-number", "int-float"]
+}

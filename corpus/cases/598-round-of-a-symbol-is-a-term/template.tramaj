@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: round is not the identity over a symbol
+@s = ?("s")
+round($s)

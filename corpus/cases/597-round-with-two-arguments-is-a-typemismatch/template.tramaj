@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: there is no rounding to a number of decimals as a float
+round(2.567, 2)

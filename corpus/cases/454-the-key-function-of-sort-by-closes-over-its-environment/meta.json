@@ -1,0 +1,6 @@
+{
+  "name": "the key function of sort-by closes over its environment",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

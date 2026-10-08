@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting: 3 is an integer and 3.0 a float, and both format to the same text
+[format-number($ctx.i, 2, ","), format-number($ctx.f, 2, ","), format-number($ctx.x, 2, ","), format-number($ctx.n, 0, ",")]

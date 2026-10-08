@@ -1,0 +1,4 @@
+-- reference.md §11, Sorting, Stability: the least significant key first
+@by-name = sort-by($ctx.rows, (r) => $r.name)
+@ranked = sort-by-descending($by-name, (r) => $r.spend)
+map($ranked, (r) => $r.name)

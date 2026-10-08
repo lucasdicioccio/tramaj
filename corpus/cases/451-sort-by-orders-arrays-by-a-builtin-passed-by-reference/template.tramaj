@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: the function may be a builtin
+sort-by([[1, 1, 1], [], [1, 1], [1]], $cardinality)

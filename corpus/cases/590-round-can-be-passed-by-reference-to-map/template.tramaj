@@ -1,0 +1,2 @@
+-- reference.md §6, §11: builtins are ordinary bindings
+map($ctx.xs, $round)

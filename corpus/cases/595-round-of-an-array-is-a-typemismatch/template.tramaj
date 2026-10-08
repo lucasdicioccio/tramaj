@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: a fixed-arity builtin takes a number and does not flatten
+round([2.5])

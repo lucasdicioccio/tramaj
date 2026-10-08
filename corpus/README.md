@@ -70,6 +70,18 @@ cases/<NNN-slug>/
   * `"int64"` — integers cover the full 64-bit range, beyond the guaranteed
     53-bit one
 
+  and (specs/decisions.md §20):
+  * `"sort"` — the `sort-by` and `sort-by-descending` forms. A case whose
+    keys are floats, or that depends on an integer and a float being two
+    types, names `"int-float"` as well.
+  * `"format-number"` — the `format-number` builtin. Every such case names
+    `"int-float"` too, since the first argument is typed by it.
+  * `"round"` — `round`, the tenth arithmetic builtin. It is a name of its
+    own, beside `"arithmetic"`, because some implementations declared
+    `"arithmetic"` when the profile had nine names. Every such case names
+    `"arithmetic"` and `"int-float"` too, and an implementation declares
+    `"round"` only together with `"arithmetic"`.
+
   A case without `requires` runs everywhere, as before. A case that names
   several requirements runs only where all of them are declared.
 
@@ -88,14 +100,21 @@ Each runner holds the list of requirements its implementation declares, next
 to the code that reads `meta.json` (`supportedRequirements`, or the same name
 in the language's own spelling). The PureScript list holds `"int-float"` and
 the Haskell list `"int-float"`, `"int64"` and `"arithmetic"`; every other
-list is empty today. An implementation
+list is empty today. No list holds `"sort"`, `"format-number"` or `"round"`
+yet, so the cases that name one are skipped by every suite. An implementation
 that gains a capability adds the name there, and the cases marked with it
 start running in that suite; no case needs editing.
 
 In the Haskell and Purescript implementations the arithmetic profile is an option of each
 evaluation, off by default. Its runner turns it on for a case that names
 `"arithmetic"` and leaves it off for every other case, where the nine
-arithmetic names are unbound.
+arithmetic names are unbound. `round` will join them under the same option.
+
+Until an implementation runs them, the expected texts of the
+`format-number` and `round` cases stand on one reference computation
+(exact rational arithmetic over the value of each literal), cross-checked
+against ECMAScript's `toFixed` below `1e21`. The expected output of the other
+new cases was written by hand from specs/reference.md §11.
 
 A name the runner does not know is, by that rule, not declared, so the case
 is skipped rather than rejected.

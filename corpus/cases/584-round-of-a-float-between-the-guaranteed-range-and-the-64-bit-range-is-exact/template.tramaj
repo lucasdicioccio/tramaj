@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: a NotRepresentable with the guaranteed range only
+[round(1e16), round(-9.2e18), round(9007199254740993.0)]

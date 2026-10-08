@@ -1,0 +1,4 @@
+-- reference.md §11, Number formatting: the builtin does not multiply; product(100.0, 0.015) is exactly 1.5
+[format-number(product(100.0, 0.015), 0, "") <> "%",
+ format-number(product(100.0, $ctx.share), 1, "") <> "%",
+ format-number(0.015, 2, "")]

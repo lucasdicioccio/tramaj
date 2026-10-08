@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting, Arguments: decimals is an integer from 0 to 20
+format-number(1234.5, 2.0, ",")

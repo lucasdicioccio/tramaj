@@ -1,0 +1,2 @@
+-- laws.md, reference.md §11: the two share one rounding rule
+map($ctx.xs, (x) => [str(round($x)), format-number($x, 0, "")])
