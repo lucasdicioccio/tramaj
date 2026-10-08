@@ -9,6 +9,7 @@ export {
   isValidAttrName,
   renderScalar,
   symbolLabel,
+  termLabel,
   validateAttrNames,
 } from "./fold.js";
 

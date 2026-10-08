@@ -44,12 +44,13 @@ some existing templates and hosts produce. This page covers the split.
 <tr><th>implementation</th><th>number split</th><th>arithmetic</th><th>integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, and <code>tramaj-halogen</code>, <code>tramaj-cli</code> and the playground built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
+<tr><td><code>tramaj-js</code>, and <code>tramaj-react</code> built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
 </table>
 
-The PureScript and Haskell changes are on the `main` branch and in no
+The PureScript, Haskell and TypeScript changes are on the `main` branch and in no
 release yet. A host that follows `main` as a git dependency gets them on its
-next update. The other four implementations still behave as before, and will
+next update. The other three implementations still behave as before, and will
 change the same way when they get the split.
 
 ## The changes at a glance

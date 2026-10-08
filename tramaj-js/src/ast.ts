@@ -23,7 +23,13 @@ export type Expr =
   | { t: "Lambda"; params: string[]; body: Expr }
   | { t: "Let"; name: string; value: Expr; body: Expr }
   | { t: "StringLit"; value: string }
-  | { t: "NumberLit"; value: number }
+  /**
+   * A number literal is an integer or a float by its form (`reference.md` §5):
+   * `IntLit` holds a whole number in the integer range, `FloatLit` a finite
+   * double, and neither a negative zero.
+   */
+  | { t: "IntLit"; value: number }
+  | { t: "FloatLit"; value: number }
   | { t: "BoolLit"; value: boolean }
   | { t: "NullLit" }
   | { t: "ArrayLit"; elements: Expr[] }
@@ -71,7 +77,8 @@ export type TypeExpr =
 export type TypeConstraintArg =
   | { t: "Type"; type: TypeExpr }
   | { t: "ScalarStr"; value: string }
-  | { t: "ScalarNum"; value: number }
+  | { t: "ScalarInt"; value: number }
+  | { t: "ScalarFloat"; value: number }
   | { t: "ScalarBool"; value: boolean }
   | { t: "ScalarNull" };
 
@@ -99,7 +106,8 @@ export function subExprs(e: Expr): Expr[] {
   switch (e.t) {
     case "Path":
     case "StringLit":
-    case "NumberLit":
+    case "IntLit":
+    case "FloatLit":
     case "BoolLit":
     case "NullLit":
     case "Demand":

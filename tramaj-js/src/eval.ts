@@ -4,7 +4,7 @@
  * `specs/v4-types.md` §7-8). Mirrors `tramaj-rs/src/eval.rs`.
  */
 
-import { symbolSites } from "./analysis.js";
+import { arithmeticNames, symbolSites } from "./analysis.js";
 import {
   adaptKey,
   isHiddenName,
@@ -15,14 +15,19 @@ import {
   type Program,
 } from "./ast.js";
 import {
+  classifyNumber,
   compactJson,
   compareStrings,
   displayString,
+  float,
   getField,
   hasField,
+  inIntegerRange,
   isJsonObject,
   jsonEqual,
   jsonObjectFrom,
+  JsonNumberError,
+  normalizeNumber,
   ownKeys,
   type Json,
   type JsonObject,
@@ -47,6 +52,29 @@ import {
 
 export type Mode = "concrete" | "symbolic";
 
+/**
+ * What one evaluation runs with.
+ *
+ * `arithmetic` is `reference.md` §11's arithmetic profile, per evaluation:
+ * with it on, the names of `arithmeticNames` are in the initial environment
+ * of the root program and of every library it runs, and a seeded term is
+ * accepted in symbolic mode (`v3-symbols.md` §5.4). With it off they are
+ * unbound, so `sum(1, 2)` is an `UnboundName`, and every seeded term is
+ * refused. The two number types and the reserved `"$term"` key do not depend
+ * on it.
+ *
+ * Both fields are optional: the default is concrete mode without the
+ * arithmetic profile, which is what `evalProgram` and `runProgram` run with.
+ * A host that has not opted in never receives a term, and can refuse a
+ * program up front with `deepArithmeticOps`.
+ */
+export interface Options {
+  mode?: Mode;
+  arithmetic?: boolean;
+}
+
+export const defaultOptions: Required<Options> = { mode: "concrete", arithmetic: false };
+
 /** Host-supplied library table: import name -> parsed library program. */
 export type LibraryTable = Map<string, Program>;
 
@@ -61,6 +89,8 @@ export type EvalErrorKind =
   | "SymbolsUnavailable"
   | "NotConcrete"
   | "AllocationInLibrary"
+  /** An arithmetic operation has no result in the type of its operands (`reference.md` §12). */
+  | "NotRepresentable"
   | "TypeErr";
 
 /**
@@ -121,6 +151,10 @@ export class EvalError extends Error {
     return new EvalError("AllocationInLibrary", name);
   }
 
+  static notRepresentable(m: string): EvalError {
+    return new EvalError("NotRepresentable", m);
+  }
+
   static typeErr(e: TramajTypeError): EvalError {
     return new EvalError("TypeErr", e.message);
   }
@@ -135,7 +169,10 @@ export class EvalError extends Error {
 export type Value =
   | { t: "null" }
   | { t: "bool"; value: boolean }
-  | { t: "number"; value: number }
+  /** A whole number in the integer range, `-(2^53 - 1)` to `2^53 - 1` (`reference.md` §3). */
+  | { t: "int"; value: number }
+  /** A finite double, never a negative zero. */
+  | { t: "float"; value: number }
   | { t: "str"; value: string }
   | { t: "array"; items: Value[] }
   | { t: "object"; fields: Env }
@@ -146,6 +183,14 @@ export type Value =
   | { t: "import"; pending: Pending }
   /** A symbol (`v3-symbols.md` §1.1): an id plus a projection path (§1.6). */
   | { t: "symbol"; id: string; path: string[] }
+  /**
+   * A term (`v3-symbols.md` §1.9): an arithmetic operation left unevaluated
+   * because one of its operands is a symbol or a term. It holds the name of
+   * the builtin and its operands already flattened: each an integer, a float,
+   * a symbol or a term, nothing folded and no nested term spliced. It is data
+   * as a symbol is, and refused wherever a symbol is.
+   */
+  | { t: "term"; op: string; operands: Value[] }
   /** `constraint(name, args...)` (`v3-symbols.md` §2.1). */
   | { t: "constraint"; name: string; args: Value[] };
 
@@ -183,45 +228,60 @@ interface EvalCtx {
   mode: Mode;
   /** Whether this is the root program or somewhere inside a library (§1.3, §1.4). */
   isRoot: boolean;
+  /** Whether the arithmetic profile is on (`Options`); the same for the root and every library. */
+  arithmetic: boolean;
   emissions: Emissions;
 }
 
 function enterLibrary(name: string, ctx: EvalCtx): EvalCtx {
   const inProgress = new Set(ctx.inProgress);
   inProgress.add(name);
-  return { libs: ctx.libs, inProgress, mode: ctx.mode, isRoot: false, emissions: ctx.emissions };
+  return { ...ctx, inProgress, isRoot: false };
 }
 
 // Entry points -----------------------------------------------------------
 
 export type Output = { t: "node"; node: Node } | { t: "value"; value: Json };
 
+/** Evaluates in the given mode, without the arithmetic profile. */
 export function evalProgram(
   mode: Mode,
   libs: LibraryTable,
   ctx: Json,
   program: Program,
 ): Output {
-  return evalProgramWithEmissions(mode, libs, ctx, program).output;
+  return evalProgramWith({ mode }, libs, ctx, program);
+}
+
+/** As `evalProgram`, with the mode and the arithmetic profile chosen by `options`. */
+export function evalProgramWith(
+  options: Options,
+  libs: LibraryTable,
+  ctx: Json,
+  program: Program,
+): Output {
+  return evalProgramWithEmissions({ ...defaultOptions, ...options }, libs, ctx, program).output;
 }
 
 function evalProgramWithEmissions(
-  mode: Mode,
+  options: Required<Options>,
   libs: LibraryTable,
   ctx: Json,
   program: Program,
 ): { output: Output; emissions: Emissions } {
+  const { mode, arithmetic } = options;
   const erased = withTypeErrors(() => eraseTypes(libs, program));
-  const ctxVal = checkedFromJson(mode, ctx);
+  const ctxVal = checkedFromJson(options, ctx);
   const emissions: Emissions = { constraints: [], symbols: [] };
   const evalCtx: EvalCtx = {
     libs,
     inProgress: new Set(),
     mode,
     isRoot: true,
+    arithmetic,
     emissions,
   };
-  const env = initialEnv(ctxVal);
+  const env = initialEnv(arithmetic, ctxVal);
   const v = evalExpr(evalCtx, env, erased.root);
   const output: Output =
     v.t === "node" ? { t: "node", node: v.node } : { t: "value", value: toJson(v) };
@@ -266,14 +326,31 @@ function constraintEq(a: Value, b: Value): boolean {
   });
 }
 
-/** Evaluates and serializes to the wire JSON a host compares against `expected.json`. */
+/**
+ * Evaluates and serializes to the wire JSON a host compares against
+ * `expected.json`, in the given mode and without the arithmetic profile. The
+ * result is in canonical form (`json.ts`): write it with `stringify`, since
+ * `JSON.stringify` writes the float `3.0` as `3`.
+ */
 export function runProgram(
   mode: Mode,
   libs: LibraryTable,
   ctx: Json,
   program: Program,
 ): Json {
-  const { output, emissions } = evalProgramWithEmissions(mode, libs, ctx, program);
+  return runProgramWith({ mode }, libs, ctx, program);
+}
+
+/** As `runProgram`, with the mode and the arithmetic profile chosen by `options`. */
+export function runProgramWith(
+  options: Options,
+  libs: LibraryTable,
+  ctx: Json,
+  program: Program,
+): Json {
+  const full = { ...defaultOptions, ...options };
+  const { mode } = full;
+  const { output, emissions } = evalProgramWithEmissions(full, libs, ctx, program);
   if (mode === "concrete") {
     return output.t === "node" ? nodeToJson(output.node) : output.value;
   }
@@ -340,8 +417,10 @@ function typeConstraintToJson([name, args]: [string, ResolvedConstraintArg[]]): 
           return { $type: canonicalId(a.type) };
         case "ScalarStr":
           return a.value;
-        case "ScalarNum":
+        case "ScalarInt":
           return a.value;
+        case "ScalarFloat":
+          return float(a.value);
         case "ScalarBool":
           return a.value;
         case "ScalarNull":
@@ -390,9 +469,15 @@ const BUILTIN_NAMES = [
   "append",
 ] as const;
 
-function initialEnv(ctxVal: Value): Env {
+/**
+ * `$ctx` and the builtins. The arithmetic names are bound only with the
+ * arithmetic profile on (`reference.md` §11); without it they are unbound,
+ * like any other name nobody bound.
+ */
+function initialEnv(arithmetic: boolean, ctxVal: Value): Env {
   const env: Env = new Map();
   for (const n of BUILTIN_NAMES) env.set(n, { t: "builtin", name: n });
+  if (arithmetic) for (const n of arithmeticNames) env.set(n, { t: "builtin", name: n });
   env.set("ctx", ctxVal);
   return env;
 }
@@ -425,8 +510,9 @@ function evalExpr(ctx: EvalCtx, env: Env, e: Expr): Value {
     }
     case "StringLit":
       return { t: "str", value: e.value };
-    case "NumberLit":
-      return { t: "number", value: e.value };
+    case "IntLit":
+    case "FloatLit":
+      return { t: e.t === "IntLit" ? "int" : "float", value: e.value };
     case "BoolLit":
       return { t: "bool", value: e.value };
     case "NullLit":
@@ -691,7 +777,7 @@ function apply(ctx: EvalCtx, who: string, f: Value, args: Value[]): Value {
 function evalCollection(ctx: EvalCtx, env: Env, who: string, e: Expr): Value[] {
   const v = evalExpr(ctx, env, e);
   if (v.t === "array") return v.items;
-  if (v.t === "symbol") throw EvalError.notConcrete(who);
+  if (isSymbolic(v)) throw EvalError.notConcrete(who);
   throw EvalError.typeMismatch(
     `${who} expects an array as its first argument, got ${describeValue(v)}`,
   );
@@ -705,7 +791,7 @@ function evalCollection(ctx: EvalCtx, env: Env, who: string, e: Expr): Value[] {
  * mismatch: the spine of a concatenation must be known.
  */
 function concatValues(l: Value, r: Value): Value {
-  if (l.t === "symbol" || r.t === "symbol") throw EvalError.notConcrete("<>");
+  if (isSymbolic(l) || isSymbolic(r)) throw EvalError.notConcrete("<>");
   if (l.t === "str" && r.t === "str") return { t: "str", value: l.value + r.value };
   if (l.t === "array" && r.t === "array") return { t: "array", items: [...l.items, ...r.items] };
   if (l.t === "object" && r.t === "object") {
@@ -735,7 +821,7 @@ function runLibrary(ctx: EvalCtx, name: string, ctxVal: Value): Value {
   const ctx2 = enterLibrary(name, ctx);
   try {
     const { statements, root } = unlets(prog.root);
-    const libEnv = initialEnv(ctxVal);
+    const libEnv = initialEnv(ctx.arithmetic, ctxVal);
     const bindingNames: string[] = [];
     for (const stmt of statements) {
       switch (stmt.t) {
@@ -888,8 +974,12 @@ export function toJson(v: Value): Json {
       return null;
     case "bool":
       return v.value;
-    case "number":
+    case "int":
       return v.value;
+    // Canonical form (`json.ts`): a whole-valued float is a `Float`, so that
+    // it is still a float once it has left the evaluator.
+    case "float":
+      return float(v.value);
     case "str":
       return v.value;
     case "array":
@@ -921,6 +1011,10 @@ export function toJson(v: Value): Json {
     // is what refuses one. §5.3's tagged shape: both fields required.
     case "symbol":
       return { $sym: v.id, path: [...v.path] };
+    // A term crosses wherever a symbol does, as §5.3's other tagged shape.
+    // Its operands are numbers, symbols and terms, so they always cross.
+    case "term":
+      return { $term: v.op, arguments: v.operands.map(toJson) };
     case "constraint":
       throw EvalError.typeMismatch(
         `a constraint (${JSON.stringify(v.name)}) cannot cross a JSON boundary -- only "!" may consume it`,
@@ -929,11 +1023,19 @@ export function toJson(v: Value): Json {
 }
 
 /**
- * Whether a value is, or contains, a symbol (`v3-symbols.md` §1.5, §1.7): a
- * structure built of concrete pieces is itself concrete.
+ * Whether a value is itself a symbol or a term (`v3-symbols.md` §1.9), which
+ * is what the operations that inspect one value refuse.
+ */
+function isSymbolic(v: Value): boolean {
+  return v.t === "symbol" || v.t === "term";
+}
+
+/**
+ * Whether a value is, or contains, a symbol or a term (`v3-symbols.md` §1.5,
+ * §1.7, §1.9): a structure built of concrete pieces is itself concrete.
  */
 function containsSymbol(v: Value): boolean {
-  if (v.t === "symbol") return true;
+  if (isSymbolic(v)) return true;
   if (v.t === "array") return v.items.some(containsSymbol);
   if (v.t === "object") return [...v.fields.values()].some(containsSymbol);
   return false;
@@ -949,45 +1051,124 @@ function requireConcrete(who: string, v: Value): Json {
   return toJson(v);
 }
 
+/**
+ * A JSON number as a value, by `json.ts`'s classification, or `null` for
+ * anything that is not a number. One the value domain does not hold (an
+ * integer outside the range, a float that is not finite) is refused with a
+ * `JsonNumberError`, and a negative zero is read as zero.
+ */
+function numberFromJson(v: Json): Value | null {
+  const n = classifyNumber(v);
+  if (n === null) return null;
+  const value = Number(normalizeNumber(n.type, n.value));
+  return { t: n.type === "integer" ? "int" : "float", value };
+}
+
+/** A JSON value the evaluator itself produced (an action payload), back to a value. */
 function fromJson(v: Json): Value {
   if (v === null) return { t: "null" };
   if (typeof v === "boolean") return { t: "bool", value: v };
-  if (typeof v === "number") return { t: "number", value: v };
   if (typeof v === "string") return { t: "str", value: v };
+  const n = numberFromJson(v);
+  if (n !== null) return n;
   if (Array.isArray(v)) return { t: "array", items: v.map(fromJson) };
+  const o = v as JsonObject;
   const fields: Env = new Map();
-  for (const k of ownKeys(v)) fields.set(k, fromJson(v[k] as Json));
+  for (const k of ownKeys(o)) fields.set(k, fromJson(o[k] as Json));
   return { t: "object", fields };
 }
 
 /**
- * The input context's boundary: as `fromJson`, but recursively refusing
- * `"$sym"` and `"$type"` as ordinary object keys (`v3-symbols.md` §5.3). In
- * symbolic mode, seeding (§5.4) accepts a well-formed `{"$sym": ..., "path":
- * [...]}` back as an actual symbol.
+ * The input context's boundary, decoded whole before evaluation starts.
+ *
+ * Numbers (`reference.md` §3): a number is typed by `json.ts`'s
+ * classification, which for JSON text read by `parseJson` is the type of the
+ * literal of the same text. One the value domain does not hold is a
+ * `TypeMismatch`.
+ *
+ * Reserved keys (`v3-symbols.md` §5.3): `"$sym"`, `"$type"` and `"$term"` are
+ * recursively refused as ordinary object keys, in every profile. In concrete
+ * mode each is refused unconditionally. In symbolic mode, seeding (§5.4)
+ * accepts a well-formed `{"$sym": ..., "path": [...]}` back as an actual
+ * symbol and, with the arithmetic profile on, a well-formed term back as an
+ * actual term.
  */
-function checkedFromJson(mode: Mode, v: Json): Value {
+function checkedFromJson(options: Required<Options>, v: Json): Value {
   if (v === null) return { t: "null" };
   if (typeof v === "boolean") return { t: "bool", value: v };
-  if (typeof v === "number") return { t: "number", value: v };
   if (typeof v === "string") return { t: "str", value: v };
-  if (Array.isArray(v)) return { t: "array", items: v.map((x) => checkedFromJson(mode, x)) };
-  if (hasField(v, "$type")) {
+  let n: Value | null;
+  try {
+    n = numberFromJson(v);
+  } catch (e) {
+    if (!(e instanceof JsonNumberError)) throw e;
+    throw EvalError.typeMismatch(`the context holds a number that is not a value: ${e.message}`);
+  }
+  if (n !== null) return n;
+  if (Array.isArray(v)) return { t: "array", items: v.map((x) => checkedFromJson(options, x)) };
+  const o = v as JsonObject;
+  if (hasField(o, "$type")) {
     throw EvalError.typeMismatch(
       'the context carries the reserved key "$type", which only a typed envelope may use',
     );
   }
-  if (hasField(v, "$sym")) {
-    if (mode === "concrete") {
+  if (hasField(o, "$sym")) {
+    if (options.mode === "concrete") {
       throw EvalError.typeMismatch(
         'the context carries the reserved key "$sym", which only a symbolic envelope may use',
       );
     }
-    return decodeSymbolRef(v["$sym"] as Json, v);
+    return decodeSymbolRef(o["$sym"] as Json, o);
+  }
+  if (hasField(o, "$term")) {
+    if (options.mode === "concrete") {
+      throw EvalError.typeMismatch(
+        'the context carries the reserved key "$term", which only a symbolic envelope may use',
+      );
+    }
+    return decodeTerm(options, o["$term"] as Json, o);
   }
   const fields: Env = new Map();
-  for (const k of ownKeys(v)) fields.set(k, checkedFromJson(mode, v[k] as Json));
+  for (const k of ownKeys(o)) fields.set(k, checkedFromJson(options, o[k] as Json));
   return { t: "object", fields };
+}
+
+/**
+ * Decodes a `{"$term": <op>, "arguments": [...]}` object back into a term
+ * (`v3-symbols.md` §5.3, §5.4). A well-formed term is one a call could have
+ * built, so this is the call's own check, `arithmeticOperands`, on arguments
+ * already decoded, which holds a nested term to the same rule. Two things a
+ * call accepts are refused first: an array, since a term holds its operands
+ * already flattened, and operands that are all numbers, since the call would
+ * have computed. Without the arithmetic profile no `op` is known, so every
+ * term is refused.
+ */
+function decodeTerm(options: Required<Options>, opVal: Json, obj: JsonObject): Value {
+  const argsJson = getField(obj, "arguments");
+  if (typeof opVal !== "string" || ownKeys(obj).length !== 2 || argsJson === undefined) {
+    throw EvalError.typeMismatch(
+      'a "$term" object must be exactly {"$term": <op>, "arguments": [<argument>, ...]}',
+    );
+  }
+  if (!Array.isArray(argsJson)) {
+    throw EvalError.typeMismatch(`a term's "arguments" must be an array`);
+  }
+  const args = argsJson.map((x) => checkedFromJson(options, x));
+  const op = JSON.stringify(opVal);
+  if (!options.arithmetic) {
+    throw EvalError.typeMismatch(`the context carries a term (${op}), which needs the arithmetic profile`);
+  }
+  if (!arithmeticNames.includes(opVal)) {
+    throw EvalError.typeMismatch(`a term names an unknown operation: ${op}`);
+  }
+  if (args.some((a) => a.t === "array")) {
+    throw EvalError.typeMismatch(`a term (${op}) holds its operands flattened, not in an array`);
+  }
+  const operands = arithmeticOperands(opVal, args);
+  if (!operands.some(isSymbolic)) {
+    throw EvalError.typeMismatch(`a term (${op}) must hold a symbol or a term among its arguments`);
+  }
+  return { t: "term", op: opVal, operands };
 }
 
 /**
@@ -1021,8 +1202,10 @@ function describeValue(v: Value): string {
       return "null";
     case "bool":
       return "a boolean";
-    case "number":
-      return "a number";
+    case "int":
+      return "an integer";
+    case "float":
+      return "a float";
     case "str":
       return "a string";
     case "array":
@@ -1041,6 +1224,8 @@ function describeValue(v: Value): string {
       return `the not-yet-run import of ${JSON.stringify(v.pending.name)}`;
     case "symbol":
       return "a symbol";
+    case "term":
+      return `a term (${JSON.stringify(v.op)})`;
     case "constraint":
       return `a constraint (${JSON.stringify(v.name)})`;
   }
@@ -1049,7 +1234,7 @@ function describeValue(v: Value): string {
 /** Control flow must be concrete (`v3-symbols.md` §1.5). */
 function requireBool(who: string, v: Value): boolean {
   if (v.t === "bool") return v.value;
-  if (v.t === "symbol") throw EvalError.notConcrete(who);
+  if (isSymbolic(v)) throw EvalError.notConcrete(who);
   throw EvalError.typeMismatch(`${who} must be a boolean, got ${describeValue(v)}`);
 }
 
@@ -1064,9 +1249,9 @@ function evalBuiltin(name: string, args: Value[]): Value {
     case "count": {
       if (args.length !== 1) throw arityErr(1);
       const a = arg(0);
-      if (a.t === "array") return { t: "number", value: a.items.length };
-      if (a.t === "object") return { t: "number", value: a.fields.size };
-      if (a.t === "symbol") throw EvalError.notConcrete(name);
+      if (a.t === "array") return { t: "int", value: a.items.length };
+      if (a.t === "object") return { t: "int", value: a.fields.size };
+      if (isSymbolic(a)) throw EvalError.notConcrete(name);
       throw EvalError.typeMismatch(
         `${name} expects an array or object, got ${describeValue(a)}`,
       );
@@ -1099,8 +1284,18 @@ function evalBuiltin(name: string, args: Value[]): Value {
     case "gt":
     case "gte": {
       if (args.length !== 2) throw arityErr(2);
-      const a = asNumber(name, arg(0));
-      const b = asNumber(name, arg(1));
+      // Two integers or two floats (`reference.md` §6). A mixed pair is a
+      // `TypeMismatch` like any other pair of two types: nothing is promoted,
+      // so `gt(1.5, 0)` is written `gt(1.5, 0.0)`.
+      const na = asNumber(name, arg(0));
+      const nb = asNumber(name, arg(1));
+      if (na.t !== nb.t) {
+        throw EvalError.typeMismatch(
+          `${name} expects two integers or two floats, got ${describeValue(na)} and ${describeValue(nb)}`,
+        );
+      }
+      const a = na.value;
+      const b = nb.value;
       const r = name === "lt" ? a < b : name === "lte" ? a <= b : name === "gt" ? a > b : a >= b;
       return { t: "bool", value: r };
     }
@@ -1117,6 +1312,7 @@ function evalBuiltin(name: string, args: Value[]): Value {
       return { t: "array", items: [...asArray(name, arg(0)), arg(1)] };
     }
     default:
+      if (arithmeticNames.includes(name)) return arithmetic(name, args);
       throw EvalError.unboundName(name);
   }
 }
@@ -1128,9 +1324,13 @@ function asBool(name: string, v: Value): boolean {
   );
 }
 
-function asNumber(name: string, v: Value): number {
-  if (v.t === "number") return v.value;
-  if (v.t === "symbol") throw EvalError.notConcrete(name);
+/**
+ * A number operand, returned as it is so that its type is still there to
+ * check. A symbol or a term is `NotConcrete` (`v3-symbols.md` §1.5).
+ */
+function asNumber(name: string, v: Value): NumberValue {
+  if (v.t === "int" || v.t === "float") return v;
+  if (isSymbolic(v)) throw EvalError.notConcrete(name);
   throw EvalError.typeMismatch(`${name} expects a number argument, got ${describeValue(v)}`);
 }
 
@@ -1139,8 +1339,13 @@ function asArray(name: string, v: Value): Value[] {
   throw EvalError.typeMismatch(`${name} expects an array argument, got ${describeValue(v)}`);
 }
 
+/**
+ * An index is a non-negative integer: `-1` is not one, and neither is a
+ * float, `1.0` included, since nothing converts a float into an integer here.
+ * The caller has checked the type.
+ */
 function asIndex(n: number): number | null {
-  return Number.isFinite(n) && n >= 0 && Number.isInteger(n) ? n : null;
+  return n >= 0 ? n : null;
 }
 
 /**
@@ -1149,9 +1354,9 @@ function asIndex(n: number): number | null {
  * is `NotConcrete` rather than a lie (`v3-symbols.md` §1.5).
  */
 function hasImpl(name: string, container: Value, key: Value): boolean {
-  if (container.t === "symbol") throw EvalError.notConcrete(name);
+  if (isSymbolic(container)) throw EvalError.notConcrete(name);
   if (container.t === "object" && key.t === "str") return container.fields.has(key.value);
-  if (container.t === "array" && key.t === "number") {
+  if (container.t === "array" && key.t === "int") {
     const i = asIndex(key.value);
     return i !== null && i < container.items.length;
   }
@@ -1159,14 +1364,187 @@ function hasImpl(name: string, container: Value, key: Value): boolean {
 }
 
 function lookupImpl(name: string, container: Value, key: Value, fallback: Value): Value {
-  if (container.t === "symbol") throw EvalError.notConcrete(name);
+  if (isSymbolic(container)) throw EvalError.notConcrete(name);
   if (container.t === "object" && key.t === "str") {
     return container.fields.get(key.value) ?? fallback;
   }
-  if (container.t === "array" && key.t === "number") {
+  if (container.t === "array" && key.t === "int") {
     const i = asIndex(key.value);
     if (i === null) return fallback;
     return container.items[i] ?? fallback;
   }
   return fallback;
+}
+
+// Arithmetic (reference.md §11) -------------------------------------------------
+
+type NumberValue = Extract<Value, { t: "int" | "float" }>;
+
+function isNumberValue(v: Value): v is NumberValue {
+  return v.t === "int" || v.t === "float";
+}
+
+/**
+ * One of the arithmetic builtins, applied. Operands that are all numbers
+ * compute; if one is a symbol or a term the result is a term holding the
+ * flattened operands exactly as written (`v3-symbols.md` §1.9). Every operand
+ * is checked before either happens, so a `TypeMismatch` takes precedence over
+ * a `NotRepresentable`.
+ */
+function arithmetic(name: string, args: Value[]): Value {
+  const operands = arithmeticOperands(name, args);
+  if (operands.some(isSymbolic)) return { t: "term", op: name, operands };
+  return compute(name, operands as NumberValue[]);
+}
+
+function flattenOperands(args: Value[]): Value[] {
+  return args.flatMap((a) => (a.t === "array" ? flattenOperands(a.items) : [a]));
+}
+
+/**
+ * The operands of a call, checked as far as they can be without knowing what
+ * a symbol stands for; every refusal is a `TypeMismatch`.
+ *
+ * - `sum` and `product` flatten their arguments by the rule children use: an
+ *   array contributes each of its elements, recursively, in order. They need
+ *   at least one operand afterwards. The others take a fixed count and do not
+ *   flatten, so an array given to one is refused whatever it holds.
+ * - Each operand is a number, a symbol or a term. A symbol or a term stands
+ *   for one number of either type and is not looked into.
+ * - The operands that are numbers agree with each other in type and with what
+ *   the builtin accepts. Nothing is converted or promoted.
+ */
+function arithmeticOperands(name: string, args: Value[]): Value[] {
+  const variadic = name === "sum" || name === "product";
+  let operands: Value[];
+  if (variadic) {
+    operands = flattenOperands(args);
+    if (operands.length === 0) {
+      throw EvalError.typeMismatch(
+        `${name} expects at least one operand: seed it with the zero or the one of the intended type`,
+      );
+    }
+  } else {
+    const n = name === "quotient" || name === "floor-quotient" || name === "modulo" ? 2 : 1;
+    if (args.length !== n) {
+      throw EvalError.typeMismatch(`${name} expects exactly ${n} argument(s), got ${args.length}`);
+    }
+    operands = args;
+  }
+  for (const v of operands) {
+    if (!isNumberValue(v) && !isSymbolic(v)) {
+      throw EvalError.typeMismatch(`${name} expects number operands, got ${describeValue(v)}`);
+    }
+  }
+  const numbers = operands.filter(isNumberValue);
+  const all = (t: "int" | "float"): boolean => numbers.every((v) => v.t === t);
+  let accepted: boolean;
+  let wanted: string;
+  switch (name) {
+    case "quotient":
+      [accepted, wanted] = [all("float"), "two floats"];
+      break;
+    case "inverse":
+      [accepted, wanted] = [all("float"), "a float"];
+      break;
+    case "floor-quotient":
+    case "modulo":
+      [accepted, wanted] = [all("int"), "two integers"];
+      break;
+    case "sum":
+    case "product":
+      [accepted, wanted] = [all("int") || all("float"), "all integers or all floats"];
+      break;
+    // `negate`, `floor` and `real` take a number of either type.
+    default:
+      [accepted, wanted] = [true, "a number"];
+  }
+  if (!accepted) {
+    throw EvalError.typeMismatch(
+      `${name} expects ${wanted}, got ${numbers.map(describeValue).join(", ")}`,
+    );
+  }
+  return operands;
+}
+
+/** An integer result, or `NotRepresentable` outside the integer range. */
+function integerResult(name: string, n: number): NumberValue {
+  if (!inIntegerRange(n)) {
+    throw EvalError.notRepresentable(
+      `${name}: the result is outside the integer range, -(2^53 - 1) to 2^53 - 1`,
+    );
+  }
+  // There is no negative zero, of either type.
+  return { t: "int", value: n === 0 ? 0 : n };
+}
+
+/** A float result, or `NotRepresentable` when it is not finite: overflow and a zero divisor alike. */
+function floatResult(name: string, n: number): NumberValue {
+  if (!Number.isFinite(n)) {
+    throw EvalError.notRepresentable(`${name}: the result is not a finite float`);
+  }
+  return { t: "float", value: n === 0 ? 0 : n };
+}
+
+/**
+ * `floor-quotient` and `modulo` together: `a` is `b * quotient + remainder`,
+ * the quotient rounded toward negative infinity and the remainder zero or of
+ * the sign of `b`.
+ *
+ * `a / b` is not used, since its rounding can land on the integer above the
+ * true quotient. `%` is exact and truncates; `a - r` is then a multiple of
+ * `b` no larger in magnitude than `a`, so its division is exact too, and one
+ * step moves the truncated pair to the floored one.
+ */
+function floorDivision(name: string, a: number, b: number): { quotient: number; remainder: number } {
+  if (b === 0) throw EvalError.notRepresentable(`${name}: the divisor is zero`);
+  const r = a % b;
+  const q = (a - r) / b;
+  const adjust = r !== 0 && r < 0 !== b < 0;
+  return { quotient: adjust ? q - 1 : q, remainder: adjust ? r + b : r };
+}
+
+/**
+ * The concrete rules (`reference.md` §11, *Semantics*), over operands
+ * `arithmeticOperands` accepted and that are all numbers.
+ *
+ * Both number types hold a double. Float arithmetic is therefore the host's,
+ * one correctly rounded operation at a time, and nothing here can be
+ * contracted into a fused multiply-add. Integer arithmetic is exact as long
+ * as each result is checked: the sum or the product of two integers of the
+ * guaranteed range that leaves it rounds to a double of magnitude at least
+ * `2^53`, which `inIntegerRange` refuses.
+ */
+function compute(name: string, operands: NumberValue[]): Value {
+  const first = operands[0] as NumberValue;
+  const second = operands[1] as NumberValue;
+  const result = first.t === "int" ? integerResult : floatResult;
+  switch (name) {
+    case "sum":
+    case "product": {
+      // A left fold from the first operand, each step checked: an integer
+      // step out of range is an error although the total would be in range.
+      let acc = result(name, first.value);
+      for (const v of operands.slice(1)) {
+        acc = result(name, name === "sum" ? acc.value + v.value : acc.value * v.value);
+      }
+      return acc;
+    }
+    case "negate":
+      return result(name, -first.value);
+    case "quotient":
+      return floatResult(name, first.value / second.value);
+    case "inverse":
+      return floatResult(name, 1 / first.value);
+    case "floor-quotient":
+      return integerResult(name, floorDivision(name, first.value, second.value).quotient);
+    case "modulo":
+      return integerResult(name, floorDivision(name, first.value, second.value).remainder);
+    case "floor":
+      return first.t === "int" ? first : integerResult(name, Math.floor(first.value));
+    case "real":
+      return { t: "float", value: first.value };
+    default:
+      throw EvalError.unboundName(name);
+  }
 }

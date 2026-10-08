@@ -84,7 +84,8 @@ corpus fixtures are written. Where each implementation stands:
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic</th></tr>
 <tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
 <tr><td><code>tramaj-hs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-js</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td></tr>
 </table>
 
 The corpus cases for these carry a `"requires"` field, and an implementation

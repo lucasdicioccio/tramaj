@@ -90,12 +90,13 @@ in three places.
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><td><code>tramaj-js</code>, and <code>tramaj-react</code> built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
 </table>
 
-The first two rows are on the `main` branch and in no release yet. Until the
+The first three rows are on the `main` branch and in no release yet. Until the
 other implementations follow, the same template can give different output on
-two of them: `str(1.0)` is `1.0` on the first two rows and `1` on the third.
+two of them: `str(1.0)` is `1.0` on the first three rows and `1` on the last.
 The corpus cases that depend on the split or on arithmetic are marked with
 `"requires"`, and an implementation that does not declare the name skips
 them. An existing host moving to the split should read
@@ -253,8 +254,9 @@ grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell
 corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
-core language; the two number types and arithmetic are not in this port
-yet). It's a normal npm package with no React or DOM dependency
+core language, and the two number types with the nine arithmetic builtins;
+see *Numbers in `tramaj-js`* below). It's a normal npm package with no React
+or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on `tramaj-purs`:
 
@@ -302,6 +304,27 @@ splice it into your own container, `<>{foldToReact(dispatch, node)}</>`.
 Call `validateAttrNames` on the `Node` first, same caveat as
 `tramaj-halogen`: attribute names aren't validated by the fold itself.
 
+**Numbers in `tramaj-js`.** A JavaScript `number` has no type of its own, so
+the port classifies it: a `number` that is a safe integer is an integer, and
+any other `number` is a float. The float `3.0` is written `new Float(3)` (or
+`float(3)`), and the result of an evaluation uses a `Float` for a
+whole-valued float and a plain `number` for everything else. The integer
+range is the guaranteed one, `-(2^53 - 1)` to `2^53 - 1`. `JSON.parse` and
+`JSON.stringify` lose the type, so the package has its own reader and
+writer, `parseJson` and `stringify`. Arithmetic is an option of each
+evaluation, off by default:
+
+```typescript
+const ctx = parseJson('{"qty": 3, "price": 9.0}');
+const out = runProgramWith({ mode: "concrete", arithmetic: true }, libs, ctx, program);
+stringify(out); // an integer as digits, a float with a fraction or an exponent
+```
+
+`runProgram` and `evalProgram` run without it, where the nine names are
+unbound, and `deepArithmeticOps(libs, program)` tells a host beforehand
+whether a program uses them. `tramaj-react`'s `renderScalar` writes a number
+as `str` does and a term as the call that built it.
+
 If you'd rather not add a JS dependency at all — or your host isn't Node —
 `tramaj-cli` (or `tramaj-cli-rs`) as a subprocess is still the same option
 open to any other language; see [Getting started](/howto-humans.html) for
@@ -340,7 +363,7 @@ import name to parsed program; the mode is `"concrete"` or `"symbolic"`.
 `eval_program` is the lower-level entry point if you want the `Node` value
 itself rather than its JSON encoding. Every number is still a double
 in this port: an exact integer comes back as an `int`, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
+ECMAScript's `Number::toString` does. That matches the Rust and
 Go ports byte-for-byte, and differs from the PureScript and Haskell
 implementations for a whole-valued float (`1` here, `1.0` there).
 
@@ -385,7 +408,7 @@ document, or the concrete/symbolic envelope from
 `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry
 point if you want the `*tramaj.Node` itself rather than its JSON encoding.
 Every number is still a `float64` in this port, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
+ECMAScript's `Number::toString` does. That matches the Rust and
 Python ports byte-for-byte, and differs from the PureScript and Haskell
 implementations for a whole-valued float (`1` here, `1.0` there).
 

@@ -221,6 +221,72 @@ export function deepSymbolDemands(libs: LibraryTable, prog: Program): string[][]
   return sortedPaths(out);
 }
 
+// Arithmetic --------------------------------------------------------------------
+
+/**
+ * The names of the arithmetic profile (`specs/reference.md` §11) this port
+ * has: the nine of `specs/decisions.md` §18, without `round`. They are names
+ * and not syntax: an evaluation with the profile on binds them in the initial
+ * environment, and a program may bind any of them itself.
+ */
+export const arithmeticNames: readonly string[] = [
+  "sum",
+  "product",
+  "negate",
+  "inverse",
+  "quotient",
+  "floor-quotient",
+  "modulo",
+  "floor",
+  "real",
+];
+
+/**
+ * Which of `arithmeticNames` this program references free
+ * (`specs/reference.md` §9), called (`sum(1, 2)`) or passed by reference
+ * (`fold($xs, 0, $sum)`) alike, since both are a `Path` rooted at the name.
+ *
+ * Scope-aware: a name bound by a binding, a lambda parameter or a pattern
+ * name is not reported where that binding is in scope. A pattern is lowered
+ * to plain bindings by the parser, so it needs no case here. A binding's own
+ * right-hand side is outside its scope, so `@sum = sum(1, 2)` reports `sum`.
+ *
+ * Over-approximates like every analysis here: a name used only under a
+ * `Branch` arm no context will select is still reported.
+ */
+export function arithmeticOps(prog: Program): string[] {
+  const go = (bound: ReadonlySet<string>, e: Expr): string[] => {
+    switch (e.t) {
+      case "Path":
+        return arithmeticNames.includes(e.root) && !bound.has(e.root) ? [e.root] : [];
+      case "Let":
+      case "TypeAnnotate":
+        return [...go(bound, e.value), ...go(new Set([...bound, e.name]), e.body)];
+      case "Lambda":
+        return go(new Set([...bound, ...e.params]), e.body);
+      default:
+        return subExprs(e).flatMap((sub) => go(bound, sub));
+    }
+  };
+  return sortedStrings(go(new Set(), prog.root));
+}
+
+/**
+ * `arithmeticOps` of this program and of every library it imports, directly
+ * or not. A library has its own scope, so a binding in the importing program
+ * shadows nothing there. This is what a host that leaves the arithmetic
+ * profile off checks before running a program: non-empty means the program
+ * would fail with `UnboundName`.
+ */
+export function deepArithmeticOps(libs: LibraryTable, prog: Program): string[] {
+  const out = [...arithmeticOps(prog)];
+  for (const name of transitiveImportNames(libs, prog)) {
+    const p = libs.get(name);
+    if (p !== undefined) out.push(...arithmeticOps(p));
+  }
+  return sortedStrings(out);
+}
+
 // Types -----------------------------------------------------------------------
 
 /** Every name this program declares with `type ... = ...` (`v4-types.md` §9). */

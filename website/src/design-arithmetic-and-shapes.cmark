@@ -114,7 +114,8 @@ has the fixtures. The PureScript and Haskell implementations have the number
 split and the nine builtins on `main`, and so do the command-line tool
 (`tramaj-cli --arithmetic`), the Halogen fold and the
 [playground](/playground.html). They are not in a release. The Rust,
-JavaScript, Python and Go implementations follow.
+Python and Go implementations follow; the TypeScript one (`tramaj-js`, with
+`tramaj-react`) has both on `main` as well.
 
 The split changes what some existing templates produce, beyond the `str`
 case above: see
