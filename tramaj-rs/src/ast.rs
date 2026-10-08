@@ -42,6 +42,12 @@ pub enum Expr {
     Filter(Box<Expr>, Box<Expr>),
     Scan(Box<Expr>, Box<Expr>, Box<Expr>),
     Fold(Box<Expr>, Box<Expr>, Box<Expr>),
+    /// `sort-by(collection, function)` and, with the flag set,
+    /// `sort-by-descending(collection, function)` (`reference.md` §11,
+    /// *Sorting*): the elements of the collection ordered by the key the
+    /// function gives each of them. A core constructor for the reason `Map`
+    /// is one: the key function needs a fresh binding per element.
+    SortBy(bool, Box<Expr>, Box<Expr>),
     Concat(Box<Expr>, Box<Expr>),
     Import(String, Vec<(String, ParamValue)>),
     AdaptActions(Box<Expr>, ActionAdaptation, Option<Box<Expr>>),
@@ -181,6 +187,7 @@ pub fn sub_exprs(e: &Expr) -> Vec<&Expr> {
         Expr::Filter(coll, f) => vec![coll, f],
         Expr::Scan(coll, init, f) => vec![coll, init, f],
         Expr::Fold(coll, init, f) => vec![coll, init, f],
+        Expr::SortBy(_, coll, f) => vec![coll, f],
         Expr::Concat(l, r) => vec![l, r],
         Expr::Import(_, params) => params
             .iter()
@@ -246,6 +253,7 @@ fn sub_exprs_mut(e: &mut Expr) -> Vec<&mut Expr> {
         Expr::Filter(coll, f) => vec![coll, f],
         Expr::Scan(coll, init, f) => vec![coll, init, f],
         Expr::Fold(coll, init, f) => vec![coll, init, f],
+        Expr::SortBy(_, coll, f) => vec![coll, f],
         Expr::Concat(l, r) => vec![l, r],
         Expr::Import(_, params) => params
             .iter_mut()

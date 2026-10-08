@@ -14,9 +14,18 @@
 //! **Arithmetic.** The arithmetic profile (§11) is an option of each
 //! evaluation, off by default: [`eval::Options`] with
 //! [`eval::run_program_with`] or [`eval::eval_program_with`] turns it on. It
-//! has the nine names of [`analysis::ARITHMETIC_NAMES`]; `round` is not
-//! provided yet. [`analysis::deep_arithmetic_ops`] tells a host that leaves
-//! the profile off which of them a program references.
+//! has the ten names of [`analysis::ARITHMETIC_NAMES`], `round` included.
+//! [`analysis::deep_arithmetic_ops`] tells a host that leaves the profile
+//! off which of them a program references.
+//!
+//! **Sorting and number formatting.** `sort-by(list, fn)` and
+//! `sort-by-descending(list, fn)` are two special forms over one
+//! constructor, [`ast::Expr::SortBy`]: a stable sort by the key a function
+//! gives each element, the keys being all integers, all floats or all
+//! strings, compared by code point (§11, *Sorting*). `format-number(x,
+//! decimals, group)` is an ordinary builtin that writes a number in
+//! positional decimal notation, rounding its exact value with a tie going
+//! away from zero (§11, *Number formatting*). Neither needs a profile.
 //!
 //! Module layout mirrors `tramaj-hs/src/Tramaj/*.hs` one-to-one so the two
 //! sources stay easy to diff against each other during the port.

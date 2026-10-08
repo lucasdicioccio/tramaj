@@ -43,10 +43,20 @@ struct CaseMeta {
 /// can provide. A case naming any other one is skipped. `base` is the
 /// language without any profile. `int-float` is the two number types, and
 /// `int64` the integer range this port has (`tramaj_rs::json`). `arithmetic`
-/// is the arithmetic profile with its nine names other than `round`: it is
-/// an option of each evaluation, and `run_case` turns it on only for a case
-/// that lists it. `sort`, `format-number` and `round` are not provided yet.
-const PROVIDED_PROFILES: &[&str] = &["base", "int-float", "arithmetic", "int64"];
+/// is the arithmetic profile: it is an option of each evaluation, and
+/// `run_case` turns it on only for a case that lists it. `round` is its
+/// tenth name, which a case that calls it lists as well. `sort` is the two
+/// sorts and `format-number` the builtin of that name, both part of every
+/// evaluation.
+const PROVIDED_PROFILES: &[&str] = &[
+    "base",
+    "int-float",
+    "arithmetic",
+    "int64",
+    "sort",
+    "format-number",
+    "round",
+];
 
 /// The profiles a case names that this port does not provide.
 fn missing_profiles(meta: &CaseMeta) -> Vec<String> {
@@ -201,7 +211,7 @@ fn run_case(dir: &Path) -> Outcome {
         return Outcome::Skipped(missing);
     }
     // The arithmetic profile is on only for a case that lists it: every
-    // other case runs with the nine names unbound.
+    // other case runs with the ten names unbound.
     let options = Options {
         mode: mode_from_meta(dir, &meta.mode),
         arithmetic: meta.profiles.iter().any(|p| p == "arithmetic"),

@@ -6,8 +6,10 @@
 //!   [--arithmetic] <template-file> <context-json-file>`
 //!
 //!   `--arithmetic` turns on the arithmetic profile (reference.md §11) for
-//!   this run; without it the nine arithmetic names are unbound, as the
+//!   this run; without it the ten arithmetic names are unbound, as the
 //!   profile is a host's choice and is off by default.
+//!   The two sorts and `format-number` are part of every run and need no
+//!   flag; `round` is one of the ten names.
 //!
 //! * `tramaj-cli-rs analyze <subcommand> <template-file> [--lib name=path ...]`
 //!
@@ -263,7 +265,7 @@ fn run_evaluate(lib_specs: &[(String, String)], options: &Options, template_path
 }
 
 /// An evaluation error as this CLI reports it. Without `--arithmetic` the
-/// nine arithmetic names are unbound and a seeded term is refused, and the
+/// ten arithmetic names are unbound and a seeded term is refused, and the
 /// error alone does not say that a flag would have changed it, so a note
 /// names the flag when the program (or a library it imports) references one
 /// of them. `deep_arithmetic_ops` over-approximates, and a program that
@@ -321,7 +323,7 @@ fn analyze_to_json(libs: &LibraryTable, prog: &Program, sub: AnalyzeSubcommand) 
         )),
         AnalyzeSubcommand::Constraints => constraints_block(libs, prog),
         AnalyzeSubcommand::Symbols => Ok(symbols_block(libs, prog)),
-        // Which of the nine arithmetic names (reference.md §11) the program,
+        // Which of the ten arithmetic names (reference.md §11) the program,
         // or a library it imports, references free: what a host without the
         // arithmetic profile checks before running it. Static, so the same
         // with or without `--arithmetic`.

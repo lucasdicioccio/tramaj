@@ -345,7 +345,7 @@ pub fn deep_symbol_demands(libs: &HashMap<String, Program>, prog: &Program) -> H
 // Arithmetic ------------------------------------------------------------------
 
 /// The names of the arithmetic profile (`reference.md` §11) this port
-/// provides: the nine other than `round`, which it does not have yet. They
+/// provides, all ten, `round` being the tenth (`decisions.md` §20). They
 /// are names and not syntax: an evaluation with the profile on binds them in
 /// the initial environment (`eval::Options::arithmetic`), and a program may
 /// bind any of them itself.
@@ -359,6 +359,7 @@ pub const ARITHMETIC_NAMES: &[&str] = &[
     "modulo",
     "floor",
     "real",
+    "round",
 ];
 
 /// Which of `ARITHMETIC_NAMES` this program references free (`reference.md`

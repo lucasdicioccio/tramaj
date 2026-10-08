@@ -291,6 +291,21 @@ pub fn eval_program_with(
     Ok(eval_program_with_emissions(options, libs, ctx, program)?.0)
 }
 
+/// How many constraints an evaluation emitted, counted before equal ones
+/// are made one (v3-symbols §4). No program and no output can tell this
+/// number: it is here for tests, as the one way to count how many times a
+/// function was applied, which `reference.md` §11 fixes for the key function
+/// of a sort. `tramaj` and `tramaj-hs` export the same function.
+pub fn emitted_constraint_count(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<usize> {
+    let (_, emissions) = eval_program_raw(options, libs, ctx, program)?;
+    Ok(emissions.constraints.len())
+}
+
 /// As `eval_program_with`, but also returns the deduplicated `Emissions`
 /// (v3-symbols §4) — empty for any program that emits or allocates nothing,
 /// and always empty in what concrete mode goes on to serialize, since
@@ -301,6 +316,22 @@ fn eval_program_with_emissions(
     ctx: &Json,
     program: &Program,
 ) -> EResult<(Output, Emissions)> {
+    let (v, emissions) = eval_program_raw(options, libs, ctx, program)?;
+    let output = match v {
+        Value::Node(n) => Output::ONode(n),
+        other => Output::OValue(to_json(&other)?),
+    };
+    Ok((output, dedupe(emissions)))
+}
+
+/// The value of a program and everything it emitted, in evaluation order
+/// and before `dedupe`.
+fn eval_program_raw(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<(Value, Emissions)> {
     let erased = crate::types::erase_types(libs, program).map_err(EvalError::TypeErr)?;
     let ctx_val = checked_from_json(options, ctx)?;
     let emissions = RefCell::new(Emissions::default());
@@ -314,11 +345,7 @@ fn eval_program_with_emissions(
     };
     let env = initial_env(options.arithmetic, ctx_val);
     let v = eval_expr(&eval_ctx, &env, erased.root())?;
-    let output = match v {
-        Value::Node(n) => Output::ONode(n),
-        other => Output::OValue(to_json(&other)?),
-    };
-    Ok((output, dedupe(emissions.into_inner())))
+    Ok((v, emissions.into_inner()))
 }
 
 /// Two constraints with the same name and equal arguments are one
@@ -614,6 +641,7 @@ pub fn builtin_names() -> &'static [&'static str] {
         "lookup",
         "concat",
         "append",
+        "format-number",
     ]
 }
 
@@ -736,6 +764,27 @@ fn eval_expr(ctx: &EvalCtx, env: &Env, e: &Expr) -> EResult<Value> {
                 acc = apply(ctx, "fold", fn_val.clone(), vec![acc, item])?;
             }
             Ok(acc)
+        }
+        // reference.md §11, *Sorting*. The checks come in the order the
+        // reference gives them: the collection, the function, then, element
+        // by element in index order, the application and the key it gave.
+        // Only then is anything reordered, so the key function runs exactly
+        // once per element.
+        Expr::SortBy(descending, coll_expr, fn_expr) => {
+            let who = if *descending { "sort-by-descending" } else { "sort-by" };
+            let items = eval_collection(ctx, env, who, coll_expr)?;
+            let fn_val = eval_expr(ctx, env, fn_expr)?;
+            let mut keyed = sort_keys(ctx, who, fn_val, items)?;
+            // `sort_by` is stable, and so is the one with the comparison
+            // turned round: elements whose keys are equal keep their input
+            // order under both names, which makes the descending sort
+            // something other than the reversal of the ascending one.
+            if *descending {
+                keyed.sort_by(|(a, _), (b, _)| b.order(a));
+            } else {
+                keyed.sort_by(|(a, _), (b, _)| a.order(b));
+            }
+            Ok(Value::Array(keyed.into_iter().map(|(_, item)| item).collect()))
         }
         Expr::Concat(l, r) => {
             let lv = eval_expr(ctx, env, l)?;
@@ -1041,6 +1090,75 @@ fn eval_collection(ctx: &EvalCtx, env: &Env, who: &str, e: &Expr) -> EResult<Vec
             describe_value(&other)
         ))),
     }
+}
+
+// Sorting (reference.md §11) ------------------------------------------------
+
+/// What a sort orders by. The keys of one call are all of one variant, which
+/// `sort_keys` checks, so `order` only ever compares two integers, two
+/// floats or two strings.
+enum SortKey {
+    Int(i64),
+    Float(f64),
+    Str(String),
+}
+
+impl SortKey {
+    fn of(who: &str, v: Value) -> EResult<SortKey> {
+        match v {
+            Value::Int(n) => Ok(SortKey::Int(n)),
+            Value::Float(d) => Ok(SortKey::Float(d)),
+            Value::Str(s) => Ok(SortKey::Str(s)),
+            other if is_symbolic(&other) => Err(EvalError::NotConcrete(who.to_string())),
+            other => Err(EvalError::TypeMismatch(format!(
+                "{who} expects a key that is an integer, a float or a string, got {}",
+                describe_value(&other)
+            ))),
+        }
+    }
+
+    fn describe(&self) -> &'static str {
+        match self {
+            SortKey::Int(_) => "an integer",
+            SortKey::Float(_) => "a float",
+            SortKey::Str(_) => "a string",
+        }
+    }
+
+    /// A float key is never a NaN and never a negative zero (§3), so two
+    /// floats always have an order. A `String` is UTF-8 and compares by
+    /// byte, which is the order of the code points, not of UTF-16 units.
+    fn order(&self, other: &SortKey) -> std::cmp::Ordering {
+        match (self, other) {
+            (SortKey::Int(a), SortKey::Int(b)) => a.cmp(b),
+            (SortKey::Float(a), SortKey::Float(b)) => a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal),
+            (SortKey::Str(a), SortKey::Str(b)) => a.as_bytes().cmp(b.as_bytes()),
+            _ => std::cmp::Ordering::Equal,
+        }
+    }
+}
+
+/// Each element with its key: the key function is applied once per element,
+/// in index order, and each key is checked as soon as it is known, so the
+/// first element whose application or key fails decides the error. A symbol
+/// or a term as a key is `NotConcrete`; a value of a kind that is never a
+/// key, or of another type than the first key, is a `TypeMismatch`.
+fn sort_keys(ctx: &EvalCtx, who: &str, fn_val: Value, items: Vec<Value>) -> EResult<Vec<(SortKey, Value)>> {
+    let mut keyed: Vec<(SortKey, Value)> = Vec::with_capacity(items.len());
+    for item in items {
+        let key = SortKey::of(who, apply(ctx, who, fn_val.clone(), vec![item.clone()])?)?;
+        if let Some((first, _)) = keyed.first() {
+            if std::mem::discriminant(first) != std::mem::discriminant(&key) {
+                return Err(EvalError::TypeMismatch(format!(
+                    "{who} expects keys of one type, got {} and then {}",
+                    first.describe(),
+                    key.describe()
+                )));
+            }
+        }
+        keyed.push((key, item));
+    }
+    Ok(keyed)
 }
 
 // Concat -----------------------------------------------------------------
@@ -1686,6 +1804,12 @@ fn eval_builtin(name: &str, args: Vec<Value>) -> EResult<Value> {
             xs.push(args[1].clone());
             Ok(Value::Array(xs))
         }
+        "format-number" => {
+            if args.len() != 3 {
+                return Err(arity_err(3));
+            }
+            format_number_impl(name, &args[0], &args[1], &args[2])
+        }
         _ if ARITHMETIC_NAMES.contains(&name) => arithmetic(name, args),
         _ => Err(EvalError::UnboundName(name.to_string())),
     }
@@ -1816,7 +1940,7 @@ fn flatten_operands(args: Vec<Value>, out: &mut Vec<Value>) {
 /// what a symbol stands for; every refusal is a `TypeMismatch`.
 ///
 /// * `sum` and `product` flatten their arguments. They need at least one
-///   operand afterwards. The seven others take a fixed count and do not
+///   operand afterwards. The eight others take a fixed count and do not
 ///   flatten, so an array given to one is refused whatever it holds.
 /// * Each operand is a number, a symbol or a term. A symbol or a term stands
 ///   for one number of either type and is not looked into.
@@ -1858,7 +1982,7 @@ fn arithmetic_operands(name: &str, args: Vec<Value>) -> EResult<Vec<Value>> {
         "inverse" => (all_float, "a float"),
         "floor-quotient" | "modulo" => (all_int, "two integers"),
         "sum" | "product" => (all_int || all_float, "all integers or all floats"),
-        // `negate`, `floor` and `real` take a number of either type.
+        // `negate`, `floor`, `real` and `round` take a number of either type.
         _ => (true, "a number"),
     };
     if accepted {
@@ -1956,6 +2080,12 @@ fn compute(name: &str, operands: &[Value]) -> EResult<Value> {
         // 2^53, rounded beyond. This is what an `as` cast does.
         ("real", [Value::Int(x)]) => Ok(Value::Float(*x as f64)),
         ("real", [Value::Float(x)]) => Ok(Value::Float(*x)),
+        // The integer nearest to the exact value of the float, a tie going
+        // away from zero: the rule `format-number` applies to no decimals.
+        // `f64::round` is that rule and is exact, a float being either
+        // whole already or below 2^52, where the halves are representable.
+        ("round", [Value::Int(x)]) => Ok(Value::Int(*x)),
+        ("round", [Value::Float(x)]) => integer_result(name, whole_float_to_integer(x.round())),
         _ => Err(compute_mismatch(name, operands)),
     }
 }
@@ -1988,6 +2118,210 @@ fn left_fold(
         Value::Int(_) | Value::Float(_) => Ok(acc),
         _ => Err(compute_mismatch(name, operands)),
     }
+}
+
+// Number formatting (reference.md §11) ------------------------------------------
+
+/// `format-number(x, decimals, group)`. The arguments are examined left to
+/// right and the first that is not acceptable decides the error: a symbol or
+/// a term is `NotConcrete`, anything else of the wrong type a
+/// `TypeMismatch`, as is a number of decimals outside 0 to 20.
+fn format_number_impl(name: &str, x: &Value, decimals: &Value, group: &Value) -> EResult<Value> {
+    let refuse = |wanted: &str, other: &Value| {
+        if is_symbolic(other) {
+            EvalError::NotConcrete(name.to_string())
+        } else {
+            EvalError::TypeMismatch(format!("{name} expects {wanted}, got {}", describe_value(other)))
+        }
+    };
+    // The exact value as a sign and `mantissa * 2^exponent`.
+    let (negative, mantissa, exponent) = match x {
+        Value::Int(n) => (*n < 0, n.unsigned_abs(), 0),
+        Value::Float(d) => {
+            let (mantissa, exponent) = float_parts(*d);
+            (*d < 0.0, mantissa, exponent)
+        }
+        other => return Err(refuse("a number as its first argument", other)),
+    };
+    let places = match decimals {
+        Value::Int(n) if (0..=20).contains(n) => *n as usize,
+        Value::Int(n) => {
+            return Err(EvalError::TypeMismatch(format!(
+                "{name} expects a number of decimals from 0 to 20, got {n}"
+            )))
+        }
+        other => return Err(refuse("an integer number of decimals", other)),
+    };
+    let separator = match group {
+        Value::Str(s) => s,
+        other => return Err(refuse("a string as its separator", other)),
+    };
+    Ok(Value::Str(format_number(negative, mantissa, exponent, places, separator)))
+}
+
+/// A finite double as `mantissa * 2^exponent`, sign apart, which is its
+/// exact value: a double is a binary fraction.
+fn float_parts(d: f64) -> (u64, i32) {
+    let bits = d.to_bits();
+    let biased = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1u64 << 52) - 1);
+    if biased == 0 {
+        (fraction, -1074)
+    } else {
+        (fraction | (1u64 << 52), biased - 1075)
+    }
+}
+
+/// A natural number of any size, least significant 32-bit limb first, with
+/// the few operations `format_number` needs. The largest one it builds is a
+/// double's mantissa times `10^20` times `2^971`, some forty limbs.
+struct Natural(Vec<u32>);
+
+impl Natural {
+    fn from_u64(n: u64) -> Natural {
+        Natural(vec![n as u32, (n >> 32) as u32])
+    }
+
+    fn mul_small(&mut self, factor: u32) {
+        let mut carry = 0u64;
+        for limb in &mut self.0 {
+            let v = u64::from(*limb) * u64::from(factor) + carry;
+            *limb = v as u32;
+            carry = v >> 32;
+        }
+        if carry != 0 {
+            self.0.push(carry as u32);
+        }
+    }
+
+    fn shift_left(&mut self, bits: usize) {
+        let (limbs, rest) = (bits / 32, bits % 32);
+        if rest != 0 {
+            let mut carry = 0u32;
+            for limb in &mut self.0 {
+                let v = (*limb << rest) | carry;
+                carry = *limb >> (32 - rest);
+                *limb = v;
+            }
+            if carry != 0 {
+                self.0.push(carry);
+            }
+        }
+        self.0.splice(0..0, std::iter::repeat_n(0, limbs));
+    }
+
+    fn shift_right(&mut self, bits: usize) {
+        let (limbs, rest) = (bits / 32, bits % 32);
+        self.0.drain(0..limbs.min(self.0.len()));
+        if rest != 0 {
+            let mut carry = 0u32;
+            for limb in self.0.iter_mut().rev() {
+                let v = (*limb >> rest) | carry;
+                carry = *limb << (32 - rest);
+                *limb = v;
+            }
+        }
+    }
+
+    /// Adds `2^bit`.
+    fn add_power_of_two(&mut self, bit: usize) {
+        let mut i = bit / 32;
+        let mut carry = 1u32 << (bit % 32);
+        while carry != 0 {
+            if i >= self.0.len() {
+                self.0.resize(i + 1, 0);
+            }
+            let (v, overflowed) = self.0[i].overflowing_add(carry);
+            self.0[i] = v;
+            carry = u32::from(overflowed);
+            i += 1;
+        }
+    }
+
+    /// The decimal digits, without a leading zero; `"0"` for zero.
+    fn into_decimal(mut self) -> String {
+        let mut chunks: Vec<u32> = Vec::new();
+        loop {
+            while self.0.last() == Some(&0) {
+                self.0.pop();
+            }
+            if self.0.is_empty() {
+                break;
+            }
+            let mut remainder = 0u64;
+            for limb in self.0.iter_mut().rev() {
+                let v = (remainder << 32) | u64::from(*limb);
+                *limb = (v / 1_000_000_000) as u32;
+                remainder = v % 1_000_000_000;
+            }
+            chunks.push(remainder as u32);
+        }
+        match chunks.split_last() {
+            None => "0".to_string(),
+            Some((most, rest)) => {
+                let mut out = most.to_string();
+                for chunk in rest.iter().rev() {
+                    out.push_str(&format!("{chunk:09}"));
+                }
+                out
+            }
+        }
+    }
+}
+
+/// The exact value `mantissa * 2^exponent`, negated when `negative`, in
+/// positional decimal notation: an optional `-`, the integer part with the
+/// separator between its groups of three digits counted from the point
+/// leftward, and, when there are decimals, a `.` and exactly that many
+/// digits. Never an exponent, and no sign on a result whose digits are all
+/// zero.
+///
+/// The value is first put in units of the last digit asked for and rounded
+/// to the nearest integer, a tie going away from zero. No native formatter
+/// follows that rule in every case, so it is written out over `Natural`:
+/// nothing here is a floating-point operation.
+fn format_number(negative: bool, mantissa: u64, exponent: i32, places: usize, separator: &str) -> String {
+    let mut scaled = Natural::from_u64(mantissa);
+    for _ in 0..places {
+        scaled.mul_small(10);
+    }
+    if exponent >= 0 {
+        scaled.shift_left(exponent as usize);
+    } else {
+        // Half a unit, then the floor: on a magnitude, that is the nearest
+        // integer with a tie going up, so away from zero once signed.
+        let k = exponent.unsigned_abs() as usize;
+        scaled.add_power_of_two(k - 1);
+        scaled.shift_right(k);
+    }
+    let mut digits = scaled.into_decimal();
+    let is_zero = digits == "0";
+    // At least one digit before the point: `0.50`, never `.50`.
+    if digits.len() < places + 1 {
+        digits = "0".repeat(places + 1 - digits.len()) + &digits;
+    }
+    let (integer_part, fraction_part) = digits.split_at(digits.len() - places);
+
+    let mut out = String::new();
+    if negative && !is_zero {
+        out.push('-');
+    }
+    if separator.is_empty() {
+        out.push_str(integer_part);
+    } else {
+        let lead = integer_part.len() % 3;
+        for (i, c) in integer_part.chars().enumerate() {
+            if i != 0 && i % 3 == lead {
+                out.push_str(separator);
+            }
+            out.push(c);
+        }
+    }
+    if places != 0 {
+        out.push('.');
+        out.push_str(fraction_part);
+    }
+    out
 }
 
 // str rendering ---------------------------------------------------------------

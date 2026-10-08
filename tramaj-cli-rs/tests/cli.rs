@@ -44,6 +44,15 @@ impl Fixtures {
         write("numbers.json", r#"{"i": 3, "f": 3.0, "xs": [1, 2]}"#);
         write("too-big.json", r#"{"i": 9223372036854775808, "f": 3.0, "xs": []}"#);
         write("sum.tmpl", "@total=sum($ctx.i, 1)\n.p(\"total `$total`, half `quotient($ctx.f, 2.0)`\")");
+        write(
+            "table.tmpl",
+            "@top=sort-by-descending($ctx.rows, (r) => $r.spend)\n.ul(map($top, (r) => .li($r.name, \" \", format-number($r.spend, 2, \",\"))))",
+        );
+        write(
+            "rows.json",
+            r#"{"rows": [{"name": "a", "spend": 1234.5}, {"name": "b", "spend": 1234567.891}, {"name": "c", "spend": 1234.5}]}"#,
+        );
+        write("round.tmpl", "sort-by($ctx.rows, (r) => round($r.spend))");
         write("sum-lib.tmpl", "@l=import(\"sum\", {i: 1, f: 1.0})\n$l.rendered");
 
         Fixtures { dir }
@@ -357,4 +366,47 @@ fn analyze_rejects_the_arithmetic_flag() {
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("--arithmetic is not valid for the analyze command"), "stderr was: {stderr}");
+}
+
+#[test]
+fn evaluate_sorts_and_formats_without_a_flag() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("table.tmpl"), fx.path("rows.json")])
+        .output()
+        .unwrap();
+    let s = stdout_of(&out);
+    let at = |needle: &str| s.find(needle).unwrap_or_else(|| panic!("no {needle} in: {s}"));
+    // Highest spend first, and the two equal spends in input order.
+    assert!(at("1,234,567.89") < at("\"a\""), "stdout was: {s}");
+    assert!(at("\"a\"") < at("\"c\""), "stdout was: {s}");
+    assert!(s.contains("1,234.50"), "stdout was: {s}");
+}
+
+#[test]
+fn round_belongs_to_the_arithmetic_profile() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args(["analyze", "arithmetic", &fx.path("round.tmpl")])
+        .output()
+        .unwrap();
+    assert_eq!(stdout_of(&out).trim(), r#"["round"]"#);
+
+    let out = bin()
+        .args([fx.path("round.tmpl"), fx.path("rows.json")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("eval error: UnboundName round"), "stderr was: {stderr}");
+    assert!(stderr.contains("unbound unless --arithmetic is given"), "stderr was: {stderr}");
+
+    let out = bin()
+        .args(["evaluate", "--arithmetic", &fx.path("round.tmpl"), &fx.path("rows.json")])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&out)).unwrap();
+    let names: Vec<&str> = v.as_array().unwrap().iter().map(|r| r["name"].as_str().unwrap()).collect();
+    // 1234.5 rounds to 1235 twice, and the tie keeps the input order.
+    assert_eq!(names, ["a", "c", "b"]);
 }

@@ -182,12 +182,11 @@ the language's own spelling), and the table of analyses beside it
 |---|---|
 | PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
 | Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| Rust | `base`, `int-float`, `arithmetic`, `int64` |
+| Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | TypeScript, Go, Python | `base` |
 
-The other four lists do not hold `"sort"`, `"format-number"` or `"round"`
-yet, so the cases that list one are skipped by those four suites. The Rust
-arithmetic profile has the nine names other than `round`.
+The other three lists do not hold `"sort"`, `"format-number"` or `"round"`
+yet, so the cases that list one are skipped by those three suites.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.

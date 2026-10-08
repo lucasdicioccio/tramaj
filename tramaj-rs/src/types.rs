@@ -482,6 +482,11 @@ fn erase_expr(libs: &HashMap<String, Program>, prog: &Program, e: &Expr) -> TRes
         )),
         Expr::Map(c, f) => Ok(Expr::Map(boxed(erase_expr(libs, prog, c))?, boxed(erase_expr(libs, prog, f))?)),
         Expr::Filter(c, f) => Ok(Expr::Filter(boxed(erase_expr(libs, prog, c))?, boxed(erase_expr(libs, prog, f))?)),
+        Expr::SortBy(descending, c, f) => Ok(Expr::SortBy(
+            *descending,
+            boxed(erase_expr(libs, prog, c))?,
+            boxed(erase_expr(libs, prog, f))?,
+        )),
         Expr::Scan(c, i, f) => Ok(Expr::Scan(
             boxed(erase_expr(libs, prog, c))?,
             boxed(erase_expr(libs, prog, i))?,

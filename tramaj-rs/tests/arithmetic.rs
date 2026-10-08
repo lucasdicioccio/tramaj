@@ -54,13 +54,6 @@ fn the_profile_is_off_by_default() {
 }
 
 #[test]
-fn the_profile_has_nine_names_and_round_is_not_one() {
-    assert_eq!(ARITHMETIC_NAMES.len(), 9);
-    assert_eq!(kind(eval("round(2.5)")), "UnboundName");
-    assert_eq!(arithmetic_ops(&parse_program("round(2.5)").unwrap()), names(&[]));
-}
-
-#[test]
 fn a_library_runs_with_the_profile_of_the_evaluation() {
     let mut libs: LibraryTable = HashMap::new();
     libs.insert("lib".to_string(), parse_program("@total=sum($ctx.a, 1)\n$total").unwrap());
@@ -190,7 +183,7 @@ fn a_seeded_term_needs_symbolic_mode_and_the_profile() {
     // All numbers: a call would have computed, so this is not a term.
     let all_numbers = r#"{"t": {"$term": "sum", "arguments": [1, 2]}}"#;
     assert_eq!(kind(run(&SYMBOLIC_ON, &none, all_numbers, "1")), "TypeMismatch");
-    let unknown = r##"{"t": {"$term": "round", "arguments": [{"$sym": "#0:\"s\"", "path": []}]}}"##;
+    let unknown = r##"{"t": {"$term": "sqrt", "arguments": [{"$sym": "#0:\"s\"", "path": []}]}}"##;
     assert_eq!(kind(run(&SYMBOLIC_ON, &none, unknown, "1")), "TypeMismatch");
 }
 
