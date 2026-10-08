@@ -55,7 +55,7 @@ func (*TLibRef) isTypeExpr() {}
 func (*TVar) isTypeExpr()    {}
 
 // TypeConstraintArg is an argument of !type-constraint: a type when Type is
-// non-nil, otherwise the scalar (nil, bool, float64 or string) in Scalar.
+// non-nil, otherwise the scalar (nil, bool, int64, float64 or string) in Scalar.
 type TypeConstraintArg struct {
 	Type   TypeExpr
 	Scalar JSON
@@ -141,7 +141,10 @@ type (
 		Value, Body Expr
 	}
 	StringLit struct{ Value string }
-	NumberLit struct{ Value float64 }
+	// IntLit is a number literal with neither a fraction nor an exponent,
+	// FloatLit one with either (specs/reference.md section 5).
+	IntLit    struct{ Value int64 }
+	FloatLit  struct{ Value float64 }
 	BoolLit   struct{ Value bool }
 	NullLit   struct{}
 	ArrayLit  struct{ Elements []Expr }
@@ -210,7 +213,8 @@ func (*Call) isExpr()         {}
 func (*Lambda) isExpr()       {}
 func (*Let) isExpr()          {}
 func (*StringLit) isExpr()    {}
-func (*NumberLit) isExpr()    {}
+func (*IntLit) isExpr()       {}
+func (*FloatLit) isExpr()     {}
 func (*BoolLit) isExpr()      {}
 func (*NullLit) isExpr()      {}
 func (*ArrayLit) isExpr()     {}
@@ -237,7 +241,7 @@ func (*TypeEmit) isExpr()     {}
 // source order.
 func SubExprs(e Expr) []Expr {
 	switch x := e.(type) {
-	case *Path, *StringLit, *NumberLit, *BoolLit, *NullLit, *Demand:
+	case *Path, *StringLit, *IntLit, *FloatLit, *BoolLit, *NullLit, *Demand:
 		return nil
 	case *FieldAccess:
 		return []Expr{x.Target}

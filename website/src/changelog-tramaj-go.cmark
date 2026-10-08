@@ -45,6 +45,38 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "Hand-written port checked against \`corpus/cases\` by \`corpus_test.go\`: every case passes in both modes."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: numbers are two types, an integer and a float (decisions section 18). A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the signed 64-bit range; one outside it is a parse error as a literal and a \`TypeMismatch\` in the context."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: a number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and \`CompactJSON\` and \`PrettyJSON\` write a float with a fraction or an exponent."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`eq\` never equates an integer with a float, and \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`. An array index given to \`has\` or \`lookup\` is an integer."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: in a \`tramaj.JSON\` value an integer is an \`int64\` and a float a \`float64\`, where every number was a \`float64\`. \`ParseJSON\` types a number by its text and refuses none; \`NormalizeNumbers\` is what refuses an integer beyond 64 bits or a float too large for a double. \`NumberLit\` is now \`IntLit\` and \`FloatLit\`. New: \`FormatInteger\`, \`FormatFloat\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`\"$term\"\` is a reserved object key, and \`int\` and \`float\` replace \`number\` as v4 type primitives."
+          },
+          {
+              "kind": "added",
+              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`, and the \`NotRepresentable\` error kind. It is off by default: \`Options\`, \`DefaultOptions\`, \`EvalProgramWith\` and \`RunProgramWith\` turn it on, and so does the CLI's \`--arithmetic\`."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
+          },
+          {
+              "kind": "added",
+              "text": "\`ArithmeticNames\`, \`ArithmeticOps\` and \`DeepArithmeticOps\`, the arithmetic names a program references; \`tramaj-go analyze arithmetic\` prints them."
           }
       ]
   }).rendered)
