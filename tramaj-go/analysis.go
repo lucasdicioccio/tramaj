@@ -90,10 +90,11 @@ func eachLibrary(libs Libraries, prog *Program, f func(*Program)) {
 // Arithmetic.
 
 // ArithmeticNames are the names of the arithmetic profile (specs/reference.md
-// section 11), in the order the reference lists them. They are builtins only
-// in an evaluation whose Options turn the profile on.
+// section 11), in the order the reference lists them: the nine of decisions
+// section 18, then round (section 20). They are builtins only in an
+// evaluation whose Options turn the profile on.
 var ArithmeticNames = []string{
-	"sum", "product", "negate", "quotient", "inverse", "floor-quotient", "modulo", "floor", "real",
+	"sum", "product", "negate", "quotient", "inverse", "floor-quotient", "modulo", "floor", "real", "round",
 }
 
 // ArithmeticOps lists which of ArithmeticNames this program references free

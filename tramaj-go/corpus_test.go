@@ -88,7 +88,10 @@ type caseMeta struct {
 // is the signed 64-bit one, so the "int53" cases are skipped. "arithmetic" is
 // the arithmetic profile, which runCase turns on only for a case that lists
 // it.
-var providedProfiles = map[string]bool{"base": true, "int-float": true, "int64": true, "arithmetic": true}
+var providedProfiles = map[string]bool{
+	"base": true, "int-float": true, "int64": true, "arithmetic": true,
+	"sort": true, "format-number": true, "round": true,
+}
 
 // missingProfiles lists the profiles a case names that this port does not
 // provide.

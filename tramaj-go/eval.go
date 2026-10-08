@@ -3,6 +3,7 @@ package tramaj
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"slices"
 	"sort"
 	"strconv"
@@ -200,7 +201,7 @@ func (e *env) lookup(name string) (value, bool) {
 
 var builtinNames = []string{
 	"cardinality", "count", "str", "not", "and", "or", "eq", "lt", "lte", "gt", "gte",
-	"has", "lookup", "concat", "append",
+	"has", "lookup", "concat", "append", "format-number",
 }
 
 // initialEnv is $ctx and the builtins. The arithmetic names are bound only
@@ -513,6 +514,13 @@ func (c *evalCtx) eval(en *env, e Expr) value {
 			}
 		}
 		return kept
+	case *SortBy:
+		who := "sort-by"
+		if x.Descending {
+			who = "sort-by-descending"
+		}
+		items := c.evalCollection(en, who, x.Collection)
+		return c.sortBy(who, x.Descending, items, c.eval(en, x.Fn))
 	case *Scan:
 		items := c.evalCollection(en, "scan", x.Collection)
 		acc := c.eval(en, x.Initial)
@@ -727,6 +735,77 @@ func (c *evalCtx) evalCollection(en *env, who string, e Expr) vArray {
 		typeMismatch("%s expects an array as its first argument, got %s", who, describeValue(v))
 	}
 	return nil
+}
+
+// Sorting (specs/reference.md section 11).
+
+// sortBy orders items by the key fn gives each of them. fn is applied once
+// per element, in index order, and each key is checked as soon as it is
+// known, so the first element whose application or key fails decides the
+// error, and nothing is reordered before every key has passed. The keys of
+// one call are all integers, all floats or all strings.
+//
+// Element i precedes element j when its key is smaller (larger, when
+// descending), or when the keys are equal and i < j. A stable sort with a
+// strict comparison of the keys gives exactly that order, for both
+// directions: descending is not the reversal of ascending, which would
+// reverse the ties as well.
+func (c *evalCtx) sortBy(who string, descending bool, items vArray, fn value) vArray {
+	keys := make([]value, len(items))
+	for i, item := range items {
+		key := c.apply(who, fn, []value{item})
+		switch key.(type) {
+		case vInt, vFloat, vStr:
+		case *vSymbol, *vTerm:
+			notConcrete(who)
+		default:
+			typeMismatch("%s: a key must be an integer, a float or a string, got %s", who, describeValue(key))
+		}
+		if i > 0 && keyKind(key) != keyKind(keys[0]) {
+			typeMismatch("%s: the keys of one call are all integers, all floats or all strings, got %s after %s", who, describeValue(key), describeValue(keys[0]))
+		}
+		keys[i] = key
+	}
+	order := make([]int, len(items))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		cmp := compareKeys(keys[order[a]], keys[order[b]])
+		if descending {
+			return cmp > 0
+		}
+		return cmp < 0
+	})
+	out := make(vArray, len(items))
+	for i, at := range order {
+		out[i] = items[at]
+	}
+	return out
+}
+
+// keyKind tells the three types a sort key may have apart.
+func keyKind(key value) int {
+	switch key.(type) {
+	case vInt:
+		return 0
+	case vFloat:
+		return 1
+	}
+	return 2
+}
+
+// compareKeys is -1, 0 or 1 for two keys of the same type. Strings compare
+// by Unicode code point, which is the byte order of their UTF-8 encoding and
+// so Go's own string comparison; it is not the UTF-16 order lessUTF16 gives.
+func compareKeys(a, b value) int {
+	switch x := a.(type) {
+	case vInt:
+		return compareOrdered(x, b.(vInt))
+	case vFloat:
+		return compareOrdered(x, b.(vFloat))
+	}
+	return strings.Compare(string(a.(vStr)), string(b.(vStr)))
 }
 
 // Concat.
@@ -1299,6 +1378,37 @@ func evalBuiltin(name string, args []value) value {
 	case "append":
 		arity(2)
 		return append(append(vArray{}, asArray(args[0])...), args[1])
+	case "format-number":
+		// The arguments are examined left to right, and the first that is not
+		// acceptable decides the error.
+		arity(3)
+		x := asNumber(args[0])
+		decimals, ok := args[1].(vInt)
+		if !ok {
+			if isSymbolic(args[1]) {
+				notConcrete(name)
+			}
+			typeMismatch("%s expects an integer number of decimals, got %s", name, describeValue(args[1]))
+		}
+		if decimals < 0 || decimals > 20 {
+			typeMismatch("%s expects from 0 to 20 decimals, got %d", name, int64(decimals))
+		}
+		group, ok := args[2].(vStr)
+		if !ok {
+			if isSymbolic(args[2]) {
+				notConcrete(name)
+			}
+			typeMismatch("%s expects a string as its group separator, got %s", name, describeValue(args[2]))
+		}
+		exact := new(big.Rat)
+		switch n := x.(type) {
+		case vInt:
+			exact.SetInt64(int64(n))
+		case vFloat:
+			// A float here is finite, so this is its exact value.
+			exact.SetFloat64(float64(n))
+		}
+		return vStr(formatExact(exact, int(decimals), string(group)))
 	}
 	evalFail("UnboundName", "%s", name)
 	return nil
@@ -1324,6 +1434,45 @@ func lookupIn(name string, container, key value) (value, bool) {
 		}
 	}
 	return nil, false
+}
+
+// formatExact writes an exact value in positional decimal notation
+// (specs/reference.md section 11, Number formatting): the multiple of
+// 10^-decimals nearest to it, and of two equally near the one farther from
+// zero. Never an exponent, never a negative zero, and group between each
+// group of three digits of the integer part. No formatter of the standard
+// library follows that rule (strconv rounds ties to even and writes -0.00),
+// so it is written out on integers: v * 10^decimals is a fraction n/d, and
+// the result is its quotient, one more when twice the remainder reaches d.
+func formatExact(v *big.Rat, decimals int, group string) string {
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	num := new(big.Int).Mul(new(big.Int).Abs(v.Num()), scale)
+	q, r := new(big.Int).QuoRem(num, v.Denom(), new(big.Int))
+	if r.Lsh(r, 1).Cmp(v.Denom()) >= 0 {
+		q.Add(q, big.NewInt(1))
+	}
+	digits := q.String()
+	// At least one digit before the point: 0.50, never .50.
+	if pad := decimals + 1 - len(digits); pad > 0 {
+		digits = strings.Repeat("0", pad) + digits
+	}
+	whole, fraction := digits[:len(digits)-decimals], digits[len(digits)-decimals:]
+	var b strings.Builder
+	// A result whose digits are all zero carries no sign.
+	if v.Sign() < 0 && q.Sign() != 0 {
+		b.WriteByte('-')
+	}
+	for i := 0; i < len(whole); i++ {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			b.WriteString(group)
+		}
+		b.WriteByte(whole[i])
+	}
+	if decimals > 0 {
+		b.WriteByte('.')
+		b.WriteString(fraction)
+	}
+	return b.String()
 }
 
 // compareOrdered is -1, 0 or 1 as a is below, equal to or above b. A float
@@ -1359,7 +1508,7 @@ func arithmetic(name string, args []value) value {
 //
 //   - sum and product flatten their arguments by the rule children use: an
 //     array contributes each of its elements, recursively, in order. They
-//     need at least one operand afterwards. The seven others take a fixed
+//     need at least one operand afterwards. The eight others take a fixed
 //     count and do not flatten, so an array given to one is refused whatever
 //     it holds.
 //   - Each operand is a number, a symbol or a term. A symbol or a term stands
@@ -1410,7 +1559,7 @@ func arithmeticOperands(name string, args []value) []value {
 			wanted = "all integers or all floats"
 		}
 	}
-	// negate, floor and real take a number of either type.
+	// negate, floor, real and round take a number of either type.
 	if wanted != "" {
 		typeMismatch("%s expects %s, got %d integer(s) and %d float(s)", name, wanted, ints, floats)
 	}
@@ -1538,6 +1687,21 @@ func compute(name string, operands []value) value {
 				outOfRange()
 			}
 			return vInt(int64(f))
+		}
+	case "round":
+		switch x := operands[0].(type) {
+		case vInt:
+			return x
+		case vFloat:
+			// math.Round gives the integer nearest to the exact value, and of
+			// two equally near the one farther from zero; it adds no 0.5, so
+			// 0.49999999999999994 rounds to 0. The range is checked as for
+			// floor.
+			r := math.Round(float64(x))
+			if r < -9223372036854775808.0 || r >= 9223372036854775808.0 {
+				outOfRange()
+			}
+			return vInt(int64(r))
 		}
 	case "real":
 		switch x := operands[0].(type) {

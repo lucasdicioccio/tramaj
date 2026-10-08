@@ -147,7 +147,7 @@ func TestASeededTermNeedsBothProfiles(t *testing.T) {
 	expect(t, "in concrete mode", runWith(t, Options{Mode: Concrete, Arithmetic: true}, nil, ctx, "1"), "TypeMismatch")
 	for label, bad := range map[string]string{
 		"no symbol inside":   `{"$term": "sum", "arguments": [1, 2]}`,
-		"an unknown op":      `{"$term": "round", "arguments": [{"$sym": "#ctx.s", "path": []}]}`,
+		"an unknown op":      `{"$term": "ceiling", "arguments": [{"$sym": "#ctx.s", "path": []}]}`,
 		"an array argument":  `{"$term": "sum", "arguments": [[{"$sym": "#ctx.s", "path": []}]]}`,
 		"a third key":        `{"$term": "negate", "arguments": [{"$sym": "#ctx.s", "path": []}], "x": 1}`,
 		"mixed number types": `{"$term": "sum", "arguments": [1, {"$sym": "#ctx.s", "path": []}, 2.0]}`,
@@ -204,7 +204,7 @@ func TestIntegerArithmeticAtTheEndsOfTheRange(t *testing.T) {
 
 func TestArithmeticOps(t *testing.T) {
 	expect(t, "names", ArithmeticNames, []string{
-		"sum", "product", "negate", "quotient", "inverse", "floor-quotient", "modulo", "floor", "real",
+		"sum", "product", "negate", "quotient", "inverse", "floor-quotient", "modulo", "floor", "real", "round",
 	})
 	ops := func(src string) []string { return ArithmeticOps(mustParse(t, src)) }
 	expect(t, "called and by reference", ops("[sum(1, 2), fold($ctx.xs, 0, $product)]"), []string{"product", "sum"})
@@ -215,8 +215,8 @@ func TestArithmeticOps(t *testing.T) {
 	expect(t, "a parameter's scope ends", ops("[map($ctx.xs, (floor) => $floor), floor(1.5)]"), []string{"floor"})
 	expect(t, "shadowed by a pattern name", ops("@{real} = $ctx\nreal(1)"), []string{})
 	expect(t, "under an unselected arm", ops("branch(1, false, negate(1))"), []string{"negate"})
-	// round is not among this port's names.
-	expect(t, "round", ops("round(1.5)"), []string{})
+	// round is the tenth name (decisions section 20).
+	expect(t, "round", ops("round(1.5)"), []string{"round"})
 
 	libs := Libraries{
 		"a": mustParse(t, `[modulo(1, 2), import("b", {}).rendered]`),

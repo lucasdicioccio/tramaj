@@ -28,6 +28,7 @@ func (e *ParseError) Error() string {
 
 var specialFormNames = map[string]bool{
 	"map": true, "filter": true, "scan": true, "fold": true, "branch": true,
+	"sort-by": true, "sort-by-descending": true,
 	"import": true, "adapt-actions": true, "constraint": true,
 }
 
@@ -614,6 +615,9 @@ func (p *parser) specialFormShape(name string) Expr {
 	case "filter":
 		c, f := p.binaryShape()
 		base = &Filter{Collection: c, Fn: f}
+	case "sort-by", "sort-by-descending":
+		c, f := p.binaryShape()
+		base = &SortBy{Descending: name == "sort-by-descending", Collection: c, Fn: f}
 	case "scan":
 		c, i, f := p.ternaryShape()
 		base = &Scan{Collection: c, Initial: i, Fn: f}
