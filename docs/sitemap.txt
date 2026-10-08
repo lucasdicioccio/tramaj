@@ -3,6 +3,7 @@ https://lucasdicioccio.github.io/tramaj/reference-v4-types.html
 https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html
 https://lucasdicioccio.github.io/tramaj/howto-agents.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-halogen.html
+https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html
 https://lucasdicioccio.github.io/tramaj/playground.html
 https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj.html

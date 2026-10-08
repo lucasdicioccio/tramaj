@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-10-07T11:23:22Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-10-08T08:31:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--normative-node-json-representation"&gt;Tramaj — Normative Node JSON representation&lt;/h2&gt;
 &lt;p&gt;The evaluated &lt;code&gt;Node&lt;/code&gt; AST is the portable interchange boundary between Tramaj
 implementations and their hosts. This document defines its &lt;strong&gt;normative&lt;/strong&gt; JSON
@@ -106,6 +106,11 @@ rule: no fraction and no exponent is an integer, either is a float, so &lt;code&
 decodes as a float. The round-trip invariant above depends on it, so a decoder
 needs a JSON parser that keeps that difference, and that keeps the digits of
 an integer it would otherwise round.&lt;/p&gt;
+&lt;p&gt;A number is read as the &lt;code&gt;reference.md&lt;/code&gt; §5 literal of the same text. A float
+has no negative zero, so &lt;code&gt;-0.0&lt;/code&gt; decodes as &lt;code&gt;0.0&lt;/code&gt;, and &lt;code&gt;-0&lt;/code&gt; as the integer
+&lt;code&gt;0&lt;/code&gt;; an encoder never writes either. A float too small for a double decodes
+as &lt;code&gt;0.0&lt;/code&gt;. A float too large for one (&lt;code&gt;1e400&lt;/code&gt;) is rejected, like an
+integer-form number outside the integer range (see &lt;em&gt;Decoding&lt;/em&gt;).&lt;/p&gt;
 &lt;p&gt;Every &lt;code&gt;Value&lt;/code&gt; written as JSON follows this rule: attribute values, payloads,
 value slots, text values, and an expression program’s result.&lt;/p&gt;
 &lt;h3 id="annotations"&gt;Annotations&lt;/h3&gt;
@@ -130,14 +135,17 @@ preserve them across every node-to-node transformation they perform —
 &lt;li&gt;a non-array &lt;code&gt;attributes&lt;/code&gt; or &lt;code&gt;children&lt;/code&gt;, or a non-object &lt;code&gt;annotations&lt;/code&gt;;
 &lt;/li&gt;
 &lt;li&gt;in a &lt;code&gt;Value&lt;/code&gt;, an integer-form number outside its integer range
-(&lt;code&gt;reference.md&lt;/code&gt; §13), which it MUST NOT round (see &lt;em&gt;Numbers&lt;/em&gt;; not yet
+(&lt;code&gt;reference.md&lt;/code&gt; §13), which it MUST NOT round, and a float too large for a
+double, which it MUST NOT read as an infinity (see &lt;em&gt;Numbers&lt;/em&gt;; not yet
 implemented).
 &lt;/li&gt;
 &lt;/ul&gt;
+&lt;p&gt;The same two refusals apply to a number in the input context, where the
+evaluator reports them as a &lt;code&gt;TypeMismatch&lt;/code&gt; (&lt;code&gt;reference.md&lt;/code&gt; §3).&lt;/p&gt;
 &lt;p&gt;A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
 job; on the wire the representation is explicit, so that a missing field is a bug
 rather than a silent &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-10-07T11:23:22Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-10-08T08:31:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v3--symbolic-values-and-constraints"&gt;Tramaj v3 — Symbolic values and constraints&lt;/h2&gt;
 &lt;p&gt;This document is &lt;strong&gt;normative&lt;/strong&gt; for the symbolic extension. It builds on
 &lt;code&gt;reference.md&lt;/code&gt;, which remains normative for everything else; section numbers
@@ -228,6 +236,11 @@ library — the same error an ordinary unsupplied read already produces
 (ref §7).
 &lt;/li&gt;
 &lt;/ul&gt;
+&lt;p&gt;A demand is an expression and may be written wherever one may: as a call
+argument, an array element, an operand of an arithmetic builtin (§1.9). It
+does not need binding first. &lt;code&gt;sum(?ctx.s, 1)&lt;/code&gt; and &lt;code&gt;@s = ?ctx.s&lt;/code&gt; followed by
+&lt;code&gt;sum($s, 1)&lt;/code&gt; allocate the same symbol and build the same term; they differ
+only in the &lt;code&gt;&amp;quot;binding&amp;quot;&lt;/code&gt; the symbol table reports (§5.2).&lt;/p&gt;
 &lt;h4 id="14-identity"&gt;1.4 Identity&lt;/h4&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;Only a root program may allocate. A library MUST NOT&lt;/strong&gt;, because the root
@@ -284,8 +297,9 @@ language to &lt;em&gt;know&lt;/em&gt; something about it is an error:&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;$s.field&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a projection (§1.6) — &lt;strong&gt;the one exception&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;branch($s, …)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — no arm can be selected&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;map($s, f)&lt;/code&gt;, &lt;code&gt;filter&lt;/code&gt;, &lt;code&gt;scan&lt;/code&gt;, &lt;code&gt;fold&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — the spine has no length&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;eq&lt;/code&gt;, &lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; on anything &lt;em&gt;containing&lt;/em&gt; a symbol&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;str($s)&lt;/code&gt;, and so any interpolation of one&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — §1.8&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;eq&lt;/code&gt; on anything &lt;em&gt;containing&lt;/em&gt; a symbol&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — deep equality needs the whole value&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; with a symbol as an operand&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;; an array or object operand is the &lt;code&gt;TypeMismatch&lt;/code&gt; it always was, whatever it holds&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;str&lt;/code&gt; of anything &lt;em&gt;containing&lt;/em&gt; a symbol, and so any interpolation of one&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — §1.8&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;cardinality($s)&lt;/code&gt;, &lt;code&gt;has($s, k)&lt;/code&gt;, &lt;code&gt;lookup($s, k, d)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;$s &amp;lt;&amp;gt; x&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
@@ -300,8 +314,9 @@ Declining to go there is what keeps &lt;code&gt;map&lt;/code&gt; free of any &lt
 branch — no evaluator rule in ref §6 changes, and no builtin learns a new
 case beyond refusing. The nine arithmetic builtins are the one exception:
 over a symbol they build a term (§1.9).&lt;/p&gt;
-&lt;p&gt;A term is data in the same way, and every row above that refuses a symbol
-refuses anything containing a term. The one difference is projection, which a
+&lt;p&gt;A term is data in the same way. Every row above that refuses a symbol refuses
+a term in the same position, and a row that says &lt;em&gt;containing&lt;/em&gt; looks as deep
+for a term as it does for a symbol. The one difference is projection, which a
 term does not have (§1.9).&lt;/p&gt;
 &lt;h4 id="16-projection"&gt;1.6 Projection&lt;/h4&gt;
 &lt;p&gt;&lt;code&gt;$s.field&lt;/code&gt; reads nothing. It produces a symbol with the same &lt;code&gt;id&lt;/code&gt; and the path
@@ -327,6 +342,8 @@ operations that &lt;em&gt;inspect&lt;/em&gt; a value refuse.&lt;/p&gt;
 .ul(map($ports, (p) =&amp;gt; .li($p)))
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;is legal end to end.&lt;/p&gt;
+&lt;p&gt;A concrete structure containing terms (§1.9) is not special either, and the
+same operations work on it: &lt;code&gt;cardinality([sum($a, 1), 2])&lt;/code&gt; is &lt;code&gt;2&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;A symbol that is itself structured is the ceiling.&lt;/strong&gt; &lt;code&gt;$d.replicas&lt;/code&gt; projects
 fine; &lt;code&gt;map($d.items, f)&lt;/code&gt; is &lt;code&gt;NotConcrete&lt;/code&gt;, because the length is unknown. A
 symbol may &lt;em&gt;have&lt;/em&gt; structure as far as its host-side meaning is concerned; the
@@ -379,44 +396,73 @@ have performed had it known the operands, handed over undone, and its
 vocabulary is closed: nine operations whose meaning ref §11 defines, so an
 &lt;code&gt;op&lt;/code&gt; is not host vocabulary the way a constraint name is.&lt;/p&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;A symbol operand stands for one number, of either type&lt;/strong&gt;, and a term
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;A symbol operand stands for one number, of either type&lt;/strong&gt;, and a term
 carries no type. Concrete operands are checked as far as they can be without
 one: each MUST be a number, and those of one call MUST agree with each other
 and with what the builtin accepts. &lt;code&gt;sum(&amp;quot;a&amp;quot;, $s)&lt;/code&gt;, &lt;code&gt;sum(1, $s, 2.0)&lt;/code&gt; and
-&lt;code&gt;quotient(1, $s)&lt;/code&gt; are &lt;code&gt;TypeMismatch&lt;/code&gt;, and so is a wrong argument count.
+&lt;code&gt;quotient(1, $s)&lt;/code&gt; are &lt;code&gt;TypeMismatch&lt;/code&gt;, and so is a wrong argument count.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Nothing is inferred through a symbol or a nested term.&lt;/strong&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;An operand is a symbol or a term only when it is one itself.&lt;/strong&gt; The seven
+fixed-arity builtins do not flatten (ref §11), so an array given to one is
+a &lt;code&gt;TypeMismatch&lt;/code&gt; whatever it holds: &lt;code&gt;negate([$s])&lt;/code&gt; is a &lt;code&gt;TypeMismatch&lt;/code&gt;,
+like &lt;code&gt;negate([1])&lt;/code&gt;, and not a &lt;code&gt;NotConcrete&lt;/code&gt;. Nothing looks inside the
+array. &lt;code&gt;sum&lt;/code&gt; and &lt;code&gt;product&lt;/code&gt; flatten first, and &lt;code&gt;sum({k: $s})&lt;/code&gt; is a
+&lt;code&gt;TypeMismatch&lt;/code&gt; for the same reason: an object is not a number.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Nothing is inferred through a symbol or a nested term.&lt;/strong&gt;
 &lt;code&gt;sum(real($s), 1)&lt;/code&gt; is built, and fails when the host evaluates it, as the
 residual law says it should. &lt;code&gt;inverse($s)&lt;/code&gt; is a term even if the host later
 supplies &lt;code&gt;0.0&lt;/code&gt;; an author who cares writes &lt;code&gt;!constraint(&amp;quot;ne&amp;quot;, $s, 0.0)&lt;/code&gt; in
-the host’s vocabulary.
+the host’s vocabulary.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;A term is data, exactly as a symbol is&lt;/strong&gt; (§1.5). It may be bound, passed,
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;A term is data, exactly as a symbol is&lt;/strong&gt; (§1.5). It may be bound, passed,
 stored, placed in an attribute, a payload, a value slot or a text child,
-used as a constraint argument, and used as an operand.
+used as a constraint argument, and used as an operand.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Everything that inspects refuses&lt;/strong&gt;, as for a symbol: &lt;code&gt;branch&lt;/code&gt;, &lt;code&gt;eq&lt;/code&gt;, &lt;code&gt;lt&lt;/code&gt;,
-&lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt;, &lt;code&gt;str&lt;/code&gt; and interpolation, &lt;code&gt;cardinality&lt;/code&gt;, &lt;code&gt;has&lt;/code&gt;, &lt;code&gt;lookup&lt;/code&gt;,
-&lt;code&gt;&amp;lt;&amp;gt;&lt;/code&gt;, a &lt;code&gt;map&lt;/code&gt; spine and an allocation key are &lt;code&gt;NotConcrete&lt;/code&gt; on anything
-containing a term. The comparisons do &lt;strong&gt;not&lt;/strong&gt; become symbolic: a boolean
-term could only feed &lt;code&gt;branch&lt;/code&gt;, and control flow must be concrete.
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Everything that inspects refuses, exactly where it refuses a symbol&lt;/strong&gt;
+(§1.5), with &lt;code&gt;NotConcrete&lt;/code&gt;. There are two depths, as for a symbol:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;eq&lt;/code&gt;, &lt;code&gt;str&lt;/code&gt; and so interpolation, and an allocation key need the whole
+value, so they refuse anything &lt;em&gt;containing&lt;/em&gt; a term: &lt;code&gt;eq([$t], [1])&lt;/code&gt; and
+&lt;code&gt;str({k: $t})&lt;/code&gt; are &lt;code&gt;NotConcrete&lt;/code&gt;.
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;A term has no projection.&lt;/strong&gt; &lt;code&gt;$t.field&lt;/code&gt; is a &lt;code&gt;TypeMismatch&lt;/code&gt;: a term stands
-for a number, and a number has no fields.
+&lt;li&gt;&lt;code&gt;branch&lt;/code&gt;, the comparisons, &lt;code&gt;cardinality&lt;/code&gt;, &lt;code&gt;has&lt;/code&gt;, &lt;code&gt;lookup&lt;/code&gt;, &lt;code&gt;&amp;lt;&amp;gt;&lt;/code&gt; and the
+spine of &lt;code&gt;map&lt;/code&gt;, &lt;code&gt;filter&lt;/code&gt;, &lt;code&gt;scan&lt;/code&gt; and &lt;code&gt;fold&lt;/code&gt; refuse a term given &lt;em&gt;as&lt;/em&gt; the
+condition, the operand, the container or the collection. A concrete
+structure that holds a term is not special (§1.7): &lt;code&gt;cardinality([$t])&lt;/code&gt;
+is &lt;code&gt;1&lt;/code&gt;, &lt;code&gt;[$t] &amp;lt;&amp;gt; [1]&lt;/code&gt; has two elements, and &lt;code&gt;map([$t], f)&lt;/code&gt; applies &lt;code&gt;f&lt;/code&gt; to
+the term.
 &lt;/li&gt;
-&lt;li&gt;A symbol standing for a whole array cannot be summed. It counts as one
-number; that is §1.7’s ceiling, unchanged.
+&lt;/ul&gt;
+&lt;p&gt;The comparisons do &lt;strong&gt;not&lt;/strong&gt; become symbolic: a boolean term could only feed
+&lt;code&gt;branch&lt;/code&gt;, and control flow must be concrete.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Equality of terms is structural&lt;/strong&gt;, for §4’s deduplication: same &lt;code&gt;op&lt;/code&gt;,
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;A term has no projection.&lt;/strong&gt; &lt;code&gt;$t.field&lt;/code&gt; is a &lt;code&gt;TypeMismatch&lt;/code&gt;: a term stands
+for a number, and a number has no fields.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;A symbol standing for a whole array cannot be summed. It counts as one
+number; that is §1.7’s ceiling, unchanged.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Equality of terms is structural&lt;/strong&gt;, for §4’s deduplication: same &lt;code&gt;op&lt;/code&gt;,
 equal arguments in the same order. &lt;code&gt;sum($a, 1)&lt;/code&gt; and &lt;code&gt;sum(1, $a)&lt;/code&gt; are two
-terms.
+terms.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;A term does not emit and does not allocate. It has no id and no entry in
+&lt;li&gt;
+&lt;p&gt;A term does not emit and does not allocate. It has no id and no entry in
 the symbol table, so a library may build one from a symbolic parameter
-(§1.4 is about &lt;code&gt;?&lt;/code&gt;).
+(§1.4 is about &lt;code&gt;?&lt;/code&gt;).&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;Concrete mode is untouched: no symbol can exist there (§5.1), so no term
-can.
+&lt;li&gt;
+&lt;p&gt;Concrete mode is untouched: no symbol can exist there (§5.1), so no term
+can.&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr /&gt;
@@ -621,7 +667,7 @@ about &lt;code&gt;!&lt;/code&gt; and two refusals.&lt;/p&gt;
 &lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;     &lt;span class="dt"&gt;&amp;quot;origin&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="fu"&gt;{&lt;/span&gt;&lt;span class="dt"&gt;&amp;quot;kind&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;alloc&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt; &lt;span class="dt"&gt;&amp;quot;site&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="dv"&gt;2&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt; &lt;span class="dt"&gt;&amp;quot;key&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;web&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;},&lt;/span&gt;&lt;/span&gt;
 &lt;span id="11"&gt;&lt;a href="#11" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;     &lt;span class="dt"&gt;&amp;quot;binding&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="kw"&gt;null&lt;/span&gt;&lt;span class="fu"&gt;}&lt;/span&gt;&lt;span class="ot"&gt;,&lt;/span&gt;&lt;/span&gt;
 &lt;span id="12"&gt;&lt;a href="#12" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    &lt;span class="fu"&gt;{&lt;/span&gt;&lt;span class="dt"&gt;&amp;quot;id&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;#ctx.threshold&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt;&lt;/span&gt;
-&lt;span id="13"&gt;&lt;a href="#13" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;     &lt;span class="dt"&gt;&amp;quot;origin&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="fu"&gt;{&lt;/span&gt;&lt;span class="dt"&gt;&amp;quot;kind&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;demand&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt; &lt;span class="dt"&gt;&amp;quot;path&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="ot"&gt;[&lt;/span&gt;&lt;span class="st"&gt;&amp;quot;ctx&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;,&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;threshold&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;]&lt;/span&gt;&lt;span class="fu"&gt;},&lt;/span&gt;&lt;/span&gt;
+&lt;span id="13"&gt;&lt;a href="#13" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;     &lt;span class="dt"&gt;&amp;quot;origin&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="fu"&gt;{&lt;/span&gt;&lt;span class="dt"&gt;&amp;quot;kind&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;demand&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt; &lt;span class="dt"&gt;&amp;quot;path&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="ot"&gt;[&lt;/span&gt;&lt;span class="st"&gt;&amp;quot;threshold&amp;quot;&lt;/span&gt;&lt;span class="ot"&gt;]&lt;/span&gt;&lt;span class="fu"&gt;},&lt;/span&gt;&lt;/span&gt;
 &lt;span id="14"&gt;&lt;a href="#14" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;     &lt;span class="dt"&gt;&amp;quot;binding&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;t&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;}&lt;/span&gt;&lt;/span&gt;
 &lt;span id="15"&gt;&lt;a href="#15" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="ot"&gt;]&lt;/span&gt;&lt;span class="fu"&gt;,&lt;/span&gt;&lt;/span&gt;
 &lt;span id="16"&gt;&lt;a href="#16" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="dt"&gt;&amp;quot;constraints&amp;quot;&lt;/span&gt;&lt;span class="fu"&gt;:&lt;/span&gt; &lt;span class="ot"&gt;[&lt;/span&gt;&lt;/span&gt;
@@ -647,9 +693,16 @@ declarations.
 &lt;li&gt;A symbol the host seeded (§5.4) arrives as a value and is echoed wherever it
 was used; the language has nothing to add about it, so it is not listed.
 &lt;/li&gt;
-&lt;li&gt;&lt;code&gt;&amp;quot;binding&amp;quot;&lt;/code&gt; is the name the allocation was bound to, or &lt;code&gt;null&lt;/code&gt;. It is
+&lt;li&gt;&lt;code&gt;&amp;quot;binding&amp;quot;&lt;/code&gt; is the name the allocation was bound to, or &lt;code&gt;null&lt;/code&gt;. It is a
+name only when the &lt;code&gt;?(k)&lt;/code&gt; or &lt;code&gt;?ctx.path&lt;/code&gt; is the whole right-hand side of an
+&lt;code&gt;@name = …&lt;/code&gt; binding. Used inline it is &lt;code&gt;null&lt;/code&gt;, and so it is in
+&lt;code&gt;@x = sum(?ctx.s, 1)&lt;/code&gt;, where &lt;code&gt;x&lt;/code&gt; names the term and not the symbol. It is
 provenance for humans. &lt;code&gt;&amp;quot;origin&amp;quot;&lt;/code&gt; is the structured form of &lt;code&gt;&amp;quot;id&amp;quot;&lt;/code&gt;, so a
 host never has to parse the id.
+&lt;/li&gt;
+&lt;li&gt;A demand’s origin &lt;code&gt;&amp;quot;path&amp;quot;&lt;/code&gt; is the &lt;code&gt;Demand&lt;/code&gt; path of §3: the segments after
+&lt;code&gt;ctx&lt;/code&gt;, so &lt;code&gt;?ctx.a.b&lt;/code&gt; has &lt;code&gt;[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;]&lt;/code&gt;. The &lt;code&gt;ctx&lt;/code&gt; root is not repeated; it
+is what &lt;code&gt;&amp;quot;kind&amp;quot;: &amp;quot;demand&amp;quot;&lt;/code&gt; says.
 &lt;/li&gt;
 &lt;li&gt;Every field is REQUIRED. A decoder MUST reject an object missing any of
 them, and MUST NOT infer one from a default — the discipline &lt;code&gt;node-json.md&lt;/code&gt;
@@ -682,29 +735,61 @@ the term’s operands in order, each a number, a symbol or a term.&lt;/p&gt;
 &lt;p&gt;The ambiguity to rule out is a template, or a context, carrying a data object
 whose key is &lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt;. Neither can:&lt;/p&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;Object keys in Tramaj are always static.&lt;/strong&gt; An object key is a quoted
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Object keys in Tramaj are always static.&lt;/strong&gt; An object key is a quoted
 string literal or a bare identifier, and ref §5 forbids interpolation there,
 so nothing computes one. &lt;code&gt;{&amp;quot;$sym&amp;quot;: 1}&lt;/code&gt; written in a program is a &lt;strong&gt;parse
 error&lt;/strong&gt;, in the same family as &lt;code&gt;import(&amp;quot;lib-`$x`&amp;quot;)&lt;/code&gt;, and so is
-&lt;code&gt;{&amp;quot;$term&amp;quot;: 1}&lt;/code&gt;.
+&lt;code&gt;{&amp;quot;$term&amp;quot;: 1}&lt;/code&gt;.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt;, &lt;code&gt;&amp;quot;$type&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; are reserved in the value domain in
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt;, &lt;code&gt;&amp;quot;$type&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; are reserved in the value domain in
 both modes and in every profile&lt;/strong&gt;, in programs and in contexts alike. A
 context carrying one of these keys is rejected by the decoder: in symbolic
 mode unless it is a well-formed symbol reference or a well-formed term, and
 in concrete mode always. One rule, so a program’s legality never depends on
 how a host runs it and a context does not change meaning when a host
 changes mode. Reserving &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; rejects a context that carries that key
-as data, which implementations accept today.
+as data, which implementations accept today.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;A well-formed term&lt;/strong&gt; has a known &lt;code&gt;op&lt;/code&gt;, the argument count that builtin
-takes (one or more for &lt;code&gt;sum&lt;/code&gt; and &lt;code&gt;product&lt;/code&gt;), and arguments that are
-numbers, symbols or terms, with at least one symbol somewhere inside. An
-implementation without the arithmetic profile knows no &lt;code&gt;op&lt;/code&gt;, so it rejects
-every term.
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;The rejection is a &lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/strong&gt;, in both modes, for a reserved key
+and for a malformed symbol reference or term alike. The context is decoded
+whole before evaluation starts, so a context is rejected whether or not
+the program reads the offending part.&lt;/p&gt;
 &lt;/li&gt;
-&lt;li&gt;Objects are otherwise built only by &lt;code&gt;&amp;lt;&amp;gt;&lt;/code&gt;, which merges keys from objects
-that came from one of those two sources, so the sources are exhaustive.
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;A well-formed term is one a call could have built&lt;/strong&gt; (§1.9). Its object
+has exactly the two keys &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;arguments&amp;quot;&lt;/code&gt;; any other key beside
+them is rejected, as it is beside &lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;path&amp;quot;&lt;/code&gt;. And:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; is a string naming a known &lt;code&gt;op&lt;/code&gt;, and &lt;code&gt;&amp;quot;arguments&amp;quot;&lt;/code&gt; is an array
+with the argument count that builtin takes (one or more for &lt;code&gt;sum&lt;/code&gt; and
+&lt;code&gt;product&lt;/code&gt;);
+&lt;/li&gt;
+&lt;li&gt;each argument is a number, a well-formed symbol reference or a
+well-formed term. An array is not an argument: a term holds its operands
+already flattened;
+&lt;/li&gt;
+&lt;li&gt;at least one argument is a symbol reference or a term. A nested term is
+held to this whole rule itself, so every term contains a symbol at each
+level;
+&lt;/li&gt;
+&lt;li&gt;the arguments that are numbers pass the check a call makes (§1.9): they
+agree with each other in type and with what the builtin accepts. A &lt;code&gt;sum&lt;/code&gt;
+over &lt;code&gt;1&lt;/code&gt;, a symbol and &lt;code&gt;2.0&lt;/code&gt; is rejected, and so is a &lt;code&gt;quotient&lt;/code&gt; of &lt;code&gt;1&lt;/code&gt;
+by a symbol;
+&lt;/li&gt;
+&lt;li&gt;each number is read by ref §3’s rule, so an integer outside the
+implementation’s range is rejected.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;An implementation without the arithmetic profile knows no &lt;code&gt;op&lt;/code&gt;, so it
+rejects every term.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Objects are otherwise built only by &lt;code&gt;&amp;lt;&amp;gt;&lt;/code&gt;, which merges keys from objects
+that came from one of those two sources, so the sources are exhaustive.&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;code&gt;&amp;quot;$type&amp;quot;&lt;/code&gt; is reserved by v3 but unused by it; it is v4’s (&lt;code&gt;v4-types.md&lt;/code&gt;).
@@ -722,7 +807,9 @@ and the template is being re-run — supplies it as an ordinary context value,
 and &lt;code&gt;?ctx.path&lt;/code&gt; reads it with no allocation. This is what makes the
 ask-a-user and re-solve loops work without the template changing.&lt;/p&gt;
 &lt;p&gt;A well-formed term (§5.3) is accepted the same way, and round-trips. A
-malformed one, or one with no symbol inside, is rejected.&lt;/p&gt;
+malformed one, or one with no symbol inside, is rejected with a
+&lt;code&gt;TypeMismatch&lt;/code&gt;. A seeded number is read by ref §3’s rule, like any other
+context number.&lt;/p&gt;
 &lt;h4 id="55-profiles"&gt;5.5 Profiles&lt;/h4&gt;
 &lt;p&gt;An implementation MAY implement the &lt;strong&gt;core profile&lt;/strong&gt; only — the language of
 &lt;code&gt;reference.md&lt;/code&gt;, concrete output, no symbolic extension — and remain
@@ -749,9 +836,11 @@ profile.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;SymbolsUnavailable&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a symbol would have to be minted in concrete mode (§5.1)&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;&lt;code&gt;TypeMismatch&lt;/code&gt; covers the rest: a constraint value crossing a JSON boundary,
-a &lt;code&gt;!&lt;/code&gt; over something that is neither a constraint nor an array of them, and a
-projection of a term (§1.9). A term is a symbolic value, so &lt;code&gt;NotConcrete&lt;/code&gt;
-covers it wherever it covers a symbol. An
+a &lt;code&gt;!&lt;/code&gt; over something that is neither a constraint nor an array of them, a
+projection of a term (§1.9), an array given to a fixed-arity arithmetic
+builtin whatever it holds (§1.9), and a context the decoder rejects (§5.3).
+A term is a symbolic value, so &lt;code&gt;NotConcrete&lt;/code&gt; covers it wherever it covers a
+symbol, and to the same depth. An
 unsupplied &lt;code&gt;?ctx.path&lt;/code&gt; inside a library is the existing &lt;code&gt;PathNotFound&lt;/code&gt;,
 &lt;code&gt;InLibrary&lt;/code&gt;-wrapped.&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt; has a static counterpart: a program with a non-empty
@@ -860,7 +949,7 @@ are closed; text has one, separate children, which a form renderer wants
 anyway.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-10-07T11:23:22Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-10-08T08:31:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v4--types-draft"&gt;Tramaj v4 — Types (draft)&lt;/h2&gt;
 &lt;p&gt;Status: &lt;strong&gt;draft, not frozen, implemented.&lt;/strong&gt; Split out of the v3 design so
 that &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
@@ -1295,7 +1384,7 @@ what &lt;code&gt;!type-constraint&lt;/code&gt; is likely to be abused into expre
 abuse becomes common the honest fix is a former, not a constraint name.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-10-07T11:23:22Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-10-08T08:31:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--language-reference"&gt;Tramaj — Language Reference&lt;/h2&gt;
 &lt;p&gt;This is the reference for the language &lt;strong&gt;as implemented&lt;/strong&gt;. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -1413,11 +1502,26 @@ it. Its range is one of those two (§13).
 &lt;li&gt;A &lt;strong&gt;float&lt;/strong&gt; is a finite IEEE 754 binary64. There is no NaN, no infinity and
 no negative zero.
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;A JSON number is typed by its text&lt;/strong&gt;, by the rule for literals (§5): one
-with neither a fraction nor an exponent is an integer, one with either is a
-float. &lt;code&gt;3&lt;/code&gt; is an integer; &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats. An integer-form number
-outside the implementation’s range is rejected, not rounded. This holds for
-the context, for library parameters and for a seeded value (v3-symbols §5.4).
+&lt;li&gt;&lt;strong&gt;A JSON number is read as the literal of the same text&lt;/strong&gt; (§5). One with
+neither a fraction nor an exponent is an integer, one with either is a
+float: &lt;code&gt;3&lt;/code&gt; is an integer; &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats. Whatever that literal
+denotes, the JSON number denotes: &lt;code&gt;-0.0&lt;/code&gt; is &lt;code&gt;0.0&lt;/code&gt;, &lt;code&gt;-0&lt;/code&gt; is the integer &lt;code&gt;0&lt;/code&gt;,
+and a float too small for a double rounds to zero. Whatever is a parse
+error as a literal is refused as a JSON number: an integer-form number
+outside the implementation’s range, which is not rounded, and a float too
+large for a double (&lt;code&gt;1e400&lt;/code&gt;). This holds for the context and for a seeded
+value (v3-symbols §5.4), at any depth.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;A context with a refused number is a &lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/strong&gt; (§12), the kind a
+context carrying a reserved key already raises (v3-symbols §5.3). The
+context is decoded whole, before evaluation starts, so the error does not
+depend on whether the program reads the number.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;A library parameter is not JSON text.&lt;/strong&gt; It is a value the importing
+program built (§7), and it crosses the import with the type it has:
+&lt;code&gt;import(&amp;quot;lib&amp;quot;, {n: 3.0})&lt;/code&gt; passes a float and &lt;code&gt;{n: 3}&lt;/code&gt; an integer. Nothing
+is typed again at the boundary, and &lt;code&gt;ctx(path)&lt;/code&gt; passes what the context
+decoder made of the number.
 &lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Written as JSON, a number keeps its type&lt;/strong&gt;: &lt;code&gt;node-json.md&lt;/code&gt; has the rule,
 and &lt;code&gt;str&lt;/code&gt; (§6) follows it.
@@ -1871,8 +1975,8 @@ magnitude than &lt;code&gt;b&lt;/code&gt;, so it is always in range.
 rule children use (§6): an array contributes each of its elements,
 recursively, in order. &lt;code&gt;sum($xs)&lt;/code&gt;, &lt;code&gt;sum(1, $xs, 2)&lt;/code&gt; and &lt;code&gt;sum([1, [2, 3]])&lt;/code&gt; are
 all legal. The seven fixed-arity builtins do not flatten: &lt;code&gt;negate([1])&lt;/code&gt; is a
-&lt;code&gt;TypeMismatch&lt;/code&gt;, and &lt;code&gt;map($xs, $negate)&lt;/code&gt; is the way to write it. &lt;code&gt;and&lt;/code&gt;, &lt;code&gt;or&lt;/code&gt;
-and &lt;code&gt;concat&lt;/code&gt; are unchanged.&lt;/p&gt;
+&lt;code&gt;TypeMismatch&lt;/code&gt;, whatever the array holds, and &lt;code&gt;map($xs, $negate)&lt;/code&gt; is the way
+to write it. &lt;code&gt;and&lt;/code&gt;, &lt;code&gt;or&lt;/code&gt; and &lt;code&gt;concat&lt;/code&gt; are unchanged.&lt;/p&gt;
 &lt;p&gt;A &lt;code&gt;sum&lt;/code&gt; or &lt;code&gt;product&lt;/code&gt; with no operand after flattening has no type to take, so
 it is a &lt;code&gt;TypeMismatch&lt;/code&gt;: &lt;code&gt;sum()&lt;/code&gt;, &lt;code&gt;sum([])&lt;/code&gt; and &lt;code&gt;product([[]])&lt;/code&gt; alike. A fold
 over a list that may be empty is seeded with the identity of the intended
@@ -1892,10 +1996,12 @@ left fold over the flattened operands, starting from the first:
 &lt;code&gt;sum(a, b, c)&lt;/code&gt; is &lt;code&gt;(a + b) + c&lt;/code&gt;. A step whose mathematical result is
 outside the implementation’s integer range is a &lt;code&gt;NotRepresentable&lt;/code&gt;; nothing
 wraps, saturates or rounds. The check is per step, so
-&lt;code&gt;sum(9223372036854775807, 1, -1)&lt;/code&gt; is an error on every implementation
-although its total is in the 64-bit range. So are &lt;code&gt;floor-quotient(x, 0)&lt;/code&gt;
-and &lt;code&gt;modulo(x, 0)&lt;/code&gt;, and, with the 64-bit range,
-&lt;code&gt;negate(-9223372036854775808)&lt;/code&gt; and
+&lt;code&gt;product(4294967296, 4294967296, 0)&lt;/code&gt; is an error on every implementation
+although its total is &lt;code&gt;0&lt;/code&gt;: the first step is &lt;code&gt;2^64&lt;/code&gt;. With the 64-bit
+range, &lt;code&gt;sum(9223372036854775807, 1, -1)&lt;/code&gt; is an error for the same reason;
+with the guaranteed range only, that program does not parse (§5).
+&lt;code&gt;floor-quotient(x, 0)&lt;/code&gt; and &lt;code&gt;modulo(x, 0)&lt;/code&gt; are &lt;code&gt;NotRepresentable&lt;/code&gt; too, and
+so are, with the 64-bit range, &lt;code&gt;negate(-9223372036854775808)&lt;/code&gt; and
 &lt;code&gt;floor-quotient(-9223372036854775808, -1)&lt;/code&gt;.
 &lt;/li&gt;
 &lt;li&gt;&lt;em&gt;Float arithmetic is one correctly rounded operation at a time&lt;/em&gt;, round to
@@ -1932,7 +2038,7 @@ because either would reach the document as a plausible answer. The guard is
 &lt;tr&gt;&lt;th&gt;error&lt;/th&gt;&lt;th&gt;when&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;UnboundName&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a name that is not bound and not a builtin&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;PathNotFound&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a field the value does not have; carries the path as written&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/td&gt;&lt;td&gt;wrong type, wrong arity, a non-callable callee, a value that cannot cross a JSON boundary&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/td&gt;&lt;td&gt;wrong type, wrong arity, a non-callable callee, a value that cannot cross a JSON boundary, a context the decoder refuses (§3, v3-symbols §5.3)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;ConcatMismatch&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;&amp;gt;&lt;/code&gt; over two different types&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;UnknownLibrary&lt;/code&gt;&lt;/td&gt;&lt;td&gt;an import name the host table does not resolve&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;ImportCycle&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a library re-entered while already being evaluated&lt;/td&gt;&lt;/tr&gt;
@@ -1955,8 +2061,9 @@ not.
 &lt;code&gt;2^53 - 1&lt;/code&gt;, or the signed 64-bit range, &lt;code&gt;-2^63&lt;/code&gt; to &lt;code&gt;2^63 - 1&lt;/code&gt;; no other is
 permitted, and an implementation documents which it has (§3). Inside the
 guaranteed range all implementations agree. Between the two, one holds an
-integer exactly or refuses it (a parse error for a literal, a rejection for
-a JSON number, a &lt;code&gt;NotRepresentable&lt;/code&gt; for a result) and never rounds it.
+integer exactly or refuses it (a parse error for a literal, a
+&lt;code&gt;TypeMismatch&lt;/code&gt; for a JSON number in the context, a &lt;code&gt;NotRepresentable&lt;/code&gt; for a
+result) and never rounds it.
 Outside 64 bits every implementation refuses. A value one implementation
 emits above the guaranteed range is therefore rejected by one that has only
 that range. Until the number split lands, numbers are doubles, integers
