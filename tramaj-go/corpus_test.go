@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -42,6 +43,11 @@ func readFile(t *testing.T, path string) []byte {
 	return data
 }
 
+// readJSON reads ctx.json or expected.json with the reader that types a
+// number by its text and keeps the digits of an integer beyond 2^53, so 3 and
+// 3.0 stay two values. It refuses no number: a context holding 1e400 or an
+// integer beyond 64 bits reaches the evaluator, whose decoder is what refuses
+// it.
 func readJSON(t *testing.T, path string) JSON {
 	v, err := ParseJSON(readFile(t, path))
 	if err != nil {
@@ -77,10 +83,15 @@ type caseMeta struct {
 
 // providedProfiles holds the profiles ("profiles" in meta.json, see
 // corpus/README.md) this port can provide. A case naming any other one is
-// skipped. "base" is the language without any profile; this port has no
-// other yet, and no integer range to name until it has the two number types
-// ("int-float").
-var providedProfiles = map[string]bool{"base": true}
+// skipped. "base" is the language without any profile. "int-float" says that
+// integers and floats are two types here, and "int64" that the integer range
+// is the signed 64-bit one, so the "int53" cases are skipped. "arithmetic" is
+// the arithmetic profile, which runCase turns on only for a case that lists
+// it.
+var providedProfiles = map[string]bool{
+	"base": true, "int-float": true, "int64": true, "arithmetic": true,
+	"sort": true, "format-number": true, "round": true,
+}
 
 // missingProfiles lists the profiles a case names that this port does not
 // provide.
@@ -105,6 +116,8 @@ var providedAnalyses = map[string]func(libs Libraries, prog *Program) any{
 	"contextHoles":          func(_ Libraries, prog *Program) any { return ContextHoles(prog) },
 	"deepContextHoles":      func(libs Libraries, prog *Program) any { return DeepContextHoles(libs, prog) },
 	"contextReads":          func(_ Libraries, prog *Program) any { return ContextReads(prog) },
+	"arithmeticOps":         func(_ Libraries, prog *Program) any { return ArithmeticOps(prog) },
+	"deepArithmeticOps":     func(libs Libraries, prog *Program) any { return DeepArithmeticOps(libs, prog) },
 }
 
 // elementSet reads a JSON array as the sorted JSON texts of its elements, so
@@ -219,7 +232,10 @@ func runCase(t *testing.T, caseDir string, meta caseMeta) {
 
 	libs := readLibs(t, caseDir)
 	ctx := readJSON(t, filepath.Join(caseDir, "ctx.json"))
-	actual, err := RunProgram(meta.Mode, libs, ctx, prog)
+	// The arithmetic profile is on only for a case that lists it: every
+	// other case runs without it, where sum(1, 2) is an UnboundName.
+	options := Options{Mode: meta.Mode, Arithmetic: slices.Contains(meta.Profiles, "arithmetic")}
+	actual, err := RunProgramWith(options, libs, ctx, prog)
 
 	switch meta.Expect {
 	case "eval-error":

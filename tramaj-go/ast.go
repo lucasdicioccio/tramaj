@@ -55,7 +55,7 @@ func (*TLibRef) isTypeExpr() {}
 func (*TVar) isTypeExpr()    {}
 
 // TypeConstraintArg is an argument of !type-constraint: a type when Type is
-// non-nil, otherwise the scalar (nil, bool, float64 or string) in Scalar.
+// non-nil, otherwise the scalar (nil, bool, int64, float64 or string) in Scalar.
 type TypeConstraintArg struct {
 	Type   TypeExpr
 	Scalar JSON
@@ -141,7 +141,10 @@ type (
 		Value, Body Expr
 	}
 	StringLit struct{ Value string }
-	NumberLit struct{ Value float64 }
+	// IntLit is a number literal with neither a fraction nor an exponent,
+	// FloatLit one with either (specs/reference.md section 5).
+	IntLit    struct{ Value int64 }
+	FloatLit  struct{ Value float64 }
 	BoolLit   struct{ Value bool }
 	NullLit   struct{}
 	ArrayLit  struct{ Elements []Expr }
@@ -156,10 +159,17 @@ type (
 	Branch   struct{ Condition, Then, Else Expr }
 	Map      struct{ Collection, Fn Expr }
 	Filter   struct{ Collection, Fn Expr }
-	Scan     struct{ Collection, Initial, Fn Expr }
-	Fold     struct{ Collection, Initial, Fn Expr }
-	Concat   struct{ Left, Right Expr }
-	Import   struct {
+	// SortBy is sort-by(list, fn), and sort-by-descending(list, fn) when
+	// Descending is set (specs/reference.md section 11, Sorting): the one
+	// constructor both names lower to.
+	SortBy struct {
+		Descending     bool
+		Collection, Fn Expr
+	}
+	Scan   struct{ Collection, Initial, Fn Expr }
+	Fold   struct{ Collection, Initial, Fn Expr }
+	Concat struct{ Left, Right Expr }
+	Import struct {
 		Name   string
 		Params []Param
 	}
@@ -210,7 +220,8 @@ func (*Call) isExpr()         {}
 func (*Lambda) isExpr()       {}
 func (*Let) isExpr()          {}
 func (*StringLit) isExpr()    {}
-func (*NumberLit) isExpr()    {}
+func (*IntLit) isExpr()       {}
+func (*FloatLit) isExpr()     {}
 func (*BoolLit) isExpr()      {}
 func (*NullLit) isExpr()      {}
 func (*ArrayLit) isExpr()     {}
@@ -220,6 +231,7 @@ func (*Fragment) isExpr()     {}
 func (*Branch) isExpr()       {}
 func (*Map) isExpr()          {}
 func (*Filter) isExpr()       {}
+func (*SortBy) isExpr()       {}
 func (*Scan) isExpr()         {}
 func (*Fold) isExpr()         {}
 func (*Concat) isExpr()       {}
@@ -237,7 +249,7 @@ func (*TypeEmit) isExpr()     {}
 // source order.
 func SubExprs(e Expr) []Expr {
 	switch x := e.(type) {
-	case *Path, *StringLit, *NumberLit, *BoolLit, *NullLit, *Demand:
+	case *Path, *StringLit, *IntLit, *FloatLit, *BoolLit, *NullLit, *Demand:
 		return nil
 	case *FieldAccess:
 		return []Expr{x.Target}
@@ -274,6 +286,8 @@ func SubExprs(e Expr) []Expr {
 	case *Map:
 		return []Expr{x.Collection, x.Fn}
 	case *Filter:
+		return []Expr{x.Collection, x.Fn}
+	case *SortBy:
 		return []Expr{x.Collection, x.Fn}
 	case *Scan:
 		return []Expr{x.Collection, x.Initial, x.Fn}

@@ -93,8 +93,8 @@ in three places.
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><td><code>tramaj-go</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
 </table>
 
 The first three rows are on the `main` branch and in no release yet. Until the
@@ -387,8 +387,8 @@ to it instead of to Node.
 evaluation semantics as the other implementations, held to the same shared
 conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
-[`v4-types.md`](/reference-v4-types.html)'s nominal types; the two number
-types and arithmetic are not in this port yet). It needs nothing
+[`v4-types.md`](/reference-v4-types.html)'s nominal types, the two number
+types and the arithmetic profile). It needs nothing
 outside the standard library (Go 1.21+), so it compiles into a service or a
 static binary with no Node, Python or PureScript toolchain as a runtime
 dependency. It's one package, `tramaj`, in the repository's `tramaj-go/`
@@ -404,8 +404,8 @@ fmt.Println(tramaj.PrettyJSON(out))
 ```
 
 `RunProgram` gives you the evaluated result as a `tramaj.JSON` value (`nil`,
-`bool`, `float64`, `string`, `[]tramaj.JSON` or `*tramaj.Object`, an object
-that keeps its keys in order), already encoded per
+`bool`, `int64`, `float64`, `string`, `[]tramaj.JSON` or `*tramaj.Object`, an
+object that keeps its keys in order), already encoded per
 [`node-json.md`](/reference-node-json.html) when the program produces a
 document, or the concrete/symbolic envelope from
 [`v3-symbols.md`](/reference-v3-symbols.html) §5 otherwise — the same shape
@@ -413,10 +413,13 @@ document, or the concrete/symbolic envelope from
 `tramaj.Libraries`, a map from import name to parsed program; the mode is
 `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry
 point if you want the `*tramaj.Node` itself rather than its JSON encoding.
-Every number is still a `float64` in this port, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the JavaScript and
-Python ports byte-for-byte, and differs from the PureScript, Haskell and Rust
-implementations for a whole-valued float (`1` here, `1.0` there).
+A number is an `int64` when it is an integer and a `float64` when it is a
+float, and `tramaj.ParseJSON` types each by its text (`3` and `3.0` are two
+values); the integer range is the signed 64-bit one. The arithmetic profile
+is off unless the host turns it on:
+`tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)`,
+and `tramaj.DeepArithmeticOps` lists the arithmetic names a program
+references. On the `main` branch, in no release yet.
 
 As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node's `Type`, recurse into
