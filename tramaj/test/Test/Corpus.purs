@@ -43,9 +43,11 @@ corpusRoot = "corpus/cases"
 -- `int-float`: integers and floats are two types (a transition tag, not a
 -- profile). `arithmetic`: the arithmetic profile, which is a per-evaluation
 -- option here (see `optionsFor`). `int53`: integers have the guaranteed
--- 53-bit range only (`Tramaj.Json`), so not `int64`.
+-- 53-bit range only (`Tramaj.Json`), so not `int64`. `sort`,
+-- `format-number` and `round`: transition tags for the two sort forms, the
+-- `format-number` builtin and the tenth arithmetic name (decisions §20).
 providedProfiles :: Array String
-providedProfiles = [ "base", "int-float", "arithmetic", "int53" ]
+providedProfiles = [ "base", "int-float", "arithmetic", "int53", "sort", "format-number", "round" ]
 
 -- | The options a case runs with. A profile is on for a case only if the
 -- case lists it, so a case that does not list `arithmetic` runs without it,

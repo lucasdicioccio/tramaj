@@ -497,13 +497,15 @@ specialForm = do
   name <- try do
     _ <- optionMaybe (char '$')
     n <- identifier
-    if Array.elem n [ "map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint" ] then pure n
+    if Array.elem n [ "map", "filter", "scan", "fold", "sort-by", "sort-by-descending", "branch", "import", "adapt-actions", "constraint" ] then pure n
     else fail "not a special form"
   base <- case name of
     "map" -> binaryShape Map
     "filter" -> binaryShape Filter
     "scan" -> ternaryShape Scan
     "fold" -> ternaryShape Fold
+    "sort-by" -> binaryShape (SortBy false)
+    "sort-by-descending" -> binaryShape (SortBy true)
     "branch" -> branchShape
     "import" -> importShape
     "constraint" -> constraintShape

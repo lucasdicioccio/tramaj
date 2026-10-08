@@ -31,6 +31,7 @@ module Tramaj.Eval
   , runProgram
   , runProgramWith
   , builtinNames
+  , emittedConstraintCount
   ) where
 
 import Prelude
@@ -38,7 +39,7 @@ import Prelude
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, note)
-import Data.Foldable (and, any, foldMap, foldl, traverse_)
+import Data.Foldable (and, any, foldMap, foldl, foldr, traverse_)
 import Data.Int as Int
 import Data.Number ((%))
 import Data.Number as Number
@@ -46,8 +47,10 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Set as Set
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
+import Data.String.CodePoints (CodePoint, toCodePointArray)
+import Data.String.CodeUnits as CodeUnits
 import Data.String.Common (joinWith)
-import Data.Traversable (traverse)
+import Data.Traversable (mapAccumL, traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -149,7 +152,7 @@ instance showMode :: Show Mode where
 -- | host parameter and not a property of the program.
 -- |
 -- | `arithmetic` is reference.md §11's arithmetic profile, per evaluation:
--- | with it on, the nine names of `Tramaj.Analysis.arithmeticNames` are in
+-- | with it on, the ten names of `Tramaj.Analysis.arithmeticNames` are in
 -- | the initial environment of the program and of every library it runs,
 -- | and a seeded term is accepted in symbolic mode (v3-symbols §5.4). With
 -- | it off they are unbound, so a program that uses one fails with
@@ -393,15 +396,30 @@ evalProgramWith options libs input prog = map fst (evalProgramWithEmissions opti
 -- | at all.
 evalProgramWithEmissions :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Tuple Output Emissions)
 evalProgramWithEmissions options libs input prog = do
-  erased <- lmap TypeErr (eraseTypes libs prog)
-  Tuple v emitted <- runEval do
-    ctx <- liftEither (checkedFromJson options input)
-    let evalCtx = { libs, inProgress: Map.empty, mode: options.mode, isRoot: true, arithmetic: options.arithmetic }
-    evalExpr evalCtx (initialEnv options.arithmetic ctx) (programRoot erased)
+  Tuple v emitted <- evalProgramRaw options libs input prog
   output <- case v of
     VNode n -> Right (ONode n)
     other -> OValue <$> toJson other
   pure (Tuple output (dedupe emitted))
+
+-- | The value of a program and everything it emitted, in evaluation order
+-- | and before `dedupe`.
+evalProgramRaw :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Tuple Value Emissions)
+evalProgramRaw options libs input prog = do
+  erased <- lmap TypeErr (eraseTypes libs prog)
+  runEval do
+    ctx <- liftEither (checkedFromJson options input)
+    let evalCtx = { libs, inProgress: Map.empty, mode: options.mode, isRoot: true, arithmetic: options.arithmetic }
+    evalExpr evalCtx (initialEnv options.arithmetic ctx) (programRoot erased)
+
+-- | How many constraints an evaluation emitted, counted before `dedupe`
+-- | makes equal ones one. No program and no output can tell this number:
+-- | it is here for tests, as the one way to count how many times a
+-- | function was applied, which reference.md §11 fixes for the key function
+-- | of a sort.
+emittedConstraintCount :: Options -> LibraryTable -> Json -> Program -> Either EvalError Int
+emittedConstraintCount options libs input prog =
+  evalProgramRaw options libs input prog <#> \(Tuple _ (Emissions emitted)) -> Array.length emitted.constraints
 
 -- | Two constraints with the same name and equal arguments are one
 -- | constraint, and two symbol-table entries with the same id are one
@@ -566,7 +584,7 @@ symbolEntryToJson (SymbolEntry { id, origin, binding }) =
   originToJson (ODemand path) =
     fromObject (Object.fromFoldable [ Tuple "kind" (fromString "demand"), Tuple "path" (fromArray (map fromString path)) ])
 
--- | `$ctx` and the builtins. The nine arithmetic names are bound only with
+-- | `$ctx` and the builtins. The ten arithmetic names are bound only with
 -- | the arithmetic profile on (reference.md §11); without it they are
 -- | ordinary unbound names.
 initialEnv :: Boolean -> Value -> Env
@@ -595,6 +613,7 @@ builtinNames =
   , "gte"
   , "has"
   , "lookup"
+  , "format-number"
   , "concat"
   , "append"
   ]
@@ -679,6 +698,26 @@ evalExpr ctx env = case _ of
     acc0 <- evalExpr ctx env initExpr
     fnVal <- evalExpr ctx env fnExpr
     foldSteps ctx fnVal acc0 items
+
+  -- reference.md §11, *Sorting*. The checks come in the order the
+  -- reference gives them: the collection, then, element by element in
+  -- index order, the key function's application and the key it gave. Only
+  -- then is anything reordered, so the key function runs exactly once per
+  -- element.
+  --
+  -- The comparison ends on the index, which makes it a total order on
+  -- positions: elements whose keys are equal keep their input order under
+  -- both names, whatever algorithm `sortBy` is, and the descending sort is
+  -- something other than the reversal of the ascending one.
+  SortBy descending collExpr fnExpr -> do
+    let who = if descending then "sort-by-descending" else "sort-by"
+    items <- evalCollection ctx env who collExpr
+    fnVal <- evalExpr ctx env fnExpr
+    keys <- sortKeys ctx who fnVal items
+    let
+      keyed = Array.mapWithIndex (\index (Tuple key item) -> { index, key, item }) (Array.zip keys items)
+      byKey a b = if descending then compareKeys b.key a.key else compareKeys a.key b.key
+    pure (VArray (map _.item (Array.sortBy (\a b -> byKey a b <> compare a.index b.index) keyed)))
 
   Concat leftExpr rightExpr -> do
     l <- evalExpr ctx env leftExpr
@@ -911,6 +950,58 @@ foldSteps ctx fnVal acc items = case Array.uncons items of
   Just { head, tail } -> do
     next <- applyValue ctx "fold" fnVal [ acc, head ]
     foldSteps ctx fnVal next tail
+
+-- | What a sort orders by (reference.md §11, *Sorting*). A string key is
+-- | held as its code points: a `String` here is UTF-16 and compares by code
+-- | unit, which puts U+1F600 before U+FF5E, and the order asked for is the
+-- | one of the code points.
+data SortKey
+  = KeyInt Number
+  | KeyFloat Number
+  | KeyString (Array CodePoint)
+
+-- | The order of two keys of one call. `sortKeys` has checked that they
+-- | are of one type. A float key is never a NaN and never a negative zero
+-- | (§3), so its order is total.
+compareKeys :: SortKey -> SortKey -> Ordering
+compareKeys (KeyInt a) (KeyInt b) = compare a b
+compareKeys (KeyFloat a) (KeyFloat b) = compare a b
+compareKeys (KeyString a) (KeyString b) = compare a b
+compareKeys _ _ = EQ
+
+-- | The key of each element: the key function is applied once per element,
+-- | in index order, and each key is checked as soon as it is known, so the
+-- | first element whose application or key fails decides the error. A
+-- | symbol or a term as a key is `NotConcrete`; a value of a kind that is
+-- | never a key, or of another type than the first key, is a
+-- | `TypeMismatch`.
+sortKeys :: EvalCtx -> String -> Value -> Array Value -> Eval (Array SortKey)
+sortKeys ctx who fnVal items = case Array.uncons items of
+  Nothing -> pure []
+  Just { head, tail } -> do
+    first <- keyOf head
+    Array.cons first <$> traverse (\item -> keyOf item >>= sameTypeAs first) tail
+  where
+  keyOf item = applyValue ctx who fnVal [ item ] >>= liftEither <<< asKey
+
+  asKey = case _ of
+    VInt n -> Right (KeyInt n)
+    VFloat n -> Right (KeyFloat n)
+    VString s -> Right (KeyString (toCodePointArray s))
+    v
+      | isSymbolic v -> Left (NotConcrete who)
+      | otherwise -> Left (TypeMismatch (who <> " expects a key that is an integer, a float or a string, got " <> describeValue v))
+
+  sameTypeAs first key = case first, key of
+    KeyInt _, KeyInt _ -> pure key
+    KeyFloat _, KeyFloat _ -> pure key
+    KeyString _, KeyString _ -> pure key
+    _, _ -> evalError (TypeMismatch (who <> " expects keys of one type, got " <> describeKey first <> " and then " <> describeKey key))
+
+  describeKey = case _ of
+    KeyInt _ -> "an integer"
+    KeyFloat _ -> "a float"
+    KeyString _ -> "a string"
 
 evalCollection :: EvalCtx -> Env -> String -> Expr -> Eval (Array Value)
 evalCollection ctx env who e = do
@@ -1330,6 +1421,7 @@ evalBuiltin name args = case name of
   "gte" -> comparison (>=)
   "has" -> binary hasImpl
   "lookup" -> ternary lookupImpl
+  "format-number" -> ternary formatNumberImpl
   "concat" -> concatImpl
   "append" -> binary appendImpl
   _
@@ -1429,6 +1521,31 @@ evalBuiltin name args = case name of
     Just i | i >= 0 -> Just i
     _ -> Nothing
 
+  -- | `format-number(x, decimals, group)` (reference.md §11, *Number
+  -- | formatting*). The arguments are examined left to right and the first
+  -- | that is not acceptable decides the error: a symbol or a term is
+  -- | `NotConcrete`, anything else of the wrong type a `TypeMismatch`.
+  formatNumberImpl :: Value -> Value -> Value -> Either EvalError Value
+  formatNumberImpl x decimals group = do
+    n <- case x of
+      VInt n -> Right n
+      VFloat n -> Right n
+      other -> refuse "a number as its first argument" other
+    places <- case decimals of
+      VInt d
+        | d >= 0.0 && d <= 20.0 -> Right (Int.floor d)
+        | otherwise -> Left (TypeMismatch (name <> " expects a number of decimals from 0 to 20, got " <> formatInteger d))
+      other -> refuse "an integer number of decimals" other
+    separator <- case group of
+      VString s -> Right s
+      other -> refuse "a string as its separator" other
+    Right (VString (formatNumber n places separator))
+    where
+    refuse :: forall a. String -> Value -> Either EvalError a
+    refuse wanted other
+      | isSymbolic other = Left (NotConcrete name)
+      | otherwise = Left (TypeMismatch (name <> " expects " <> wanted <> ", got " <> describeValue other))
+
   -- | Variadic array join, preserving order. `concat()` is `[]`; a
   -- | non-array argument anywhere is an error rather than being wrapped.
   concatImpl :: Either EvalError Value
@@ -1441,7 +1558,7 @@ evalBuiltin name args = case name of
 
 -- Arithmetic (reference.md §11) ----------------------------------------------------------------
 
--- | One of the nine arithmetic builtins, applied. Operands that are all
+-- | One of the ten arithmetic builtins, applied. Operands that are all
 -- | numbers compute; if one is a symbol or a term the result is a term
 -- | holding the flattened operands exactly as written (v3-symbols §1.9).
 -- | Every operand is checked before either happens, so a `TypeMismatch`
@@ -1457,7 +1574,7 @@ arithmetic name args = do
 -- |
 -- | * `sum` and `product` flatten their arguments by the rule children use:
 -- |   an array contributes each of its elements, recursively, in order.
--- |   They need at least one operand afterwards. The seven others take a
+-- |   They need at least one operand afterwards. The eight others take a
 -- |   fixed count and do not flatten, so an array given to one is refused
 -- |   whatever it holds.
 -- | * Each operand is a number, a symbol or a term. A symbol or a term
@@ -1509,7 +1626,7 @@ arithmeticOperands name args = do
     "modulo" -> Array.all isInt numbers
     "sum" -> Array.all isInt numbers || Array.all isFloat numbers
     "product" -> Array.all isInt numbers || Array.all isFloat numbers
-    -- `negate`, `floor` and `real` take a number of either type.
+    -- `negate`, `floor`, `real` and `round` take a number of either type.
     _ -> true
 
   wanted = case name of
@@ -1541,6 +1658,8 @@ compute name operands = case name, operands of
   "floor", [ VFloat x ] -> integer (Number.floor x)
   "real", [ VInt x ] -> Right (VFloat x)
   "real", [ VFloat x ] -> Right (VFloat x)
+  "round", [ VInt x ] -> Right (VInt x)
+  "round", [ VFloat x ] -> integer (roundHalfAway x)
   _, _ -> Left (TypeMismatch (name <> " cannot be applied to " <> joinWith ", " (map describeValue operands)))
   where
   -- | A left fold from the first operand, each step checked: an integer
@@ -1575,6 +1694,20 @@ compute name operands = case name, operands of
   positiveZero :: Number -> Number
   positiveZero n = if n == 0.0 then 0.0 else n
 
+  -- | The integer nearest to a float; when two are equally near, the one
+  -- | farther from zero. Every step is exact: a float with a fraction is
+  -- | below `2^52`, so the fraction `a - whole` is a double, and so is
+  -- | `whole + 1`. `Number.round` is not used: it takes a negative tie
+  -- | toward zero.
+  roundHalfAway :: Number -> Number
+  roundHalfAway x =
+    let
+      a = Number.abs x
+      whole = Number.floor a
+      nearest = if a - whole >= 0.5 then whole + 1.0 else whole
+    in
+      if x < 0.0 then negate nearest else nearest
+
   -- | `floor-quotient` and `modulo` together: `a` is
   -- | `b * quotient + remainder`, the quotient rounded toward negative
   -- | infinity and the remainder zero or of the sign of `b`.
@@ -1595,6 +1728,166 @@ compute name operands = case name, operands of
           (\quotient remainder -> { quotient, remainder })
             <$> integer (if adjust then q - 1.0 else q)
             <*> integer (if adjust then r + b else r)
+
+-- Number formatting (reference.md §11) ---------------------------------------------------------
+
+-- | A number in positional decimal notation: an optional `-`, the integer
+-- | part with the separator between its groups of three digits counted
+-- | from the point leftward, and, when there are decimals, a `.` and
+-- | exactly that many digits. Never an exponent, and no sign on a result
+-- | whose digits are all zero.
+-- |
+-- | The digits are those of the exact value of the number, rounded to the
+-- | nearest multiple of `10^-places`, a tie going away from zero. No
+-- | native formatter follows that rule (`toFixed` stops at `1e21`), so it
+-- | is written out here over the exact decimal expansion, `exactDecimal`.
+-- | On that expansion the rule is one test: the magnitude rounds up when
+-- | the first digit dropped is `5` or more, since a tie is a `5` followed
+-- | by nothing but zeros.
+formatNumber :: Number -> Int -> String -> String
+formatNumber x places separator =
+  (if negative then "-" else "") <> grouped <> (if places == 0 then "" else "." <> fractionPart)
+  where
+  exact = exactDecimal (Number.abs x)
+
+  -- At least one digit before the point: `0.50`, never `.50`.
+  padded = zeros (exact.scale + 1 - CodeUnits.length exact.digits) <> exact.digits
+  wholeLength = CodeUnits.length padded - exact.scale
+  fraction = CodeUnits.drop wholeLength padded
+
+  -- The digits kept, the point left out, before rounding.
+  kept = CodeUnits.take wholeLength padded <> CodeUnits.take places (fraction <> zeros (places - exact.scale))
+  roundsUp = maybe false (_ >= '5') (CodeUnits.charAt places fraction)
+  rounded = if roundsUp then incrementDigits kept else kept
+
+  integerLength = CodeUnits.length rounded - places
+  integerPart = CodeUnits.take integerLength rounded
+  fractionPart = CodeUnits.drop integerLength rounded
+
+  negative = x < 0.0 && Array.any (_ /= '0') (CodeUnits.toCharArray rounded)
+
+  grouped
+    | separator == "" = integerPart
+    | otherwise = joinWith separator (groupsOfThree integerPart)
+
+  groupsOfThree s
+    | CodeUnits.length s <= 3 = [ s ]
+    | otherwise =
+        let
+          cut = CodeUnits.length s - 3
+        in
+          Array.snoc (groupsOfThree (CodeUnits.take cut s)) (CodeUnits.drop cut s)
+
+zeros :: Int -> String
+zeros n = CodeUnits.fromCharArray (Array.replicate n '0')
+
+-- | A string of decimal digits, plus one. A carry out of the first digit
+-- | adds a digit: `999` gives `1000`.
+incrementDigits :: String -> String
+incrementDigits s = CodeUnits.fromCharArray (if result.carry then Array.cons '1' result.digits else result.digits)
+  where
+  result = foldr step { digits: [], carry: true } (CodeUnits.toCharArray s)
+
+  step c acc
+    | not acc.carry = { digits: Array.cons c acc.digits, carry: false }
+    | c == '9' = { digits: Array.cons '0' acc.digits, carry: true }
+    | otherwise = { digits: Array.cons (next c) acc.digits, carry: false }
+
+  next = case _ of
+    '0' -> '1'
+    '1' -> '2'
+    '2' -> '3'
+    '3' -> '4'
+    '4' -> '5'
+    '5' -> '6'
+    '6' -> '7'
+    '7' -> '8'
+    _ -> '9'
+
+-- | The exact value of a non-negative finite number, as the digits of a
+-- | natural number and how many of them, counted from the right, follow
+-- | the point: `0.375` is `{ digits: "375", scale: 3 }`.
+-- |
+-- | A double is `mantissa * 2^exponent`. With a positive exponent that is
+-- | a natural number; with a negative one it is
+-- | `mantissa * 5^-exponent / 10^-exponent`, so the digits are those of a
+-- | natural number as well, and the expansion is finite.
+exactDecimal :: Number -> { digits :: String, scale :: Int }
+exactDecimal x =
+  if binary.exponent >= 0 then { digits: naturalDigits (timesPower 2.0 binary.exponent mantissa), scale: 0 }
+  else { digits: naturalDigits (timesPower 5.0 (negate binary.exponent) mantissa), scale: negate binary.exponent }
+  where
+  binary = binaryFraction x
+  mantissa = naturalFromNumber binary.mantissa
+
+-- | A non-negative finite number as `mantissa * 2^exponent`, the mantissa
+-- | a whole number below `2^53`. Every step is exact: a double with a
+-- | fraction is below `2^52`, so doubling it loses nothing, and a whole one
+-- | of `2^53` or more is even.
+binaryFraction :: Number -> { mantissa :: Number, exponent :: Int }
+binaryFraction = go 0
+  where
+  go exponent mantissa
+    | Number.floor mantissa /= mantissa = go (exponent - 1) (mantissa * 2.0)
+    | mantissa >= 9007199254740992.0 = go (exponent + 1) (mantissa / 2.0)
+    | otherwise = { mantissa, exponent }
+
+-- | A natural number of any size, as its digits in base `10^7`, least
+-- | significant first. A limb is a whole number below `10^7`, held in a
+-- | double, so a limb times a factor below `2^28` plus a carry stays under
+-- | `2^53` and is exact.
+type Natural = Array Number
+
+limbBase :: Number
+limbBase = 10000000.0
+
+-- | Of a whole number below `2^53`.
+naturalFromNumber :: Number -> Natural
+naturalFromNumber n
+  | n < limbBase = [ n ]
+  | otherwise =
+      let
+        low = n % limbBase
+      in
+        Array.cons low (naturalFromNumber ((n - low) / limbBase))
+
+-- | A natural number times a whole factor below `2^28`.
+timesSmall :: Number -> Natural -> Natural
+timesSmall factor limbs =
+  if scaled.accum == 0.0 then scaled.value else scaled.value <> naturalFromNumber scaled.accum
+  where
+  scaled = mapAccumL step 0.0 limbs
+
+  step carry limb =
+    let
+      total = limb * factor + carry
+      low = total % limbBase
+    in
+      { accum: (total - low) / limbBase, value: low }
+
+-- | A natural number times `base^count`, for a base of `2` or `5`, eleven
+-- | factors at a time: `5^11` is below `2^28`.
+timesPower :: Number -> Int -> Natural -> Natural
+timesPower base count limbs
+  | count <= 0 = limbs
+  | otherwise =
+      let
+        step = min count 11
+      in
+        timesPower base (count - step) (timesSmall (foldl (*) 1.0 (Array.replicate step base)) limbs)
+
+-- | The decimal digits of a natural number, without a leading zero unless
+-- | it is zero.
+naturalDigits :: Natural -> String
+naturalDigits limbs = if stripped == "" then "0" else stripped
+  where
+  stripped = CodeUnits.dropWhile (_ == '0') (joinWith "" (map limbDigits (Array.reverse limbs)))
+
+  limbDigits limb =
+    let
+      text = show (Int.floor limb)
+    in
+      zeros (7 - CodeUnits.length text) <> text
 
 -- | How a value reads when it is rendered into a string by `str` (and so by
 -- | string interpolation): a string is itself, `null` is empty, and
