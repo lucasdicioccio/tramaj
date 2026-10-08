@@ -1,0 +1,8 @@
+{
+  "name": "sorting a term is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "profiles": ["sort", "int-float", "arithmetic"]
+}

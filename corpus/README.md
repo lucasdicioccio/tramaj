@@ -92,7 +92,22 @@ cases/<NNN-slug>/
     implementation names its integer range once it provides `"int-float"`,
     since before that it has no integer type to give a range to.
 
-  A case without `profiles` runs everywhere, with no profile on. `mode` is
+  Three more names are transition tags of the same kind
+  (specs/decisions.md §20): each names a part of the language that needs no
+  profile and that not every implementation has yet.
+  * `"sort"` — the `sort-by` and `sort-by-descending` forms. A case whose
+    keys are floats, or that depends on an integer and a float being two
+    types, lists `"int-float"` as well.
+  * `"format-number"` — the `format-number` builtin. Every such case lists
+    `"int-float"` too, since the first argument is typed by it.
+  * `"round"` — `round`, the tenth arithmetic builtin. It is a name of its
+    own, beside `"arithmetic"`, because some implementations provided
+    `"arithmetic"` when the profile had nine names. Every such case lists
+    `"arithmetic"` and `"int-float"` too, and an implementation provides
+    `"round"` only together with `"arithmetic"`.
+
+  A case without `profiles` runs everywhere, with no profile on. A case that
+  lists several names runs only where all of them are provided. `mode` is
   not a profile and is unchanged.
 
   `profiles` replaces the earlier `requires` list, which said what an
@@ -169,6 +184,9 @@ the language's own spelling), and the table of analyses beside it
 | Haskell | `base`, `int-float`, `arithmetic`, `int64` |
 | Rust, TypeScript, Go, Python | `base` |
 
+No list holds `"sort"`, `"format-number"` or `"round"` yet, so the cases
+that list one are skipped by every suite.
+
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
 
@@ -180,6 +198,14 @@ there whatever a runner does: they run the cases that do not list
 `"arithmetic"` and skip the ones that do. When one of them gains the
 profile it must come as a per-evaluation option, since its runner has to
 keep it off for the cases that do not list it.
+`round` will join the nine names under the same option.
+
+Until an implementation runs them, the expected texts of the
+`format-number` and `round` cases stand on one reference computation
+(exact rational arithmetic over the value of each literal), cross-checked
+against ECMAScript's `toFixed` below `1e21`. The expected output of the
+other `"sort"`, `"format-number"` and `"round"` cases was written by hand
+from specs/reference.md §11.
 
 A name the runner does not know is, by that rule, not provided, so the case
 is skipped rather than rejected.

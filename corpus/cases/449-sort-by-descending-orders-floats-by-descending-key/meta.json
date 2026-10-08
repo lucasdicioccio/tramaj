@@ -1,0 +1,6 @@
+{
+  "name": "sort-by-descending orders floats by descending key",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort", "int-float"]
+}

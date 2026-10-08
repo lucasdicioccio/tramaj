@@ -1,0 +1,8 @@
+{
+  "name": "format-number with a symbol as its decimals is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "profiles": ["format-number", "int-float"]
+}

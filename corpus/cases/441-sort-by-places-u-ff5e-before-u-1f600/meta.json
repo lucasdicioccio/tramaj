@@ -1,0 +1,6 @@
+{
+  "name": "sort-by places U+FF5E before U+1F600",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+map($ctx.groups, (g) => sort-by($g, (x) => $x))

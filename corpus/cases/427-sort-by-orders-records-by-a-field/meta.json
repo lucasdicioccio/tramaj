@@ -1,0 +1,6 @@
+{
+  "name": "sort-by orders records by a field",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

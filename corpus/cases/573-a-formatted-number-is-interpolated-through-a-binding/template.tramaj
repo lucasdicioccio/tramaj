@@ -1,0 +1,3 @@
+-- reference.md §6, §11: the result is a string, and str of a string is itself
+@total = format-number($ctx.total, 2, " ")
+"Total: `$total` EUR"

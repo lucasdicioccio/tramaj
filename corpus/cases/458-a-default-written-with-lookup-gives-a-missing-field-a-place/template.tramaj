@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: a missing value has no built-in place; the author writes the default
+map(sort-by($ctx.rows, (r) => lookup($r, "spend", 0)), (r) => $r.name)

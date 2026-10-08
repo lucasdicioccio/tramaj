@@ -1,0 +1,5 @@
+-- v3-symbols §1.5, §1.7: the elements are symbols, the keys are concrete
+@a = ?("a")
+@b = ?("b")
+@c = ?("c")
+map(sort-by-descending([{k: "x", v: $a}, {k: "z", v: $b}, {k: "y", v: $c}], (o) => $o.k), (o) => $o.v)

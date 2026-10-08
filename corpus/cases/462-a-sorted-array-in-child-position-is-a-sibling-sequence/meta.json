@@ -1,0 +1,6 @@
+{
+  "name": "a sorted array in child position is a sibling sequence",
+  "kind": "document",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

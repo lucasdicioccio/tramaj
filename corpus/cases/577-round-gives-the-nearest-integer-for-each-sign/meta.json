@@ -1,0 +1,6 @@
+{
+  "name": "round gives the nearest integer for each sign",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "round"]
+}

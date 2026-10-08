@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting: what a key may be: an import that has not run
+@lib = import("one", {})
+sort-by([1, 2], (x) => $lib)

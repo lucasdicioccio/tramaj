@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Stability: not the reversal of sort-by, which would give c, a, b
+map(sort-by-descending($ctx.rows, (r) => $r.k), (r) => $r.n)

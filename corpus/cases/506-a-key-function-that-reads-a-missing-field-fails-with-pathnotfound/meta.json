@@ -1,0 +1,8 @@
+{
+  "name": "a key function that reads a missing field fails with PathNotFound",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "PathNotFound",
+  "profiles": ["sort"]
+}

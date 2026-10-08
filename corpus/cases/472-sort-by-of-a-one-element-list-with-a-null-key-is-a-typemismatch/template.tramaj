@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be: every key is checked, although nothing would move
+sort-by([$ctx.a], (x) => null)

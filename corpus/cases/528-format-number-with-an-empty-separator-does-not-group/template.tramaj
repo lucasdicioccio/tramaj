@@ -1,0 +1,4 @@
+-- reference.md §11, Number formatting
+[format-number(1234567, 0, ""),
+ format-number(1234567.891, 2, ""),
+ format-number(-1234567, 2, "")]

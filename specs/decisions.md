@@ -1140,8 +1140,10 @@ arguments, `?(a, b)`).
 ## 20. Sorting and number formatting: `sort-by` with a key function, `format-number` with one exact rounding rule, and `round`
 
 *Status: accepted by the owner on 2026-10-08, with the decisions listed at the
-end. Nothing here is implemented in any port, and no normative file is
-changed: `reference.md` §11 does not list these names.*
+end. The normative text and the corpus fixtures are written (the first item
+of* Follow-up*, below): `reference.md` §2, §5, §9, §11 and §13,
+`v3-symbols.md` §1.5, §1.9 and §5.3, `laws.md` and `corpus/README.md`. Nothing
+here is implemented in any port, and every port skips the fixtures.*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
@@ -1505,8 +1507,15 @@ done by accepting this section.
    left implementation-defined, v3-symbols §1.5 (the refusals) and §1.9 and
    §5.3 (`round` as a tenth term operation), `laws.md` (the
    `round`/`format-number` identity), `corpus/README.md` (the `"sort"` and
-   `"format-number"` requirement names). The fixtures are skipped by every
-   port until it declares the names.
+   `"format-number"` names a case lists in `"profiles"`). The fixtures are
+   skipped by every port until it provides the names. *Done.* The `round`
+   fixtures list a third name, `"round"`, beside `"arithmetic"`: two ports declared
+   `"arithmetic"` with nine names before this section was accepted, and
+   their suites would otherwise run cases they cannot pass. Two families
+   below are not corpus cases, because the corpus has no way to state them:
+   the key function being applied once per element, which no program can
+   observe, and the analyses seeing a read inside the function. Both are for
+   each port's own tests.
 2. *`sort-by` and `sort-by-descending` in each port.* Integer and string keys
    need nothing else. Float keys and the mixed-number refusal need the number
    split in that port, which today means PureScript, then Haskell once its

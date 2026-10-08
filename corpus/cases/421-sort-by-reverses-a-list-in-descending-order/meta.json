@@ -1,0 +1,6 @@
+{
+  "name": "sort-by reverses a list in descending order",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

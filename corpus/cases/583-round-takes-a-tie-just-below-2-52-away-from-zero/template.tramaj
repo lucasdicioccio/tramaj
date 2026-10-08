@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: the largest floats with a fraction
+[round(4503599627370495.5), round(-4503599627370495.5), round(4503599627370494.5)]

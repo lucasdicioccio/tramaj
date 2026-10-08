@@ -1,0 +1,3 @@
+-- v3-symbols §1.5: sorting inspects its keys
+@d = ?("d")
+sort-by([$d], (x) => $x.spend)

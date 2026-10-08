@@ -1,0 +1,6 @@
+{
+  "name": "a binding named sort-by does not shadow the form",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

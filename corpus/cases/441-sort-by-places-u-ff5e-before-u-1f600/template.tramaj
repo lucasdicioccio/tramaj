@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: code point order; a comparison of UTF-16 code units places U+1F600 first
+sort-by(["\u{1F600}", "\u{FF5E}", "z"], (s) => $s)

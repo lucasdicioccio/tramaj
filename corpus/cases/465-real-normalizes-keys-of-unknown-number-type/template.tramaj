@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: integers against floats are refused, so the key function converts
+map(sort-by($ctx.rows, (r) => real($r.spend)), (r) => $r.name)

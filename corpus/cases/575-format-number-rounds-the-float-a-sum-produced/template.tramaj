@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting: sum(0.1, 0.2) is 0.30000000000000004
+[format-number(sum(0.1, 0.2), 2, ""), format-number(sum(0.1, 0.2), 17, "")]

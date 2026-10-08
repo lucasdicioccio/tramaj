@@ -1,0 +1,8 @@
+{
+  "name": "sort-by of null is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "profiles": ["sort"]
+}

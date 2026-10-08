@@ -1,0 +1,6 @@
+{
+  "name": "str of round and format-number to no decimals are the same text",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "round", "format-number"]
+}

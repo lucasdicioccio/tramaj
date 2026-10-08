@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be
+sort-by([true, false], (x) => $x)

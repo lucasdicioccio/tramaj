@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be
+sort-by-descending([1.5, 2], (x) => $x)

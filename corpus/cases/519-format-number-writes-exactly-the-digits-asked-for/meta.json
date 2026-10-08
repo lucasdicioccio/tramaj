@@ -1,0 +1,6 @@
+{
+  "name": "format-number writes exactly the digits asked for",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["format-number", "int-float"]
+}

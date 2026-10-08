@@ -1,0 +1,2 @@
+-- reference.md §3, §11 Sorting: adjacent integers at the top of the guaranteed range stay apart
+sort-by([9007199254740991, -9007199254740991, 0, 9007199254740990, -9007199254740990], (x) => $x)

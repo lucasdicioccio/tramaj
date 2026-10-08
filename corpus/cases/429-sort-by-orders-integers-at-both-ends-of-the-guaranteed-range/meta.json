@@ -1,0 +1,6 @@
+{
+  "name": "sort-by orders integers at both ends of the guaranteed range",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

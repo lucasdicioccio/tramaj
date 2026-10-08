@@ -1,0 +1,8 @@
+{
+  "name": "a symbol key after a null key is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "profiles": ["sort"]
+}

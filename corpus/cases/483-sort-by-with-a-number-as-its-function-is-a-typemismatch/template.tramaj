@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Checks: the function must be callable
+sort-by([2, 1], 5)

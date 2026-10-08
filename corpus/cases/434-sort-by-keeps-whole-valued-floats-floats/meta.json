@@ -1,0 +1,6 @@
+{
+  "name": "sort-by keeps whole-valued floats floats",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort", "int-float"]
+}

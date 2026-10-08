@@ -18,6 +18,12 @@ today every number is a double, `str(1.0)` is `1`, and the nine names of §11's
 The number split is to land first, in every implementation, and the builtins
 after it.
 
+**A second part is specified ahead in the same way.** Sorting (`sort-by`,
+`sort-by-descending`), `format-number` and `round` are accepted design
+(decisions §20) and are normative here, but no implementation has them yet:
+the two sort names parse as ordinary calls, and all four names are unbound.
+Each passage this applies to is marked **[§20]**.
+
 ---
 
 ## 1. Shape of the language
@@ -71,6 +77,8 @@ Expr
   | Filter       collection: Expr, function: Expr
   | Scan         collection: Expr, initial: Expr, function: Expr
   | Fold         collection: Expr, initial: Expr, function: Expr
+  | SortBy       descending: Boolean,          -- [§20] sort-by and
+                 collection: Expr, function: Expr  -- sort-by-descending
   | Concat       left: Expr, right: Expr
   | Import       name: String, parameters: List<(String, ParamValue)>
   | AdaptActions target: Expr, adaptation: ActionAdaptation,
@@ -239,6 +247,7 @@ one.
 | `value(expr)` | element value slot; at most one, attribute position |
 | `action("event", "key", payload)` | action; attribute position, any number |
 | `map/filter(coll, fn)`, `scan/fold(coll, init, fn)` | array primitives |
+| `sort-by(coll, fn)`, `sort-by-descending(coll, fn)` | **[§20]** a stable sort, by the key `fn` gives each element (§11) |
 | `branch(fallback, p1, v1, …)` | conditional |
 | `import("name", {k: expr, j: ctx(path)})` | import; a parameter may also be left out and supplied later |
 | `adapt-actions(node, prefix("ns:") \| identity [, fn])` | action adaptation |
@@ -305,6 +314,11 @@ interpolation, and that position cannot be computed.
 **A malformed special form is a parse error.** Name recognition backtracks;
 the shape does not. `action("on-click", $computed, {})` fails to parse rather
 than quietly becoming a call to an unbound function named `action`.
+
+**[§20]** `sort-by` and `sort-by-descending` are special-form names, as `map`
+is. Each takes exactly two arguments, and any other count is a parse error.
+Being recognized by the parser, neither can be shadowed by a binding, and
+neither can be passed by reference.
 
 ### Program kind
 
@@ -526,7 +540,7 @@ follows imports through a library table and cuts cycles.
 | `contextHoles` / `deepContextHoles` | which context paths it declares as holes with `ctx(...)` |
 | `contextReads` | every path it reads from its own context, `$ctx.a` and `ctx(a)` alike |
 | `unsuppliedParams` | per import, the paths its library reads that the import does not supply |
-| `arithmeticOps` / `deepArithmeticOps` | **[§18]** which of §11's nine arithmetic names it references free |
+| `arithmeticOps` / `deepArithmeticOps` | **[§18]** which of §11's ten arithmetic names it references free |
 
 `contextReads` of a library is the shape of the parameter object it expects,
 since a library's context is its parameters. `unsuppliedParams` is that set
@@ -547,6 +561,12 @@ only in such an arm. A name that is imported but missing from the table is
 reported too — an unresolvable dependency is what a caller wants to hear
 about — though it contributes no unsupplied parameters, since what it needs
 is unknowable rather than nothing.
+
+**[§20]** Every analysis traverses `SortBy` as it traverses `Map`: through
+the collection and through the function. A read, an import, an action key or
+an arithmetic name inside a key function is therefore reported. `round` is
+one of the ten names `arithmeticOps` reports. `format-number` is not: it is
+not part of the arithmetic profile.
 
 `arithmeticOps` reports a name whether it is called or passed by reference
 (`fold($xs, 0, $sum)`). It is scope-aware: a name shadowed by a binding, a
@@ -599,6 +619,8 @@ The vocabulary is fixed, not user-extensible.
 | `has(container, key)` | tolerant: a missing key, out-of-range index or wrong-shaped container answers `false` |
 | `lookup(container, key, fallback)` | dynamic access; the fallback is mandatory, so this never errors |
 | `map`, `filter`, `scan`, `fold` | also core constructors — see below |
+| `sort-by(list, fn)`, `sort-by-descending(list, fn)` | **[§20]** core constructors too: a stable sort by key — see *Sorting* |
+| `format-number(x, decimals, group)` | **[§20]** a number as positional decimal text — see *Number formatting* |
 | `concat(…)` | variadic array join; every argument must be an array |
 | `append(arr, item)` | adds one element; an array item is added whole, not spliced |
 
@@ -608,25 +630,187 @@ only the final accumulator.
 
 **There are no arithmetic operators.** No `+`, `-`, `*` or `/`: `-` stays part
 of a number literal, `--` a comment, and `<>` the only infix operator (§5).
-Arithmetic is nine named builtins, below, in an optional profile. An
+Arithmetic is ten named builtins, below, in an optional profile. An
 implementation without that profile has no numeric builtins beyond the
-comparisons above.
+comparisons and `format-number`.
 
-`map`/`filter`/`scan`/`fold` are core constructors rather than builtins
-because their function argument needs a fresh binding per element. `branch` is
+`map`/`filter`/`scan`/`fold` and the two sorts are core constructors rather
+than builtins because their function argument needs a fresh binding per
+element. `branch` is
 a core constructor because it must leave an arm unevaluated, which no builtin
 can do.
+
+### Sorting
+
+**[§20] Specified, not yet implemented.**
+
+```
+sort-by($rows, (r) => $r.spend)                 -- by a field
+sort-by($rows, (r) => cardinality($r.members))  -- by a computed value
+sort-by-descending($names, (n) => $n)           -- a list of scalars
+sort-by($rows, $spend-of)                       -- a function by reference
+```
+
+`sort-by(list, fn)` applies `fn` to each element of `list` to get its **key**,
+and returns the elements ordered by ascending key. `sort-by-descending`
+orders them by descending key. Both lower to the one constructor `SortBy`
+(§2). They belong to the core language: no profile is needed for them.
+
+**The order.** Element `i` precedes element `j` when its key is smaller
+(larger, for `sort-by-descending`), or when the two keys are equal and
+`i < j`. Two keys are equal when they are the same number or the same
+sequence of code points. That is a total order on positions, so there is
+exactly one result, and an implementation may use any algorithm that produces
+it.
+
+Both sorts are therefore **stable**, each on its own terms.
+`sort-by-descending` is not the reversal of `sort-by`, which would reverse
+the ties as well. For elements `a`, `b`, `c` whose keys are `2`, `1`, `2`,
+`sort-by` gives `b`, `a`, `c` and `sort-by-descending` gives `a`, `c`, `b`.
+
+A sort on several columns is one sort per column, the least significant key
+first:
+
+```
+@by-name = sort-by($rows, (r) => $r.name)
+@ranked  = sort-by-descending($by-name, (r) => $r.spend)
+-- highest spend first, equal spends in name order
+```
+
+**What a key may be.** The keys of one call are all integers, or all floats,
+or all strings. Anything else is refused.
+
+| keys | result |
+|---|---|
+| all integers | numeric order |
+| all floats | numeric order; there is no NaN and no negative zero (§3), so the order is total |
+| all strings | lexicographic by Unicode code point; a proper prefix sorts first |
+| an integer and a float in one call | `TypeMismatch` |
+| a number and a string in one call | `TypeMismatch` |
+| `null`, a boolean, an array, an object, a document, a closure, a builtin, an import | `TypeMismatch` |
+| a symbol or a term | `NotConcrete` (v3-symbols §1.5) |
+
+- *Integers against floats* are not compared, here as in `lt`. Keys of
+  unknown number type are normalized by the key function:
+  `(r) => real($r.spend)`.
+- *Strings* are compared by code point. That is the byte order of their UTF-8
+  encoding, and it is **not** the order of UTF-16 code units: U+FF5E sorts
+  before U+1F600. An implementation whose strings are UTF-16 MUST compare by
+  code point. There is no case folding, no normalization, no numeric
+  awareness and no collation:
+  `["", "10", "9", "Zebra", "apple", "banana", "eclair", "éclair"]` is in
+  order.
+- *`null` and a missing value* have no place in the order. A `null` key is a
+  `TypeMismatch`, and a missing field is whatever the key function makes of
+  it: `$r.spend` fails with `PathNotFound`, and `lookup($r, "spend", 0)`
+  supplies a default.
+- *Booleans* are not ordered. `branch(1, $r.active, 0)` states the order the
+  author wants.
+- `lt` and its siblings are unchanged: they stay numbers-only.
+
+**Checks, in this order**, all before anything is reordered:
+
+1. An argument count other than two is a parse error (§5).
+2. `list`: a symbol or a term is `NotConcrete`, as for `map`; any other
+   non-array is a `TypeMismatch`.
+3. `fn`: a value that is not callable is a `TypeMismatch`, when `map` would
+   raise it.
+4. For each element, in index order: `fn` is applied, and an error it raises
+   is the error; then the key is checked. A symbol or a term is
+   `NotConcrete`; a value of a kind that is never a key, or of a different
+   type from the first key, is a `TypeMismatch`. The first element that fails
+   decides.
+
+`fn` is applied exactly once per element, in index order. Apart from that the
+elements are never inspected, so a list of documents, of closures or of
+objects holding a symbol sorts like any other. Every key is checked, even
+when the list has one element: `sort-by([$a], (x) => null)` is a
+`TypeMismatch` although nothing would move. An empty list gives `[]`, and
+`fn` is not applied.
+
+### Number formatting
+
+**[§20] Specified, not yet implemented.**
+
+`format-number(x, decimals, group)` writes a number in positional decimal
+notation, with exactly `decimals` digits after the point, and `group` between
+each group of three digits of the integer part. It is an ordinary builtin of
+the core language. It needs no profile, it can be shadowed and passed by
+reference, and it does not depend on the arithmetic builtins.
+
+```
+format-number(1234567.891, 2, ",")   -- "1,234,567.89"
+format-number(1234567.891, 2, " ")   -- "1 234 567.89"
+format-number(1234.5, 2, "")         -- "1234.50"
+format-number(1234.5, 0, ",")        -- "1,235"
+format-number(1234, 2, ",")          -- "1,234.00"
+format-number(-1234567, 0, ",")      -- "-1,234,567"
+format-number(999.995, 2, "")        -- "1000.00"
+```
+
+**The rounding rule.** Let `v` be the exact mathematical value of `x`. A float
+is a binary fraction, so `v` has a finite decimal expansion: `0.1` is exactly
+`0.1000000000000000055511151231257827021181583404541015625`. The result
+denotes the multiple of `10^-decimals` nearest to `v`; when two are equally
+near, the one farther from zero. Implementations MUST agree byte for byte.
+No native formatter follows this rule in every case, so each implementation
+writes it out.
+
+- A tie exists only when `v` is exactly halfway, which happens for values a
+  double holds exactly. Those round away from zero:
+  `format-number(2.5, 0, "")` is `3`, `format-number(-2.5, 0, "")` is `-3`
+  and `format-number(0.125, 2, "")` is `0.13`.
+- The builtin rounds the number the program has, not the text it was written
+  as. `format-number(1.005, 2, "")` is `1.00` and
+  `format-number(2.675, 2, "")` is `2.67`, because the doubles nearest to
+  those literals are `1.00499999999999989…` and `2.67499999999999982…`.
+
+**The remaining rules.**
+
+1. *Arguments.* `x` is an integer or a float. An integer is formatted from
+   its exact value, so nothing is converted. `decimals` is an integer from
+   `0` to `20`. `group` is a string. An argument count other than three is a
+   `TypeMismatch`. The arguments are then examined left to right, and the
+   first that is not acceptable decides the error: a symbol or a term is
+   `NotConcrete`, anything else of the wrong type is a `TypeMismatch`. So is
+   a float `decimals` (`2.0`), and so is one outside `0` to `20`.
+2. *Shape of the text.* An optional `-`, the integer part, and, when
+   `decimals` is not zero, a `.` and exactly `decimals` digits. The integer
+   part has at least one digit and no leading zero beyond it (`0.50`, never
+   `.50`). With zero decimals there is no point: `1235`, never `1235.`.
+3. *Never an exponent.* Every float formats, however large:
+   `format-number(1e21, 0, ",")` is `1,000,000,000,000,000,000,000`. The
+   digits are those of the exact value, so `format-number(1e23, 0, "")` is
+   `99999999999999991611392`.
+4. *No negative zero.* A result whose digits are all zero carries no sign:
+   `format-number(-0.001, 2, "")` is `0.00`. `format-number(-0.005, 2, "")`
+   is `-0.01`, since `-0.005` is the double `-0.005000000000000000104…`.
+5. *Grouping.* When `group` is not empty, it is inserted between groups of
+   three digits of the integer part, counted from the point leftward. The
+   fraction is never grouped, and the sign precedes the first group. `""`
+   means no grouping. The string is inserted as it is, whatever it is;
+   nothing validates it.
+6. *The decimal mark is always `.`*, and there is no locale.
+
+There is no prefix, suffix or percent option. `<>` and interpolation do the
+first two, and the builtin does not multiply:
+
+```
+"$" <> format-number($x, 2, ",")
+format-number(product(100.0, $ratio), 1, "") <> "%"
+```
 
 ### Arithmetic
 
 **[§18] Specified, not yet implemented.** No implementation has the
-arithmetic profile today.
+arithmetic profile today. **[§20]** `round` is the tenth name, added to the
+profile after the other nine.
 
 **The arithmetic profile** is optional, and independent of v3-symbols §5.5's
 core and symbolic profiles. The two number types of §3 are not part of it:
 they belong to the value domain in every profile.
 
-- An implementation with the profile puts the nine names below in the initial
+- An implementation with the profile puts the ten names below in the initial
   environment. One without it does not, and a program that uses one fails with
   `UnboundName`. Nothing is refused at parse time: these are names, not
   syntax.
@@ -647,6 +831,7 @@ they belong to the value domain in every profile.
 | `modulo(a, b)` | 2 | two integers | `a - b * floor-quotient(a, b)` |
 | `floor(x)` | 1 | float or integer | the largest integer not above `x`, as an integer |
 | `real(x)` | 1 | integer or float | the float nearest to `x` |
+| `round(x)` | 1 | float or integer | **[§20]** the integer nearest to `x`, ties away from zero, as an integer |
 
 ```
 @subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
@@ -657,9 +842,17 @@ they belong to the value domain in every profile.
                          (l) => product(real($l.qty), real($l.price))))
 ```
 
-- **`real` and `floor` are the only conversions**, one in each direction. Each
+- **`real` and `floor` are the conversions**, one in each direction. Each
   accepts both types, so that it can normalize a number of unknown type:
   `real` of a float and `floor` of an integer are the identity.
+- **[§20] `round` is `floor`'s sibling.** It gives the integer nearest to the
+  exact value of `x`, and when two are equally near, the one farther from
+  zero: `round(2.5)` is `3`, `round(-2.5)` is `-3` and `round(-0.4)` is `0`.
+  It accepts both types and is the identity on an integer.
+  `floor(sum(x, 0.5))` only approximates it: for `0.49999999999999994` that
+  sum is exactly `1.0`, where `round` gives `0`. The tie rule is the one
+  `format-number` uses, so for a float `x` whose rounding is in range,
+  `str(round(x))` and `format-number(x, 0, "")` are the same text.
 - **There is no subtraction**: `sum(a, negate(b))`. Negation is exact, so for
   floats this is bit for bit `a - b`.
 - **`quotient` is float division and `floor-quotient` integer division.**
@@ -674,12 +867,14 @@ they belong to the value domain in every profile.
 - **`inverse` is `quotient(1.0, x)`**, and `product(a, inverse(b))` is not
   `quotient(a, b)`: it rounds twice. `product(49.0, inverse(49.0))` is
   `0.9999999999999999`, where `quotient(49.0, 49.0)` is `1.0`.
-- Rounding to nearest, decimal formatting, `min` and `max` are not provided.
+- `min`, `max`, `ceiling` and `truncate` are not provided. Neither is
+  rounding to a number of decimals as a float: a rounded decimal is text, and
+  `format-number` is the builtin that produces it.
 
 **Arrays as arguments.** `sum` and `product` flatten their arguments by the
 rule children use (§6): an array contributes each of its elements,
 recursively, in order. `sum($xs)`, `sum(1, $xs, 2)` and `sum([1, [2, 3]])` are
-all legal. The seven fixed-arity builtins do not flatten: `negate([1])` is a
+all legal. The eight fixed-arity builtins do not flatten: `negate([1])` is a
 `TypeMismatch`, whatever the array holds, and `map($xs, $negate)` is the way
 to write it. `and`, `or` and `concat` are unchanged.
 
@@ -721,7 +916,8 @@ type: `sum(0, $xs)` or `sum(0.0, $xs)`.
    `negate(0.0)` is `0.0`, and so is `product(-1.0, 0.0)`.
 6. *The conversions.* `floor` of a float whose floor is outside the
    implementation's integer range is a `NotRepresentable`: `floor(1e19)`
-   everywhere, `floor(1e16)` with the guaranteed range only. `real` never
+   everywhere, `floor(1e16)` with the guaranteed range only. `round` follows
+   the same rule for the integer it rounds to. `real` never
    fails. It is exact inside the guaranteed range; beyond it, with the 64-bit
    range, it rounds to nearest, ties to even.
 7. *`str` renders what the value is* (§6): `sum(0.1, 0.2)` interpolates as
@@ -760,6 +956,10 @@ Programs must not depend on any of these.
 - **Evaluation order**, beyond binding order and `Branch`'s laziness.
 - **Error message text.** The error *kinds* above are stable; their prose is
   not.
+- **The place of an ill-formed string in a sort. [§20]** The string order of
+  §11's *Sorting* is defined for well-formed strings. Whether a string may
+  hold an unpaired surrogate is not specified, and neither is where one would
+  sort.
 - **Integer range. [§18]** Either the guaranteed range, `-(2^53 - 1)` to
   `2^53 - 1`, or the signed 64-bit range, `-2^63` to `2^63 - 1`; no other is
   permitted, and an implementation documents which it has (§3). Inside the

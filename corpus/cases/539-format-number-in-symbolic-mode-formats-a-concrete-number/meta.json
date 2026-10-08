@@ -1,0 +1,6 @@
+{
+  "name": "format-number in symbolic mode formats a concrete number",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["format-number", "int-float"]
+}

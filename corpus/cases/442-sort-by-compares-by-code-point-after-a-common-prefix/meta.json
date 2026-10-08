@@ -1,0 +1,6 @@
+{
+  "name": "sort-by compares by code point after a common prefix",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

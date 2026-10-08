@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: the exact value is below one half; floor(sum(x, 0.5)) gives 1
+round(0.49999999999999994)

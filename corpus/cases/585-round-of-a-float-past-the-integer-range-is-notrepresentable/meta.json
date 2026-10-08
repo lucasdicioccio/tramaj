@@ -1,0 +1,8 @@
+{
+  "name": "round of a float past the integer range is NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "profiles": ["int-float", "arithmetic", "round"]
+}

@@ -1,0 +1,2 @@
+-- v3-symbols §5.3: the argument count is the one the builtin takes
+?ctx.t

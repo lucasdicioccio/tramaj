@@ -1,0 +1,6 @@
+{
+  "name": "format-number writes the examples of the reference",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["format-number", "int-float"]
+}

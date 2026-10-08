@@ -1,0 +1,6 @@
+{
+  "name": "a carry in format-number adds a group",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["format-number", "int-float"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "format-number with a term as its separator is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "profiles": ["format-number", "int-float", "arithmetic"]
+}

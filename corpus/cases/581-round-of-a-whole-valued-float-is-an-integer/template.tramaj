@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: the result is an integer, written without a fraction
+[round(2.0), round(-7.0), round(1e15)]

@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting: the double is 2.67499999999999982..., so this is not a tie
+format-number(2.675, 2, "")

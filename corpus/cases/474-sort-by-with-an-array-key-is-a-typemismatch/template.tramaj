@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be: there is no lexicographic order on arrays
+sort-by([1, 2], (x) => [$x])

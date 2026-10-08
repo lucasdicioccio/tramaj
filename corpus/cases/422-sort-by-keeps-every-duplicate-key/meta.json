@@ -1,0 +1,6 @@
+{
+  "name": "sort-by keeps every duplicate key",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

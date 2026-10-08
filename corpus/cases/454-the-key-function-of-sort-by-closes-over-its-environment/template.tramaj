@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting
+@weights = $ctx.weights
+sort-by($ctx.names, (n) => lookup($weights, $n, 0))

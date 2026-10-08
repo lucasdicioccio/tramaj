@@ -1,0 +1,8 @@
+{
+  "name": "an out-of-range decimals of format-number decides before a symbol separator",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "profiles": ["format-number", "int-float"]
+}

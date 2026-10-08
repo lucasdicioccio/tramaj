@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round
+[round(2.4), round(2.6), round(-2.4), round(-2.6), round(0.4), round(-0.6), round(1234.5678)]

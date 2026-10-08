@@ -1,0 +1,6 @@
+{
+  "name": "round passed by reference to map builds a term per symbol",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["int-float", "arithmetic", "round"]
+}

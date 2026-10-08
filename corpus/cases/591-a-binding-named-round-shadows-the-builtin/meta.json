@@ -1,0 +1,6 @@
+{
+  "name": "a binding named round shadows the builtin",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "round"]
+}

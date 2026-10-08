@@ -1,0 +1,6 @@
+{
+  "name": "booleans are ordered by a key written with branch",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

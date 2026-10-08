@@ -1,0 +1,6 @@
+{
+  "name": "round of a float between the guaranteed range and the 64-bit range is exact",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "round", "int64"]
+}

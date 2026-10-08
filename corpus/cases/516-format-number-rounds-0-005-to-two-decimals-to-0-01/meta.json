@@ -1,0 +1,6 @@
+{
+  "name": "format-number rounds -0.005 to two decimals to -0.01",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["format-number", "int-float"]
+}

@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting, Stability
+@xs = ["c", "a", "b"]
+[sort-by($xs, (x) => 0), sort-by-descending($xs, (x) => 0)]

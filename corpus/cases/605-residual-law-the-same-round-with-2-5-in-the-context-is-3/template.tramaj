@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: what a host evaluating the term must get
+@x = ?ctx.x
+round($x)

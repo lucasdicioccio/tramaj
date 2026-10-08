@@ -1,0 +1,6 @@
+{
+  "name": "sort-by orders integers at both ends of the 64-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort", "int-float", "int64"]
+}

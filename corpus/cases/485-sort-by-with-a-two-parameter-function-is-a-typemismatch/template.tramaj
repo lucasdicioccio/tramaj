@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Checks: the function is applied to one argument, as map applies it
+sort-by([2, 1], (a, b) => $a)

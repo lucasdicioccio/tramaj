@@ -1,0 +1,6 @@
+{
+  "name": "a list whose keys are all equal keeps its order under both names",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["sort"]
+}

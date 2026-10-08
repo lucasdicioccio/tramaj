@@ -1,0 +1,6 @@
+{
+  "name": "round and floor differ on 0.49999999999999994",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "round"]
+}
