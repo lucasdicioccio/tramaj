@@ -898,7 +898,7 @@ specs win.
 
 ## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled seven points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; and under a lambda it carries its own key.*
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled eight points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; and an object literal takes a marker as a shorthand field.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -933,12 +933,13 @@ alloc  ::= "?(" expr ")"                 -- v3-symbols §1.2, unchanged
          | "?shape(" expr "," expr ")"   -- key, shape
 marker ::= "~" name                      -- inside a shape only
          | "~" name "(" expr ")"         -- with a marker key
+field  ::= … | marker                    -- in an object literal: name ":" marker
 
-@d = ?shape("d", {replicas: ~replicas, zone: "eu", ports: [~http, ~admin]})
+@d = ?shape("d", {~replicas, zone: "eu", ports: [~http, ~admin]})
 
 @cluster = ?shape("cluster", {
   lb:         ~lb,
-  placements: map($ctx.vms, (vm) => {vm: $vm.name, host: ~host($vm.name), zone: ~zone($vm.name)})
+  placements: map($ctx.vms, (vm) => {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
 })
 ```
 
@@ -957,6 +958,12 @@ marker ::= "~" name                      -- inside a shape only
   inside the shape is a parse error. A lambda *around* the whole form does not
   count: there the form's own key does the job, as in
   `map($ctx.vms, (vm) => ?shape($vm.name, {host: ~host}))`.
+- **Shorthand field.** In an object literal, a marker written alone as a field
+  is the field of that name holding that marker: `{~replicas}` is
+  `{replicas: ~replicas}` and `{~host($vm.name)}` is
+  `{host: ~host($vm.name)}`, after the literal's own `{foo}` (ref §5). It is
+  expanded before anything else, so every rule here applies to the long form.
+  A marker under another field name is still written out: `{min: ~lo}`.
 - A marker key is legal outside a lambda too. Like any allocation key it is an
   ordinary expression that MUST evaluate to a concrete value.
 - A shape MUST contain at least one marker: an allocation form allocates.
@@ -1091,13 +1098,12 @@ other than two arguments.
 - *A core `AllocIn` constructor, or a new origin kind.* Neither is needed once
   the form is a lowering.
 - *Symbols from a count.* Belongs with a `range`.
-- *A shorthand `{~replicas}` for `{replicas: ~replicas}`*, after the object
-  literal's `{foo}`. Deferred; see the questions.
 
 **Follow-up once approved:** normative text in `specs/v3-symbols.md` (§1.2,
 §1.4, §1.7, §5.2, §7, §8) and `specs/reference.md` (the leader characters and
 the syntax table); the parser change in the PureScript reference, then the
-other five ports. Corpus families: markers at several depths; an expression
+other five ports. Corpus families: markers at several depths; a shorthand
+field, bare and keyed, equal to its long form; an expression
 beside a marker; a marker in a call, in a `branch` arm taken and not taken, and
 in an element; a keyed marker under `map`, with distinct keys and with equal
 keys sharing; nested `map`s with a composite marker key; an empty collection in
@@ -1110,7 +1116,5 @@ outside a shape and in a form's key, a bare marker under a lambda, a
 marker-free shape, a duplicate name, `?shape` with one and with three
 arguments, `?(a, b)`).
 
-**Questions for the owner.** (1) `"binding"` as `null` for every entry, which
-is what the lowering gives, rather than the structure's name. (2) Whether to
-add the `{~replicas}` shorthand now, since `replicas: ~replicas` repeats the
-name.
+**Question for the owner.** `"binding"` as `null` for every entry, which is
+what the lowering gives, rather than the structure's name.
