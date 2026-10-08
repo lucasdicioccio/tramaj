@@ -1,0 +1,5 @@
+{
+  "name": "the action key analyses apply a prefix adaptation and only the deep one reaches into a library",
+  "kind": "document",
+  "expect": "analysis"
+}

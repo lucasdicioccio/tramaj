@@ -1,0 +1,8 @@
+{
+  "name": "a sum one past the top of the guaranteed range is NotRepresentable with the 53-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "profiles": ["int-float", "arithmetic", "int53"]
+}

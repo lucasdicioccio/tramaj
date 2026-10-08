@@ -2,5 +2,5 @@
   "name": "a term over a nested array of symbols holds each symbol in order",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

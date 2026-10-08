@@ -2,5 +2,5 @@
   "name": "sort-by orders digits as text",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

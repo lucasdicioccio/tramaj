@@ -1,0 +1,8 @@
+{
+  "name": "a sum that leaves the guaranteed range at a step is NotRepresentable with the 53-bit range although its total is in range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "profiles": ["int-float", "arithmetic", "int53"]
+}

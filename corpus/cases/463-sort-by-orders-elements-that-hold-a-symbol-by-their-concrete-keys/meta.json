@@ -2,5 +2,5 @@
   "name": "sort-by orders elements that hold a symbol by their concrete keys",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

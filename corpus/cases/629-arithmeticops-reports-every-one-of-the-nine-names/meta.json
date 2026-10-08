@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports every one of the nine names",
+  "kind": "expression",
+  "expect": "analysis"
+}

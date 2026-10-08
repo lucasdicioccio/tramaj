@@ -1,0 +1,2 @@
+@p=import("button", {name: ctx(inner.name)})
+$p({}).rendered

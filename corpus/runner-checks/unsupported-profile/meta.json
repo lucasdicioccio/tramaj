@@ -1,0 +1,6 @@
+{
+  "name": "a case naming a profile no port provides is skipped",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["never-declared"]
+}

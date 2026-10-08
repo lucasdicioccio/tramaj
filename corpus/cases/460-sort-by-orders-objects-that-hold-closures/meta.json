@@ -2,5 +2,5 @@
   "name": "sort-by orders objects that hold closures",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

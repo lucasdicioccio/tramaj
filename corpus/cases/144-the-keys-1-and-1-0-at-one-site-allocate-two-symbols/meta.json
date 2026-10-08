@@ -2,5 +2,5 @@
   "name": "the keys 1 and 1.0 at one site allocate two symbols",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

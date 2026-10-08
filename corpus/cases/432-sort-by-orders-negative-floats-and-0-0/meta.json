@@ -2,5 +2,5 @@
   "name": "sort-by orders negative floats and 0.0",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort", "int-float"]
+  "profiles": ["sort", "int-float"]
 }

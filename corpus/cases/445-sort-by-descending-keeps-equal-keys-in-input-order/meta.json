@@ -2,5 +2,5 @@
   "name": "sort-by-descending keeps equal keys in input order",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

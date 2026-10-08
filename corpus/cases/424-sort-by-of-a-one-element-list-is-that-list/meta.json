@@ -2,5 +2,5 @@
   "name": "sort-by of a one-element list is that list",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

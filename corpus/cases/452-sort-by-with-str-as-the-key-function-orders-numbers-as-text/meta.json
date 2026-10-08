@@ -2,5 +2,5 @@
   "name": "sort-by with str as the key function orders numbers as text",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

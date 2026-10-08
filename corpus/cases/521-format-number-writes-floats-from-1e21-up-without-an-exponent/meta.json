@@ -2,5 +2,5 @@
   "name": "format-number writes floats from 1e21 up without an exponent",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["format-number", "int-float"]
+  "profiles": ["format-number", "int-float"]
 }

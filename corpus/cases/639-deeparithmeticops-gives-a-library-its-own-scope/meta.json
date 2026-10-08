@@ -1,0 +1,5 @@
+{
+  "name": "deepArithmeticOps gives a library its own scope",
+  "kind": "expression",
+  "expect": "analysis"
+}

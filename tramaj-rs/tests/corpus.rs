@@ -5,7 +5,7 @@
 //! independently written implementations, not merely "this implementation
 //! agrees with itself".
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -13,40 +13,79 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::Value as Json;
 
+use tramaj_rs::analysis::{
+    context_holes, context_reads, deep_action_keys, deep_context_holes, static_action_keys,
+    static_import_names, transitive_import_names,
+};
+use tramaj_rs::ast::Program;
 use tramaj_rs::eval::{run_program, LibraryTable, Mode};
 use tramaj_rs::parser::parse_program;
 
 #[derive(Deserialize)]
 struct CaseMeta {
     name: String,
+    /// Absent in an `"expect": "analysis"` case, which evaluates nothing.
+    #[serde(default)]
     mode: String,
     #[serde(default = "default_expect")]
     expect: String,
     #[serde(rename = "errorKind", default)]
     error_kind: Option<String>,
     #[serde(default)]
-    requires: Vec<String>,
+    profiles: Vec<String>,
+    /// The key `profiles` replaced. A case that still has it is refused
+    /// rather than run without its gate.
+    #[serde(default)]
+    requires: Option<Json>,
 }
 
-/// The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
-/// this port declares. A case naming any other one is skipped.
-const SUPPORTED_REQUIREMENTS: &[&str] = &[];
+/// The profiles (`profiles` in `meta.json`, see `corpus/README.md`) this port
+/// can provide. A case naming any other one is skipped. `base` is the
+/// language without any profile; this port has no other yet, and no integer
+/// range to name until it has the two number types (`int-float`).
+const PROVIDED_PROFILES: &[&str] = &["base"];
 
-/// The requirements a case names that this port does not declare.
-fn missing_requirements(meta: &CaseMeta) -> Vec<String> {
-    meta.requires
+/// The profiles a case names that this port does not provide.
+fn missing_profiles(meta: &CaseMeta) -> Vec<String> {
+    meta.profiles
         .iter()
-        .filter(|r| !SUPPORTED_REQUIREMENTS.contains(&r.as_str()))
+        .filter(|r| !PROVIDED_PROFILES.contains(&r.as_str()))
         .cloned()
         .collect()
+}
+
+/// The elements of a set-valued analysis result, each as its JSON text, so
+/// a set of names and a set of paths compare the same way.
+type AnalysisResult = BTreeSet<String>;
+
+fn as_result<T: serde::Serialize>(xs: impl IntoIterator<Item = T>) -> AnalysisResult {
+    xs.into_iter()
+        .map(|x| serde_json::to_string(&x).expect("serializable analysis element"))
+        .collect()
+}
+
+/// The static analyses (reference.md §9) this port provides to an
+/// `"expect": "analysis"` case, by the name `analysis.json` gives them. A
+/// case naming any other one is skipped.
+fn provided_analysis(name: &str, libs: &LibraryTable, prog: &Program) -> Option<AnalysisResult> {
+    Some(match name {
+        "staticImportNames" => as_result(static_import_names(prog)),
+        "transitiveImportNames" => as_result(transitive_import_names(libs, prog)),
+        "staticActionKeys" => as_result(static_action_keys(prog)),
+        "deepActionKeys" => as_result(deep_action_keys(libs, prog)),
+        "contextHoles" => as_result(context_holes(prog)),
+        "deepContextHoles" => as_result(deep_context_holes(libs, prog)),
+        "contextReads" => as_result(context_reads(prog)),
+        _ => return None,
+    })
 }
 
 /// What `run_case` did with a case. A failing case panics instead.
 #[derive(Debug, PartialEq)]
 enum Outcome {
     Passed,
-    /// Not run: the case names these requirements, which this port does not
-    /// declare.
+    /// Not run: the case names these profiles (or, written `analysis <name>`,
+    /// these analyses), which this port does not provide.
     Skipped(Vec<String>),
 }
 
@@ -140,14 +179,20 @@ fn run_case(dir: &Path) -> Outcome {
         let bytes = fs::read_to_string(dir.join("meta.json")).unwrap();
         serde_json::from_str(&bytes).unwrap()
     };
-    let missing = missing_requirements(&meta);
+    let label = &meta.name;
+    if meta.requires.is_some() {
+        panic!("{label}: \"requires\" was replaced by \"profiles\" (corpus/README.md)");
+    }
+    let missing = missing_profiles(&meta);
+    if meta.expect == "analysis" {
+        return run_analysis_case(dir, label, missing);
+    }
     if !missing.is_empty() {
         return Outcome::Skipped(missing);
     }
     let mode = mode_from_meta(dir, &meta.mode);
     let src = fs::read_to_string(dir.join("template.tramaj")).unwrap();
     let libs = read_libs(dir);
-    let label = &meta.name;
 
     match meta.expect.as_str() {
         "parse-error" => {
@@ -193,15 +238,58 @@ fn run_case(dir: &Path) -> Outcome {
     Outcome::Passed
 }
 
-fn case_mode(dir: &Path) -> String {
+/// An `"expect": "analysis"` case: no context and no evaluation. Each named
+/// analysis runs over the parsed template (and `libs/`, for a deep variant)
+/// and its result is compared, as a set, with the array `analysis.json`
+/// gives. The names are the keys of `analysis.json`, which holds no number,
+/// so reading it before deciding to skip is safe on every port.
+fn run_analysis_case(dir: &Path, label: &str, mut missing: Vec<String>) -> Outcome {
+    let expected: BTreeMap<String, Vec<Json>> = {
+        let path = dir.join("analysis.json");
+        let bytes = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        serde_json::from_str(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    };
+    let src = fs::read_to_string(dir.join("template.tramaj")).unwrap();
+    let libs = read_libs(dir);
+    let prog = parse_program(&src).unwrap_or_else(|e| panic!("{label}: parse error: {e}"));
+    let mut results = Vec::new();
+    for (name, want) in &expected {
+        match provided_analysis(name, &libs, &prog) {
+            Some(actual) => results.push((name, actual, want)),
+            None => missing.push(format!("analysis {name}")),
+        }
+    }
+    if !missing.is_empty() {
+        return Outcome::Skipped(missing);
+    }
+    for (name, actual, want) in results {
+        let want_set = as_result(want);
+        // A repeated element is refused: the file is a set.
+        assert_eq!(
+            want_set.len(),
+            want.len(),
+            "{label}: analysis.json: {name} repeats an element"
+        );
+        assert_eq!(actual, want_set, "{label}: {name} mismatch");
+    }
+    Outcome::Passed
+}
+
+/// The group a case is run in: its mode, or `analysis` for an
+/// `"expect": "analysis"` case, which has none.
+fn case_group(dir: &Path) -> String {
     let meta: CaseMeta = {
         let bytes = fs::read_to_string(dir.join("meta.json")).unwrap();
         serde_json::from_str(&bytes).unwrap()
     };
-    meta.mode
+    if meta.expect == "analysis" {
+        "analysis".to_string()
+    } else {
+        meta.mode
+    }
 }
 
-/// Runs every corpus case whose `meta.json` mode is in `modes`, collecting
+/// Runs every corpus case whose group (`case_group`) is in `modes`, collecting
 /// (not short-circuiting on) failures so one run reports the whole set.
 /// Phase-gated: R1 targets `concrete` only, R2 adds `symbolic`.
 fn run_corpus_subset(modes: &[&str]) {
@@ -210,7 +298,7 @@ fn run_corpus_subset(modes: &[&str]) {
     assert!(!all_dirs.is_empty(), "no corpus cases found under {}", root.display());
     let dirs: Vec<PathBuf> = all_dirs
         .into_iter()
-        .filter(|d| modes.contains(&case_mode(d).as_str()))
+        .filter(|d| modes.contains(&case_group(d).as_str()))
         .collect();
     assert!(
         !dirs.is_empty(),
@@ -226,7 +314,7 @@ fn run_corpus_subset(modes: &[&str]) {
         match result {
             Ok(Outcome::Passed) => {}
             Ok(Outcome::Skipped(missing)) => {
-                skipped.push(format!("{name} (requires {})", missing.join(", ")))
+                skipped.push(format!("{name} (not provided: {})", missing.join(", ")))
             }
             Err(payload) => {
                 let msg = payload
@@ -269,15 +357,15 @@ fn report_skipped(modes: &[&str], total: usize, skipped: &[String]) {
     }
 }
 
-/// `corpus/runner-checks/unsupported-requirement` would fail if it ran: its
+/// `corpus/runner-checks/unsupported-profile` would fail if it ran: its
 /// `expected.json` does not match what the template evaluates to.
 #[test]
-fn case_with_undeclared_requirement_is_skipped() {
+fn case_with_unprovided_profile_is_skipped() {
     let root = find_corpus_root();
     let dir = root
         .join("..")
         .join("runner-checks")
-        .join("unsupported-requirement");
+        .join("unsupported-profile");
     assert_eq!(
         run_case(&dir),
         Outcome::Skipped(vec!["never-declared".to_string()])
@@ -296,8 +384,14 @@ fn shared_corpus_symbolic() {
     run_corpus_subset(&["symbolic"]);
 }
 
-/// Full suite, both modes together — the final gate before Rust is at parity.
+/// The `"expect": "analysis"` cases (specs/reference.md §9), which have no mode.
+#[test]
+fn shared_corpus_analysis() {
+    run_corpus_subset(&["analysis"]);
+}
+
+/// Full suite, every group together — the final gate before Rust is at parity.
 #[test]
 fn shared_corpus_all() {
-    run_corpus_subset(&["concrete", "symbolic"]);
+    run_corpus_subset(&["concrete", "symbolic", "analysis"]);
 }

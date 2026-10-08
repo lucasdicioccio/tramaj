@@ -1,0 +1,5 @@
+{
+  "name": "deepArithmeticOps follows imports and arithmeticOps does not",
+  "kind": "expression",
+  "expect": "analysis"
+}

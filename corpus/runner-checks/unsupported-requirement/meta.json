@@ -1,6 +1,0 @@
-{
-  "name": "a case naming a requirement no port declares is skipped",
-  "kind": "expression",
-  "mode": "concrete",
-  "requires": ["never-declared"]
-}

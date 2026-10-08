@@ -2,5 +2,5 @@
   "name": "sort-by of an empty list is an empty list",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

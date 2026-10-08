@@ -2,5 +2,5 @@
   "name": "canon renders each number nested in a structured key by its type",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

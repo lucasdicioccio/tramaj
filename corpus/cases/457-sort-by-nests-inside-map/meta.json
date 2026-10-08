@@ -2,5 +2,5 @@
   "name": "sort-by nests inside map",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

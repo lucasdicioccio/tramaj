@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports a name under an arm no context will select",
+  "kind": "expression",
+  "expect": "analysis"
+}

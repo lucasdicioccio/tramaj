@@ -4,5 +4,5 @@
   "mode": "symbolic",
   "expect": "eval-error",
   "errorKind": "NotConcrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

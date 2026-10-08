@@ -2,5 +2,5 @@
   "name": "sort-by orders objects that hold documents",
   "kind": "document",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

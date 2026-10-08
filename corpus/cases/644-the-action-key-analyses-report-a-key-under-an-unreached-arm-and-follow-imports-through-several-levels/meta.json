@@ -1,0 +1,5 @@
+{
+  "name": "the action key analyses report a key under an unreached arm and follow imports through several levels",
+  "kind": "document",
+  "expect": "analysis"
+}

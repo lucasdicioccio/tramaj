@@ -2,5 +2,5 @@
   "name": "sort-by orders strings by code point",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

@@ -1,0 +1,1 @@
+.tr(action("on-click", "select", {}), import("button", {}).rendered)

@@ -1,0 +1,3 @@
+-- reference.md §9
+@sum=(a, b) => $a
+$sum(1, 2)

@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports a name passed by reference",
+  "kind": "expression",
+  "expect": "analysis"
+}

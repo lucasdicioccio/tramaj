@@ -2,5 +2,5 @@
   "name": "sort-by-descending orders strings by descending code point",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

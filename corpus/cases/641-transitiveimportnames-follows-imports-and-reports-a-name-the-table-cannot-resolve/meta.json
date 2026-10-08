@@ -1,0 +1,5 @@
+{
+  "name": "transitiveImportNames follows imports and reports a name the table cannot resolve",
+  "kind": "document",
+  "expect": "analysis"
+}

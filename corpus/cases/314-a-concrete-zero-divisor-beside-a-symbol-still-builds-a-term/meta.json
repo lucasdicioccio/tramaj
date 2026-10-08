@@ -2,5 +2,5 @@
   "name": "a concrete zero divisor beside a symbol still builds a term",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

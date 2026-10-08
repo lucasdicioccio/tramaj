@@ -15,6 +15,15 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+from tramaj.analysis import (  # noqa: E402
+    context_holes,
+    context_reads,
+    deep_action_keys,
+    deep_context_holes,
+    static_action_keys,
+    static_import_names,
+    transitive_import_names,
+)
 from tramaj.evaluator import EvalError, run_program  # noqa: E402
 from tramaj.jsonval import compact_json, json_equal  # noqa: E402
 from tramaj.parser import ParseError, parse_program  # noqa: E402
@@ -54,20 +63,70 @@ def read_libs(case_dir: str) -> dict:
     return table
 
 
-# The requirement names (``requires`` in ``meta.json``, see corpus/README.md)
-# this port declares. A case naming any other one is skipped.
-SUPPORTED_REQUIREMENTS: frozenset = frozenset()
+# The profiles (``profiles`` in ``meta.json``, see corpus/README.md) this port
+# can provide. A case naming any other one is skipped. ``base`` is the language
+# without any profile; this port has no other yet, and no integer range to name
+# until it has the two number types (``int-float``).
+PROVIDED_PROFILES: frozenset = frozenset({"base"})
+
+# The static analyses (reference.md §9) this port provides to an
+# ``"expect": "analysis"`` case, by the name ``analysis.json`` gives them. A
+# case naming any other one is skipped.
+PROVIDED_ANALYSES: dict = {
+    "staticImportNames": lambda libs, prog: static_import_names(prog),
+    "transitiveImportNames": transitive_import_names,
+    "staticActionKeys": lambda libs, prog: static_action_keys(prog),
+    "deepActionKeys": deep_action_keys,
+    "contextHoles": lambda libs, prog: context_holes(prog),
+    "deepContextHoles": deep_context_holes,
+    "contextReads": lambda libs, prog: context_reads(prog),
+}
 
 
-def missing_requirements(meta: dict) -> list:
-    """The requirements a case names that this port does not declare."""
-    return [r for r in meta.get("requires", []) if r not in SUPPORTED_REQUIREMENTS]
+def missing_profiles(meta: dict) -> list:
+    """The profiles a case names that this port does not provide."""
+    return [r for r in meta.get("profiles", []) if r not in PROVIDED_PROFILES]
+
+
+def run_analysis_case(case_dir: str, missing: list) -> None:
+    """An ``"expect": "analysis"`` case: no context and no evaluation. Each
+    named analysis runs over the parsed template (and ``libs/``, for a deep
+    variant) and its result is compared, as a set, with the array
+    ``analysis.json`` gives. The names are the keys of ``analysis.json``,
+    which holds no number, so reading it before deciding to skip is safe on
+    every port."""
+    expected = read_json(os.path.join(case_dir, "analysis.json"))
+    missing = missing + [f"analysis {name}" for name in sorted(expected) if name not in PROVIDED_ANALYSES]
+    if missing:
+        raise unittest.SkipTest(f"not provided: {', '.join(missing)}")
+    prog = parse_program(read_text(os.path.join(case_dir, "template.tramaj")))
+    libs = read_libs(case_dir)
+
+    def as_set(xs) -> list:
+        # Each element as its JSON text, so names and paths compare the same way.
+        return sorted({json.dumps(x) for x in xs})
+
+    for name in sorted(expected):
+        want = as_set(expected[name])
+        if len(want) != len(expected[name]):
+            # A repeated element is refused: the file is a set.
+            raise AssertionError(f"analysis.json: {name} repeats an element")
+        actual = as_set(PROVIDED_ANALYSES[name](libs, prog))
+        if actual != want:
+            raise AssertionError(f"{name} mismatch\n  expected: {want}\n  actual:   {actual}")
 
 
 def run_case(case_dir: str, meta: dict) -> None:
-    missing = missing_requirements(meta)
+    if "requires" in meta:
+        raise AssertionError('"requires" was replaced by "profiles" (corpus/README.md)')
+    missing = missing_profiles(meta)
+    if meta.get("expect") == "analysis":
+        run_analysis_case(case_dir, missing)
+        return
     if missing:
-        raise unittest.SkipTest(f"requires {', '.join(missing)}")
+        raise unittest.SkipTest(f"not provided: {', '.join(missing)}")
+    if "mode" not in meta:
+        raise AssertionError("meta.json has no mode")
     mode = meta["mode"]
     if mode not in ("concrete", "symbolic"):
         raise AssertionError(f"unknown mode {mode}")
@@ -126,21 +185,23 @@ def _install_cases() -> None:
             run_case(case_dir, meta)
 
         test.__doc__ = meta.get("name")
-        setattr(CorpusTest, f"test_{meta['mode']}_{slug}", test)
+        # An "expect": "analysis" case has no mode.
+        group = meta.get("mode", meta.get("expect", "nomode"))
+        setattr(CorpusTest, f"test_{group}_{slug}", test)
 
 
 _install_cases()
 
 
-class RequiresTest(unittest.TestCase):
-    def test_a_case_with_an_undeclared_requirement_is_skipped(self):
-        # corpus/runner-checks/unsupported-requirement would fail if it ran:
+class ProfilesTest(unittest.TestCase):
+    def test_a_case_naming_a_profile_this_port_does_not_provide_is_skipped(self):
+        # corpus/runner-checks/unsupported-profile would fail if it ran:
         # its expected.json does not match what the template evaluates to.
-        case_dir = os.path.join(os.path.dirname(find_corpus_root()), "runner-checks", "unsupported-requirement")
+        case_dir = os.path.join(os.path.dirname(find_corpus_root()), "runner-checks", "unsupported-profile")
         meta = read_json(os.path.join(case_dir, "meta.json"))
         with self.assertRaises(unittest.SkipTest) as raised:
             run_case(case_dir, meta)
-        self.assertEqual(str(raised.exception), "requires never-declared")
+        self.assertEqual(str(raised.exception), "not provided: never-declared")
 
 
 if __name__ == "__main__":

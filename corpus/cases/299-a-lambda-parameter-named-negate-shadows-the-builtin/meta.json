@@ -2,5 +2,5 @@
   "name": "a lambda parameter named negate shadows the builtin",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

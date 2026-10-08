@@ -12,6 +12,15 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  contextHoles,
+  contextReads,
+  deepActionKeys,
+  deepContextHoles,
+  staticActionKeys,
+  staticImportNames,
+  transitiveImportNames,
+} from "../src/analysis.js";
 import { EvalError, runProgram, type LibraryTable, type Mode } from "../src/eval.js";
 import { jsonEqual, type Json } from "../src/json.js";
 import { ParseError, parseProgram } from "../src/parser.js";
@@ -19,37 +28,105 @@ import type { Program } from "../src/ast.js";
 
 interface CaseMeta {
   name: string;
-  mode: string;
+  /** Absent in an `"expect": "analysis"` case, which evaluates nothing. */
+  mode?: string;
   expect?: string;
   errorKind?: string;
-  requires?: string[];
+  profiles?: string[];
+  /** The key `profiles` replaced; a case that still has it is refused. */
+  requires?: unknown;
 }
 
 /**
- * The requirement names (`requires` in `meta.json`, see corpus/README.md) this
- * port declares. A case naming any other one is skipped.
+ * The profiles (`profiles` in `meta.json`, see corpus/README.md) this port can
+ * provide. A case naming any other one is skipped. `base` is the language
+ * without any profile; this port has no other yet, and no integer range to
+ * name until it has the two number types (`int-float`).
  */
-const supportedRequirements: ReadonlySet<string> = new Set();
+const providedProfiles: ReadonlySet<string> = new Set(["base"]);
 
-/** The requirements a case names that this port does not declare. */
-function missingRequirements(meta: CaseMeta): string[] {
-  return (meta.requires ?? []).filter((r) => !supportedRequirements.has(r));
+/**
+ * The static analyses (reference.md §9) this port provides to an
+ * `"expect": "analysis"` case, by the name `analysis.json` gives them. A case
+ * naming any other one is skipped.
+ */
+const providedAnalyses: ReadonlyMap<string, (libs: LibraryTable, prog: Program) => unknown[]> = new Map<
+  string,
+  (libs: LibraryTable, prog: Program) => unknown[]
+>([
+  ["staticImportNames", (_libs, prog) => staticImportNames(prog)],
+  ["transitiveImportNames", (libs, prog) => transitiveImportNames(libs, prog)],
+  ["staticActionKeys", (_libs, prog) => staticActionKeys(prog)],
+  ["deepActionKeys", (libs, prog) => deepActionKeys(libs, prog)],
+  ["contextHoles", (_libs, prog) => contextHoles(prog)],
+  ["deepContextHoles", (libs, prog) => deepContextHoles(libs, prog)],
+  ["contextReads", (_libs, prog) => contextReads(prog)],
+]);
+
+/**
+ * `analysis.json` of an `"expect": "analysis"` case: the expected result of
+ * each named analysis. It holds no number, so reading it before deciding to
+ * skip is safe on every port.
+ */
+function readExpectedAnalyses(dir: string): Record<string, unknown[]> {
+  return JSON.parse(readFileSync(join(dir, "analysis.json"), "utf8")) as Record<string, unknown[]>;
+}
+
+/**
+ * What a case names that this port does not provide: profiles, and for an
+ * `"expect": "analysis"` case the analyses, written `analysis <name>`.
+ */
+function missingFor(dir: string, meta: CaseMeta): string[] {
+  const missing = (meta.profiles ?? []).filter((r) => !providedProfiles.has(r));
+  if (meta.expect === "analysis") {
+    for (const name of Object.keys(readExpectedAnalyses(dir))) {
+      if (!providedAnalyses.has(name)) missing.push(`analysis ${name}`);
+    }
+  }
+  return missing;
 }
 
 function readMeta(dir: string): CaseMeta {
   return JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as CaseMeta;
 }
 
-/** Registers one case, as a skipped test when it names an undeclared requirement. */
+/** Registers one case, as a skipped test when it names something this port does not provide. */
 function registerCase(dir: string, meta: CaseMeta): void {
-  const missing = missingRequirements(meta);
+  if (meta.requires !== undefined) {
+    it(meta.name, () => {
+      throw new Error('"requires" was replaced by "profiles" (corpus/README.md)');
+    });
+    return;
+  }
+  const missing = missingFor(dir, meta);
   if (missing.length > 0) {
-    it.skip(`${meta.name} (requires ${missing.join(", ")})`, () => {});
+    it.skip(`${meta.name} (not provided: ${missing.join(", ")})`, () => {});
     return;
   }
   it(meta.name, () => {
-    runCase(dir, meta);
+    if (meta.expect === "analysis") runAnalysisCase(dir);
+    else runCase(dir, meta);
   });
+}
+
+/**
+ * An `"expect": "analysis"` case: no context and no evaluation. Each named
+ * analysis runs over the parsed template (and `libs/`, for a deep variant) and
+ * its result is compared, as a set, with the array `analysis.json` gives.
+ */
+function runAnalysisCase(dir: string): void {
+  const prog = parseProgram(readFileSync(join(dir, "template.tramaj"), "utf8"));
+  const libs = readLibs(dir);
+  // Each element as its JSON text, so names and paths compare the same way.
+  const asSet = (xs: unknown[]): string[] => [...new Set(xs.map((x) => JSON.stringify(x)))].sort();
+  for (const [name, want] of Object.entries(readExpectedAnalyses(dir))) {
+    const analysis = providedAnalyses.get(name);
+    if (analysis === undefined) throw new Error(`unknown analysis ${name}`);
+    const wantSet = asSet(want);
+    // A repeated element is refused: the file is a set.
+    if (wantSet.length !== want.length) throw new Error(`analysis.json: ${name} repeats an element`);
+    expect({ [name]: asSet(analysis(libs, prog)) }).toEqual({ [name]: wantSet });
+  }
 }
 
 /** `corpus/cases` lives at the repo root — walk upward until it is found. */
@@ -90,7 +167,7 @@ function readLibs(dir: string): LibraryTable {
   return table;
 }
 
-function modeFromMeta(m: string): Mode {
+function modeFromMeta(m: string | undefined): Mode {
   if (m === "concrete" || m === "symbolic") return m;
   throw new Error(`unknown mode ${m}`);
 }
@@ -172,17 +249,24 @@ describe("shared corpus", () => {
       for (const c of subset) registerCase(c.dir, c.meta);
     });
   }
+
+  // Everything else: the `"expect": "analysis"` cases, which have no mode,
+  // and a case whose mode is unknown, which fails when it runs.
+  describe("analysis", () => {
+    const subset = cases.filter((c) => c.meta.mode !== "concrete" && c.meta.mode !== "symbolic");
+    for (const c of subset) registerCase(c.dir, c.meta);
+  });
 });
 
-// corpus/runner-checks/unsupported-requirement would fail if it ran: its
+// corpus/runner-checks/unsupported-profile would fail if it ran: its
 // expected.json does not match what the template evaluates to.
-describe("a case naming an undeclared requirement", () => {
-  const dir = join(dirname(corpusRoot), "runner-checks", "unsupported-requirement");
+describe("a case naming a profile this port does not provide", () => {
+  const dir = join(dirname(corpusRoot), "runner-checks", "unsupported-profile");
   const meta = readMeta(dir);
   registerCase(dir, meta);
 
   it("is registered as skipped", (ctx) => {
-    expect(missingRequirements(meta)).toEqual(["never-declared"]);
+    expect(missingFor(dir, meta)).toEqual(["never-declared"]);
     const registered = ctx.task.suite?.tasks.find((t) => t.name.startsWith(meta.name));
     expect(registered?.mode).toBe("skip");
   });

@@ -2,5 +2,5 @@
   "name": "sort-by-descending orders floats by descending key",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort", "int-float"]
+  "profiles": ["sort", "int-float"]
 }

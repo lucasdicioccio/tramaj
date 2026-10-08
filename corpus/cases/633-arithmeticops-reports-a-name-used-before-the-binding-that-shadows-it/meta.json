@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports a name used before the binding that shadows it",
+  "kind": "expression",
+  "expect": "analysis"
+}

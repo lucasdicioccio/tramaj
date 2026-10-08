@@ -1,0 +1,4 @@
+{
+  "staticActionKeys": ["user:save"],
+  "deepActionKeys": ["user:deploy", "user:save"]
+}

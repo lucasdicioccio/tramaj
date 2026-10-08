@@ -2,5 +2,5 @@
   "name": "floor of a whole-valued float is that integer",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

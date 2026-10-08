@@ -4,5 +4,5 @@
   "mode": "symbolic",
   "expect": "eval-error",
   "errorKind": "NotConcrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

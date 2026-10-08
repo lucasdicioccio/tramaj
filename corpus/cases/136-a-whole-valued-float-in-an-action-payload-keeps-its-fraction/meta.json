@@ -2,5 +2,5 @@
   "name": "a whole-valued float in an action payload keeps its fraction",
   "kind": "document",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

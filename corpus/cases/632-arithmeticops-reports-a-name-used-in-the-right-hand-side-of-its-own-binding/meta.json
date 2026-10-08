@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports a name used in the right-hand side of its own binding",
+  "kind": "expression",
+  "expect": "analysis"
+}

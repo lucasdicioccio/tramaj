@@ -2,5 +2,5 @@
   "name": "sort-by does not normalize strings",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

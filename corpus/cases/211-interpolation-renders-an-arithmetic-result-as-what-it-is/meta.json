@@ -2,5 +2,5 @@
   "name": "interpolation renders an arithmetic result as what it is",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

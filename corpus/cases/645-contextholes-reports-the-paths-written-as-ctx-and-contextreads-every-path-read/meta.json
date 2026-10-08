@@ -1,0 +1,5 @@
+{
+  "name": "contextHoles reports the paths written as ctx and contextReads every path read",
+  "kind": "document",
+  "expect": "analysis"
+}

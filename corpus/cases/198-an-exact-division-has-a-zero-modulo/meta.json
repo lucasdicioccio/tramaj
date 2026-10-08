@@ -2,5 +2,5 @@
   "name": "an exact division has a zero modulo",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

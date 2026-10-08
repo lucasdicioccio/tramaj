@@ -2,5 +2,5 @@
   "name": "a table sorted by spend with formatted amounts and shares",
   "kind": "document",
   "mode": "concrete",
-  "requires": ["sort", "format-number", "int-float", "arithmetic"]
+  "profiles": ["sort", "format-number", "int-float", "arithmetic"]
 }

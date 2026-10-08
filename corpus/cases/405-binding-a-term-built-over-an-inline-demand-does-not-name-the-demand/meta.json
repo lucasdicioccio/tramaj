@@ -2,5 +2,5 @@
   "name": "binding a term built over an inline demand does not name the demand",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

@@ -2,5 +2,5 @@
   "name": "round of 0.49999999999999994 is 0",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic", "round"]
+  "profiles": ["int-float", "arithmetic", "round"]
 }

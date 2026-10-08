@@ -2,5 +2,5 @@
   "name": "format-number in symbolic mode formats a concrete number",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["format-number", "int-float"]
+  "profiles": ["format-number", "int-float"]
 }

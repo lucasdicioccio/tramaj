@@ -1,0 +1,5 @@
+{
+  "name": "deepArithmeticOps reports nothing for a missing library and terminates on a cycle",
+  "kind": "expression",
+  "expect": "analysis"
+}

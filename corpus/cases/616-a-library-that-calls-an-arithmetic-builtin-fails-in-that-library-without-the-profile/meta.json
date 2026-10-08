@@ -1,0 +1,7 @@
+{
+  "name": "a library that calls an arithmetic builtin fails in that library without the profile",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "InLibrary"
+}

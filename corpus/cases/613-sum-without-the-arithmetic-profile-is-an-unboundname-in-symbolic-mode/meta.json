@@ -1,0 +1,7 @@
+{
+  "name": "sum without the arithmetic profile is an UnboundName in symbolic mode",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "UnboundName"
+}

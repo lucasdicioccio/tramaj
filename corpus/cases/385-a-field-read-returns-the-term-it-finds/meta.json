@@ -2,5 +2,5 @@
   "name": "a field read returns the term it finds",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

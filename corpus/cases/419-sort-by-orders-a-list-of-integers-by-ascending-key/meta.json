@@ -2,5 +2,5 @@
   "name": "sort-by orders a list of integers by ascending key",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

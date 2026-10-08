@@ -2,5 +2,5 @@
   "name": "sort-by tells apart two floats that differ in the last bit",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort", "int-float"]
+  "profiles": ["sort", "int-float"]
 }

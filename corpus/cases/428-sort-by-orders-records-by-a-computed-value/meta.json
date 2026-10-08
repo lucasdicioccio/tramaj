@@ -2,5 +2,5 @@
   "name": "sort-by orders records by a computed value",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

@@ -2,5 +2,5 @@
   "name": "two constraints over terms that are equal once flattened are one constraint",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

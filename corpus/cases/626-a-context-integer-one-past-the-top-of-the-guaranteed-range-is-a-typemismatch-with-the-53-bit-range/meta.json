@@ -1,0 +1,8 @@
+{
+  "name": "a context integer one past the top of the guaranteed range is a TypeMismatch with the 53-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "profiles": ["int-float", "int53"]
+}

@@ -2,5 +2,5 @@
   "name": "residual law: a float sum over an unsupplied demand is a term in the order written",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

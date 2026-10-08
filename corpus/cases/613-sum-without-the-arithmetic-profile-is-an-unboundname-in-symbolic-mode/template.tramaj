@@ -1,0 +1,2 @@
+-- reference.md §11: without the arithmetic profile the nine names are unbound
+sum(1, 2)

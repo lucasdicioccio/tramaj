@@ -1,0 +1,2 @@
+-- reference.md §9
+adapt-actions(.div(.b(action("on-click", "save", {})), import("button", {}).rendered), prefix("user:"))

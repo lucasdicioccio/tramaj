@@ -2,5 +2,5 @@
   "name": "an integer operand of a term is written as an integer",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

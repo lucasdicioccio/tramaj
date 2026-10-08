@@ -1,0 +1,4 @@
+-- reference.md §9
+@a=floor(1.5)
+@floor=1
+$floor

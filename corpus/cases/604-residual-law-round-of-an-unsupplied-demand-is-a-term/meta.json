@@ -2,5 +2,5 @@
   "name": "residual law: round of an unsupplied demand is a term",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic", "round"]
+  "profiles": ["int-float", "arithmetic", "round"]
 }

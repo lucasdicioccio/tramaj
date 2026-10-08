@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps does not report a name shadowed by a pattern name",
+  "kind": "expression",
+  "expect": "analysis"
+}

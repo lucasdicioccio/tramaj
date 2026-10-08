@@ -2,5 +2,5 @@
   "name": "an unsupplied demand used inline as an operand builds a term and has a null binding",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

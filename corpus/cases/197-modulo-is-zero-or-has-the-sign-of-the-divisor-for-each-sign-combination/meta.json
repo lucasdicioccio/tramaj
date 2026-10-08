@@ -2,5 +2,5 @@
   "name": "modulo is zero or has the sign of the divisor for each sign combination",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

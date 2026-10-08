@@ -1,0 +1,8 @@
+{
+  "name": "sum without the arithmetic profile is an UnboundName",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "UnboundName",
+  "profiles": ["base"]
+}

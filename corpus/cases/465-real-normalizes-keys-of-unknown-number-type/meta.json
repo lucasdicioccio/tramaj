@@ -2,5 +2,5 @@
   "name": "real normalizes keys of unknown number type",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort", "int-float", "arithmetic"]
+  "profiles": ["sort", "int-float", "arithmetic"]
 }

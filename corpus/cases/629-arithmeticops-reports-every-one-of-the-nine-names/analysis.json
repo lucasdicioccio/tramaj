@@ -1,0 +1,4 @@
+{
+  "arithmeticOps": ["floor", "floor-quotient", "inverse", "modulo", "negate", "product", "quotient", "real", "sum"],
+  "deepArithmeticOps": ["floor", "floor-quotient", "inverse", "modulo", "negate", "product", "quotient", "real", "sum"]
+}

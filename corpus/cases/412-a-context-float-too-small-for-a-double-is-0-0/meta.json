@@ -2,5 +2,5 @@
   "name": "a context float too small for a double is 0.0",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

@@ -2,5 +2,5 @@
   "name": "the dollar spelling of sort-by is the same form",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["sort"]
+  "profiles": ["sort"]
 }

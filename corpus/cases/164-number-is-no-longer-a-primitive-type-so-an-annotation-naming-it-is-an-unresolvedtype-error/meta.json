@@ -4,5 +4,5 @@
   "mode": "symbolic",
   "expect": "eval-error",
   "errorKind": "TypeErr",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

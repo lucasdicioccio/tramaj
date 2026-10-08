@@ -64,28 +64,122 @@ func readLibs(t *testing.T, caseDir string) Libraries {
 }
 
 type caseMeta struct {
-	Name      string   `json:"name"`
+	Name string `json:"name"`
+	// Mode is absent in an "expect": "analysis" case, which evaluates nothing.
 	Mode      Mode     `json:"mode"`
 	Expect    string   `json:"expect"`
 	ErrorKind string   `json:"errorKind"`
-	Requires  []string `json:"requires"`
+	Profiles  []string `json:"profiles"`
+	// Requires is the key "profiles" replaced. A case that still has it is
+	// refused rather than run without its gate.
+	Requires json.RawMessage `json:"requires"`
 }
 
-// supportedRequirements holds the requirement names ("requires" in meta.json,
-// see corpus/README.md) this port declares. A case naming any other one is
-// skipped.
-var supportedRequirements = map[string]bool{}
+// providedProfiles holds the profiles ("profiles" in meta.json, see
+// corpus/README.md) this port can provide. A case naming any other one is
+// skipped. "base" is the language without any profile; this port has no
+// other yet, and no integer range to name until it has the two number types
+// ("int-float").
+var providedProfiles = map[string]bool{"base": true}
 
-// missingRequirements lists the requirements a case names that this port does
-// not declare.
-func missingRequirements(meta caseMeta) []string {
+// missingProfiles lists the profiles a case names that this port does not
+// provide.
+func missingProfiles(meta caseMeta) []string {
 	var missing []string
-	for _, r := range meta.Requires {
-		if !supportedRequirements[r] {
+	for _, r := range meta.Profiles {
+		if !providedProfiles[r] {
 			missing = append(missing, r)
 		}
 	}
 	return missing
+}
+
+// providedAnalyses holds the static analyses (reference.md §9) this port
+// provides to an "expect": "analysis" case, by the name analysis.json gives
+// them. A case naming any other one is skipped.
+var providedAnalyses = map[string]func(libs Libraries, prog *Program) any{
+	"staticImportNames":     func(_ Libraries, prog *Program) any { return StaticImportNames(prog) },
+	"transitiveImportNames": func(libs Libraries, prog *Program) any { return TransitiveImportNames(libs, prog) },
+	"staticActionKeys":      func(_ Libraries, prog *Program) any { return StaticActionKeys(prog) },
+	"deepActionKeys":        func(libs Libraries, prog *Program) any { return DeepActionKeys(libs, prog) },
+	"contextHoles":          func(_ Libraries, prog *Program) any { return ContextHoles(prog) },
+	"deepContextHoles":      func(libs Libraries, prog *Program) any { return DeepContextHoles(libs, prog) },
+	"contextReads":          func(_ Libraries, prog *Program) any { return ContextReads(prog) },
+}
+
+// elementSet reads a JSON array as the sorted JSON texts of its elements, so
+// a set of names and a set of paths compare the same way. The second result
+// is false when an element is repeated.
+func elementSet(t *testing.T, data []byte) ([]string, bool) {
+	var elems []json.RawMessage
+	if err := json.Unmarshal(data, &elems); err != nil {
+		t.Fatalf("not an array: %v", err)
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, e := range elems {
+		var v any
+		if err := json.Unmarshal(e, &v); err != nil {
+			t.Fatal(err)
+		}
+		canon, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !seen[string(canon)] {
+			seen[string(canon)] = true
+			out = append(out, string(canon))
+		}
+	}
+	sort.Strings(out)
+	return out, len(out) == len(elems)
+}
+
+// runAnalysisCase runs an "expect": "analysis" case: no context and no
+// evaluation. Each named analysis runs over the parsed template (and libs/,
+// for a deep variant) and its result is compared, as a set, with the array
+// analysis.json gives. The names are the keys of analysis.json, which holds
+// no number, so reading it before deciding to skip is safe on every port.
+func runAnalysisCase(t *testing.T, caseDir string, missing []string) {
+	var expected map[string]json.RawMessage
+	if err := json.Unmarshal(readFile(t, filepath.Join(caseDir, "analysis.json")), &expected); err != nil {
+		t.Fatalf("analysis.json: %v", err)
+	}
+	names := make([]string, 0, len(expected))
+	for name := range expected {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if providedAnalyses[name] == nil {
+			missing = append(missing, "analysis "+name)
+		}
+	}
+	if len(missing) > 0 {
+		t.Skipf("not provided: %s", strings.Join(missing, ", "))
+	}
+	prog, err := ParseProgram(string(readFile(t, filepath.Join(caseDir, "template.tramaj"))))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	libs := readLibs(t, caseDir)
+	for _, name := range names {
+		want, distinct := elementSet(t, expected[name])
+		if !distinct {
+			t.Fatalf("analysis.json: %s repeats an element", name)
+		}
+		actualJSON, err := json.Marshal(providedAnalyses[name](libs, prog))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(actualJSON) == "null" {
+			actualJSON = []byte("[]")
+		}
+		actual, _ := elementSet(t, actualJSON)
+		if strings.Join(actual, ",") != strings.Join(want, ",") {
+			t.Fatalf("%s mismatch\n  expected: %s\n  actual:   %s", name, strings.Join(want, ","), strings.Join(actual, ","))
+		}
+	}
 }
 
 func readMeta(t *testing.T, caseDir string) caseMeta {
@@ -97,8 +191,16 @@ func readMeta(t *testing.T, caseDir string) caseMeta {
 }
 
 func runCase(t *testing.T, caseDir string, meta caseMeta) {
-	if missing := missingRequirements(meta); len(missing) > 0 {
-		t.Skipf("requires %s", strings.Join(missing, ", "))
+	if meta.Requires != nil {
+		t.Fatal(`"requires" was replaced by "profiles" (corpus/README.md)`)
+	}
+	missing := missingProfiles(meta)
+	if meta.Expect == "analysis" {
+		runAnalysisCase(t, caseDir, missing)
+		return
+	}
+	if len(missing) > 0 {
+		t.Skipf("not provided: %s", strings.Join(missing, ", "))
 	}
 	if meta.Mode != Concrete && meta.Mode != Symbolic {
 		t.Fatalf("unknown mode %q", meta.Mode)
@@ -167,16 +269,16 @@ func TestCorpus(t *testing.T) {
 	}
 }
 
-// corpus/runner-checks/unsupported-requirement would fail if it ran: its
+// corpus/runner-checks/unsupported-profile would fail if it ran: its
 // expected.json does not match what the template evaluates to.
-func TestCorpusSkipsUndeclaredRequirement(t *testing.T) {
-	caseDir := filepath.Join(filepath.Dir(findCorpusRoot(t)), "runner-checks", "unsupported-requirement")
+func TestCorpusSkipsUnprovidedProfile(t *testing.T) {
+	caseDir := filepath.Join(filepath.Dir(findCorpusRoot(t)), "runner-checks", "unsupported-profile")
 	skipped := false
-	t.Run("unsupported-requirement", func(t *testing.T) {
+	t.Run("unsupported-profile", func(t *testing.T) {
 		defer func() { skipped = t.Skipped() }()
 		runCase(t, caseDir, readMeta(t, caseDir))
 	})
 	if !skipped {
-		t.Fatal("a case naming an undeclared requirement was not skipped")
+		t.Fatal("a case naming a profile this port does not provide was not skipped")
 	}
 }

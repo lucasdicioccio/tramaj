@@ -2,5 +2,5 @@
   "name": "filtering an array holding a term keeps the term",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }
