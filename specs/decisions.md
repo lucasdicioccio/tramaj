@@ -898,7 +898,7 @@ specs win.
 
 ## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled nine points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; an object literal takes a marker as a shorthand field; and `"binding"` is `null` for every entry. No question is open; what remains is the owner's approval of the section as a whole.*
+*Status: accepted by the owner on 2026-10-08. Nothing here is implemented, and the normative text is not written yet: `specs/v3-symbols.md` and `specs/reference.md` are unchanged. The owner has settled nine points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; an object literal takes a marker as a shorthand field; and `"binding"` is `null` for every entry.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -1103,7 +1103,7 @@ other than two arguments.
   the form's key.
 - *Symbols from a count.* Belongs with a `range`.
 
-**Follow-up once approved:** normative text in `specs/v3-symbols.md` (§1.2,
+**Follow-up:** normative text in `specs/v3-symbols.md` (§1.2,
 §1.4, §1.7, §5.2, §7, §8) and `specs/reference.md` (the leader characters and
 the syntax table); the parser change in the PureScript reference, then the
 other five ports. Corpus families: markers at several depths; a shorthand
