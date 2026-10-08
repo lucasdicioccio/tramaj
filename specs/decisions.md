@@ -896,11 +896,240 @@ specs win.
     keeps the type it has and nothing is typed again at the import (ref §3).
     Reason: "typed by its text" has no text to apply to there.
 
-## 19. Sorting and number formatting: `sort-by` over a parallel array of keys, `format-number` with one exact rounding rule, and `round`
+## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
+
+*Status: accepted by the owner on 2026-10-08. Nothing here is implemented, and the normative text is not written yet: `specs/v3-symbols.md` and `specs/reference.md` are unchanged. The owner has settled nine points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; an object literal takes a marker as a shorthand field; and `"binding"` is `null` for every entry.*
+
+"Traverse" in the functional sense: walk a structure, run an effect at each
+position, get the same structure back. The effect here is allocation.
+
+**What is awkward today.** v3-symbols §1.7 already gives a flat array of symbols
+over an existing collection (`map($ctx.services, (s) => ?($s.name))`), and a
+grid is two nested `map`s with a `[$r, $c]` key. Those need nothing new. A
+structure of symbols does, and most of all one whose size the caller decides:
+
+```
+-- one site per symbol, and a key composed by hand at each of them
+@cluster = {
+  lb:         ?(["cluster", "lb"]),
+  placements: map($ctx.vms, (vm) => {
+    vm:   $vm.name,
+    host: ?(["cluster", "host", $vm.name]),
+    zone: ?(["cluster", "zone", $vm.name])
+  })
+}
+```
+
+The gap is one site per symbol and a key composed by hand at each. It is *not*
+"N symbols from the number N": that needs a collection of length N, which is a
+`range` question and stays out of this section. The caller supplies an array.
+
+**Surface form.** A second allocation form, `?shape`, takes a key and a shape,
+and inside the shape a **symbol marker**, `~name`, optionally with a key of its
+own:
+
+```
+alloc  ::= "?(" expr ")"                 -- v3-symbols §1.2, unchanged
+         | "?shape(" expr "," expr ")"   -- key, shape
+marker ::= "~" name                      -- inside a shape only
+         | "~" name "(" expr ")"         -- with a marker key
+field  ::= … | marker                    -- in an object literal: name ":" marker
+
+@d = ?shape("d", {~replicas, zone: "eu", ports: [~http, ~admin]})
+
+@cluster = ?shape("cluster", {
+  lb:         ~lb,
+  placements: map($ctx.vms, (vm) => {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
+})
+```
+
+- `~` is a new leader character. It is used nowhere in the grammar today, and a
+  name starts with a letter (ref §5), so `~name` is a parse error in every
+  existing program. The name follows the `~` directly and obeys the ordinary
+  name rule; the `(` of a marker key follows the name directly.
+- The shape is an ordinary expression, and a marker is an expression **anywhere
+  in it**: an array element, a field value, a call's argument
+  (`sum(~a, ~b)`), a `branch` arm, an element's child, a lambda's body. A
+  marker belongs to the innermost `?shape` whose shape contains it. Outside
+  any shape, and in a `?shape`'s key, it is a parse error.
+- **Under a lambda, a marker MUST carry a key.** A lambda's body is evaluated
+  once per application, so a marker in it stands for many symbols, and the
+  marker key says which one. A bare `~name` inside a lambda that is itself
+  inside the shape is a parse error. A lambda *around* the whole form does not
+  count: there the form's own key does the job, as in
+  `map($ctx.vms, (vm) => ?shape($vm.name, {host: ~host}))`.
+- **Shorthand field.** In an object literal, a marker written alone as a field
+  is the field of that name holding that marker: `{~replicas}` is
+  `{replicas: ~replicas}` and `{~host($vm.name)}` is
+  `{host: ~host($vm.name)}`, after the literal's own `{foo}` (ref §5). It is
+  expanded before anything else, so every rule here applies to the long form.
+  A marker under another field name is still written out: `{min: ~lo}`.
+- A marker key is legal outside a lambda too. Like any allocation key it is an
+  ordinary expression that MUST evaluate to a concrete value.
+- A shape MUST contain at least one marker: an allocation form allocates.
+  A marker name appears at most once in a form, with or without a key;
+  `{web: {port: ~port}, db: {port: ~port}}` is a parse error.
+- `?shape` is a parse error today, since a `?` is followed by `(` or by `ctx`,
+  so no existing program changes meaning. It takes exactly two arguments.
+  `?(a, b)` stays a parse error.
+- `shape` is a word under the `?` leader, read the way `ctx` is in `?ctx.path`.
+  It is not reserved: `$shape`, `@shape` and `.shape(...)` are unaffected.
+
+It is a special form and not a builtin for the reason `?(k)` is: it needs a
+site, and a site is assigned by the parser (v3-symbols §1.4). Keeping the `?`
+leader also keeps v3-symbols §5.5 true as written, which a keyword would not:
+the core profile rejects the form at parse time with no new rule, and the
+marker with it.
+
+**Desugaring** (the core AST does not change). `?shape(k, shape)` at site *n*
+lowers to the shape with each marker replaced by an allocation at that site:
+
+```text
+~name        Alloc n [k, "name"]         -- what ?([k, "name"]) would be at site n
+~name(e)     Alloc n [k, "name", e]      -- what ?([k, "name", e]) would be at site n
+```
+
+where `k` is bound once to a hidden name (§17's rule for hidden names) and read
+from each marker. Everything else in the shape is left as written. So the form
+means exactly what the hand-written expression means, with two differences a
+hand-written one cannot have: the key is written once, and all the allocations
+share one site. Sites are numbered in one sequence across both forms, and a
+marker takes no number of its own.
+
+**Identity.**
+
+```
+id = "#" n ":" canon([k, "name"])         -- bare marker
+id = "#" n ":" canon([k, "name", e])      -- keyed marker
+
+the cluster above, at site 0, with vms named "a" and "b":
+  #0:["cluster","lb"]
+  #0:["cluster","host","a"]   #0:["cluster","zone","a"]
+  #0:["cluster","host","b"]   #0:["cluster","zone","b"]
+```
+
+- The name says which symbol of the shape, the marker key says which
+  application of the lambda, and the form's key says which evaluation of the
+  site. Each is something the author wrote (v3-symbols §1.2): nothing is
+  derived from an index or from evaluation order.
+- Sharing happens only where the author's keys are equal: two `vms` with the
+  same name share `host` and `zone`, as two services with the same name share
+  `?($s.name)` today. A constant marker key under a lambda shares one symbol
+  across applications, and is the only way to write that.
+- Under nested lambdas the marker key has to distinguish every level:
+  `~cell([$r, $c])`.
+- The position is not in the id. Reordering the `vms`, or moving a marker to
+  another field, keeps every symbol's identity; renaming a marker changes it.
+- Injective: `canon` is injective (§13), a name appears once in a form, a pair
+  and a triple differ, and a site is one form or the other, so an id from this
+  form cannot meet an id from a plain `?(k)`.
+
+**Symbol table and envelope.** No change and no format bump. Each allocation is
+an ordinary entry:
+
+```json
+{"id": "#0:[\"cluster\",\"host\",\"a\"]",
+ "origin": {"kind": "alloc", "site": 0, "key": ["cluster", "host", "a"]},
+ "binding": null}
+```
+
+- **Order** is that of the lowered expression, under v3-symbols §4 unchanged.
+- **`"binding"`** is `null` for every entry: no marker is the whole right-hand
+  side of a binding (v3-symbols §5.2), and the name of `@d = ?shape("d", …)`
+  names the structure. `origin.key` carries the form's key, the marker's name
+  and the marker key.
+- A host decoder needs no new case, and cannot tell this form from hand-written
+  allocations. The form is a way to write allocations, not a new kind of one.
+
+**Interaction with existing rules.** All of these follow from the lowering.
+
+- *Root only.* `AllocationInLibrary` applies lexically, unchanged.
+- *Concrete mode.* `SymbolsUnavailable` when a marker is evaluated, as for a
+  `?(k)` written in its place. A form whose markers are never evaluated (an
+  empty `vms`, an arm not taken) therefore passes, as the hand-written
+  expression does.
+- *Demands and seeding.* Unrelated to markers; `?ctx.path` is an ordinary
+  expression in a shape: `?shape("d", {replicas: ~replicas, zone: ?ctx.zone})`.
+- *Core profile.* Rejected at parse time, as every `?` is.
+- *`symbolSites`.* Reports the site once. The number of symbols is a runtime
+  fact, as it is for a `?(k)` under a `map`.
+- *v4 annotations.* `@xs : [T] = ?shape("xs", [~a, ~b])` is the existing sugar
+  (v4-types §7): one `has-type` on the whole array, none per element.
+
+**Errors.** No new kind. `NotConcrete` (a symbol in the form's key or in a
+marker key), `SymbolsUnavailable` (concrete mode), `AllocationInLibrary`
+(lexical), and parse errors for a marker outside a shape, a bare marker under a
+lambda, a shape with no marker, a duplicate marker name, and `?shape` with
+other than two arguments.
+
+**Rejected or deferred**
+
+- *`null` as the place of a symbol (the first draft of this section).* It
+  needed no token and let a shape come from `$ctx`, but it overloaded `null`:
+  a legitimate `null` could not be kept, and data allocated symbols nobody
+  wrote. It also needed a new core constructor, since nothing in the core can
+  walk a value whose depth is data.
+- *The iteration index in the id, with no marker key.* Nothing to write, but
+  identity becomes positional (inserting a `vm` renames every later symbol,
+  which breaks seeding a previous solution), and the evaluator of every port
+  has to track indices through `map`, `filter`, `scan` and `fold`. It is also a
+  call-frame identity scheme, which v3-symbols §9 declines.
+- *Markers at structural positions only* (the shape, an array element, a field
+  value). Simpler, with a static symbol count, but it cannot express a
+  collection inside a shape, which is the main use.
+- *A bare marker under a lambda sharing one symbol.* What the lowering would
+  give unaided, and never what the author of a `map` meant.
+- *A duplicate marker name as one shared symbol.* The same field name at two
+  depths would silently be one variable. Sharing is written as two reads of
+  one binding. The error can be relaxed later.
+- *A shape with no marker returned as is.* An allocation form that allocates
+  nothing.
+- *A bare marker identified by its path.* An array's symbols would be
+  identified by index and change identity on reordering.
+- *The spelling `?(key, shape)`.* Only a comma would separate it from `?(k)`,
+  and the two start with the same characters. A word says which form is meant
+  from its first token, to a reader and to a model writing the template.
+- *A keyword, `alloc(key, shape)`.* It reserves a name, needs its own rule in
+  the core profile, and spells one act two ways beside `?(k)`.
+- *`_name` as the marker.* `_` is already a name character and a digit
+  separator, and is the likely spelling of "ignore" in a pattern (§17).
+- *A general `walk(value, (path, leaf) => …)` constructor.* A recursion scheme
+  added to a language that has none.
+- *A core `AllocIn` constructor, or a new origin kind.* Neither is needed once
+  the form is a lowering.
+- *`"binding"` reporting the structure's name.* `"binding": "d"` would stop
+  meaning "`$d` is this symbol", and the lowering would have to tag its
+  allocations, which is a change in every port. `origin.key` already carries
+  the form's key.
+- *Symbols from a count.* Belongs with a `range`.
+
+**Follow-up:** normative text in `specs/v3-symbols.md` (§1.2,
+§1.4, §1.7, §5.2, §7, §8) and `specs/reference.md` (the leader characters and
+the syntax table); the parser change in the PureScript reference, then the
+other five ports. Corpus families: markers at several depths; a shorthand
+field, bare and keyed, equal to its long form; an expression
+beside a marker; a marker in a call, in a `branch` arm taken and not taken, and
+in an element; a keyed marker under `map`, with distinct keys and with equal
+keys sharing; nested `map`s with a composite marker key; an empty collection in
+both modes; the form under a `map` with a key per iteration; reordered markers
+and reordered elements keeping their ids; table order for an object written in
+non-sorted key order; `"binding"` bound and inline; a nested form; a symbolic
+form key and a symbolic marker key; concrete mode; the form in a library; an
+annotated binding emitting a single `has-type`; and the parse errors (a marker
+outside a shape and in a form's key, a bare marker under a lambda, a
+marker-free shape, a duplicate name, `?shape` with one and with three
+arguments, `?(a, b)`).
+
+## 20. Sorting and number formatting: `sort-by` with a key function, `format-number` with one exact rounding rule, and `round`
 
 *Status: proposed, for owner review. Nothing here is implemented in any port,
 and no normative file is changed: `reference.md` §11 does not list these
-names. The questions at the end are the choices to push back on.*
+names. The questions at the end are the choices to push back on. The owner has
+settled four of them: the sort takes a key function, as `map` takes its
+function (question 1); a key that is not an integer, a float or a string is
+refused, `null` included (question 3); rounding is of the exact value, ties
+away from zero (question 5); and `format-number` takes three positional
+arguments (question 6).*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
@@ -912,19 +1141,20 @@ The request named `sort_by` and `format_number`. Neither exists on `main`, and
 nothing in the current vocabulary (ref §11) can express either: there is no
 way to reorder an array, and `str` is the only number-to-text conversion.
 
-**Scope.** Four builtins, as ordinary names in the initial environment. No
-new syntax, no new core constructor, no new error kind, no new tagged shape.
+**Scope.** Two special forms over one new core constructor (the sort), and two
+builtins, as ordinary names in the initial environment. No new error kind and
+no new tagged shape.
 
-| builtin | arity | arguments | result |
+| name | arity | arguments | result |
 |---|---|---|---|
-| `sort-by(list, keys)` | 2 | two arrays of the same length | the elements of `list`, ordered by ascending key, ties in input order |
-| `sort-by-descending(list, keys)` | 2 | the same | ordered by descending key, ties in input order |
+| `sort-by(list, fn)` | 2 | an array, and a function of one argument giving an element's key | the elements of `list`, ordered by ascending key, ties in input order |
+| `sort-by-descending(list, fn)` | 2 | the same | ordered by descending key, ties in input order |
 | `format-number(x, decimals, group)` | 3 | an integer or a float; an integer `0` to `20`; a string | a string: `x` in positional decimal notation |
 | `round(x)` | 1 | a float or an integer | the integer nearest to `x`, ties away from zero |
 
 ```
 @rows  = $ctx.buckets
-@top   = sort-by-descending($rows, map($rows, (r) => $r.spend))
+@top   = sort-by-descending($rows, (r) => $r.spend)
 @money = (x) => "$" <> format-number($x, 2, ",")
 
 .table(map($top, (r) =>
@@ -935,56 +1165,69 @@ new syntax, no new core constructor, no new error kind, no new tagged shape.
 
 ### Sorting
 
-**The shape: a parallel array of keys.** `sort-by(list, keys)` reorders `list`
-by the values in `keys`, which has one key per element, at the same index.
-The key of a record is computed by the `map` the language already has:
+**The shape: a key function.** `sort-by(list, fn)` applies `fn` to each element
+of `list` to get its key, and returns the elements ordered by those keys. It
+is the shape `map` and `filter` have, and the one a reader expects:
 
 ```
-sort-by($rows, map($rows, (r) => $r.spend))                 -- by a field
-sort-by($rows, map($rows, (r) => cardinality($r.members)))  -- by a computed value
-sort-by($names, $names)                                     -- a list of scalars
+sort-by($rows, (r) => $r.spend)                 -- by a field
+sort-by($rows, (r) => cardinality($r.members))  -- by a computed value
+sort-by($names, (n) => $n)                      -- a list of scalars
+sort-by($rows, $spend-of)                       -- a function by reference
 ```
 
 A builtin is a function of its evaluated arguments and cannot apply a closure,
 which is why `map`, `filter`, `scan` and `fold` are core constructors (ref
-§11). This shape keeps the sort an ordinary builtin and still sorts by any
-computed value. The elements of `list` are never inspected, so a list of
-documents, closures or objects holding a symbol sorts like any other.
+§11). The sort joins them, as one constructor that both names lower to:
+
+```text
+  | SortBy   descending: Bool, collection: Expr, function: Expr
+```
+
+- The cost is a parser special form, an evaluator case and a case in every
+  static analysis (ref §9, where it is traversed as `Map` is), in six ports.
+- `sort-by` and `sort-by-descending` become special-form names, recognized by
+  the parser (ref §5). A malformed use, with other than two arguments, is a
+  parse error. Neither can be passed by reference, as `map` cannot.
+- A special form cannot be shadowed, so a program that today binds `sort-by`
+  and calls it would change meaning. None is known. (This is read from ref §5
+  and was not checked in the six parsers.)
+- `fn` is applied exactly once per element, in index order. Apart from that
+  the elements are never inspected, so a list of documents, closures or
+  objects holding a symbol sorts like any other.
+
+*Rejected: a parallel array of keys, `sort-by(list, map(list, fn))`* (the first
+draft of this section). It kept the sort an ordinary builtin, with no core
+change. But the list is named twice, keys computed from another list of the
+same length sort silently wrong, and it is not what anyone expects a sort to
+look like.
 
 *Rejected: a key name, `sort-by(list, "spend")`.* It reads best for the one
-case of a top-level field. A computed key then needs three steps (wrap each
-record with its key using `map`, sort, unwrap with a second `map`). It also
+case of a top-level field, and a computed key then needs three steps. It also
 opens a small language inside a string: whether `"a.b"` is a path, what a
 missing field means, and whether the tolerant `lookup` or the strict `$x.a`
-is the model. With a key array the author answers each of those with code
+is the model. With a function the author answers each of those with code
 that already has a meaning: `$r.spend` fails with `PathNotFound` on a record
 without the field, and `lookup($r, "spend", 0)` supplies a default.
-
-*Rejected: a core constructor, `sort-by(list, (r) => $r.spend)`.* It is the
-most familiar spelling. It costs a new AST node, a parser special form, a case
-in every static analysis and in the evaluator, in six ports, to save the
-author one `map`. A special form is also recognized by the parser, by name
-(ref §5), so adding one can change what an existing program that uses that
-name means, which adding a builtin cannot.
 
 *Rejected: keys that are arrays, compared lexicographically, for a sort on
 several columns.* Stability gives the same result with no new rule: sort by
 the least significant key first, then by the next.
 
 ```
-@by-name = sort-by($rows, map($rows, (r) => $r.name))
-@ranked  = sort-by-descending($by-name, map($by-name, (r) => $r.spend))
+@by-name = sort-by($rows, (r) => $r.name)
+@ranked  = sort-by-descending($by-name, (r) => $r.spend)
 -- highest spend first, equal spends in name order
 ```
 
 **Direction is a second name, not `reverse`.** Reversing an ascending stable
 sort reverses the ties as well, so `reverse(sort-by(…))` is not a stable
-descending sort and the two-column idiom above would break. For keys
-`[2, 1, 2]` over `["a", "b", "c"]`, `sort-by` gives `["b", "a", "c"]`,
+descending sort and the two-column idiom above would break. For elements
+`["a", "b", "c"]` whose keys are `2`, `1` and `2`, `sort-by` gives `["b", "a", "c"]`,
 `sort-by-descending` gives `["a", "c", "b"]`, and a reversal of the first would
 give `["c", "a", "b"]`. Negating the keys works for numbers only, needs the
 arithmetic profile, and fails for `-2^63`. A third argument (`"asc"`,
-`"desc"`) would be a string the builtin has to validate, where a misspelt name
+`"desc"`) would be a string the form has to validate, where a misspelt name
 is caught by `UnboundName` for free; §18 made the same choice between
 `quotient` and `floor-quotient`. `reverse` itself is not proposed: nothing
 here needs it.
@@ -1004,9 +1247,9 @@ or all strings. Anything else is refused.
 
 - *Integers against floats.* §18 decided that `lt(1, 1.0)` is a
   `TypeMismatch` and that nothing converts between the two types unless the
-  program says so. The sort follows it: `sort-by($xs, [1, 2.5, 3])` is a
-  `TypeMismatch`. Keys of unknown type are normalized at the point of use,
-  with `map($rows, (r) => real($r.spend))`, as §18 prescribes for every other
+  program says so. The sort follows it: elements whose keys are `1`, `2.5`
+  and `3` are a `TypeMismatch`. Keys of unknown type are normalized at the
+  point of use, with `(r) => real($r.spend)`, as §18 prescribes for every other
   operation. Ordering mixed numbers by value is the alternative; it would be
   the only place in the language where an integer and a float are compared.
 - *Strings.* Code point order is the same as the byte order of the UTF-8
@@ -1042,19 +1285,21 @@ may use any algorithm that produces it: a stable sort, or any sort over
 
 **Checks, in this order**, all before anything is reordered:
 
-1. An argument count other than two is a `TypeMismatch`.
-2. `list`, then `keys`: a symbol or a term is `NotConcrete` (the spine has no
-   length, as for `map`, v3-symbols §1.5); any other non-array is a
-   `TypeMismatch`.
-3. Different lengths are a `TypeMismatch`.
-4. The keys are examined left to right, and the first one that is not
-   acceptable decides the error: a symbol or a term is `NotConcrete`; a value
-   of a kind that is never a key, or of a different type from the first key,
-   is a `TypeMismatch`.
+1. An argument count other than two is a parse error (a malformed special
+   form, ref §5).
+2. `list`: a symbol or a term is `NotConcrete` (the spine has no length, as
+   for `map`, v3-symbols §1.5); any other non-array is a `TypeMismatch`.
+3. `fn`: a value that is not callable is a `TypeMismatch`, when `map` would
+   raise it.
+4. For each element, in index order: `fn` is applied, and an error it raises
+   is the error; then the key is checked. A symbol or a term is `NotConcrete`;
+   a value of a kind that is never a key, or of a different type from the
+   first key, is a `TypeMismatch`. The first element that fails decides.
 
 So every key is checked even when the list has one element, and
-`sort-by([$a], [null])` is an error although nothing would move. Two empty
-arrays give `[]`; there is no type to get wrong, unlike an empty `sum`.
+`sort-by([$a], (x) => null)` is an error although nothing would move. An empty
+list gives `[]` and `fn` is not applied; there is no type to get wrong, unlike
+an empty `sum`.
 
 **Symbols.** Sorting inspects its keys, so it refuses a symbol or a term as a
 key, like `lt`. It builds no term: a term stands for a number (§18), and the
@@ -1063,10 +1308,9 @@ value cannot be rendered, which is the ceiling v3-symbols §1.5 already states
 for a list of symbolic length.
 
 **No profile.** These two names are not arithmetic and nothing new reaches a
-host through them, so they belong to the core vocabulary. Because builtins are
-ordinary bindings, a program that already binds `sort-by` shadows it and is
-unaffected (§18 made the same argument). A port that does not have them yet
-fails with `UnboundName`, and the corpus marks the cases with
+host through them, so they belong to the core language, as `map` does. A port
+that does not have them yet reads the name as an ordinary call and fails with
+`UnboundName`, and the corpus marks the cases with
 `"requires": ["sort"]`.
 
 ### Number formatting
@@ -1133,8 +1377,7 @@ which is what a spreadsheet user expects, and at 20 decimals it gives
 `0.10000000000000000555`. It rounds twice (to the shortest text, then to
 `decimals`), so the result is not always the decimal nearest to the value,
 and no port has it natively (Haskell's `showFFloat` rounds the same digits but
-ties to even). It is the serious alternative, and question 5 asks for the
-choice. While `decimals` asks for fewer digits than `str` would show, the
+ties to even). It was the serious alternative; the owner chose the proposal. While `decimals` asks for fewer digits than `str` would show, the
 proposal and (c) differ only for a number whose shortest text is itself a tie,
 which is few numbers, and exactly the ones a user types.
 
@@ -1219,7 +1462,7 @@ zero, as an integer: `round(2.5)` is `3`, `round(-2.5)` is `-3`,
   residual law, and ships with the other nine.
 - The tie rule is the one `format-number` uses, on purpose. For a float `x`
   whose rounding is in range, `str(round(x))` and `format-number(x, 0, "")`
-  are the same text. If question 5 changes one rule it changes both.
+  are the same text.
 - Rounding to a number of decimals **as a float** is not proposed. The result
   would be the double nearest to the rounded decimal, which is not that
   decimal; a rounded decimal is text, and `format-number` is the builtin that
@@ -1244,8 +1487,9 @@ zero, as an integer: `round(2.5)` is `3`, `round(-2.5)` is `-3`,
 The design is one piece of work; building it is several, and none of them is
 done by accepting this section.
 
-1. *Normative text and fixtures*, in one change, with no port touched: ref §11
-   (four rows, the rounding rule and the string order), ref §13 if anything is
+1. *Normative text and fixtures*, in one change, with no port touched: ref §2 (the
+   `SortBy` constructor), §5 (the two special-form names), §9 (the analyses),
+   §11 (four rows, the rounding rule and the string order), ref §13 if anything is
    left implementation-defined, v3-symbols §1.5 (the refusals) and §1.9 and
    §5.3 (`round` as a tenth term operation), `laws.md` (the
    `round`/`format-number` identity), `corpus/README.md` (the `"sort"` and
@@ -1270,18 +1514,20 @@ computation and cross-checked against Node below `1e21`:
   digits as text (`"10"` before `"9"`), a non-ASCII letter, and U+FF5E against
   U+1F600, which a UTF-16 comparison gets wrong;
 - stability: equal keys keep input order under both names, with the
-  `[2, 1, 2]` example above, and the two-column idiom;
+  `2`, `1`, `2` example above, and the two-column idiom;
 - `sort-by-descending` over each key type;
 - what is sorted: objects, arrays, documents in child position, and an array
   holding a symbol with concrete keys (symbolic mode);
 - sort refused with `TypeMismatch`: an integer with a float, a number with a
   string, each kind that is never a key, a single-element list with a `null`
-  key, different lengths, a non-array for each argument, one and three
-  arguments;
-- sort refused with `NotConcrete`: a symbol for each argument, a symbol and a
-  term as a key, and a symbol key after a `TypeMismatch` key and before one,
-  which pins the left-to-right rule;
-- a builtin passed by reference (`fold`), and a shadowing `@sort-by`;
+  key, a non-array list, a function that is not callable;
+- sort refused at parse time: one and three arguments;
+- sort refused with `NotConcrete`: a symbolic list, a symbol and a term as a
+  key, and a symbol key after a `TypeMismatch` key and before one, which pins
+  the element-order rule; a function that fails on a later element than a bad
+  key, and on an earlier one;
+- a function passed by reference, a closure and a builtin; the key function
+  applied once per element; the analyses seeing a read inside the function;
 - format, the rounding table: every row of the table above, plus `0.5`, `1.5`,
   `-2.5`, `0.25` to one decimal, `1.005`, `0.285`, `1.45`, `8.345`, and
   `999.995` and `0.999`, which carry into a new digit;
@@ -1307,32 +1553,22 @@ computation and cross-checked against Node below `1e21`:
 
 ### Questions for the owner
 
-1. **The sort takes a parallel array of keys**, `sort-by(list, keys)`, and is
-   an ordinary builtin. The alternatives are a key name (`sort-by(list,
-   "spend")`), simpler for one field and awkward for a computed key, or a core
-   constructor taking a lambda, in six parsers and every analysis. Accept the
-   key array?
-2. **Direction is a second builtin**, `sort-by-descending`, stable on its own
+1. *Settled.* The sort takes a key function, `sort-by(list, fn)`, and is a
+   core constructor.
+2. **Direction is a second name**, `sort-by-descending`, stable on its own
    terms, and there is no `reverse`. Accept, or prefer a third argument, or
    want `reverse` as well?
-3. **Keys are all integers, all floats or all strings, and everything else is
-   refused**: a mix of integers and floats, `null`, a boolean. The request
-   asked for a defined order for missing and non-numeric values; this answers
-   "an error, and the author writes the default". Accept, or should `null`
-   sort last?
+3. *Settled.* Keys are all integers, all floats or all strings, and everything
+   else is refused: a mix of integers and floats, `null`, a boolean. The
+   author writes the default.
 4. **Strings sort by Unicode code point**, with no case folding and no
    collation, and `lt`/`gt` stay numbers-only. Accept? Should the same order
    be written down for the keys `str` and canon sort?
-5. **The rounding rule.** Proposed: the exact value of the number, rounded to
-   the nearest decimal, ties away from zero (ECMAScript's `toFixed`). That
-   gives `3` for `2.5` and `1.00` for `1.005`. Alternative (b), ties to even,
-   gives `2` for `2.5`. Alternative (c), rounding the text `str` shows, gives
-   `1.01` for `1.005`. Which one? `round` follows the same choice.
-6. **`format-number(x, decimals, group)` is positional, with all three
-   arguments required.** The alternative is an options object,
-   `format-number(x, {decimals: 2, group: ","})`, which leaves room for more
-   options and would be the first builtin with optional keys and defaults.
-   Accept the positional form?
+5. *Settled.* The rounding rule is the proposed one: the exact value of the
+   number, rounded to the nearest decimal, ties away from zero. `round`
+   follows it.
+6. *Settled.* `format-number(x, decimals, group)` is positional, with all
+   three arguments required.
 7. **The decimal mark is always `.`**, so `1.234,56` cannot be written. Add a
    fourth argument for it now, or leave it out?
 8. **`decimals` runs from `0` to `20`**, and a value outside is a

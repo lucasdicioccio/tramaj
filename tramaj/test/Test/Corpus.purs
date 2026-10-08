@@ -26,7 +26,7 @@ import Node.Encoding (Encoding(UTF8))
 import Node.FS.Stats (isDirectory)
 import Node.FS.Sync (exists, readTextFile, readdir, stat)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (EvalError, LibraryTable, Mode(..), runProgram)
+import Tramaj.Eval (EvalError, LibraryTable, Mode(..), Options, runProgramWith)
 import Tramaj.Json (Json, jsonParser, stringify, toArray, toObject, toString)
 import Tramaj.Parser (parseProgram)
 
@@ -36,11 +36,18 @@ corpusRoot = "corpus/cases"
 -- | The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
 -- this port declares. A case naming any other one is skipped.
 --
--- `int-float`: integers and floats are two types. Not `int64`: integers
--- have the guaranteed 53-bit range only (`Tramaj.Json`). Not `arithmetic`:
--- the builtins are not implemented yet.
+-- `int-float`: integers and floats are two types. `arithmetic`: the
+-- arithmetic profile, which is a per-evaluation option here (see
+-- `optionsFor`). Not `int64`: integers have the guaranteed 53-bit range only
+-- (`Tramaj.Json`).
 supportedRequirements :: Array String
-supportedRequirements = [ "int-float" ]
+supportedRequirements = [ "int-float", "arithmetic" ]
+
+-- | The options a case runs with. A requirement that names a profile turns
+-- that profile on, so a case that does not name `arithmetic` runs without
+-- it, and `sum(1, 2)` is an `UnboundName` there.
+optionsFor :: Mode -> Json -> Options
+optionsFor mode meta = { mode, arithmetic: Array.elem "arithmetic" (requirements meta) }
 
 -- | What `runCase` did with a case. A failing case throws instead.
 data Outcome
@@ -100,6 +107,7 @@ runSupportedCase :: String -> String -> Json -> Effect Unit
 runSupportedCase dir name meta = do
   modeField <- field meta "mode"
   mode <- modeFromField name modeField
+  let options = optionsFor mode meta
   expect <- fromMaybe "success" <$> optionalField meta "expect"
   templateSrc <- readTextFile UTF8 (dir <> "/template.tramaj")
   libs <- readLibs dir
@@ -111,11 +119,11 @@ runSupportedCase dir name meta = do
       errorKind <- field meta "errorKind"
       ctx <- mustParseJsonFile (name <> "/ctx.json") (dir <> "/ctx.json")
       program <- mustParse name templateSrc
-      -- `runProgram`, like a success case and as corpus/README.md says of
-      -- `mode`: in symbolic mode a static type error can come from
+      -- `runProgramWith`, like a success case and as corpus/README.md says
+      -- of `mode`: in symbolic mode a static type error can come from
       -- building the envelope's `"types"` table, after an evaluation that
-      -- itself succeeds (case 164), and `evalProgram` stops before that.
-      case runProgram mode libs ctx program of
+      -- itself succeeds (case 164), and `evalProgramWith` stops before that.
+      case runProgramWith options libs ctx program of
         Right _ -> throw (name <> ": expected eval error " <> errorKind <> ", but evaluation succeeded")
         Left err ->
           let actualKind = errorConstructor err
@@ -125,7 +133,7 @@ runSupportedCase dir name meta = do
       ctx <- mustParseJsonFile (name <> "/ctx.json") (dir <> "/ctx.json")
       expected <- mustParseJsonFile (name <> "/expected.json") (dir <> "/expected.json")
       program <- mustParse name templateSrc
-      case runProgram mode libs ctx program of
+      case runProgramWith options libs ctx program of
         Left err -> throw (name <> ": eval failed: " <> show err)
         Right actual ->
           if actual == expected then pure unit

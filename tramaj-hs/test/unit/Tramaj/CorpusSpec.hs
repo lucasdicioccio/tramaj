@@ -17,13 +17,13 @@ import qualified Data.Text.Encoding as TE
 import System.Directory (canonicalizePath, doesDirectoryExist, listDirectory)
 import System.FilePath (dropExtension, takeFileName, (</>))
 import Test.Hspec
-import Tramaj.Eval (EvalError, LibraryTable, Mode (..), runProgram)
+import Tramaj.Eval (EvalError, LibraryTable, Mode (..), Options (..), defaultOptions, runProgramWith)
 import Tramaj.Json (Json, jsonParser, stringify)
 import Tramaj.Parser (parseProgram)
 
 -- | `"kind"` is part of the format (corpus/README.md) but not read here: a
 -- successful run's shape is checked by comparing against @expected.json@
--- wholesale, via 'runProgram', which already reflects the mode and (once §4
+-- wholesale, via 'runProgramWith', which already reflects the mode and (once §4
 -- lands) the kind in what it produces.
 data CaseMeta = CaseMeta
   { metaName :: Text
@@ -43,10 +43,10 @@ instance FromJSON CaseMeta where
 -- | The requirement names (@requires@ in @meta.json@, see
 -- @corpus/README.md@) this port declares. A case naming any other one is
 -- skipped. @int-float@: integers and floats are two types. @int64@: an
--- integer covers the signed 64-bit range. The arithmetic builtins are not
--- implemented, so a case that also names @arithmetic@ stays skipped.
+-- integer covers the signed 64-bit range. @arithmetic@: the arithmetic
+-- profile, which is an option of each evaluation here ('optionsFromMeta').
 supportedRequirements :: [Text]
-supportedRequirements = ["int-float", "int64"]
+supportedRequirements = ["int-float", "int64", "arithmetic"]
 
 -- | The requirements a case names that this port does not declare.
 missingRequirements :: CaseMeta -> [Text]
@@ -142,6 +142,15 @@ modeFromMeta dir m = case m of
   "symbolic" -> pure Symbolic
   other -> error (dir <> ": unknown mode " <> T.unpack other)
 
+-- | The options a case runs with: its mode, and the arithmetic profile only
+-- if it names @arithmetic@ in @requires@. Every other case runs with the
+-- profile off, as a host that never asked for it does, so the nine
+-- arithmetic names are unbound there.
+optionsFromMeta :: FilePath -> CaseMeta -> IO Options
+optionsFromMeta dir meta = do
+  mode <- modeFromMeta dir (metaMode meta)
+  pure defaultOptions {optMode = mode, optArithmetic = "arithmetic" `elem` metaRequires meta}
+
 -- | A skipped case is reported as pending, which hspec counts and prints
 -- apart from the passed ones.
 runCase :: FilePath -> Expectation
@@ -160,7 +169,7 @@ checkCase dir = do
 
 checkSupportedCase :: FilePath -> CaseMeta -> Expectation
 checkSupportedCase dir meta = do
-  mode <- modeFromMeta dir (metaMode meta)
+  options <- optionsFromMeta dir meta
   src <- TE.decodeUtf8 <$> BS.readFile (dir </> "template.tramaj")
   libs <- readLibs dir
   let label = T.unpack (metaName meta)
@@ -174,12 +183,12 @@ checkSupportedCase dir meta = do
         ctx <- readTypedJsonFile (dir </> "ctx.json")
         case parseProgram src of
           Left e -> expectationFailure (label <> ": parse error: " <> show e)
-          -- 'runProgram', as for a success case and as corpus/README.md says
-          -- of @mode@: in symbolic mode it also builds the envelope's
+          -- 'runProgramWith', as for a success case and as corpus/README.md
+          -- says of @mode@: in symbolic mode it also builds the envelope's
           -- @"types"@ table, which is where an annotation naming an
-          -- undeclared type is refused. Every error 'evalProgram' raises is
-          -- raised first by 'runProgram'.
-          Right prog -> case runProgram mode libs ctx prog of
+          -- undeclared type is refused. Every error 'evalProgramWith' raises
+          -- is raised first by 'runProgramWith'.
+          Right prog -> case runProgramWith options libs ctx prog of
             Right _ -> expectationFailure (label <> ": expected eval error " <> T.unpack errorKind <> ", but evaluation succeeded")
             Left e ->
               let actualKind = errorConstructor e
@@ -191,7 +200,7 @@ checkSupportedCase dir meta = do
       expected <- readTypedJsonFile (dir </> "expected.json")
       case parseProgram src of
         Left e -> expectationFailure (label <> ": parse error: " <> show e)
-        Right prog -> case runProgram mode libs ctx prog of
+        Right prog -> case runProgramWith options libs ctx prog of
           Left e -> expectationFailure (label <> ": eval error: " <> show e)
           -- Typed values, so an integer @1@ against an expected float @1.0@
           -- is a failure: the text of every number is compared, up to the

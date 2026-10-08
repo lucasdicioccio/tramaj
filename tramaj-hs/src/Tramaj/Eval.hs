@@ -20,13 +20,18 @@ module Tramaj.Eval
   ( EvalError (..)
   , Output (..)
   , Mode (..)
+  , Options (..)
+  , defaultOptions
   , LibraryTable
   , evalProgram
+  , evalProgramWith
   , runProgram
+  , runProgramWith
   , evalExprWith
   , builtinNames
   ) where
 
+import Control.Monad (foldM)
 import Data.Bifunctor (first)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
@@ -40,9 +45,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Tramaj.Analysis (symbolSites)
+import Tramaj.Analysis (arithmeticNames, symbolSites)
 import Tramaj.Ast
-import Tramaj.Json (Json (..), normalizeNumbers, stringify)
+import Tramaj.Json (Json (..), inIntegerRange, normalizeNumbers, stringify)
 import Tramaj.Node
 import Tramaj.Types (ResolvedConstraintArg (..), ResolvedType (..), TypeError, canonicalId, deepTypeConstraints, eraseTypes, programTypeRoots, typeClosure)
 
@@ -83,6 +88,11 @@ data EvalError
     -- -- but 'Tramaj.Types.TypeError' still needs a home in the one error
     -- type every entry point already returns.
     TypeErr TypeError
+  | -- | An arithmetic operation has no result in the type of its operands
+    -- (reference.md \S11, \S12): an integer result outside the integer
+    -- range, a zero divisor, a float result that is not finite. Nothing
+    -- wraps, saturates or rounds instead.
+    NotRepresentable Text
   deriving stock (Eq, Show)
 
 -- | What a program produced. Which one it is follows from the value the root
@@ -101,6 +111,31 @@ data Output
 -- @"constraints"@ are always empty, because nothing yet produces either.
 data Mode = Concrete | Symbolic
   deriving stock (Eq, Show)
+
+-- | What a host chooses for one evaluation. Like 'Mode', each field is a
+-- host parameter and not a property of the program.
+--
+-- 'optArithmetic' is reference.md \S11's arithmetic profile, per
+-- evaluation: with it on, the nine names of
+-- 'Tramaj.Analysis.arithmeticNames' are in the initial environment of the
+-- program and of every library it runs, and a seeded term is accepted in
+-- symbolic mode (v3-symbols \S5.4). With it off they are unbound, so a
+-- program that uses one fails with 'UnboundName', and every seeded term is
+-- refused. The two number types and the reserved @"$term"@ key do not
+-- depend on it.
+data Options = Options
+  { optMode :: Mode
+  , optArithmetic :: Bool
+  }
+  deriving stock (Eq, Show)
+
+-- | Concrete mode, without the arithmetic profile. 'evalProgram' and
+-- 'runProgram' run with these options and the mode they are given. The
+-- profile is off unless a host asks for it, so that a host which has not
+-- opted in never receives a term, and can refuse a program up front with
+-- 'Tramaj.Analysis.deepArithmeticOps'.
+defaultOptions :: Options
+defaultOptions = Options {optMode = Concrete, optArithmetic = False}
 
 -- | Host-supplied library store. Where a library came from -- a file, an
 -- embedded string, a fetch -- is entirely the host's business; the evaluator
@@ -144,6 +179,13 @@ data Value'
     -- demand (@?ctx.path@) once minted -- its own path is baked into the id,
     -- not carried here.
     VSymbol SymbolId [Text]
+  | -- | A term (\S1.9): an arithmetic operation left unevaluated because one
+    -- of its operands is a symbol or a term. It holds the name of the
+    -- builtin and its operands exactly as the call had them once flattened:
+    -- each a 'VInt', a 'VFloat', a 'VSymbol' or a 'VTerm', nothing folded
+    -- and no nested term spliced. It is data as a symbol is, and is refused
+    -- wherever a symbol is.
+    VTerm Text [Value']
 
 type Env = Map Text Value'
 
@@ -197,11 +239,15 @@ data Pending = Pending
 -- whether this is the root program or somewhere inside a library (\S1.3,
 -- \S1.4) -- bundled so that adding one more such fact, as \S1.4's did,
 -- touches this record instead of every function's argument list.
+-- 'ecArithmetic' is whether the arithmetic profile is on ('Options'): the
+-- same for the root and for every library, since it is what the host
+-- enabled.
 data EvalCtx = EvalCtx
   { ecLibs :: LibraryTable
   , ecInProgress :: Set Text
   , ecMode :: Mode
   , ecIsRoot :: Bool
+  , ecArithmetic :: Bool
   }
 
 -- | Enters a library: adds it to the in-progress set (so re-entering it is a
@@ -288,19 +334,22 @@ foldlEval f = go
 -- 'SymbolsUnavailable' in concrete mode. There is no mode-independent
 -- evaluation any more, so every entry point takes one.
 evalProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Output
-evalProgram mode libs input prog = fst <$> evalProgramWithEmissions mode libs input prog
+evalProgram mode = evalProgramWith defaultOptions {optMode = mode}
+
+-- | As 'evalProgram', with every per-evaluation option given ('Options').
+evalProgramWith :: Options -> LibraryTable -> Json -> Program -> Either EvalError Output
+evalProgramWith options libs input prog = fst <$> evalProgramWithEmissions options libs input prog
 
 -- | As 'evalProgram', but also returns the deduplicated 'Emissions'
 -- (v3-symbols \S4) -- empty for any program that emits or allocates nothing,
 -- and always empty in what concrete mode goes on to serialize, since
 -- concrete mode discards them (\S5.1) and cannot produce a symbol at all.
-evalProgramWithEmissions :: Mode -> LibraryTable -> Json -> Program -> Either EvalError (Output, Emissions)
-evalProgramWithEmissions mode libs input prog = do
+evalProgramWithEmissions :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Output, Emissions)
+evalProgramWithEmissions options libs input prog = do
   erased <- first TypeErr (eraseTypes libs prog)
   (v, emitted) <- runEval $ do
-    ctx <- liftEither (checkedFromJson mode input)
-    let evalCtx = EvalCtx {ecLibs = libs, ecInProgress = Set.empty, ecMode = mode, ecIsRoot = True}
-    evalExpr evalCtx (initialEnv ctx) (programRoot erased)
+    ctx <- liftEither (checkedFromJson options input)
+    evalExpr (rootCtx options libs) (initialEnv (optArithmetic options) ctx) (programRoot erased)
   output <- case v of
     VNode' n -> Right (ONode n)
     other -> OValue <$> toJson other
@@ -343,12 +392,16 @@ constraintEq _ _ = False
 -- v3 envelope (\S5.2), including the deduplicated symbol table and
 -- constraint list.
 runProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Json
-runProgram mode libs input prog = do
-  result <- evalProgramWithEmissions mode libs input prog
-  typesInfo <- case mode of
+runProgram mode = runProgramWith defaultOptions {optMode = mode}
+
+-- | As 'runProgram', with every per-evaluation option given ('Options').
+runProgramWith :: Options -> LibraryTable -> Json -> Program -> Either EvalError Json
+runProgramWith options libs input prog = do
+  result <- evalProgramWithEmissions options libs input prog
+  typesInfo <- case optMode options of
     Concrete -> Right (Map.empty, [])
     Symbolic -> first TypeErr (buildTypesInfo libs prog)
-  pure (renderOutput mode typesInfo result)
+  pure (renderOutput (optMode options) typesInfo result)
 
 -- | The @\"types\"@ table's entries and the deduplicated @\"type-constraints\"@
 -- list (v4-types \S8, roadmap Phase 13), computed from @prog@ /before/
@@ -458,17 +511,37 @@ symbolEntryToJson (SymbolEntry sid origin binding) =
 -- | Evaluates one expression against a context value, with the builtins in
 -- scope -- the shared path 'evalProgram' and library evaluation both take.
 -- Any emissions reached are discarded; callers that need them should use
--- 'evalExpr' directly inside 'Eval'.
+-- 'evalExpr' directly inside 'Eval'. Runs without the arithmetic profile,
+-- as 'evalProgram' does.
 evalExprWith :: Mode -> LibraryTable -> Value' -> Expr -> Either EvalError Value'
 evalExprWith mode libs ctx e =
-  fst <$> runEval (evalExpr (EvalCtx {ecLibs = libs, ecInProgress = Set.empty, ecMode = mode, ecIsRoot = True}) (initialEnv ctx) e)
+  fst <$> runEval (evalExpr (rootCtx options libs) (initialEnv (optArithmetic options) ctx) e)
+  where
+    options = defaultOptions {optMode = mode}
 
-initialEnv :: Value' -> Env
-initialEnv ctx = Map.insert "ctx" ctx (Map.fromList [(n, VBuiltin n) | n <- builtinNames])
+-- | Where the evaluation of a root program starts.
+rootCtx :: Options -> LibraryTable -> EvalCtx
+rootCtx options libs =
+  EvalCtx
+    { ecLibs = libs
+    , ecInProgress = Set.empty
+    , ecMode = optMode options
+    , ecIsRoot = True
+    , ecArithmetic = optArithmetic options
+    }
 
--- | The fixed builtin vocabulary. Builtins are ordinary values in the initial
--- environment rather than a separate call form, so @cardinality($xs)@,
--- @$f($x)@ and @map($xs, $not)@ all go through 'Call'.
+-- | @$ctx@ and the builtins. The nine arithmetic names are bound only with
+-- the arithmetic profile on (reference.md \S11); without it they are
+-- ordinary unbound names.
+initialEnv :: Bool -> Value' -> Env
+initialEnv arithmeticOn ctx = Map.insert "ctx" ctx (Map.fromList [(n, VBuiltin n) | n <- names])
+  where
+    names = if arithmeticOn then builtinNames <> arithmeticNames else builtinNames
+
+-- | The fixed builtin vocabulary of every profile; the arithmetic profile
+-- adds 'Tramaj.Analysis.arithmeticNames' to it. Builtins are ordinary values
+-- in the initial environment rather than a separate call form, so
+-- @cardinality($xs)@, @$f($x)@ and @map($xs, $not)@ all go through 'Call'.
 builtinNames :: [Text]
 builtinNames =
   [ "cardinality"
@@ -752,18 +825,18 @@ evalCollection ctx env who e =
   evalExpr ctx env e >>= \case
     VArray xs -> pure xs
     VSymbol _ _ -> evalError (NotConcrete who)
+    VTerm _ _ -> evalError (NotConcrete who)
     other -> evalError (TypeMismatch (who <> " expects an array as its first argument, got " <> describeValue other))
 
 -- Concat -------------------------------------------------------------------------
 
 -- | The monoid operation over the three types that have one. Mixed types are
 -- an error rather than a coercion, and objects merge right-biased. Either
--- side being a symbol is 'NotConcrete' (v3-symbols \S1.5), ahead of the
--- generic mismatch: the spine of a concatenation must be known, unlike an
--- element it might merely carry.
+-- side being a symbol or a term is 'NotConcrete' (v3-symbols \S1.5, \S1.9),
+-- ahead of the generic mismatch: the spine of a concatenation must be known,
+-- unlike an element it might merely carry.
 concatValues :: Value' -> Value' -> Either EvalError Value'
-concatValues (VSymbol _ _) _ = Left (NotConcrete "<>")
-concatValues _ (VSymbol _ _) = Left (NotConcrete "<>")
+concatValues l r | isSymbolic l || isSymbolic r = Left (NotConcrete "<>")
 concatValues (VString a) (VString b) = Right (VString (a <> b))
 concatValues (VArray a) (VArray b) = Right (VArray (a <> b))
 concatValues (VObject a) (VObject b) = Right (VObject (Map.union b a))
@@ -810,7 +883,7 @@ runLibrary ctx name ctxVal
       mapEvalError (InLibrary name) $ do
         let ctx' = enterLibrary name ctx
             (statements, root) = unlets (programRoot prog)
-        libEnv <- foldlEval (bindStep ctx') (initialEnv ctxVal) statements
+        libEnv <- foldlEval (bindStep ctx') (initialEnv (ecArithmetic ctx) ctxVal) statements
         rendered <- evalExpr ctx' libEnv root
         let bindings = filter (not . isHiddenName . fst) (letBindings statements)
         pure (VEnv (Map.fromList [("rendered", rendered), ("vals", VEnv (Map.fromList (map (\(n, _) -> (n, libEnv Map.! n)) bindings)))]))
@@ -906,6 +979,8 @@ walkFields ctx context v fields@(field : rest) = case v of
   -- whoever owns its meaning, not the language. Consumes every remaining
   -- segment at once, since a projection just extends the path.
   VSymbol sid path -> pure (VSymbol sid (path <> fields))
+  -- A term has no projection (\S1.9): it stands for a number, and a number
+  -- has no fields, so it gets the 'TypeMismatch' a number gets.
   other ->
     evalError
       ( TypeMismatch
@@ -938,6 +1013,12 @@ toJson (VConstraint name _) = Left (TypeMismatch ("a constraint (" <> tshow name
 -- 'checkedFromJson' accepts back.
 toJson (VSymbol sid path) =
   Right (object [("$sym", JString sid), ("path", JArray (map JString path))])
+-- | A term crosses wherever a symbol does, as \S5.3's other tagged shape.
+-- Its operands are numbers, symbols and terms, so they always cross, and
+-- each number keeps its type (@1@ and @1.0@ stay distinct), which the
+-- residual law depends on.
+toJson (VTerm op operands) =
+  (\args -> object [("$term", JString op), ("arguments", JArray args)]) <$> traverse toJson operands
 toJson (VClosure _ _ _) = Left (TypeMismatch "expected a value, got a function -- call it first, e.g. $my-fn(...)")
 toJson (VBuiltin name) = Left (TypeMismatch ("expected a value, got the builtin " <> tshow name <> " -- call it first"))
 toJson (VEnv _) = Left (TypeMismatch "expected a value, got an import result -- read .rendered, .vals, or a binding name from it first")
@@ -971,14 +1052,15 @@ fromJson (JObject o) = VObject (fmap fromJson o)
 -- domain does not hold is refused or normalized by
 -- 'Tramaj.Json.normalizeNumbers', which lists the cases.
 --
--- Then the reserved keys: @"$sym"@ and @"$type"@ are recursively refused as
--- ordinary object keys (v3-symbols \S5.3). In concrete mode either key is
--- refused unconditionally. In symbolic mode, seeding (\S5.4) accepts a
--- well-formed @{"$sym": ..., "path": [...]}@ back as an actual symbol --
--- anything else carrying @"$sym"@, or @"$type"@ at all (v3 has no valid
--- shape for it yet), is still refused.
-checkedFromJson :: Mode -> Json -> Either EvalError Value'
-checkedFromJson mode input =
+-- Then the reserved keys: @"$sym"@, @"$type"@ and @"$term"@ are recursively
+-- refused as ordinary object keys (v3-symbols \S5.3), in every profile. In
+-- concrete mode each is refused unconditionally. In symbolic mode, seeding
+-- (\S5.4) accepts a well-formed @{"$sym": ..., "path": [...]}@ back as an
+-- actual symbol and, with the arithmetic profile on, a well-formed term back
+-- as an actual term -- anything else carrying @"$sym"@ or @"$term"@, or
+-- @"$type"@ at all (v3 has no valid shape for it yet), is still refused.
+checkedFromJson :: Options -> Json -> Either EvalError Value'
+checkedFromJson options input =
   first (\why -> TypeMismatch ("the context holds a number that is not a value: " <> T.pack why)) (normalizeNumbers input) >>= decode
   where
     decode (JArray xs) = VArray <$> traverse decode xs
@@ -986,15 +1068,41 @@ checkedFromJson mode input =
       | Map.member "$type" obj =
           Left (TypeMismatch "the context carries the reserved key \"$type\", which only a typed envelope may use")
       | Just symVal <- Map.lookup "$sym" obj =
-          case mode of
+          case optMode options of
             Concrete -> Left (TypeMismatch "the context carries the reserved key \"$sym\", which only a symbolic envelope may use")
             Symbolic -> case (symVal, Map.toList (Map.delete "$sym" obj)) of
               (JString sid, [("path", JArray pathArr)]) -> do
                 path <- traverse expectString pathArr
                 Right (VSymbol sid path)
               _ -> Left (TypeMismatch "a \"$sym\" object must be exactly {\"$sym\": <id>, \"path\": [<segment>, ...]}")
+      | Just opVal <- Map.lookup "$term" obj =
+          case optMode options of
+            Concrete -> Left (TypeMismatch "the context carries the reserved key \"$term\", which only a symbolic envelope may use")
+            Symbolic -> case (opVal, Map.toList (Map.delete "$term" obj)) of
+              (JString op, [("arguments", JArray args)]) -> traverse decode args >>= seededTerm op
+              _ -> Left (TypeMismatch "a \"$term\" object must be exactly {\"$term\": <op>, \"arguments\": [<argument>, ...]}")
       | otherwise = VObject <$> traverse decode obj
     decode scalar = Right (fromJson scalar)
+
+    -- A well-formed term is one a call could have built (\S5.3), so this is
+    -- the call's own check, 'arithmeticOperands', on arguments already
+    -- decoded, which holds a nested term to the same rule. Two things a call
+    -- accepts are refused first: an array, since a term holds its operands
+    -- already flattened, and operands that are all numbers, since the call
+    -- would have computed. Without the arithmetic profile no @op@ is known,
+    -- so every term is refused.
+    seededTerm op args
+      | not (optArithmetic options) = Left (TypeMismatch ("the context carries a term (" <> tshow op <> "), which needs the arithmetic profile"))
+      | op `notElem` arithmeticNames = Left (TypeMismatch ("a term names an unknown operation: " <> tshow op))
+      | any isArray args = Left (TypeMismatch ("a term (" <> tshow op <> ") holds its operands flattened, not in an array"))
+      | otherwise = do
+          operands <- arithmeticOperands op args
+          if any isSymbolic operands
+            then Right (VTerm op operands)
+            else Left (TypeMismatch ("a term (" <> tshow op <> ") must hold a symbol or a term among its arguments"))
+
+    isArray (VArray _) = True
+    isArray _ = False
 
     expectString (JString s) = Right s
     expectString _ = Left (TypeMismatch "a symbol reference's \"path\" must be an array of strings")
@@ -1014,25 +1122,37 @@ describeValue (VEnv _) = "an import result"
 describeValue (VImport pending) = "the not-yet-run import of " <> tshow (pName pending)
 describeValue (VConstraint name _) = "a constraint (" <> tshow name <> ")"
 describeValue (VSymbol _ _) = "a symbol"
+describeValue (VTerm op _) = "a term (" <> tshow op <> ")"
 
 -- | Control flow must be concrete (v3-symbols \S1.5): a symbolic condition is
 -- 'NotConcrete', not merely the wrong type.
 requireBool :: Text -> Value' -> Either EvalError Bool
 requireBool _ (VBool b) = Right b
 requireBool who (VSymbol _ _) = Left (NotConcrete who)
+requireBool who (VTerm _ _) = Left (NotConcrete who)
 requireBool who other = Left (TypeMismatch (who <> " must be a boolean, got " <> describeValue other))
 
--- | Whether a value is, or contains, a symbol -- what makes a value
+-- | Whether a value is itself a symbol or a term (v3-symbols \S1.9), which
+-- is the depth at which a container, a collection, a condition or an operand
+-- is refused: a concrete structure that merely holds one is not special
+-- (\S1.7). 'containsSymbol' is the other depth.
+isSymbolic :: Value' -> Bool
+isSymbolic (VSymbol _ _) = True
+isSymbolic (VTerm _ _) = True
+isSymbolic _ = False
+
+-- | Whether a value is, or contains, a symbol or a term -- what makes a value
 -- concrete's negation (\S1.5, \S1.7): a structure built of concrete pieces is
 -- itself concrete and every structural operation on it works as normal;
 -- only a symbol itself, wherever it sits, makes the whole not concrete.
 containsSymbol :: Value' -> Bool
 containsSymbol (VSymbol _ _) = True
+containsSymbol (VTerm _ _) = True
 containsSymbol (VArray xs) = any containsSymbol xs
 containsSymbol (VObject o) = any containsSymbol (Map.elems o)
 containsSymbol _ = False
 
--- | Requires a value with no symbol anywhere in it, for the handful of
+-- | Requires a value with no symbol and no term anywhere in it, for the handful of
 -- operations \S1.5 lists as needing to *know* something about their
 -- argument rather than merely carry it: @str@, @eq@, and an allocation key.
 -- Everything else about crossing a JSON boundary is 'toJson'\'s ordinary
@@ -1079,7 +1199,9 @@ evalBuiltin name args = case name of
   "lookup" -> ternary lookupImpl
   "concat" -> concatImpl
   "append" -> binary appendImpl
-  _ -> Left (UnboundName name)
+  _
+    | name `elem` arithmeticNames -> arithmetic name args
+    | otherwise -> Left (UnboundName name)
   where
     arity1 :: (Value' -> Either EvalError a) -> Either EvalError a
     arity1 f = case args of
@@ -1101,6 +1223,7 @@ evalBuiltin name args = case name of
       VArray xs -> Right (VInt (fromIntegral (length xs)))
       VObject o -> Right (VInt (fromIntegral (Map.size o)))
       VSymbol _ _ -> Left (NotConcrete name)
+      VTerm _ _ -> Left (NotConcrete name)
       other -> Left (TypeMismatch (name <> " expects an array or object, got " <> describeValue other))
 
     asBool :: Value' -> Either EvalError Bool
@@ -1108,11 +1231,13 @@ evalBuiltin name args = case name of
     asBool other = Left (TypeMismatch (name <> " expects a boolean argument, got " <> describeValue other))
 
     -- | A number operand, returned as it is so that its type is still
-    -- there to check. A symbol is 'NotConcrete' (v3-symbols \S1.5).
+    -- there to check. A symbol or a term is 'NotConcrete' (v3-symbols
+    -- \S1.5).
     asNumber :: Value' -> Either EvalError Value'
     asNumber v@(VInt _) = Right v
     asNumber v@(VFloat _) = Right v
     asNumber (VSymbol _ _) = Left (NotConcrete name)
+    asNumber (VTerm _ _) = Left (NotConcrete name)
     asNumber other = Left (TypeMismatch (name <> " expects a number argument, got " <> describeValue other))
 
     asArray :: Value' -> Either EvalError [Value']
@@ -1144,6 +1269,7 @@ evalBuiltin name args = case name of
     -- something about a container the language cannot see into.
     hasImpl :: Value' -> Value' -> Either EvalError Value'
     hasImpl (VSymbol _ _) _ = Left (NotConcrete name)
+    hasImpl (VTerm _ _) _ = Left (NotConcrete name)
     hasImpl container key = Right . VBool $ case (container, key) of
       (VObject o, VString k) -> Map.member k o
       (VArray xs, VInt n) -> maybe False (\i -> i < length xs) (asIndex n)
@@ -1155,6 +1281,7 @@ evalBuiltin name args = case name of
     -- would silently discard the symbol (\S1.5).
     lookupImpl :: Value' -> Value' -> Value' -> Either EvalError Value'
     lookupImpl (VSymbol _ _) _ _ = Left (NotConcrete name)
+    lookupImpl (VTerm _ _) _ _ = Left (NotConcrete name)
     lookupImpl container key fallback = Right $ case (container, key) of
       (VObject o, VString k) -> maybe fallback id (Map.lookup k o)
       (VArray xs, VInt n) -> maybe fallback id (asIndex n >>= atIndex xs)
@@ -1182,6 +1309,150 @@ evalBuiltin name args = case name of
     -- appended as a single element, not spliced -- @concat@ splices.
     appendImpl :: Value' -> Value' -> Either EvalError Value'
     appendImpl arr item = (\xs -> VArray (xs <> [item])) <$> asArray arr
+
+-- Arithmetic (reference.md \S11) ----------------------------------------------------------------
+
+-- | One of the nine arithmetic builtins, applied. Operands that are all
+-- numbers compute; if one is a symbol or a term the result is a term holding
+-- the flattened operands exactly as written (v3-symbols \S1.9). Every
+-- operand is checked before either happens, so a 'TypeMismatch' takes
+-- precedence over a 'NotRepresentable'.
+arithmetic :: Text -> [Value'] -> Either EvalError Value'
+arithmetic name args = do
+  operands <- arithmeticOperands name args
+  if any isSymbolic operands then Right (VTerm name operands) else compute name operands
+
+-- | The operands of a call, checked as far as they can be without knowing
+-- what a symbol stands for; every refusal is a 'TypeMismatch'.
+--
+-- * @sum@ and @product@ flatten their arguments by the rule children use:
+--   an array contributes each of its elements, recursively, in order. They
+--   need at least one operand afterwards. The seven others take a fixed
+--   count and do not flatten, so an array given to one is refused whatever
+--   it holds.
+-- * Each operand is a number, a symbol or a term. A symbol or a term stands
+--   for one number of either type and is not looked into.
+-- * The operands that are numbers agree with each other in type and with
+--   what the builtin accepts. Nothing is converted or promoted.
+arithmeticOperands :: Text -> [Value'] -> Either EvalError [Value']
+arithmeticOperands name args = do
+  operands <- shape
+  traverse_ requireOperand operands
+  let numbers = filter (not . isSymbolic) operands
+  if accepted numbers
+    then Right operands
+    else Left (TypeMismatch (name <> " expects " <> wanted <> ", got " <> T.intercalate ", " (map describeValue numbers)))
+  where
+    shape
+      | variadic = case flatten args of
+          [] -> Left (TypeMismatch (name <> " expects at least one operand: seed it with the zero or the one of the intended type"))
+          operands -> Right operands
+      | length args == arity = Right args
+      | otherwise = Left (TypeMismatch (name <> " expects exactly " <> tshow arity <> " argument(s), got " <> tshow (length args)))
+
+    variadic = name `elem` (["sum", "product"] :: [Text])
+
+    arity :: Int
+    arity = if name `elem` (["quotient", "floor-quotient", "modulo"] :: [Text]) then 2 else 1
+
+    flatten = concatMap $ \case
+      VArray xs -> flatten xs
+      other -> [other]
+
+    requireOperand v
+      | isInt v || isFloat v || isSymbolic v = Right ()
+      | otherwise = Left (TypeMismatch (name <> " expects number operands, got " <> describeValue v))
+
+    isInt (VInt _) = True
+    isInt _ = False
+
+    isFloat (VFloat _) = True
+    isFloat _ = False
+
+    accepted numbers = case name of
+      "quotient" -> all isFloat numbers
+      "inverse" -> all isFloat numbers
+      "floor-quotient" -> all isInt numbers
+      "modulo" -> all isInt numbers
+      "sum" -> all isInt numbers || all isFloat numbers
+      "product" -> all isInt numbers || all isFloat numbers
+      -- @negate@, @floor@ and @real@ take a number of either type.
+      _ -> True
+
+    wanted :: Text
+    wanted = case name of
+      "quotient" -> "two floats"
+      "inverse" -> "a float"
+      "floor-quotient" -> "two integers"
+      "modulo" -> "two integers"
+      _ -> "all integers or all floats"
+
+-- | The concrete rules (reference.md \S11, /Semantics/), over operands
+-- 'arithmeticOperands' accepted and that are all numbers.
+--
+-- An integer result is computed over the unbounded 'Integer' and then held
+-- to the signed 64-bit range, at every step of a fold: nothing is ever
+-- computed in an 'Int64', whose own operators wrap.
+--
+-- A float result is one 'Double' operation at a time, which GHC compiles
+-- to the one IEEE 754 binary64 instruction, correctly rounded to nearest,
+-- ties to even. It never contracts a product and a sum into a fused
+-- multiply-add; that takes a primop this module does not use.
+compute :: Text -> [Value'] -> Either EvalError Value'
+compute name operands = case (name, operands) of
+  ("sum", _) -> leftFold (+) (+)
+  ("product", _) -> leftFold (*) (*)
+  ("negate", [VInt x]) -> VInt <$> integer (negate (toInteger x))
+  ("negate", [VFloat x]) -> VFloat <$> float (negate x)
+  ("quotient", [VFloat a, VFloat b]) -> VFloat <$> float (a / b)
+  ("inverse", [VFloat x]) -> VFloat <$> float (1 / x)
+  -- 'div' rounds toward negative infinity and 'mod' is its remainder, zero
+  -- or of the sign of the divisor, which is what \S11 asks of the two. Each
+  -- is checked on its own: the remainder of @-2^63@ by @-1@ is @0@, although
+  -- the quotient is out of range.
+  ("floor-quotient", [VInt a, VInt b]) -> VInt <$> (nonZero b *> integer (toInteger a `div` toInteger b))
+  ("modulo", [VInt a, VInt b]) -> VInt <$> (nonZero b *> integer (toInteger a `mod` toInteger b))
+  ("floor", [VInt x]) -> Right (VInt x)
+  ("floor", [VFloat x]) -> VInt <$> integer (floor x)
+  -- The double nearest to the integer, ties to even: exact up to @2^53@,
+  -- rounded beyond. This is the machine's own conversion.
+  ("real", [VInt x]) -> Right (VFloat (fromIntegral x))
+  ("real", [VFloat x]) -> Right (VFloat x)
+  _ -> mismatch
+  where
+    mismatch :: Either EvalError a
+    mismatch = Left (TypeMismatch (name <> " cannot be applied to " <> T.intercalate ", " (map describeValue operands)))
+
+    -- A left fold from the first operand, each step checked: an integer
+    -- step out of range is an error although the total would be in range.
+    leftFold :: (Integer -> Integer -> Integer) -> (Double -> Double -> Double) -> Either EvalError Value'
+    leftFold opInt opFloat = case operands of
+      VInt x : rest -> VInt <$> foldM intStep x rest
+      VFloat x : rest -> VFloat <$> foldM floatStep x rest
+      _ -> mismatch
+      where
+        intStep acc (VInt y) = integer (opInt (toInteger acc) (toInteger y))
+        intStep _ _ = mismatch
+        floatStep acc (VFloat y) = float (opFloat acc y)
+        floatStep _ _ = mismatch
+
+    -- An integer result, or 'NotRepresentable' outside the integer range.
+    integer :: Integer -> Either EvalError Int64
+    integer n
+      | inIntegerRange n = Right (fromInteger n)
+      | otherwise = Left (NotRepresentable (name <> ": the result is outside the integer range, -2^63 to 2^63 - 1"))
+
+    -- A float result, or 'NotRepresentable' when it is not finite, which
+    -- covers overflow and a zero divisor alike. There is no negative zero.
+    float :: Double -> Either EvalError Double
+    float d
+      | isNaN d || isInfinite d = Left (NotRepresentable (name <> ": the result is not a finite float"))
+      | d == 0 = Right 0
+      | otherwise = Right d
+
+    nonZero :: Int64 -> Either EvalError ()
+    nonZero 0 = Left (NotRepresentable (name <> ": the divisor is zero"))
+    nonZero _ = Right ()
 
 -- | How a value reads when it is rendered into a string by @str@ (and so by
 -- string interpolation): a string is itself, @null@ is empty, and anything

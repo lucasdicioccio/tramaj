@@ -20,6 +20,8 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Set as Set
+import Data.String (Pattern(..))
+import Data.String as String
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log)
@@ -27,9 +29,9 @@ import Effect.Exception (throw)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
 import Test.Corpus (runCorpus)
-import Tramaj.Analysis (constraintKinds, contextHoles, contextReads, deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
+import Tramaj.Analysis (arithmeticNames, arithmeticOps, constraintKinds, contextHoles, contextReads, deepActionKeys, deepArithmeticOps, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), TypeConstraintArg(..), TypeExpr(..), programRoot, typeDecls, unlets)
-import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
+import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Options, Output(..), defaultOptions, evalProgram, runProgram, runProgramWith)
 import Tramaj.Json (Json(..), fromArgonaut, fromArray, jsonNull, jsonParser, normalizeNumbers, stringify, stringifyWithIndent, toArgonaut, toObject)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
@@ -49,6 +51,7 @@ main = do
   runNodeJsonChecks
   runJsonChecks
   runNumberChecks
+  runArithmeticChecks
   log "All tramaj checks passed."
 
 -- Parser ---------------------------------------------------------------
@@ -57,6 +60,7 @@ runParserChecks :: Effect Unit
 runParserChecks = do
   traverse_ (uncurry rejects)
     [ Tuple "an attribute after a child" ".div(.p(\"hi\"), class: \"a\")"
+    , Tuple "the reserved key $term in an object literal" "{\"$term\": \"sum\", \"arguments\": [1]}"
     , Tuple "an action after a child" ".div(.p(\"hi\"), action(\"on-click\", \"a\", {}))"
     , Tuple "a value slot after a child" ".div(.p(\"hi\"), value(1))"
     , Tuple "more than one value slot" ".div(value(1), value(2))"
@@ -543,6 +547,39 @@ runAnalysisChecks = do
   check "bubbles up demands from an imported library"
     (Set.toUnfoldable (deepSymbolDemands (Map.insert "withDemand" (unsafeParse "?ctx.threshold") libs) (unsafeParse "import(\"withDemand\", {}).rendered")))
     [ [ "threshold" ] ]
+  check "an arithmetic name that is called, and one passed by reference"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "[sum(1, 2), fold($ctx.xs, 1, $product)]")))
+    [ "product", "sum" ]
+  check "each of the nine names, and no other builtin"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "[sum(1), product(1), negate(1), inverse(1.0), quotient(1.0, 2.0), floor-quotient(1, 2), modulo(1, 2), floor(1.5), real(1), cardinality([]), str(1)]")))
+    (Array.sort arithmeticNames)
+  check "none in a program that computes nothing"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse ".p($ctx.sum, \"floor\")")))
+    ([] :: Array String)
+  check "a name bound by a binding is not reported below it"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "@sum = (a, b) => $a\nsum(1, 2)")))
+    ([] :: Array String)
+  check "a binding's own right-hand side is outside its scope"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "@sum = sum(1, 2)\n$sum")))
+    [ "sum" ]
+  check "a lambda parameter shadows inside the lambda only"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "[map($ctx.xs, (floor) => $floor), real(1)]")))
+    [ "real" ]
+  check "a pattern name shadows"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "@{floor, n: modulo} = $ctx.o\n[$floor, $modulo, negate(1)]")))
+    [ "negate" ]
+  check "a name used only under an unreached branch arm, since the analysis approximates upward"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "branch(1, false, inverse(0.0))")))
+    [ "inverse" ]
+  check "a library's arithmetic is not reached without the table"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "import(\"adder\", {}).rendered")))
+    ([] :: Array String)
+  check "arithmetic in a library, and in a library that one imports, is reached with the table, each in its own scope"
+    (Set.toUnfoldable (deepArithmeticOps arithmeticLibs (unsafeParse "@sum = 1\n[import(\"outer\", {}).rendered, modulo(1, 2)]")))
+    [ "modulo", "negate", "sum" ]
+  check "a cycle terminates for arithmetic names too"
+    (Set.toUnfoldable (deepArithmeticOps libs (unsafeParse ".div(import(\"loopy\", {}).rendered)")))
+    ([] :: Array String)
   log "ok - static analyses"
   where
   check :: forall a. Eq a => Show a => String -> a -> a -> Effect Unit
@@ -1064,6 +1101,99 @@ runNumberChecks = do
           Right v -> throw (template <> " with " <> ctxSrc <> ": expected a TypeMismatch, got " <> stringify v)
       )
       [ Concrete, Symbolic ]
+
+-- Arithmetic -----------------------------------------------------------------
+
+-- | Libraries that compute, for the checks on the arithmetic profile.
+arithmeticLibs :: LibraryTable
+arithmeticLibs = Map.fromFoldable
+  [ Tuple "adder" (unsafeParse "@total = sum($ctx.a, $ctx.b)\n$total")
+  , Tuple "outer" (unsafeParse "negate(import(\"adder\", {a: $ctx.a, b: 1}).rendered)")
+  ]
+
+-- | The arithmetic profile where the shared corpus does not reach: that it
+-- | is an option of one evaluation and off by default (reference.md §11),
+-- | what follows from that for libraries and for a seeded term, and integer
+-- | division at the ends of this port's integer range, where a quotient
+-- | taken in doubles would round.
+runArithmeticChecks :: Effect Unit
+runArithmeticChecks = do
+  -- Off unless asked for: the names are unbound, so they are the program's.
+  traverse_ (\src -> failsWith (defaultOptions { mode = Concrete }) src "null" (UnboundName "sum"))
+    [ "sum(1, 2)", "fold([1, 2], 0, $sum)", ".p(sum(1, 2))" ]
+  traverse_ (\mode -> failsWith (defaultOptions { mode = mode }) "floor-quotient(7, 2)" "null" (UnboundName "floor-quotient"))
+    [ Concrete, Symbolic ]
+  case runProgram Concrete Map.empty jsonNull (unsafeParse "sum(1, 2)") of
+    Left (UnboundName "sum") -> pure unit
+    other -> throw ("runProgram runs without the arithmetic profile, got " <> show other)
+  traverse_ (\f -> evaluatesTo (defaultOptions { arithmetic = false }) Map.empty f.template "null" f.expected)
+    [ { template: "@sum = (a, b) => [$a, $b]\nsum(1, 2)", expected: "[1,2]" }
+    , { template: "@{floor} = {floor: 3}\n$floor", expected: "3" }
+    ]
+  -- On: the same programs compute, and a library runs with the profile of
+  -- the evaluation that reached it.
+  traverse_ (\f -> evaluatesTo arithmeticOn arithmeticLibs f.template f.ctx f.expected)
+    [ { template: "sum(1, 2)", ctx: "null", expected: "3" }
+    , { template: "fold([1, 2], 0, $sum)", ctx: "null", expected: "3" }
+    , { template: "import(\"outer\", {a: 2}).rendered", ctx: "null", expected: "-3" }
+    , { template: "import(\"adder\", {a: 0.1, b: 0.2}).vals.total", ctx: "null", expected: "0.30000000000000004" }
+    -- Division at the ends of the integer range. The exact quotient of the
+    -- first is just below -2, and `b * q` of it is past 2^53.
+    , { template: "[floor-quotient(9007199254740991, -4503599627370495), modulo(9007199254740991, -4503599627370495)]", ctx: "null", expected: "[-3,-4503599627370494]" }
+    , { template: "[floor-quotient(9007199254740990, 9007199254740991), modulo(9007199254740990, 9007199254740991)]", ctx: "null", expected: "[0,9007199254740990]" }
+    , { template: "[floor-quotient(-9007199254740991, 9007199254740990), modulo(-9007199254740991, 9007199254740990)]", ctx: "null", expected: "[-2,9007199254740989]" }
+    , { template: "[floor-quotient(-9007199254740991, -1), modulo(-9007199254740991, -1)]", ctx: "null", expected: "[9007199254740991,0]" }
+    , { template: "[floor-quotient(9007199254740991, 2), modulo(9007199254740991, 2)]", ctx: "null", expected: "[4503599627370495,1]" }
+    -- No negative zero of either type, out of any of the nine.
+    , { template: "[negate(0), product(-1, 0), floor-quotient(0, -5), modulo(-4, 2), floor(-0.0), str(negate(0))]", ctx: "null", expected: "[0,0,0,0,0,\"0\"]" }
+    , { template: "[negate(0.0), product(-1.0, 0.0), quotient(0.0, -5.0), sum(-0.0, -0.0), real(negate(0)), str(negate(0.0))]", ctx: "null", expected: "[0.0,0.0,0.0,0.0,0.0,\"0.0\"]" }
+    -- The ends of the integer range are reached exactly, and not passed.
+    , { template: "[sum(9007199254740990, 1), negate(9007199254740991), floor(9007199254740991.0)]", ctx: "null", expected: "[9007199254740991,-9007199254740991,9007199254740991]" }
+    ]
+  traverse_ (\src -> failsWithKind arithmeticOn src "null" "NotRepresentable")
+    [ "sum(9007199254740991, 1)"
+    , "sum(-9007199254740991, -1)"
+    , "product(94906266, 94906266)"
+    , "floor(9007199254740992.0)"
+    , "sum(9007199254740991, 1, -1)"
+    ]
+  -- A term reaches a host only if it enabled the profile, so one seeded
+  -- without it is refused, in a context the program does not even read.
+  evaluatesTo (arithmeticOn { mode = Symbolic }) Map.empty "$ctx.t" seededTerm
+    "{\"format\":\"tramaj/symbolic/1\",\"kind\":\"expression\",\"root\":{\"$term\":\"sum\",\"arguments\":[1,{\"$sym\":\"#ctx.s\",\"path\":[]}]},\"symbols\":[],\"constraints\":[],\"types\":[],\"type-constraints\":[]}"
+  failsWithKind (defaultOptions { mode = Symbolic }) "1" seededTerm "TypeMismatch"
+  traverse_ (\options -> failsWithKind options "1" seededTerm "TypeMismatch")
+    [ defaultOptions, arithmeticOn ]
+  log "ok - the arithmetic profile as an option"
+  where
+  arithmeticOn :: Options
+  arithmeticOn = defaultOptions { arithmetic = true }
+
+  seededTerm = "{\"t\": {\"$term\": \"sum\", \"arguments\": [1, {\"$sym\": \"#ctx.s\", \"path\": []}]}}"
+
+  evaluatesTo options table template ctxSrc expected = do
+    ctx <- mustParseJson template ctxSrc
+    program <- mustParse template template
+    case runProgramWith options table ctx program of
+      Right v | stringify v == expected -> pure unit
+      Right v -> throw (template <> " with " <> ctxSrc <> ": expected " <> expected <> ", got " <> stringify v)
+      Left err -> throw (template <> " with " <> ctxSrc <> ": eval failed: " <> show err)
+
+  failsWith options template ctxSrc expected = do
+    ctx <- mustParseJson template ctxSrc
+    program <- mustParse template template
+    case runProgramWith options Map.empty ctx program of
+      Left err | err == expected -> pure unit
+      Left err -> throw (template <> ": expected " <> show expected <> ", got " <> show err)
+      Right v -> throw (template <> ": expected " <> show expected <> ", got " <> stringify v)
+
+  failsWithKind options template ctxSrc kind = do
+    ctx <- mustParseJson template ctxSrc
+    program <- mustParse template template
+    case runProgramWith options Map.empty ctx program of
+      Left err | Array.head (String.split (Pattern " ") (show err)) == Just kind -> pure unit
+      Left err -> throw (template <> ": expected a " <> kind <> ", got " <> show err)
+      Right v -> throw (template <> ": expected a " <> kind <> ", got " <> stringify v)
 
 -- Helpers ------------------------------------------------------------------
 

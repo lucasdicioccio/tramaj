@@ -87,10 +87,15 @@ cases/<NNN-slug>/
 Each runner holds the list of requirements its implementation declares, next
 to the code that reads `meta.json` (`supportedRequirements`, or the same name
 in the language's own spelling). The PureScript list holds `"int-float"` and
-the Haskell list `"int-float"` and `"int64"`; every other list is empty
-today. An implementation
+the Haskell list `"int-float"`, `"int64"` and `"arithmetic"`; every other
+list is empty today. An implementation
 that gains a capability adds the name there, and the cases marked with it
 start running in that suite; no case needs editing.
+
+In the Haskell and Purescript implementations the arithmetic profile is an option of each
+evaluation, off by default. Its runner turns it on for a case that names
+`"arithmetic"` and leaves it off for every other case, where the nine
+arithmetic names are unbound.
 
 A name the runner does not know is, by that rule, not declared, so the case
 is skipped rather than rejected.

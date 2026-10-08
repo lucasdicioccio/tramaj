@@ -86,6 +86,38 @@ into `TCScalarInt`/`TCScalarFloat` and `RCScalarNum` into
 `RCScalarInt`/`RCScalarFloat`. The type primitive `number` is gone; `int` and
 `float` replace it. Needs `aeson >= 2.2.1`, for its token decoder.
 
+**The arithmetic profile** (`../specs/reference.md` \S9, \S11, \S12,
+`../specs/v3-symbols.md` \S1.9, \S5.2 to \S5.5), as an option of one
+evaluation that is off by default. Nine builtins: `sum`, `product`, `negate`,
+`inverse`, `quotient`, `floor-quotient`, `modulo`, `floor` and `real`, over
+the two number types with no conversion or promotion. Integer results are
+held to the signed 64-bit range at every step of a fold and nothing wraps;
+float results are one correctly rounded double operation at a time, in a left
+fold. Over a symbol they build a term, written
+`{"$term": <op>, "arguments": [...]}`, which crosses wherever a symbol does
+and is refused wherever a symbol is.
+
+New in `Tramaj.Eval`: `Options (..)` (`optMode`, `optArithmetic`),
+`defaultOptions` (concrete mode, arithmetic off), `evalProgramWith` and
+`runProgramWith`, which take an `Options` where `evalProgram` and
+`runProgram` take a `Mode`. Those two keep their signatures and run without
+the profile, so the nine names stay unbound there and `sum(1, 2)` is an
+`UnboundName`. The option applies to the root and to every library the
+evaluation runs. New in `Tramaj.Analysis`: `arithmeticNames`, `arithmeticOps`
+and `deepArithmeticOps`, which report the arithmetic names a program
+references free, so a host that leaves the profile off can refuse a program
+before running it.
+
+**Breaking**, with or without the profile:
+
+- `EvalError` gains the constructor `NotRepresentable`: integer overflow, a
+  zero divisor, a float result that is not finite. A host that matches every
+  constructor needs a case for it.
+- `"$term"` joins `"$sym"` and `"$type"` as a reserved key. `{"$term": 1}` in
+  a program is a parse error, and a context carrying that key is a
+  `TypeMismatch`, in concrete mode always and in symbolic mode unless it is a
+  well-formed term and the profile is on.
+
 Adds `fold(arr, init, fn)`, a fourth functional array primitive alongside
 `map`/`filter`/`scan`: same `(acc, item)` step and `scanl` iteration order as
 `scan`, but returns only the final accumulator instead of every intermediate

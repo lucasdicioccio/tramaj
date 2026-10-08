@@ -15,7 +15,7 @@ import Tramaj.Eval
 import Tramaj.Json (Json (..))
 import Tramaj.Node
 import Tramaj.Parser
-import Tramaj.TestJson (object, (.=))
+import Tramaj.TestJson (ToJ (..), object, (.=))
 import Tramaj.Types (TypeError (..))
 
 spec :: Spec
@@ -33,6 +33,7 @@ spec = do
   adaptSpec
   errorSpec
   typeSpec
+  arithmeticSpec
 
 -- Helpers -------------------------------------------------------------------
 
@@ -655,3 +656,94 @@ typeSpec = describe "types" $ do
      in case runProgram Concrete libsHere JNull p of
           Left (TypeErr (PartialType _ _)) -> pure ()
           other -> expectationFailure ("expected a PartialType error, got " <> show other)
+
+-- | The arithmetic profile as an option of one evaluation (reference.md
+-- \S11, v3-symbols \S5.5). What the builtins compute is the shared
+-- corpus's business; here is what it has no shape for: the option, its
+-- default, and the ends of the 64-bit range in integer division.
+arithmeticSpec :: Spec
+arithmeticSpec = describe "the arithmetic profile" $ do
+  let on mode = defaultOptions {optMode = mode, optArithmetic = True}
+      parsed src = either (\e -> error ("fixture does not parse: " <> show e)) id (parseProgram src)
+      withOptions options libsHere src ctx = runProgramWith options libsHere ctx (parsed src)
+      arith src = withOptions (on Concrete) Map.empty src JNull
+      isUnbound name = \case
+        Left (UnboundName n) -> n == name
+        _ -> False
+      isTypeMismatch = \case
+        Left (TypeMismatch _) -> True
+        _ -> False
+      isNotRepresentable = \case
+        Left (NotRepresentable _) -> True
+        _ -> False
+      symS = object ["$sym" .= ("#ctx.s" :: Text), "path" .= ([] :: [Text])]
+      termS = object ["$term" .= ("sum" :: Text), "arguments" .= [symS, toJ (1 :: Int)]]
+      adds = Map.fromList [("adds", parsed "@total=sum($ctx.a, 1)\n$total")]
+
+  it "is off by default: concrete mode, no arithmetic" $
+    defaultOptions `shouldBe` Options {optMode = Concrete, optArithmetic = False}
+
+  it "leaves the nine names unbound through evalProgram and runProgram" $ do
+    evalProgram Concrete Map.empty JNull (parsed "sum(1, 2)") `shouldSatisfy` isUnbound "sum"
+    runProgram Concrete Map.empty JNull (parsed "sum(1, 2)") `shouldSatisfy` isUnbound "sum"
+    runProgram Symbolic Map.empty JNull (parsed "map([1.5], $floor)") `shouldSatisfy` isUnbound "floor"
+
+  it "leaves them unbound with the option off, and binds them with it on" $ do
+    withOptions defaultOptions Map.empty "sum(1, 2)" JNull `shouldSatisfy` isUnbound "sum"
+    withOptions (on Concrete) Map.empty "sum(1, 2)" JNull `shouldBe` Right (JInt 3)
+    evalProgramWith (on Concrete) Map.empty JNull (parsed "sum(1, 2)") `shouldBe` Right (OValue (JInt 3))
+
+  it "keeps a program that binds one of the names working with the option off" $
+    runProgram Concrete Map.empty JNull (parsed "@sum=(a, b) => $a\n$sum(1, 2)") `shouldBe` Right (JInt 1)
+
+  it "runs a library with the profile of the evaluation that reached it" $ do
+    withOptions (on Concrete) adds "import(\"adds\", {a: 2}).vals.total" JNull `shouldBe` Right (JInt 3)
+    withOptions defaultOptions adds "import(\"adds\", {a: 2}).vals.total" JNull
+      `shouldBe` Left (InLibrary "adds" (UnboundName "sum"))
+
+  it "accepts a seeded term in symbolic mode with the profile on, and hands it back" $
+    case withOptions (on Symbolic) Map.empty "$ctx.t" (object ["t" .= termS]) of
+      Right (JObject o) -> Map.lookup "root" o `shouldBe` Just termS
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "refuses every seeded term with the profile off, read or not" $ do
+    runProgram Symbolic Map.empty (object ["t" .= termS]) (parsed "$ctx.t") `shouldSatisfy` isTypeMismatch
+    runProgram Symbolic Map.empty (object ["t" .= termS]) (parsed "1") `shouldSatisfy` isTypeMismatch
+
+  it "refuses the reserved \"$term\" key in concrete mode whatever the profile" $ do
+    withOptions (on Concrete) Map.empty "1" (object ["t" .= termS]) `shouldSatisfy` isTypeMismatch
+    withOptions defaultOptions Map.empty "1" (object ["$term" .= (1 :: Int)]) `shouldSatisfy` isTypeMismatch
+
+  it "keeps the two number types with the profile off" $
+    runProgram Concrete Map.empty JNull (parsed "[eq(1, 1.0), 1, 1.0]")
+      `shouldBe` Right (JArray [JBool False, JInt 1, JFloat 1.0])
+
+  it "builds a term over a seeded symbol only with the profile on" $ do
+    case withOptions (on Symbolic) Map.empty "sum($ctx.s, 1)" (object ["s" .= symS]) of
+      Right (JObject o) -> Map.lookup "root" o `shouldBe` Just termS
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+    runProgram Symbolic Map.empty (object ["s" .= symS]) (parsed "sum($ctx.s, 1)") `shouldSatisfy` isUnbound "sum"
+
+  it "divides exactly at the ends of the 64-bit range" $ do
+    arith "floor-quotient(9223372036854775807, 2)" `shouldBe` Right (JInt 4611686018427387903)
+    arith "floor-quotient(-9223372036854775808, 2)" `shouldBe` Right (JInt (-4611686018427387904))
+    arith "floor-quotient(-9223372036854775808, 1)" `shouldBe` Right (JInt (-9223372036854775808))
+    arith "floor-quotient(9223372036854775807, -1)" `shouldBe` Right (JInt (-9223372036854775807))
+    arith "floor-quotient(-9223372036854775807, 9223372036854775807)" `shouldBe` Right (JInt (-1))
+    arith "floor-quotient(9223372036854775807, -9223372036854775808)" `shouldBe` Right (JInt (-1))
+    arith "modulo(9223372036854775807, -9223372036854775808)" `shouldBe` Right (JInt (-1))
+    arith "modulo(-9223372036854775808, 9223372036854775807)" `shouldBe` Right (JInt 9223372036854775806)
+    arith "modulo(-9223372036854775807, 2)" `shouldBe` Right (JInt 1)
+
+  it "never wraps: a product or a sum that leaves the 64-bit range is an error at that step" $ do
+    arith "product(-9223372036854775808, -1)" `shouldSatisfy` isNotRepresentable
+    arith "product(4294967296, 4294967296, 0)" `shouldSatisfy` isNotRepresentable
+    arith "product(3037000500, 3037000500)" `shouldSatisfy` isNotRepresentable
+    arith "sum(-9223372036854775808, -9223372036854775808, 9223372036854775807)" `shouldSatisfy` isNotRepresentable
+    arith "sum(-9223372036854775808, 9223372036854775807, 1)" `shouldBe` Right (JInt 0)
+
+  it "folds floats left to right, one rounding at a time" $ do
+    arith "sum(0.1, 0.2, 0.3)" `shouldBe` Right (JFloat 0.6000000000000001)
+    arith "sum(1e16, 1.0, 1.0)" `shouldBe` Right (JFloat 1.0e16)
+    arith "sum(1.0, 1.0, 1e16)" `shouldBe` Right (JFloat 1.0000000000000002e16)
+    arith "product(49.0, inverse(49.0))" `shouldBe` Right (JFloat 0.9999999999999999)

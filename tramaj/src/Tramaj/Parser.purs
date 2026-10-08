@@ -341,15 +341,15 @@ objectLit = lexeme do
 objectKey :: P String
 objectKey = staticString <|> identifier
 
--- | `"$sym"` and `"$type"` are reserved across the value domain
+-- | `"$sym"`, `"$type"` and `"$term"` are reserved across the value domain
 -- | (v3-symbols §5.3, v4-types §0): the tag a symbolic or typed envelope
 -- | uses to mark a value that is not an ordinary object. An object literal
--- | spelling either as a key is a parse error in every profile, not just the
+-- | spelling one of them as a key is a parse error in every profile, not just the
 -- | symbolic one, so a program's legality never depends on which profile
 -- | runs it.
 reservedKeyRefused :: String -> P Unit
 reservedKeyRefused k
-  | k == "$sym" || k == "$type" =
+  | k == "$sym" || k == "$type" || k == "$term" =
       fail ("\"" <> k <> "\" is a reserved key and cannot be used as an object key")
   | otherwise = pure unit
 
