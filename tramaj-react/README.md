@@ -24,7 +24,13 @@ if (bad.length === 0) return <>{foldToReact(dispatch, node)}</>;
   the callback the host would have written there is what it returns here.
 - `renderScalar(json): string` — how this host renders a JSON value as DOM
   text. Recognizes the v3-symbols §5.3 wire tag `{"$sym": …, "path": […]}` and
-  renders it as the id with its path dotted on.
+  renders it as the id with its path dotted on, and a term
+  `{"$term": …, "arguments": […]}` (v3-symbols §1.9) as the call that built
+  it, `sum(#ctx.n, 1.0)`; both go in `<code>` in text position. A number
+  renders by its type, as `str` writes it: an integer as its digits and a
+  float always with a fraction or an exponent, so the float `3.0` (a
+  `tramaj-js` `Float`) renders as `3.0`. `symbolLabel` and `termLabel` are
+  the two recognizers.
 - `validateAttrNames(node): string[]` — every attribute name in the tree that
   is not alphanumeric plus `-`/`_`. Call it before folding: `foldToReact`
   trusts its names and the DOM will throw on an illegal one.

@@ -36,7 +36,7 @@ const SPECIAL_FORM_NAMES = new Set([
 ]);
 
 /** The five value-domain shapes `v4-types.md` §1 reserves as type primitives. */
-const PRIM_NAMES = new Set(["string", "number", "bool", "null", "document"]);
+const PRIM_NAMES = new Set(["string", "int", "float", "bool", "null", "document"]);
 
 const ALPHABETIC = /\p{Alphabetic}/u;
 const ALPHANUMERIC = /[\p{Alphabetic}\p{N}]/u;
@@ -352,8 +352,16 @@ class P {
       }
       const n = Number(full);
       if (Number.isNaN(n)) throw this.err("invalid number literal");
-      if (!Number.isFinite(n)) throw this.err("number literal out of range");
-      return { t: "NumberLit", value: n === 0 ? 0 : n };
+      // A fraction or an exponent makes a float; neither, an integer
+      // (reference.md §5). `full` holds a `.` or an `e` only in the first case.
+      if (/[.e]/.test(full)) {
+        if (!Number.isFinite(n)) throw this.err("float literal out of range");
+        return { t: "FloatLit", value: n === 0 ? 0 : n };
+      }
+      if (!Number.isSafeInteger(n)) {
+        throw this.err("integer literal outside the integer range, -(2^53 - 1) to 2^53 - 1");
+      }
+      return { t: "IntLit", value: n === 0 ? 0 : n };
     });
   }
 
@@ -421,7 +429,7 @@ class P {
   }
 
   private refuseReservedKey(k: string): void {
-    if (k === "$sym" || k === "$type") {
+    if (k === "$sym" || k === "$type" || k === "$term") {
       throw this.err(`"${k}" is a reserved key and cannot be used as an object key`);
     }
   }
@@ -1229,8 +1237,10 @@ function lowerLambda(params: Pattern[], body: Expr): Expr {
 
 function asScalarArg(e: Expr): TypeConstraintArg {
   switch (e.t) {
-    case "NumberLit":
-      return { t: "ScalarNum", value: e.value };
+    case "IntLit":
+      return { t: "ScalarInt", value: e.value };
+    case "FloatLit":
+      return { t: "ScalarFloat", value: e.value };
     case "BoolLit":
       return { t: "ScalarBool", value: e.value };
     case "StringLit":

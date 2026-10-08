@@ -45,6 +45,14 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`foldToReact\` and \`validateAttrNames\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`renderScalar\` renders a number by its type, as \`str\` writes it: an integer as its digits, a float always with a fraction or an exponent. A whole-valued float, which \`tramaj-js\` hands over as a \`Float\`, renders as \`3.0\`."
+          },
+          {
+              "kind": "added",
+              "text": "A term \`{\"$term\": op, \"arguments\": [...]}\` renders as the call that built it, such as \`sum(#ctx.n, 1.0)\`, and in \`<code>\` in text position like a symbol; \`termLabel\` is exported."
           }
       ]
   }).rendered)

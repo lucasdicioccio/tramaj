@@ -32,7 +32,26 @@ export {
 } from "./ast.js";
 
 export type { Json, JsonObject } from "./json.js";
-export { compactJson, displayString, formatNumber, isJsonObject, jsonEqual } from "./json.js";
+export {
+  classifyNumber,
+  compactJson,
+  displayString,
+  Float,
+  float,
+  formatFloat,
+  formatInteger,
+  inIntegerRange,
+  isFloat,
+  isInteger,
+  isJsonObject,
+  jsonEqual,
+  JsonNumberError,
+  JsonParseError,
+  normalizeNumbers,
+  numberValue,
+  parseJson,
+  stringify,
+} from "./json.js";
 
 export type { Annotations, Node, NodeAttribute } from "./node.js";
 export {
@@ -50,15 +69,26 @@ export {
 
 export { ParseError, parseProgram, tryParseProgram } from "./parser.js";
 
-export type { Env, EvalErrorKind, LibraryTable, Mode, Output, Value } from "./eval.js";
-export { evalProgram, EvalError, runProgram, toJson } from "./eval.js";
+export type { Env, EvalErrorKind, LibraryTable, Mode, Options, Output, Value } from "./eval.js";
+export {
+  defaultOptions,
+  evalProgram,
+  evalProgramWith,
+  EvalError,
+  runProgram,
+  runProgramWith,
+  toJson,
+} from "./eval.js";
 
 export type { Card, ProgramKind } from "./analysis.js";
 export {
+  arithmeticNames,
+  arithmeticOps,
   constraintKinds,
   contextHoles,
   contextReads,
   deepActionKeys,
+  deepArithmeticOps,
   deepConstraintKinds,
   deepContextHoles,
   deepSymbolDemands,

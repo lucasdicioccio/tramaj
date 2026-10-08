@@ -11,7 +11,9 @@
  * attribute values, text values and the element value slot are arbitrary JSON
  * rather than pre-stringified text — evaluation deliberately stops short of
  * deciding how a number renders, which makes it this module's decision
- * (`renderScalar`).
+ * (`renderScalar`). The two number types stay apart there: an integer renders
+ * as its digits and a float always with a fraction or an exponent, as `str`
+ * writes them.
  *
  * v3-symbols support: a value anywhere in the tree may be the §5.3 wire tag
  * `{"$sym": <id>, "path": [...]}` rather than an ordinary scalar, and
@@ -29,7 +31,16 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from "react";
-import { isJsonObject, type Json, type Node, type NodeAttribute } from "@lucasdicioccio/tramaj-js";
+import {
+  classifyNumber,
+  formatFloat,
+  formatInteger,
+  isJsonObject,
+  stringify,
+  type Json,
+  type Node,
+  type NodeAttribute,
+} from "@lucasdicioccio/tramaj-js";
 
 /**
  * `dispatch` maps an action — its event type, its key, and its JSON payload —
@@ -139,29 +150,73 @@ function reactPropName(name: string): string {
  * reader can tell a hole from a string that happens to look like one.
  */
 function renderTextValue(j: Json): ReactNode {
-  const label = symbolLabel(j);
+  const label = placeholderLabel(j);
   return label === null ? renderScalar(j) : <code>{label}</code>;
 }
 
 /**
  * How this host renders a JSON value as DOM text. A symbol (`v3-symbols.md`
  * §5.3's `{"$sym": ..., "path": [...]}` tag) renders as its id with its path
- * dotted on, e.g. `#0:"d".replicas`. Otherwise: a string is itself, a whole
- * number drops its trailing `.0`, `null` renders as nothing, and anything
- * structured falls back to compact JSON.
+ * dotted on, e.g. `#0:"d".replicas`, and a term (`v3-symbols.md` §1.9) as the
+ * call that built it, e.g. `sum(#0:"d".replicas, 1)`. Otherwise: a string is
+ * itself, `null` renders as nothing, and anything structured falls back to
+ * compact JSON, written by `tramaj-js`'s `stringify` so that its numbers keep
+ * their type.
+ *
+ * A number renders by its type, exactly as `str` writes it (`reference.md`
+ * §6): an integer as its decimal digits (`3`, `-7`, `100000000000`) and a
+ * float always with a fraction or an exponent (`3.0`, `1.5`, `1e+21`). The
+ * type is `tramaj-js`'s classification: a plain number that is a safe integer
+ * is an integer, and a `Float` or any other number is a float.
  *
  * Deliberately this module's decision rather than the evaluator's: a different
  * host targeting YAML or a UI model would render the same values differently,
  * and `Node` keeps them unconverted precisely so that it can.
  */
 export function renderScalar(j: Json): string {
-  const label = symbolLabel(j);
+  const label = placeholderLabel(j);
   if (label !== null) return label;
   if (typeof j === "string") return j;
-  if (typeof j === "number") return String(j);
+  const n = numberLabel(j);
+  if (n !== null) return n;
   if (typeof j === "boolean") return j ? "true" : "false";
   if (j === null) return "";
-  return JSON.stringify(j) ?? "";
+  return stringify(j);
+}
+
+function numberLabel(j: Json): string | null {
+  const n = classifyNumber(j);
+  if (n === null) return null;
+  if (typeof j === "bigint") return formatInteger(j);
+  return n.type === "integer" ? formatInteger(n.value) : formatFloat(n.value);
+}
+
+/** The text of a value that stands for something not known yet: a symbol or a term. */
+function placeholderLabel(j: Json): string | null {
+  return symbolLabel(j) ?? termLabel(j);
+}
+
+/**
+ * Recognizes a term, `{"$term": <op>, "arguments": [...]}` (`v3-symbols.md`
+ * §1.9, §5.3): an arithmetic builtin left unevaluated because one of its
+ * operands is a symbol. It renders as the call that built it, operands in the
+ * order they are held and nothing folded: `sum(1, #0:"d".replicas, 2)`. An
+ * operand is a number, a symbol or another term; an object with `"$term"`
+ * whose arguments are anything else is not a term and is left to the caller.
+ * Like `"$sym"`, `"$term"` is a reserved key, so the shape needs no mode flag.
+ */
+export function termLabel(j: Json): string | null {
+  if (!isJsonObject(j)) return null;
+  const op = j["$term"];
+  const args = j["arguments"];
+  if (typeof op !== "string" || !Array.isArray(args)) return null;
+  const labels: string[] = [];
+  for (const a of args) {
+    const label = numberLabel(a) ?? placeholderLabel(a);
+    if (label === null) return null;
+    labels.push(label);
+  }
+  return `${op}(${labels.join(", ")})`;
 }
 
 /**

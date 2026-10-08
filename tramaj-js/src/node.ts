@@ -4,7 +4,15 @@
  * infer a missing field from a default" rules are enforced exactly.
  */
 
-import { hasField, isJsonObject, jsonObjectFrom, type Json, type JsonObject } from "./json.js";
+import {
+  hasField,
+  isJsonObject,
+  jsonObjectFrom,
+  JsonNumberError,
+  normalizeNumbers,
+  type Json,
+  type JsonObject,
+} from "./json.js";
 
 export type Annotations = Record<string, Json>;
 
@@ -89,6 +97,21 @@ function req(what: string, field: string, obj: JsonObject): Json {
   return obj[field] as Json;
 }
 
+/**
+ * A `Value` field (`specs/node-json.md` *Numbers*, *Decoding*): its numbers
+ * are typed by `json.ts`'s classification and brought to canonical form, and
+ * one outside the value domain is rejected rather than rounded.
+ */
+function reqValue(what: string, field: string, obj: JsonObject): Json {
+  const v = req(what, field, obj);
+  try {
+    return normalizeNumbers(v);
+  } catch (e) {
+    if (!(e instanceof JsonNumberError)) throw e;
+    throw new NodeDecodeError(`${what}: field ${JSON.stringify(field)}: ${e.message}`);
+  }
+}
+
 function reqString(what: string, field: string, obj: JsonObject): string {
   const v = req(what, field, obj);
   if (typeof v !== "string") {
@@ -118,13 +141,13 @@ export function nodeFromJson(v: Json): Node {
   const type = reqString("node", "type", v);
   switch (type) {
     case "text":
-      return { t: "text", value: req("text node", "value", v), annotations: reqAnnotations(v) };
+      return { t: "text", value: reqValue("text node", "value", v), annotations: reqAnnotations(v) };
     case "element":
       return {
         t: "element",
         tag: reqString("element node", "tag", v),
         attributes: reqArray("element node", "attributes", v).map(nodeAttributeFromJson),
-        value: req("element node", "value", v),
+        value: reqValue("element node", "value", v),
         children: reqArray("element node", "children", v).map(nodeFromJson),
         annotations: reqAnnotations(v),
       };
@@ -147,14 +170,14 @@ export function nodeAttributeFromJson(v: Json): NodeAttribute {
       return {
         t: "attribute",
         name: reqString("attribute", "name", v),
-        value: req("attribute", "value", v),
+        value: reqValue("attribute", "value", v),
       };
     case "action":
       return {
         t: "action",
         event: reqString("action", "event", v),
         key: reqString("action", "key", v),
-        payload: req("action", "payload", v),
+        payload: reqValue("action", "payload", v),
       };
     default:
       throw new NodeDecodeError(`unknown node attribute kind: ${JSON.stringify(kind)}`);
