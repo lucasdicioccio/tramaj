@@ -21,7 +21,7 @@
 # arithmetic
 
 - residual law: a term the host evaluates, with numbers substituted for its symbols, must give byte for byte what the template would have produced with those numbers in the context, errors included
-- (specified in reference §11 and v3-symbols §1.9; implemented in the PureScript, Haskell and Rust implementations, not yet in the others)
+- (specified in reference §11 and v3-symbols §1.9; implemented in all six implementations)
 
 # sorting and number formatting
 
@@ -29,4 +29,4 @@
 - `sort-by-descending` is stable on its own terms, and is not the reversal of `sort-by`
 - one rounding rule: for a float `x` whose rounding is in the integer range, `str(round(x))` and `format-number(x, 0, "")` are the same text
 - `format-number` depends on nothing but its three arguments: no locale, no host default
-- (specified in reference §11, not implemented yet)
+- (specified in reference §11; implemented in all six implementations)

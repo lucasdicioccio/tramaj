@@ -34,37 +34,33 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #python #tramaj-py
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-py"})
 .div(class: "changelog",
   $version({
-      "version": "0.1.0",
+      "version": "(none)",
       "date": "unreleased",
-      "summary": "Python port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a python -m tramaj CLI. Standard library only, Python 3.9+.",
+      "summary": "On the main branch after 0.1.0, not released yet: two number types, arithmetic, sorting and number formatting.",
       "changes": [
           {
-              "kind": "added",
-              "text": "Hand-written port checked against \`corpus/cases\` by \`tests/test_corpus.py\`: every case passes in both modes."
-          },
-          {
-              "kind": "added",
-              "text": "Object destructuring patterns in \`@\` bindings and lambda parameters (decisions section 17): a parser lowering to plain \`Let\`/\`Lambda\`, checked by shared corpus cases 100-118."
+              "kind": "changed",
+              "text": "Breaking: numbers are two types, an integer and a float (decisions section 18), and they are the two Python types: an \`int\` is an integer and a \`float\` a float, in the context and in the result. A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the signed 64-bit range; Python's own are unbounded, so one outside the range is refused and never rounded: a parse error as a literal, a \`TypeMismatch\` in the context, a \`NotRepresentable\` as a result."
           },
           {
               "kind": "changed",
-              "text": "Numbers are two types, an integer and a float (decisions section 18), and they are the two Python types: an \`int\` is an integer and a \`float\` a float, in the context and in the result. A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the signed 64-bit range; Python's own are unbounded, so one outside the range is refused and never rounded: a parse error as a literal, a \`TypeMismatch\` in the context, a \`NotRepresentable\` as a result."
+              "text": "Breaking: a number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and \`compact_json\`, \`pretty_json\` and the CLI write a float with a fraction or an exponent. \`node_from_json\` rejects an integer outside the range and a float too large for a double."
           },
           {
               "kind": "changed",
-              "text": "A number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and \`compact_json\`, \`pretty_json\` and the CLI write a float with a fraction or an exponent. \`node_from_json\` rejects an integer outside the range and a float too large for a double."
+              "text": "Breaking: \`eq\` never equates an integer with a float, and so neither does \`json_equal\`. \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`. An array index is an integer: \`has\` and \`lookup\` no longer take \`1.0\` for \`1\`."
           },
           {
               "kind": "changed",
-              "text": "\`eq\` never equates an integer with a float, and so neither does \`json_equal\`. \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`. An array index is an integer: \`has\` and \`lookup\` no longer take \`1.0\` for \`1\`."
-          },
-          {
-              "kind": "changed",
-              "text": "\`int\` and \`float\` are type primitives and \`number\` is no longer one (v4-types section 1). \`\"$term\"\` is a reserved object key, next to \`\"$sym\"\` and \`\"$type\"\`. \`normalize_number\` and \`MAX_SAFE_INTEGER\` are gone from \`jsonval\`; \`VNumber\` is replaced by \`VInt\` and \`VFloat\`."
+              "text": "Breaking: \`int\` and \`float\` are type primitives and \`number\` is no longer one (v4-types section 1). \`\"$term\"\` is a reserved object key, next to \`\"$sym\"\` and \`\"$type\"\`. \`normalize_number\` and \`MAX_SAFE_INTEGER\` are gone from \`jsonval\`; \`VNumber\` is replaced by \`VInt\` and \`VFloat\`."
           },
           {
               "kind": "added",
@@ -84,11 +80,30 @@ tagged so the site builds one Atom feed per implementation:
           },
           {
               "kind": "added",
-              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20): a stable sort by key, in every profile. The key function runs once per element, in index order; the keys of one call are all integers, all floats or all strings, and strings compare by code point. Both names are special forms lowering to one new AST constructor, \`ast.SortBy\`, so they can no longer be bound and called as ordinary names, and a wrong argument count is a parse error."
+              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20): a stable sort by key, in every profile. The key function runs once per element, in index order; the keys of one call are all integers, all floats or all strings, and strings compare by code point."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`sort-by\` and \`sort-by-descending\` are special-form names lowering to one new AST constructor, \`ast.SortBy\`. A program can no longer bind one and call it as an ordinary name, and a wrong argument count is a parse error."
           },
           {
               "kind": "added",
               "text": "\`format-number(x, decimals, group)\` (decisions section 20), an ordinary builtin of every profile: positional decimal text with 0 to 20 decimals and an optional group separator. It rounds the exact value of the number, ties away from zero, on \`fractions.Fraction\`, and never writes an exponent or a negative zero."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.1.0",
+      "date": "2026-09-27",
+      "summary": "Python port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a python -m tramaj CLI. Standard library only, Python 3.9+.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Hand-written port checked against \`corpus/cases\` by \`tests/test_corpus.py\`: every case passes in both modes."
+          },
+          {
+              "kind": "added",
+              "text": "Object destructuring patterns in \`@\` bindings and lambda parameters (decisions section 17): a parser lowering to plain \`Let\`/\`Lambda\`, checked by shared corpus cases 100-118."
           }
       ]
   }).rendered)

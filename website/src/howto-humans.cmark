@@ -96,9 +96,9 @@ integer, `3.0` and `3e0` are floats. That holds for a literal in the template
 and for a number in the context file. The two types do not mix: `eq(3, 3.0)`
 is `false`, and `gt(1.5, 0)` is an error that `gt(1.5, 0.0)` fixes.
 
-There are no operators. Arithmetic is nine named builtins: `sum`, `product`,
-`negate`, `quotient`, `inverse`, `floor-quotient`, `modulo`, `floor` and
-`real`. Create `bill.tramaj`:
+There are no operators. Arithmetic is ten named builtins: `sum`, `product`,
+`negate`, `quotient`, `inverse`, `floor-quotient`, `modulo`, `floor`, `real`
+and `round`. Create `bill.tramaj`:
 
 ```
 @subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
@@ -121,7 +121,7 @@ spago run -p tramaj-cli --args "--arithmetic bill.tramaj bill.json"
 ```
 
 The result is a `p` element with the text `subtotal 125, 37% used`. Without
-the flag the nine names are unbound, and the CLI says which ones the template
+the flag the ten names are unbound, and the CLI says which ones the template
 uses. `sum` and `product` take all integers or all floats, never a mix;
 `real(x)` and `floor(x)` convert, and each accepts both types.
 
@@ -129,8 +129,10 @@ The [playground](/playground.html) runs with arithmetic on and has an
 *arithmetic-demo* tab. Numbers used to be a single type: if you have
 templates written before the split, read
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).
-The split and arithmetic are in the PureScript, Haskell and Go implementations;
-the Rust, JavaScript and Python ones do not have them yet.
+The split and arithmetic are in all six implementations (PureScript,
+Haskell, TypeScript, Rust, Go and Python), and so are `sort-by`,
+`sort-by-descending` and `format-number`, which need no flag. All of it is on
+the `main` branch and in no release yet.
 
 ## Splitting a template into libraries
 

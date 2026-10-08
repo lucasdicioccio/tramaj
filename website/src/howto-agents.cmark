@@ -54,8 +54,8 @@ normative text:
   `template.tramaj` + `ctx.json` + `expected.json` triple (plus optional
   `libs/*.tramaj`) that every implementation must satisfy — treat these as
   runnable, ground-truth examples rather than prose. A case's `meta.json`
-  may carry `"requires"` (`int-float`, `arithmetic`, …), naming a feature an
-  implementation must declare before it runs that case.
+  may carry `"profiles"` (`int-float`, `arithmetic`, `int64`, …), naming what an
+  implementation must provide before it runs that case.
 - See also [`llms.txt`](/raw/llms.txt) for a short machine-readable index of
   the above (Kitchen-Sink serves arbitrary `.txt` files under `/raw/`, so
   this isn't at the conventional `/llms.txt` root path).
@@ -111,7 +111,7 @@ number in the context. Nothing converts between them implicitly.
 
 - `eq(1, 1.0)` is `false`. `lt`/`lte`/`gt`/`gte` take two integers or two
   floats; a mixed pair is a `TypeMismatch`. Write `gt($x, 0.0)` for a float.
-- There are no operators: no `+`, `-`, `*`, `/`. Arithmetic is nine named
+- There are no operators: no `+`, `-`, `*`, `/`. Arithmetic is ten named
   builtins, and there is no subtraction: `sum(a, negate(b))`.
 
 <table>
@@ -121,6 +121,7 @@ number in the context. Nothing converts between them implicitly.
 <tr><td><code>quotient(a, b)</code>, <code>inverse(x)</code></td><td>floats only</td><td>float</td></tr>
 <tr><td><code>floor-quotient(a, b)</code>, <code>modulo(a, b)</code></td><td>integers only</td><td>integer, rounding toward negative infinity</td></tr>
 <tr><td><code>floor(x)</code></td><td>either</td><td>integer</td></tr>
+<tr><td><code>round(x)</code></td><td>either</td><td>the nearest integer, a tie going away from zero</td></tr>
 <tr><td><code>real(x)</code></td><td>either</td><td>float</td></tr>
 </table>
 
@@ -141,19 +142,28 @@ number in the context. Nothing converts between them implicitly.
   `NotRepresentable` error, never `null` or `0`. Guard with `branch`, whose
   unselected arm is not evaluated.
 - Arithmetic is a profile the host turns on (`tramaj-cli --arithmetic`).
-  Without it the nine names are unbound.
+  Without it the ten names are unbound.
 - In symbolic mode, a builtin with a symbol among its operands evaluates to
   a term, `{"$term": "sum", "arguments": [...]}`, for the host to evaluate.
   `"$term"` is a reserved object key, like `"$sym"` and `"$type"`.
 - The type primitives are `int` and `float` (`@n : int = 3`); there is no
   `number`.
 
-Do not emit `round`, `sort-by`, `sort-by-descending` or `format-number`:
-they are specified in the reference, marked **[§20]**, and no implementation
-has them yet. The number split and the nine builtins above are in the
-PureScript, Haskell and Go implementations, and not yet in the Rust, JavaScript
-and Python ones, where every number is still a double. Templates written
-before the split:
+Sorting and number formatting need no profile:
+
+- `sort-by(list, fn)` and `sort-by-descending(list, fn)` order a list by the
+  key `fn` gives each element, as in `sort-by($rows, (r) => $r.spend)`. The
+  sort is stable, and the keys of one call are all integers, all floats or
+  all strings.
+- `format-number(x, decimals, group)` writes a number as text:
+  `format-number(1234567.891, 2, ",")` is `"1,234,567.89"`.
+
+The reference marks these two and `round` **[§20]**. All six
+implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have
+the number split, the ten builtins, the two sorts and `format-number`. They
+are on the `main` branch and in no release yet: a released package predates
+them, and there every number is a double and these names are unbound.
+Templates written before the split:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).
 
 ## Actions are opaque to the language

@@ -32,7 +32,8 @@ Numbers are now two types, an integer and a float. This page lists what changes 
 
 tramaj had one number type, a double. It now has two, an **integer** and a
 **float**, and nothing converts between them unless the template says so.
-The same change brings arithmetic, as nine named builtins.
+The same change brings arithmetic, as named builtins: nine with the split,
+and a tenth, `round`, since.
 
 Arithmetic is an addition: a host turns it on, and a template that does not
 use it is unaffected. The number split is not optional, and it changes what
@@ -44,14 +45,17 @@ some existing templates and hosts produce. This page covers the split.
 <tr><th>implementation</th><th>number split</th><th>arithmetic</th><th>integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, and <code>tramaj-halogen</code>, <code>tramaj-cli</code> and the playground built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 <tr><td><code>tramaj-go</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 </table>
 
-The PureScript, Haskell and Rust changes are on the `main` branch and in no
-release yet. A host that follows `main` as a git dependency gets them on its
-next update. The other three implementations still behave as before, and will
-change the same way when they get the split.
+All six implementations have the change, on the `main` branch and in no
+release yet. A host that follows `main` as a git dependency gets it on its
+next update. A host on a published package (`tramaj-rs` or `tramaj-cli-rs`
+0.1.0 from crates.io, `tramaj` 0.1.0 from PyPI) still has a single number
+type, and changes the same way when it moves to the next release.
 
 ## The changes at a glance
 
@@ -133,9 +137,9 @@ integer. If a template needs a float from such a producer, it normalizes
 with `real`, as above.
 
 **The host's JSON parser must keep the difference.** JavaScript's
-`JSON.parse` and Haskell's `aeson` `Value` both lose it. The two
-implementations therefore ship their own JSON value, and their public API
-takes it in place of the previous one:
+`JSON.parse` and Haskell's `aeson` `Value` both lose it. The PureScript and
+Haskell implementations therefore ship their own JSON value, and their public
+API takes it in place of the previous one:
 
 <table>
 <tr><th></th><th>PureScript</th><th>Haskell</th></tr>
@@ -150,6 +154,13 @@ The Haskell bridge cannot recover what `aeson` dropped. `fromAeson` makes
 every whole number that fits 64 bits an integer, and `toAeson` gives the type
 up again. Read the JSON text with `jsonParser` when the difference matters.
 
+The other four implementations changed the same way, each with a reader that
+types a number by its text: `tramaj_rs::json::Json` in place of
+`serde_json::Value` in Rust, `Float` and `parseJson` in TypeScript,
+`tramaj.JSON` with `int64` and `float64` in Go, and `int` and `float` with
+`parse_json` in Python. [Integrating tramaj](/integrate-tramaj.html) has the
+details for each.
+
 **Numbers that are not values are refused.** An integer-form number outside
 the implementation's integer range is not rounded any more: it is a parse
 error as a literal and a `TypeMismatch` in the context. So is a float too
@@ -157,9 +168,10 @@ large for a double, such as `1e400`. The context is checked whole before
 evaluation starts, so the error does not depend on whether the template
 reads that number. `-0` and `-0.0` are read as zero.
 
-The integer range differs between the two implementations (see the table at
+The integer range differs between implementations (see the table at
 the top). Inside `-(2^53 - 1)` to `2^53 - 1` they agree. A larger integer
-that the Haskell implementation emits is refused by the PureScript one.
+that a 64-bit implementation emits is refused by the PureScript and
+TypeScript ones.
 
 ## 4. `"$term"` is a reserved key
 
@@ -196,8 +208,8 @@ In a type annotation, `int` and `float` replace the primitive `number`:
 
 ## Arithmetic is separate, and off by default
 
-The nine builtins (`sum`, `product`, `negate`, `quotient`, `inverse`,
-`floor-quotient`, `modulo`, `floor`, `real`) are an optional profile that a
+The ten builtins (`sum`, `product`, `negate`, `quotient`, `inverse`,
+`floor-quotient`, `modulo`, `floor`, `real`, `round`) are an optional profile that a
 host chooses per evaluation. Without it the names are unbound, so an existing
 template that binds its own `sum` or `floor` keeps working either way: a
 binding shadows the builtin.
@@ -206,7 +218,11 @@ binding shadows the builtin.
 <tr><th>where</th><th>how to turn it on</th></tr>
 <tr><td><code>tramaj-purs</code></td><td><code>runProgramWith (defaultOptions { arithmetic = true })</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td><code>runProgramWith defaultOptions { optArithmetic = True }</code></td></tr>
-<tr><td><code>tramaj-cli</code></td><td><code>tramaj-cli --arithmetic template.tramaj context.json</code></td></tr>
+<tr><td><code>tramaj-js</code></td><td><code>runProgramWith({ mode: "concrete", arithmetic: true }, ...)</code></td></tr>
+<tr><td><code>tramaj-rs</code></td><td><code>run_program_with(&amp;Options { mode, arithmetic: true }, ...)</code></td></tr>
+<tr><td><code>tramaj-go</code></td><td><code>tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)</code></td></tr>
+<tr><td><code>tramaj-py</code></td><td><code>run_program(..., arithmetic=True)</code></td></tr>
+<tr><td><code>tramaj-cli</code>, and the same flag on <code>tramaj-cli-rs</code>, <code>tramaj-go</code> and <code>python -m tramaj</code></td><td><code>tramaj-cli --arithmetic template.tramaj context.json</code></td></tr>
 <tr><td>playground</td><td>always on</td></tr>
 </table>
 

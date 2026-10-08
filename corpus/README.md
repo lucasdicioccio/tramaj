@@ -88,13 +88,15 @@ cases/<NNN-slug>/
     bits, names neither and runs on both.
   * `"int-float"` — integers and floats are two types. This is a transition
     tag, not a profile: it names a part of the base language that not every
-    implementation has yet, and goes away once all six have it. An
-    implementation names its integer range once it provides `"int-float"`,
-    since before that it has no integer type to give a range to.
+    implementation had when the cases were written. All six provide it now,
+    and the tag remains on the cases until it is retired. An implementation
+    names its integer range together with `"int-float"`, since without the
+    two types it has no integer type to give a range to.
 
   Three more names are transition tags of the same kind
   (specs/decisions.md §20): each names a part of the language that needs no
-  profile and that not every implementation has yet.
+  profile and that the implementations gained one after the other. All six
+  provide the three now, and these tags too remain until they are retired.
   * `"sort"` — the `sort-by` and `sort-by-descending` forms. A case whose
     keys are floats, or that depends on an integer and a float being two
     types, lists `"int-float"` as well.
@@ -102,7 +104,8 @@ cases/<NNN-slug>/
     `"int-float"` too, since the first argument is typed by it.
   * `"round"` — `round`, the tenth arithmetic builtin. It is a name of its
     own, beside `"arithmetic"`, because some implementations provided
-    `"arithmetic"` when the profile had nine names. Every such case lists
+    `"arithmetic"` when the profile had nine names; all six now provide
+    both. Every such case lists
     `"arithmetic"` and `"int-float"` too, and an implementation provides
     `"round"` only together with `"arithmetic"`.
 
@@ -206,9 +209,9 @@ The expected texts of the `format-number` and `round` cases come from one
 reference computation (exact rational arithmetic over the value of each
 literal), cross-checked against ECMAScript's `toFixed` below `1e21`, and the
 expected output of the other `"sort"`, `"format-number"` and `"round"` cases
-was written by hand from specs/reference.md §11. The Haskell, PureScript,
-Go, Rust and TypeScript implementations, written independently of both, give
-every one of them that their integer range lets them run.
+was written by hand from specs/reference.md §11. The six implementations,
+written independently of both, give every one of them that their integer
+range lets them run.
 
 A name the runner does not know is, by that rule, not provided, so the case
 is skipped rather than rejected.
