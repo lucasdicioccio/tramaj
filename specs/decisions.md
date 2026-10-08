@@ -1122,15 +1122,9 @@ arguments, `?(a, b)`).
 
 ## 20. Sorting and number formatting: `sort-by` with a key function, `format-number` with one exact rounding rule, and `round`
 
-*Status: proposed, for owner review. Nothing here is implemented in any port,
-and no normative file is changed: `reference.md` §11 does not list these
-names. The questions at the end are the choices to push back on. The owner has
-settled six of them: the sort takes a key function, as `map` takes its
-function (question 1); a key that is not an integer, a float or a string is
-refused, `null` included (question 3); rounding is of the exact value, ties
-away from zero (question 5); `format-number` takes three positional
-arguments (question 6); the decimal mark is always `.` (question 7); and
-`round` is a tenth arithmetic builtin (question 12).*
+*Status: accepted by the owner on 2026-10-08, with the decisions listed at the
+end. Nothing here is implemented in any port, and no normative file is
+changed: `reference.md` §11 does not list these names.*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
@@ -1551,42 +1545,35 @@ computation and cross-checked against Node below `1e21`:
   float past the integer range, the term over a symbol, the residual law, and
   the identity with `format-number` at zero decimals.
 
-### Questions for the owner
+### Decisions
 
-1. *Settled.* The sort takes a key function, `sort-by(list, fn)`, and is a
-   core constructor.
-2. **Direction is a second name**, `sort-by-descending`, stable on its own
-   terms, and there is no `reverse`. Accept, or prefer a third argument, or
-   want `reverse` as well?
-3. *Settled.* Keys are all integers, all floats or all strings, and everything
-   else is refused: a mix of integers and floats, `null`, a boolean. The
-   author writes the default.
-4. **Strings sort by Unicode code point**, with no case folding and no
-   collation, and `lt`/`gt` stay numbers-only. Accept? Should the same order
-   be written down for the keys `str` and canon sort?
-5. *Settled.* The rounding rule is the proposed one: the exact value of the
-   number, rounded to the nearest decimal, ties away from zero. `round`
-   follows it.
-6. *Settled.* `format-number(x, decimals, group)` is positional, with all
-   three arguments required.
-7. *Settled.* The decimal mark is always `.`, with no argument for it.
-8. **`decimals` runs from `0` to `20`**, and a value outside is a
-   `TypeMismatch`. Accept the bound and the error kind?
-9. **Every float formats, however large, and never with an exponent**: `1e21`
-   is 22 digits and the largest double 309. The alternative is to refuse from
-   `1e21` up. Accept?
-10. **An integer is accepted by `format-number` with any `decimals`**
-    (`format-number(1234, 2, ",")` is `1,234.00`). It is exact and involves
-    no float, but it is the one place an integer is written with a fraction.
-    Accept, or require `real` first?
-11. **No prefix, suffix or percent option**: the author writes them with `<>`
-    and `product`. Accept?
-12. *Settled.* `round` is added to the arithmetic profile as a tenth builtin,
-    builds a term over a symbol, and ships with the other nine. A simple
-    builtin is not something to avoid.
-13. **`sort-by`, `sort-by-descending` and `format-number` are core vocabulary
-    with no profile**, since nothing new reaches a host through them. Accept,
-    or put them behind one?
-14. **Names**: `sort-by`, `sort-by-descending`, `format-number`, `round`. The
-    request spelled them `sort_by` and `format_number`, which are also legal
-    identifiers; kebab-case matches `floor-quotient` and `adapt-actions`.
+Taken by the owner on 2026-10-08.
+
+1. The sort takes a key function, `sort-by(list, fn)`, and is a core
+   constructor. The first draft proposed a parallel array of keys.
+2. Direction is a second name, `sort-by-descending`, stable on its own terms.
+   There is no `reverse` and no direction argument.
+3. Keys are all integers, all floats or all strings, and everything else is
+   refused: a mix of integers and floats, `null`, a boolean. The author writes
+   the default.
+4. Strings sort by Unicode code point, with no case folding and no collation.
+   `lt` and its siblings stay numbers-only.
+5. Rounding is of the exact value of the number, to the nearest decimal, ties
+   away from zero. `round` follows the same rule.
+6. `format-number(x, decimals, group)` is positional, with all three arguments
+   required.
+7. The decimal mark is always `.`, with no argument for it.
+8. `decimals` runs from `0` to `20`, and a value outside is a `TypeMismatch`.
+9. Every float formats, however large, and never with an exponent.
+10. An integer is accepted by `format-number` with any `decimals`, without
+    `real`.
+11. There is no prefix, suffix or percent option.
+12. `round` is added to the arithmetic profile as a tenth builtin, builds a
+    term over a symbol, and ships with the other nine. A simple builtin is not
+    something to avoid.
+13. `sort-by`, `sort-by-descending` and `format-number` need no profile.
+14. The names are `sort-by`, `sort-by-descending`, `format-number` and `round`,
+    in kebab-case.
+
+Not decided: whether the code point order is also written down for the object
+keys `str` and canon sort (see *Noticed, not changed*).
