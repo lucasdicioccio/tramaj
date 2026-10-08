@@ -1125,11 +1125,12 @@ arguments, `?(a, b)`).
 *Status: proposed, for owner review. Nothing here is implemented in any port,
 and no normative file is changed: `reference.md` §11 does not list these
 names. The questions at the end are the choices to push back on. The owner has
-settled four of them: the sort takes a key function, as `map` takes its
+settled five of them: the sort takes a key function, as `map` takes its
 function (question 1); a key that is not an integer, a float or a string is
 refused, `null` included (question 3); rounding is of the exact value, ties
-away from zero (question 5); and `format-number` takes three positional
-arguments (question 6).*
+away from zero (question 5); `format-number` takes three positional
+arguments (question 6); and `round` is a tenth arithmetic builtin (question
+12).*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
@@ -1582,9 +1583,9 @@ computation and cross-checked against Node below `1e21`:
     Accept, or require `real` first?
 11. **No prefix, suffix or percent option**: the author writes them with `<>`
     and `product`. Accept?
-12. **`round` is added to the arithmetic profile as a tenth builtin**, builds
-    a term over a symbol, and ships with the other nine. Accept, or leave it
-    out and let `format-number(x, 0, "")` be the only rounding?
+12. *Settled.* `round` is added to the arithmetic profile as a tenth builtin,
+    builds a term over a symbol, and ships with the other nine. A simple
+    builtin is not something to avoid.
 13. **`sort-by`, `sort-by-descending` and `format-number` are core vocabulary
     with no profile**, since nothing new reaches a host through them. Accept,
     or put them behind one?
