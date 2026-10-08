@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { arithmeticNames, arithmeticOps, deepArithmeticOps } from "../src/analysis.js";
+import { arithmeticOps, deepArithmeticOps } from "../src/analysis.js";
 import {
   EvalError,
   evalProgram,
@@ -206,11 +206,6 @@ describe("the arithmetic profile", () => {
     expect(errorKind(() => run("sum(1, 1.0)", null, true))).toBe("TypeMismatch");
   });
 
-  it("does not have round", () => {
-    expect(arithmeticNames).toHaveLength(9);
-    expect(errorKind(() => run("round(2.5)", null, true))).toBe("UnboundName");
-  });
-
   it("lets a program bind one of its names, with or without it", () => {
     for (const arithmetic of [false, true]) expect(run("@sum = 7\n$sum", null, arithmetic)).toBe(7);
   });
@@ -262,10 +257,6 @@ describe("arithmeticOps", () => {
     expect(arithmeticOps(parseProgram("@sum = sum(1, 2)\n$sum"))).toEqual(["sum"]);
     expect(arithmeticOps(parseProgram("map($ctx.xs, (floor) => $floor)"))).toEqual([]);
     expect(arithmeticOps(parseProgram("[map($ctx.xs, (real) => $real), real(1)]"))).toEqual(["real"]);
-  });
-
-  it("does not report round, which this port does not have", () => {
-    expect(arithmeticOps(parseProgram("round(1.5)"))).toEqual([]);
   });
 
   it("follows imports in its deep variant, each library in its own scope", () => {

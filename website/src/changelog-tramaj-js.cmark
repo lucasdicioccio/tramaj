@@ -80,7 +80,7 @@ says what to do about each.
           },
           {
               "kind": "added",
-              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`defaultOptions\`, \`evalProgramWith\` and \`runProgramWith\` turn it on. \`round\` is not included."
+              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\`, \`real\` and \`round\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`defaultOptions\`, \`evalProgramWith\` and \`runProgramWith\` turn it on. \`round(x)\` is the integer nearest to \`x\`, ties away from zero (decisions section 20)."
           },
           {
               "kind": "added",
@@ -89,6 +89,22 @@ says what to do about each.
           {
               "kind": "added",
               "text": "\`arithmeticNames\`, \`arithmeticOps\` and \`deepArithmeticOps\`, the arithmetic names a program references."
+          },
+          {
+              "kind": "added",
+              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20) order a list by the key \`fn\` gives each element. Keys are all integers, all floats or all strings, compared by code point; anything else is a \`TypeMismatch\`, and a symbol or a term a \`NotConcrete\`. Both are stable, each on its own terms, and \`fn\` is applied once per element, in index order. They are core forms, in every profile."
+          },
+          {
+              "kind": "added",
+              "text": "\`format-number(x, decimals, group)\` writes an integer or a float in positional decimal notation, with \`decimals\` digits (0 to 20) after the point and \`group\` between the groups of three digits of the integer part. It rounds the exact value of the number, ties away from zero, and never writes an exponent or a negative zero. An ordinary builtin, in every profile."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`Expr\` gains the constructor \`SortBy\` (\`descending\`, \`collection\`, \`fn\`), which \`subExprs\` and every analysis traverse. \`sort-by\` and \`sort-by-descending\` are special-form names, as \`map\` is: a program that bound one and called it now gets the form, or a parse error without exactly two arguments. \`format-number\` is a builtin name and \`round\` joins \`arithmeticNames\`; a program that binds either still shadows it."
+          },
+          {
+              "kind": "added",
+              "text": "\`emittedConstraintCount\`, the number of constraints an evaluation emitted before equal ones are made one. It is there for tests, which have no other way to count the applications of a function."
           }
       ]
   }).rendered)

@@ -269,6 +269,19 @@ function evalProgramWithEmissions(
   ctx: Json,
   program: Program,
 ): { output: Output; emissions: Emissions } {
+  const { value: v, emissions } = evalProgramRaw(options, libs, ctx, program);
+  const output: Output =
+    v.t === "node" ? { t: "node", node: v.node } : { t: "value", value: toJson(v) };
+  return { output, emissions: dedupe(emissions) };
+}
+
+/** The value of a program and everything it emitted, in evaluation order and before `dedupe`. */
+function evalProgramRaw(
+  options: Required<Options>,
+  libs: LibraryTable,
+  ctx: Json,
+  program: Program,
+): { value: Value; emissions: Emissions } {
   const { mode, arithmetic } = options;
   const erased = withTypeErrors(() => eraseTypes(libs, program));
   const ctxVal = checkedFromJson(options, ctx);
@@ -282,10 +295,22 @@ function evalProgramWithEmissions(
     emissions,
   };
   const env = initialEnv(arithmetic, ctxVal);
-  const v = evalExpr(evalCtx, env, erased.root);
-  const output: Output =
-    v.t === "node" ? { t: "node", node: v.node } : { t: "value", value: toJson(v) };
-  return { output, emissions: dedupe(emissions) };
+  return { value: evalExpr(evalCtx, env, erased.root), emissions };
+}
+
+/**
+ * How many constraints an evaluation emitted, counted before equal ones are
+ * made one. No program and no output can tell this number: it is here for
+ * tests, as the one way to count how many times a function was applied, which
+ * `reference.md` §11 fixes for the key function of a sort.
+ */
+export function emittedConstraintCount(
+  options: Options,
+  libs: LibraryTable,
+  ctx: Json,
+  program: Program,
+): number {
+  return evalProgramRaw({ ...defaultOptions, ...options }, libs, ctx, program).emissions.constraints.length;
 }
 
 function withTypeErrors<T>(f: () => T): T {
@@ -465,6 +490,7 @@ const BUILTIN_NAMES = [
   "gte",
   "has",
   "lookup",
+  "format-number",
   "concat",
   "append",
 ] as const;
@@ -580,6 +606,12 @@ function evalExpr(ctx: EvalCtx, env: Env, e: Expr): Value {
       const fnVal = evalExpr(ctx, env, e.fn);
       for (const item of items) acc = apply(ctx, "fold", fnVal, [acc, item]);
       return acc;
+    }
+    case "SortBy": {
+      const who = e.descending ? "sort-by-descending" : "sort-by";
+      const items = evalCollection(ctx, env, who, e.collection);
+      const fnVal = evalExpr(ctx, env, e.fn);
+      return { t: "array", items: sortByKey(ctx, who, e.descending, fnVal, items) };
     }
     case "Concat":
       return concatValues(evalExpr(ctx, env, e.left), evalExpr(ctx, env, e.right));
@@ -781,6 +813,88 @@ function evalCollection(ctx: EvalCtx, env: Env, who: string, e: Expr): Value[] {
   throw EvalError.typeMismatch(
     `${who} expects an array as its first argument, got ${describeValue(v)}`,
   );
+}
+
+// Sorting (reference.md §11) ---------------------------------------------------
+
+type SortKey = Extract<Value, { t: "int" | "float" | "str" }>;
+
+/**
+ * The elements ordered by the key `fn` gives each (`reference.md` §11,
+ * *Sorting*). The checks come in the order the reference gives them: element
+ * by element in index order, the application of the key function and then the
+ * key it gave, so the first element whose application or key fails decides
+ * the error. Only then is anything reordered, so the key function runs
+ * exactly once per element, and not at all for an empty list.
+ *
+ * Element `i` precedes element `j` when its key is smaller (larger, when
+ * descending), or when the keys are equal and `i < j`. The comparison ends on
+ * the index, so no two elements compare equal: there is one result whatever
+ * algorithm `Array.prototype.sort` runs, and the descending sort is not the
+ * reversal of the ascending one.
+ */
+function sortByKey(ctx: EvalCtx, who: string, descending: boolean, fnVal: Value, items: Value[]): Value[] {
+  const keyed: Array<{ key: SortKey; item: Value; index: number }> = [];
+  items.forEach((item, index) => {
+    const key = sortKey(who, apply(ctx, who, fnVal, [item]));
+    const first = keyed[0]?.key ?? key;
+    if (key.t !== first.t) {
+      throw EvalError.typeMismatch(
+        `${who} expects keys of one type, got ${describeValue(first)} and then ${describeValue(key)}`,
+      );
+    }
+    keyed.push({ key, item, index });
+  });
+  const direction = descending ? -1 : 1;
+  keyed.sort((a, b) => direction * compareSortKeys(a.key, b.key) || a.index - b.index);
+  return keyed.map((k) => k.item);
+}
+
+/** A key is an integer, a float or a string; a symbol or a term is `NotConcrete`. */
+function sortKey(who: string, v: Value): SortKey {
+  if (v.t === "int" || v.t === "float" || v.t === "str") return v;
+  if (isSymbolic(v)) throw EvalError.notConcrete(who);
+  throw EvalError.typeMismatch(
+    `${who} expects a key that is an integer, a float or a string, got ${describeValue(v)}`,
+  );
+}
+
+/** Two keys of the same type, which `sortByKey` has checked. A float is never a NaN, so the order is total. */
+function compareSortKeys(a: SortKey, b: SortKey): number {
+  if (a.t === "str") return compareCodePoints(a.value, b.value as string);
+  const x = a.value;
+  const y = b.value as number;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+/**
+ * Lexicographic order by Unicode code point, a proper prefix first. `<` on
+ * two strings compares UTF-16 code units, which puts U+1F600 (the surrogates
+ * `D83D DE00`) before U+FF5E; by code point it comes after.
+ *
+ * Two well-formed strings differ first at a code unit, and the code points
+ * holding those two units compare as the units do unless exactly one of the
+ * units is a surrogate: a surrogate belongs to a code point above U+FFFF,
+ * which is larger than any code point a unit outside the surrogate range can
+ * be. When both are surrogates they are of the same kind, the leading ones
+ * of two code points or the trailing ones after equal leading ones, and
+ * their order is that of the code points.
+ */
+function compareCodePoints(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i += 1) {
+    const x = a.charCodeAt(i);
+    const y = b.charCodeAt(i);
+    if (x === y) continue;
+    const xs = isSurrogate(x);
+    if (xs !== isSurrogate(y)) return xs ? 1 : -1;
+    return x < y ? -1 : 1;
+  }
+  return a.length - b.length;
+}
+
+function isSurrogate(unit: number): boolean {
+  return unit >= 0xd800 && unit <= 0xdfff;
 }
 
 // Concat -----------------------------------------------------------------
@@ -1305,6 +1419,9 @@ function evalBuiltin(name: string, args: Value[]): Value {
     case "lookup":
       if (args.length !== 3) throw arityErr(3);
       return lookupImpl(name, arg(0), arg(1), arg(2));
+    case "format-number":
+      if (args.length !== 3) throw arityErr(3);
+      return { t: "str", value: formatNumberImpl(name, arg(0), arg(1), arg(2)) };
     case "concat":
       return { t: "array", items: args.flatMap((a) => asArray(name, a)) };
     case "append": {
@@ -1455,7 +1572,7 @@ function arithmeticOperands(name: string, args: Value[]): Value[] {
     case "product":
       [accepted, wanted] = [all("int") || all("float"), "all integers or all floats"];
       break;
-    // `negate`, `floor` and `real` take a number of either type.
+    // `negate`, `floor`, `real` and `round` take a number of either type.
     default:
       [accepted, wanted] = [true, "a number"];
   }
@@ -1544,7 +1661,97 @@ function compute(name: string, operands: NumberValue[]): Value {
       return first.t === "int" ? first : integerResult(name, Math.floor(first.value));
     case "real":
       return { t: "float", value: first.value };
+    // The integer nearest to the exact value of the float, a tie going away
+    // from zero: the rule `format-number` applies with no decimals. A
+    // magnitude beyond the integer range converts to a double of at least
+    // `2^53`, which `integerResult` refuses.
+    case "round": {
+      if (first.t === "int") return first;
+      const magnitude = Number(roundedMagnitude(first.value, 0));
+      return integerResult(name, first.value < 0 ? -magnitude : magnitude);
+    }
     default:
       throw EvalError.unboundName(name);
   }
+}
+
+// Number formatting (reference.md §11) -------------------------------------------
+
+/**
+ * The magnitude of a finite double as `mantissa * 2^exponent`, exactly: a
+ * double is a binary fraction, and these are its two fields. A subnormal has
+ * no implicit leading bit and the smallest exponent.
+ */
+function exactMagnitude(x: number): { mantissa: bigint; exponent: number } {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, Math.abs(x));
+  const bits = view.getBigUint64(0);
+  const biased = Number(bits >> 52n);
+  const fraction = bits & ((1n << 52n) - 1n);
+  return biased === 0
+    ? { mantissa: fraction, exponent: -1074 }
+    : { mantissa: fraction | (1n << 52n), exponent: biased - 1075 };
+}
+
+/**
+ * `|x| * 10^places` rounded to the nearest integer; when two are equally
+ * near, the larger, which is the one farther from zero once the sign is put
+ * back. This is the one rounding rule of `round` and `format-number`
+ * (`reference.md` §11), computed on the exact value of the double: neither
+ * `toFixed`, which stops at 1e21 and at 100 digits, nor `Math.round`, which
+ * takes a negative tie toward zero, follows it.
+ *
+ * `mantissa * 10^places` is an integer and the exponent a power of two, so a
+ * non-negative exponent leaves nothing to round and a negative one is a
+ * right shift: the bit just below the units says whether the part shifted
+ * out is at least a half.
+ */
+function roundedMagnitude(x: number, places: number): bigint {
+  const { mantissa, exponent } = exactMagnitude(x);
+  const scaled = mantissa * 10n ** BigInt(places);
+  if (exponent >= 0) return scaled << BigInt(exponent);
+  const shift = BigInt(-exponent);
+  return (scaled >> shift) + ((scaled >> (shift - 1n)) & 1n);
+}
+
+/**
+ * `format-number(x, decimals, group)` (`reference.md` §11, *Number
+ * formatting*). The arguments are examined left to right and the first that
+ * is not acceptable decides the error: a symbol or a term is `NotConcrete`,
+ * anything else of the wrong type a `TypeMismatch`.
+ */
+function formatNumberImpl(name: string, x: Value, decimals: Value, group: Value): string {
+  const refuse = (wanted: string, got: Value): EvalError =>
+    isSymbolic(got)
+      ? EvalError.notConcrete(name)
+      : EvalError.typeMismatch(`${name} expects ${wanted}, got ${describeValue(got)}`);
+  if (!isNumberValue(x)) throw refuse("a number as its first argument", x);
+  if (decimals.t !== "int") throw refuse("an integer number of decimals", decimals);
+  if (decimals.value < 0 || decimals.value > 20) {
+    throw EvalError.typeMismatch(`${name} expects a number of decimals from 0 to 20, got ${decimals.value}`);
+  }
+  if (group.t !== "str") throw refuse("a string as its separator", group);
+  return formatNumber(x.value, decimals.value, group.value);
+}
+
+/**
+ * A number in positional decimal notation: an optional `-`, the integer part
+ * with the separator between its groups of three digits counted from the
+ * point leftward, and, when there are decimals, a `.` and exactly that many
+ * digits. Never an exponent, and no sign on a result whose digits are all
+ * zero. An integer is a double it holds exactly, so both types go the same
+ * way.
+ */
+function formatNumber(x: number, places: number, separator: string): string {
+  const magnitude = roundedMagnitude(x, places);
+  // At least one digit before the point: `0.50`, never `.50`.
+  const digits = magnitude.toString().padStart(places + 1, "0");
+  const integerPart = digits.slice(0, digits.length - places);
+  const groups: string[] = [];
+  for (let end = integerPart.length; end > 0; end -= 3) {
+    groups.unshift(integerPart.slice(Math.max(0, end - 3), end));
+  }
+  const sign = x < 0 && magnitude !== 0n ? "-" : "";
+  const grouped = separator === "" ? integerPart : groups.join(separator);
+  return sign + grouped + (places === 0 ? "" : `.${digits.slice(digits.length - places)}`);
 }

@@ -45,11 +45,20 @@ interface CaseMeta {
  * without any profile. `int-float` says integers and floats are two types,
  * and `int53` that the integer range is the guaranteed one, `-(2^53 - 1)` to
  * `2^53 - 1` (reference.md §13), so a case that needs `int64` is skipped.
- * `arithmetic` is the arithmetic profile, with the nine names it had before
- * `round`: it is an option of each evaluation, and `runCase` turns it on only
- * for a case that lists it.
+ * `arithmetic` is the arithmetic profile: it is an option of each evaluation,
+ * and `runCase` turns it on only for a case that lists it. `sort`,
+ * `format-number` and `round` are transition tags for the two sort forms, the
+ * `format-number` builtin and the tenth arithmetic name (decisions §20).
  */
-const providedProfiles: ReadonlySet<string> = new Set(["base", "int-float", "arithmetic", "int53"]);
+const providedProfiles: ReadonlySet<string> = new Set([
+  "base",
+  "int-float",
+  "arithmetic",
+  "int53",
+  "sort",
+  "format-number",
+  "round",
+]);
 
 /**
  * The static analyses (reference.md §9) this port provides to an

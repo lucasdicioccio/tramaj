@@ -184,11 +184,11 @@ the language's own spelling), and the table of analyses beside it
 | Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | Go | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| TypeScript | `base`, `int-float`, `arithmetic`, `int53` |
+| TypeScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
 | Python | `base` |
 
-The TypeScript and Python lists do not hold `"sort"`, `"format-number"` or
-`"round"` yet, so the cases that list one are skipped by those two suites.
+The Python list does not hold `"sort"`, `"format-number"` or `"round"` yet,
+so the cases that list one are skipped by that suite.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
@@ -201,16 +201,16 @@ names are unbound there whatever a runner does: it runs the cases that do not li
 `"arithmetic"` and skips the ones that do. When it gains the
 profile it must come as a per-evaluation option, since its runner has to
 keep it off for the cases that do not list it.
-`round` is the tenth name under the same option, in the three
+`round` is the tenth name under the same option, in the five
 implementations that have the profile.
 
 The expected texts of the `format-number` and `round` cases come from one
 reference computation (exact rational arithmetic over the value of each
 literal), cross-checked against ECMAScript's `toFixed` below `1e21`, and the
 expected output of the other `"sort"`, `"format-number"` and `"round"` cases
-was written by hand from specs/reference.md §11. The Haskell, PureScript
-and Go implementations, written independently of both, give every one of
-them.
+was written by hand from specs/reference.md §11. The Haskell, PureScript,
+Go, Rust and TypeScript implementations, written independently of both, give
+every one of them that their integer range lets them run.
 
 A name the runner does not know is, by that rule, not provided, so the case
 is skipped rather than rejected.

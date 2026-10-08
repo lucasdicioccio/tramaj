@@ -72,6 +72,7 @@ export { ParseError, parseProgram, tryParseProgram } from "./parser.js";
 export type { Env, EvalErrorKind, LibraryTable, Mode, Options, Output, Value } from "./eval.js";
 export {
   defaultOptions,
+  emittedConstraintCount,
   evalProgram,
   evalProgramWith,
   EvalError,

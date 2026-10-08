@@ -29,6 +29,8 @@ const SPECIAL_FORM_NAMES = new Set([
   "filter",
   "scan",
   "fold",
+  "sort-by",
+  "sort-by-descending",
   "branch",
   "import",
   "adapt-actions",
@@ -592,6 +594,12 @@ class P {
       case "fold": {
         const [collection, initial, fn] = this.ternaryShape();
         base = { t: "Fold", collection, initial, fn };
+        break;
+      }
+      case "sort-by":
+      case "sort-by-descending": {
+        const [collection, fn] = this.binaryShape();
+        base = { t: "SortBy", descending: name === "sort-by-descending", collection, fn };
         break;
       }
       case "branch":
