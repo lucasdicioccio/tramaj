@@ -898,7 +898,7 @@ specs win.
 
 ## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled three points: a symbol in a shape is declared by an explicit marker, the marker is named, and the form is spelled `?shape`.*
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled five points: a symbol in a shape is declared by an explicit marker, the marker is named, the form is spelled `?shape`, a duplicate marker name is a parse error, and so is a shape with no marker.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -1051,6 +1051,13 @@ marker, a duplicate marker name, and `?shape` with other than two arguments.
   from its first token, to a reader and to a model writing the template.
 - *A keyword, `alloc(key, shape)`.* It reserves a name, needs its own rule in
   the core profile, and spells one act two ways beside `?(k)`.
+- *A duplicate marker name as one shared symbol.* It is what the lowering
+  gives unaided, but the same field name at two depths (`{web: {port: ~port},
+  db: {port: ~port}}`) would silently be one variable. Sharing is written as
+  two reads of one binding. The error can be relaxed later.
+- *A shape with no marker returned as is.* An allocation form that allocates
+  nothing, and it would need its own rule in concrete mode, in a library and
+  for a key nobody reads.
 - *`_name` as the marker.* `_` is already a name character and a digit
   separator, and is the likely spelling of "ignore" in a pattern (§17).
 - *A general `walk(value, (path, leaf) => …)` constructor.* A recursion scheme
@@ -1073,9 +1080,8 @@ binding emitting a single `has-type`; and the parse errors (a marker outside a
 form, inside a call and inside a lambda, a marker-free shape, a duplicate
 name, `?shape` with one and with three arguments, `?(a, b)`).
 
-**Questions for the owner.** (1) A duplicate marker name as a parse error,
-rather than one shared symbol. (2) A shape with no marker as a parse error.
-(3) Markers at structural positions only, so not inside a call or a lambda in
-the shape. (4) `"binding"` as `null` for every entry, which is what the
-lowering gives, rather than the structure's name. (5) Whether to add the
+**Questions for the owner.** (1) Markers at structural positions only, so not
+inside a call or a lambda in the shape. (2) `"binding"` as `null` for every
+entry, which is what the lowering gives, rather than the structure's name.
+(3) Whether to add the
 `{~replicas}` shorthand now, since `replicas: ~replicas` repeats the name.
