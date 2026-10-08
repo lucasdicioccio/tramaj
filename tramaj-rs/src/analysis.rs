@@ -342,6 +342,86 @@ pub fn deep_symbol_demands(libs: &HashMap<String, Program>, prog: &Program) -> H
     out
 }
 
+// Arithmetic ------------------------------------------------------------------
+
+/// The names of the arithmetic profile (`reference.md` §11) this port
+/// provides, all ten, `round` being the tenth (`decisions.md` §20). They
+/// are names and not syntax: an evaluation with the profile on binds them in
+/// the initial environment (`eval::Options::arithmetic`), and a program may
+/// bind any of them itself.
+pub const ARITHMETIC_NAMES: &[&str] = &[
+    "sum",
+    "product",
+    "negate",
+    "inverse",
+    "quotient",
+    "floor-quotient",
+    "modulo",
+    "floor",
+    "real",
+    "round",
+];
+
+/// Which of `ARITHMETIC_NAMES` this program references free (`reference.md`
+/// §9), called (`sum(1, 2)`) or passed by reference (`fold($xs, 0, $sum)`)
+/// alike, since both are a `Path` rooted at the name.
+///
+/// Scope-aware: a name bound by a binding, a lambda parameter or a pattern
+/// name is not reported where that binding is in scope. A pattern is lowered
+/// to plain bindings by the parser, so it needs no case here. A binding's
+/// own right-hand side is outside its scope, so `@sum = sum(1, 2)` reports
+/// `sum`.
+///
+/// Over-approximates like every analysis here: a name used only under a
+/// `Branch` arm no context will select is still reported.
+pub fn arithmetic_ops(prog: &Program) -> HashSet<String> {
+    fn go(bound: &HashSet<String>, e: &Expr, out: &mut HashSet<String>) {
+        match e {
+            Expr::Path(root, _) => {
+                if ARITHMETIC_NAMES.contains(&root.as_str()) && !bound.contains(root) {
+                    out.insert(root.clone());
+                }
+            }
+            Expr::Let(name, value, body) | Expr::TypeAnnotate(name, _, value, body) => {
+                go(bound, value, out);
+                let mut inner = bound.clone();
+                inner.insert(name.clone());
+                go(&inner, body, out);
+            }
+            Expr::Lambda(params, body) => {
+                let mut inner = bound.clone();
+                inner.extend(params.iter().cloned());
+                go(&inner, body, out);
+            }
+            other => {
+                for sub in crate::ast::sub_exprs(other) {
+                    go(bound, sub, out);
+                }
+            }
+        }
+    }
+    let mut out = HashSet::new();
+    go(&HashSet::new(), prog.root(), &mut out);
+    out
+}
+
+/// `arithmetic_ops` of this program and of every library it imports,
+/// directly or not. A library has its own scope, so a binding in the
+/// importing program shadows nothing there. This is what a host that leaves
+/// the arithmetic profile off checks before running a program: non-empty
+/// means the program would fail with `eval::EvalError::UnboundName`, and
+/// with the profile on it names the operations a term can carry (v3-symbols
+/// §7).
+pub fn deep_arithmetic_ops(libs: &HashMap<String, Program>, prog: &Program) -> HashSet<String> {
+    let mut out = arithmetic_ops(prog);
+    for name in transitive_import_names(libs, prog) {
+        if let Some(p) = libs.get(&name) {
+            out.extend(arithmetic_ops(p));
+        }
+    }
+    out
+}
+
 // Types -----------------------------------------------------------------------
 
 /// Every name this program declares with `type ... = ...` (`v4-types.md`

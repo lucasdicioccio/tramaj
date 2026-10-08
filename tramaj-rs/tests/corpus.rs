@@ -11,14 +11,14 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
-use serde_json::Value as Json;
 
 use tramaj_rs::analysis::{
-    context_holes, context_reads, deep_action_keys, deep_context_holes, static_action_keys,
-    static_import_names, transitive_import_names,
+    arithmetic_ops, context_holes, context_reads, deep_action_keys, deep_arithmetic_ops,
+    deep_context_holes, static_action_keys, static_import_names, transitive_import_names,
 };
 use tramaj_rs::ast::Program;
-use tramaj_rs::eval::{run_program, LibraryTable, Mode};
+use tramaj_rs::eval::{run_program_with, LibraryTable, Mode, Options};
+use tramaj_rs::json::Json;
 use tramaj_rs::parser::parse_program;
 
 #[derive(Deserialize)]
@@ -36,14 +36,27 @@ struct CaseMeta {
     /// The key `profiles` replaced. A case that still has it is refused
     /// rather than run without its gate.
     #[serde(default)]
-    requires: Option<Json>,
+    requires: Option<serde_json::Value>,
 }
 
 /// The profiles (`profiles` in `meta.json`, see `corpus/README.md`) this port
 /// can provide. A case naming any other one is skipped. `base` is the
-/// language without any profile; this port has no other yet, and no integer
-/// range to name until it has the two number types (`int-float`).
-const PROVIDED_PROFILES: &[&str] = &["base"];
+/// language without any profile. `int-float` is the two number types, and
+/// `int64` the integer range this port has (`tramaj_rs::json`). `arithmetic`
+/// is the arithmetic profile: it is an option of each evaluation, and
+/// `run_case` turns it on only for a case that lists it. `round` is its
+/// tenth name, which a case that calls it lists as well. `sort` is the two
+/// sorts and `format-number` the builtin of that name, both part of every
+/// evaluation.
+const PROVIDED_PROFILES: &[&str] = &[
+    "base",
+    "int-float",
+    "arithmetic",
+    "int64",
+    "sort",
+    "format-number",
+    "round",
+];
 
 /// The profiles a case names that this port does not provide.
 fn missing_profiles(meta: &CaseMeta) -> Vec<String> {
@@ -76,6 +89,8 @@ fn provided_analysis(name: &str, libs: &LibraryTable, prog: &Program) -> Option<
         "contextHoles" => as_result(context_holes(prog)),
         "deepContextHoles" => as_result(deep_context_holes(libs, prog)),
         "contextReads" => as_result(context_reads(prog)),
+        "arithmeticOps" => as_result(arithmetic_ops(prog)),
+        "deepArithmeticOps" => as_result(deep_arithmetic_ops(libs, prog)),
         _ => return None,
     })
 }
@@ -124,9 +139,14 @@ fn load_case_dirs(root: &Path) -> Vec<PathBuf> {
     dirs
 }
 
+/// Reads `ctx.json` or `expected.json` with the port's own parser, which
+/// keeps `3` and `3.0` apart and the digits of an integer beyond 2^53
+/// (`corpus/README.md`). It refuses no number: a number the value domain
+/// does not hold reaches the evaluator as it was written, and it is the
+/// evaluator that refuses it.
 fn read_json_file(path: &Path) -> Json {
-    let bytes = fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    serde_json::from_str(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    let text = fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    tramaj_rs::json::parse(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
 fn read_libs(dir: &Path) -> LibraryTable {
@@ -190,7 +210,12 @@ fn run_case(dir: &Path) -> Outcome {
     if !missing.is_empty() {
         return Outcome::Skipped(missing);
     }
-    let mode = mode_from_meta(dir, &meta.mode);
+    // The arithmetic profile is on only for a case that lists it: every
+    // other case runs with the ten names unbound.
+    let options = Options {
+        mode: mode_from_meta(dir, &meta.mode),
+        arithmetic: meta.profiles.iter().any(|p| p == "arithmetic"),
+    };
     let src = fs::read_to_string(dir.join("template.tramaj")).unwrap();
     let libs = read_libs(dir);
 
@@ -208,7 +233,7 @@ fn run_case(dir: &Path) -> Outcome {
             let ctx = read_json_file(&dir.join("ctx.json"));
             match parse_program(&src) {
                 Err(e) => panic!("{label}: parse error: {e}"),
-                Ok(prog) => match run_program(mode, &libs, &ctx, &prog) {
+                Ok(prog) => match run_program_with(&options, &libs, &ctx, &prog) {
                     Ok(_) => panic!(
                         "{label}: expected eval error {error_kind}, but evaluation succeeded"
                     ),
@@ -227,7 +252,7 @@ fn run_case(dir: &Path) -> Outcome {
             let expected = read_json_file(&dir.join("expected.json"));
             match parse_program(&src) {
                 Err(e) => panic!("{label}: parse error: {e}"),
-                Ok(prog) => match run_program(mode, &libs, &ctx, &prog) {
+                Ok(prog) => match run_program_with(&options, &libs, &ctx, &prog) {
                     Err(e) => panic!("{label}: eval error: {e}"),
                     Ok(actual) => assert_eq!(actual, expected, "{label}: output mismatch"),
                 },
@@ -244,7 +269,7 @@ fn run_case(dir: &Path) -> Outcome {
 /// gives. The names are the keys of `analysis.json`, which holds no number,
 /// so reading it before deciding to skip is safe on every port.
 fn run_analysis_case(dir: &Path, label: &str, mut missing: Vec<String>) -> Outcome {
-    let expected: BTreeMap<String, Vec<Json>> = {
+    let expected: BTreeMap<String, Vec<serde_json::Value>> = {
         let path = dir.join("analysis.json");
         let bytes = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         serde_json::from_str(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))

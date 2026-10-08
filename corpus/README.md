@@ -156,7 +156,7 @@ The analyses a case may name:
 | `staticImportNames`, `transitiveImportNames` | names | all six |
 | `staticActionKeys`, `deepActionKeys` | names | all six |
 | `contextHoles`, `deepContextHoles`, `contextReads` | paths | all six |
-| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell, TypeScript |
+| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell, Go, Rust, TypeScript |
 
 A runner runs the case when its implementation provides every analysis
 named in `analysis.json` (and every profile in `profiles`, as for any case),
@@ -182,34 +182,35 @@ the language's own spelling), and the table of analyses beside it
 |---|---|
 | PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
 | Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
+| Go | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
+| Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | TypeScript | `base`, `int-float`, `arithmetic`, `int53` |
-| Rust, Go, Python | `base` |
+| Python | `base` |
 
-The other four lists do not hold `"sort"`, `"format-number"` or `"round"`
-yet, so the cases that list one are skipped by those four suites.
+The TypeScript and Python lists do not hold `"sort"`, `"format-number"` or
+`"round"` yet, so the cases that list one are skipped by those two suites.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
 
-In the Haskell and PureScript implementations the arithmetic profile is an
-option of each evaluation, off by default. Their runners turn it on for a
+In the Haskell, PureScript, Go, Rust and TypeScript implementations the arithmetic profile is
+an option of each evaluation, off by default. Their runners turn it on for a
 case that lists `"arithmetic"` and leave it off for every other case. The
-TypeScript implementation has the same option, with nine names: it provides
-`"arithmetic"` and not `"round"`, and its integer range is `"int53"`. The
-other three do not implement arithmetic yet, so the ten names are unbound
-there whatever a runner does: they run the cases that do not list
-`"arithmetic"` and skip the ones that do. When one of them gains the
+Python one does not implement arithmetic yet, so the ten
+names are unbound there whatever a runner does: it runs the cases that do not list
+`"arithmetic"` and skips the ones that do. When it gains the
 profile it must come as a per-evaluation option, since its runner has to
 keep it off for the cases that do not list it.
-`round` is the tenth name under the same option, in the two
-implementations that have it.
+`round` is the tenth name under the same option, in the three
+implementations that have the profile.
 
 The expected texts of the `format-number` and `round` cases come from one
 reference computation (exact rational arithmetic over the value of each
 literal), cross-checked against ECMAScript's `toFixed` below `1e21`, and the
 expected output of the other `"sort"`, `"format-number"` and `"round"` cases
-was written by hand from specs/reference.md §11. The Haskell and PureScript
-implementations, written independently of both, give every one of them.
+was written by hand from specs/reference.md §11. The Haskell, PureScript
+and Go implementations, written independently of both, give every one of
+them.
 
 A name the runner does not know is, by that rule, not provided, so the case
 is skipped rather than rejected.

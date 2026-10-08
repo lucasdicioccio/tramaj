@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::{Map as JsonMap, Value as Json};
+use crate::json::{normalize_numbers, Json};
+
+type JsonMap<K, V> = BTreeMap<K, V>;
 
 pub type Annotations = BTreeMap<String, Json>;
 
@@ -97,6 +99,16 @@ fn req<'a>(what: &str, field: &str, obj: &'a JsonMap<String, Json>) -> Result<&'
         .ok_or_else(|| format!("{what}: missing required field {field:?}"))
 }
 
+/// A field holding a `Value`, with its numbers checked (`normalize_numbers`):
+/// an integer-form number outside the integer range or a float too large
+/// for a double is refused rather than rounded, at any depth, and a negative
+/// zero decodes as zero (`specs/node-json.md`, *Numbers* and *Decoding*).
+/// Annotations are arbitrary JSON, not a `Value`, and are kept as read.
+fn req_value(what: &str, field: &str, obj: &JsonMap<String, Json>) -> Result<Json, String> {
+    let v = req(what, field, obj)?;
+    normalize_numbers(v).map_err(|why| format!("{what}: field {field:?}: {why}"))
+}
+
 fn req_string(what: &str, field: &str, obj: &JsonMap<String, Json>) -> Result<String, String> {
     match req(what, field, obj)? {
         Json::String(s) => Ok(s.clone()),
@@ -130,7 +142,7 @@ pub fn node_from_json(v: &Json) -> Result<Node, String> {
     let ty = req_string("node", "type", obj)?;
     match ty.as_str() {
         "text" => {
-            let value = req("text node", "value", obj)?.clone();
+            let value = req_value("text node", "value", obj)?;
             let anns = req_annotations(obj)?;
             Ok(Node::Text(value, anns))
         }
@@ -140,7 +152,7 @@ pub fn node_from_json(v: &Json) -> Result<Node, String> {
                 .iter()
                 .map(node_attribute_from_json)
                 .collect::<Result<Vec<_>, _>>()?;
-            let val = req("element node", "value", obj)?.clone();
+            let val = req_value("element node", "value", obj)?;
             let children = req_array("element node", "children", obj)?
                 .iter()
                 .map(node_from_json)
@@ -169,13 +181,13 @@ pub fn node_attribute_from_json(v: &Json) -> Result<NodeAttribute, String> {
     match kind.as_str() {
         "attribute" => {
             let name = req_string("attribute", "name", obj)?;
-            let value = req("attribute", "value", obj)?.clone();
+            let value = req_value("attribute", "value", obj)?;
             Ok(NodeAttribute::Attribute(name, value))
         }
         "action" => {
             let event = req_string("action", "event", obj)?;
             let key = req_string("action", "key", obj)?;
-            let payload = req("action", "payload", obj)?.clone();
+            let payload = req_value("action", "payload", obj)?;
             Ok(NodeAttribute::Action(event, key, payload))
         }
         other => Err(format!("unknown node attribute kind: {other:?}")),

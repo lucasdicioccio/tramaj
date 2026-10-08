@@ -28,13 +28,15 @@ func (e *ParseError) Error() string {
 
 var specialFormNames = map[string]bool{
 	"map": true, "filter": true, "scan": true, "fold": true, "branch": true,
+	"sort-by": true, "sort-by-descending": true,
 	"import": true, "adapt-actions": true, "constraint": true,
 }
 
-// The five value-domain shapes v4-types.md section 1 reserves as type
-// primitives.
+// The six value-domain shapes v4-types.md section 1 reserves as type
+// primitives. "int" and "float" are the two number types; "number" is not a
+// primitive, so it parses as an ordinary declaration reference.
 var primNames = map[string]bool{
-	"string": true, "number": true, "bool": true, "null": true, "document": true,
+	"string": true, "int": true, "float": true, "bool": true, "null": true, "document": true,
 }
 
 const eof rune = -1
@@ -316,8 +318,14 @@ func (p *parser) escapeSeq() rune {
 
 // numberLit parses ["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits],
 // where a _ may sit between two digits. The fraction and exponent are taken
-// only when complete; an overflow to infinity is refused and a zero is
-// normalized so -0 never escapes.
+// only when complete.
+//
+// The form decides the type (specs/reference.md section 5). With neither a
+// fraction nor an exponent the literal is an integer, denoting exactly its
+// value, and one outside the signed 64-bit range is refused; the sign is part
+// of the literal, so -9223372036854775808 is in range. With either it is a
+// float: an overflow to infinity is refused and a zero is normalized so -0.0
+// never escapes.
 func (p *parser) numberLit() Expr {
 	return lexeme(p, func() Expr {
 		full := ""
@@ -353,11 +361,18 @@ func (p *parser) numberLit() Expr {
 				full += exp + expDigits
 			}
 		}
-		n, _ := strconv.ParseFloat(full, 64)
-		if math.IsNaN(n) || math.IsInf(n, 0) {
-			p.fail("number literal out of range")
+		switch n, _ := parseNumberText(full); n := n.(type) {
+		case int64:
+			return &IntLit{Value: n}
+		case float64:
+			if !math.IsInf(n, 0) {
+				return &FloatLit{Value: n}
+			}
+			p.fail("float literal too large for a double")
+		default:
+			p.fail("integer literal outside the signed 64-bit range")
 		}
-		return &NumberLit{Value: normalizeNumber(n)}
+		return nil
 	})
 }
 
@@ -418,7 +433,7 @@ func (p *parser) objEntry() Field {
 
 func (p *parser) explicitEntry() Field {
 	k := p.objectKey()
-	if k == "$sym" || k == "$type" {
+	if k == "$sym" || k == "$type" || k == "$term" {
 		p.fail("%q is a reserved key and cannot be used as an object key", k)
 	}
 	p.symbol(":")
@@ -600,6 +615,9 @@ func (p *parser) specialFormShape(name string) Expr {
 	case "filter":
 		c, f := p.binaryShape()
 		base = &Filter{Collection: c, Fn: f}
+	case "sort-by", "sort-by-descending":
+		c, f := p.binaryShape()
+		base = &SortBy{Descending: name == "sort-by-descending", Collection: c, Fn: f}
 	case "scan":
 		c, i, f := p.ternaryShape()
 		base = &Scan{Collection: c, Initial: i, Fn: f}
@@ -825,7 +843,10 @@ func (p *parser) typeConstraintArg() TypeConstraintArg {
 		return TypeConstraintArg{Scalar: s}
 	}
 	if n, ok := attempt(p, p.numberLit); ok {
-		return TypeConstraintArg{Scalar: n.(*NumberLit).Value}
+		if i, isInt := n.(*IntLit); isInt {
+			return TypeConstraintArg{Scalar: i.Value}
+		}
+		return TypeConstraintArg{Scalar: n.(*FloatLit).Value}
 	}
 	if k, ok := attempt(p, p.keywordLit); ok {
 		if b, isBool := k.(*BoolLit); isBool {

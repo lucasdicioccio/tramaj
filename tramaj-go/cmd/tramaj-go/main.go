@@ -1,12 +1,15 @@
 // Command tramaj-go evaluates and analyzes Tramaj templates, mirroring
 // tramaj-cli-rs and `python -m tramaj`:
 //
-//	tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>
-//	tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]
+//	tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>
+//	tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|arithmetic|card|all> <template-file> [--lib name=path ...]
 //
 // Evaluation prints the result JSON (the node-json document, the plain value,
 // or the symbolic envelope) on stdout. A parse error exits 2, an evaluation
 // error 1, each with the error on stderr, leading with its kind.
+//
+// --arithmetic turns the arithmetic profile on for the run (reference.md
+// section 11). It is off by default, since the profile is a host's choice.
 package main
 
 import (
@@ -17,8 +20,8 @@ import (
 	tramaj "github.com/lucasdicioccio/tramaj/tramaj-go"
 )
 
-const usage = `usage: tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>
-       tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]`
+const usage = `usage: tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>
+       tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|arithmetic|card|all> <template-file> [--lib name=path ...]`
 
 // exit is how a helper below ends the program: main recovers it.
 type exit struct {
@@ -51,6 +54,7 @@ func main() {
 type options struct {
 	libs       [][2]string // name, path
 	mode       tramaj.Mode
+	arithmetic bool
 	positional []string
 }
 
@@ -80,6 +84,8 @@ func splitArgs(argv []string) options {
 			addLib(strings.TrimPrefix(a, "--lib="))
 		case strings.HasPrefix(a, "--mode="):
 			opts.mode = tramaj.Mode(strings.TrimPrefix(a, "--mode="))
+		case a == "--arithmetic":
+			opts.arithmetic = true
 		case a == "-h" || a == "--help":
 			die(0, "%s", usage)
 		default:
@@ -153,8 +159,13 @@ func run(argv []string) tramaj.JSON {
 	if err != nil {
 		die(2, "context %s: %v", opts.positional[1], err)
 	}
-	out, err := tramaj.RunProgram(opts.mode, libs, ctx, prog)
+	out, err := tramaj.RunProgramWith(tramaj.Options{Mode: opts.mode, Arithmetic: opts.arithmetic}, libs, ctx, prog)
 	if err != nil {
+		// Without the profile an arithmetic name is unbound like any other,
+		// so say which ones the program references and how to turn them on.
+		if ops := tramaj.DeepArithmeticOps(libs, prog); !opts.arithmetic && len(ops) > 0 {
+			die(1, "eval error: %v\nthe program references the arithmetic builtins %s: pass --arithmetic to turn the arithmetic profile on", err, strings.Join(ops, ", "))
+		}
 		die(1, "eval error: %v", err)
 	}
 	return out
@@ -162,7 +173,7 @@ func run(argv []string) tramaj.JSON {
 
 // Analyses, rendered as JSON.
 
-var analysisOrder = []string{"imports", "actions", "holes", "unsupplied", "constraints", "symbols", "types", "card"}
+var analysisOrder = []string{"imports", "actions", "holes", "unsupplied", "constraints", "symbols", "types", "arithmetic", "card"}
 
 var analyses = map[string]func(tramaj.Libraries, *tramaj.Program) tramaj.JSON{
 	"imports": func(libs tramaj.Libraries, prog *tramaj.Program) tramaj.JSON {
@@ -201,7 +212,7 @@ var analyses = map[string]func(tramaj.Libraries, *tramaj.Program) tramaj.JSON{
 	"symbols": func(libs tramaj.Libraries, prog *tramaj.Program) tramaj.JSON {
 		sites := []tramaj.JSON{}
 		for _, s := range tramaj.SymbolSites(prog) {
-			sites = append(sites, float64(s))
+			sites = append(sites, int64(s))
 		}
 		return tramaj.NewObject("sites", sites, "demands", pathsJSON(tramaj.DeepSymbolDemands(libs, prog)))
 	},
@@ -214,6 +225,9 @@ var analyses = map[string]func(tramaj.Libraries, *tramaj.Program) tramaj.JSON{
 			"references", stringsJSON(refs),
 			"constraints", typeConstraintsJSON(libs, prog),
 		)
+	},
+	"arithmetic": func(libs tramaj.Libraries, prog *tramaj.Program) tramaj.JSON {
+		return stringsJSON(tramaj.DeepArithmeticOps(libs, prog))
 	},
 	"card": func(libs tramaj.Libraries, prog *tramaj.Program) tramaj.JSON {
 		card := tramaj.ProgramCard(libs, prog)

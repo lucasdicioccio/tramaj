@@ -371,7 +371,7 @@ func eraseTypes(libs Libraries, prog *Program) *Program {
 	}
 	erase = func(e Expr) Expr {
 		switch x := e.(type) {
-		case *Path, *StringLit, *NumberLit, *BoolLit, *NullLit, *Demand:
+		case *Path, *StringLit, *IntLit, *FloatLit, *BoolLit, *NullLit, *Demand:
 			return e
 		case *FieldAccess:
 			return &FieldAccess{Target: erase(x.Target), Fields: x.Fields}
@@ -408,6 +408,8 @@ func eraseTypes(libs Libraries, prog *Program) *Program {
 			return &Map{Collection: erase(x.Collection), Fn: erase(x.Fn)}
 		case *Filter:
 			return &Filter{Collection: erase(x.Collection), Fn: erase(x.Fn)}
+		case *SortBy:
+			return &SortBy{Descending: x.Descending, Collection: erase(x.Collection), Fn: erase(x.Fn)}
 		case *Scan:
 			return &Scan{Collection: erase(x.Collection), Initial: erase(x.Initial), Fn: erase(x.Fn)}
 		case *Fold:
