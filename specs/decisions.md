@@ -896,9 +896,9 @@ specs win.
     keeps the type it has and nothing is typed again at the import (ref §3).
     Reason: "typed by its text" has no text to apply to there.
 
-## 19. A traverse form for allocation: `?(key, shape)` with `~name` markers
+## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled two points: a symbol in a shape is declared by an explicit marker, and the marker is named.*
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled three points: a symbol in a shape is declared by an explicit marker, the marker is named, and the form is spelled `?shape`.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -923,19 +923,19 @@ which is a `range` question and stays out of this section. It is not "a symbol
 wherever the data has none" either: a shape here is written in the source (see
 *Rejected*).
 
-**Surface form.** The allocation form gains an optional second argument, and
-inside it a **symbol marker**, `~name`:
+**Surface form.** A second allocation form, `?shape`, takes a key and a shape,
+and inside the shape a **symbol marker**, `~name`:
 
 ```
 alloc  ::= "?(" expr ")"                 -- v3-symbols §1.2, unchanged
-         | "?(" expr "," shape ")"       -- key, shape
+         | "?shape(" expr "," shape ")"  -- key, shape
 shape  ::= "~" name                      -- a symbol marker
          | "[" [ shape { "," shape } ] "]"
          | "{" [ field { "," field } ] "}"   -- field values are shapes
          | expr                          -- anything else, with no marker in it
 
-@d  = ?("d", {replicas: ~replicas, zone: "eu", ports: [~http, ~admin]})
-@ds = map($ctx.services, (s) => ?($s.name, {replicas: ~replicas, ports: [~http, ~admin]}))
+@d  = ?shape("d", {replicas: ~replicas, zone: "eu", ports: [~http, ~admin]})
+@ds = map($ctx.services, (s) => ?shape($s.name, {replicas: ~replicas, ports: [~http, ~admin]}))
 ```
 
 - `~` is a new leader character. It is used nowhere in the grammar today, and a
@@ -944,25 +944,28 @@ shape  ::= "~" name                      -- a symbol marker
   name rule.
 - A marker is legal only at a **structural position** of a shape: the shape
   itself, an element of an array literal, or a field value of an object
-  literal, to any depth. Anywhere else (outside a `?(k, shape)`, or inside a
+  literal, to any depth. Anywhere else (outside a `?shape(k, shape)`, or inside a
   call, a lambda, an interpolation or a `<>` within the shape) it is a parse
   error. So the symbols a form allocates are exactly the markers a reader sees
   in it.
 - Every other position of the shape is an ordinary expression: `"eu"` above, a
-  `$ctx` read, a `?ctx.path`, a call, or another `?(k, shape)`, whose markers
+  `$ctx` read, a `?ctx.path`, a call, or another `?shape(k, shape)`, whose markers
   are its own.
-- A shape MUST contain at least one marker; `?("d", [1, 2])` is a parse error.
+- A shape MUST contain at least one marker; `?shape("d", [1, 2])` is a parse error.
   Two markers with the same name in one form are a parse error, as duplicate
   names in a pattern are (§17).
-- `?(a, b)` is a parse error today, so no existing program changes meaning.
-  Three or more arguments stay a parse error.
+- `?shape` is a parse error today, since a `?` is followed by `(` or by `ctx`,
+  so no existing program changes meaning. It takes exactly two arguments.
+  `?(a, b)` stays a parse error.
+- `shape` is a word under the `?` leader, read the way `ctx` is in `?ctx.path`.
+  It is not reserved: `$shape`, `@shape` and `.shape(...)` are unaffected.
 
 It is a special form and not a builtin for the reason `?(k)` is: it needs a
 site, and a site is assigned by the parser (v3-symbols §1.4). Keeping the `?`
-leader also keeps v3-symbols §5.5 true as written: the core profile rejects the
+leader also keeps v3-symbols §5.5 true as written, which a keyword would not: the core profile rejects the
 form at parse time with no new rule, and the marker with it.
 
-**Desugaring** (the core AST does not change). `?(k, shape)` at site *n* lowers
+**Desugaring** (the core AST does not change). `?shape(k, shape)` at site *n* lowers
 to the shape with each marker `~name` replaced by
 
 ```text
@@ -981,7 +984,7 @@ no number of its own.
 ```
 id = "#" n ":" canon([k, "name"])       -- v3-symbols §1.4, with the pair as the key
 
-?("d", {replicas: ~replicas, ports: [~http, ~admin]})      -- at site 0
+?shape("d", {replicas: ~replicas, ports: [~http, ~admin]})      -- at site 0
   #0:["d","replicas"]   #0:["d","http"]   #0:["d","admin"]
 ```
 
@@ -1009,7 +1012,7 @@ an ordinary entry:
 
 - **Order** is that of the lowered literal, under v3-symbols §4 unchanged.
 - **`"binding"`** is `null` for every entry: no marker is the whole right-hand
-  side of a binding (v3-symbols §5.2), and the name of `@d = ?("d", …)` names
+  side of a binding (v3-symbols §5.2), and the name of `@d = ?shape("d", …)` names
   the structure. `origin.key` carries the author's key and the marker's name.
 - A host decoder needs no new case, and cannot tell this form from hand-written
   `?([k, "name"])` allocations. The form is a way to write allocations, not a
@@ -1021,17 +1024,17 @@ an ordinary entry:
 - *Concrete mode.* `SymbolsUnavailable`, as for `?(k)`. A form always contains
   a marker, so there is no shape that passes through.
 - *Demands and seeding.* Unrelated to markers; `?ctx.path` is an ordinary
-  expression in a shape: `?("d", {replicas: ~replicas, zone: ?ctx.zone})`.
+  expression in a shape: `?shape("d", {replicas: ~replicas, zone: ?ctx.zone})`.
 - *Core profile.* Rejected at parse time, as every `?` is.
 - *`symbolSites`.* Reports the site once. The number of symbols one evaluation
   of the site allocates is now static: the number of markers.
-- *v4 annotations.* `@xs : [T] = ?("xs", [~a, ~b])` is the existing sugar
+- *v4 annotations.* `@xs : [T] = ?shape("xs", [~a, ~b])` is the existing sugar
   (v4-types §7): one `has-type` on the whole array, none per element.
 
 **Errors.** No new kind. `NotConcrete` (a symbol in the key),
 `SymbolsUnavailable` (concrete mode), `AllocationInLibrary` (lexical), and
 parse errors for a marker outside a structural position, a shape with no
-marker, a duplicate marker name, `?()`, and three or more arguments.
+marker, a duplicate marker name, and `?shape` with other than two arguments.
 
 **Rejected or deferred**
 
@@ -1043,6 +1046,11 @@ marker, a duplicate marker name, `?()`, and three or more arguments.
   left a blank", which stays inexpressible.
 - *A bare marker, identified by its path.* Shorter, but an array's symbols
   would then be identified by index and change identity on reordering.
+- *The spelling `?(key, shape)`.* Only a comma would separate it from `?(k)`,
+  and the two start with the same characters. A word says which form is meant
+  from its first token, to a reader and to a model writing the template.
+- *A keyword, `alloc(key, shape)`.* It reserves a name, needs its own rule in
+  the core profile, and spells one act two ways beside `?(k)`.
 - *`_name` as the marker.* `_` is already a name character and a digit
   separator, and is the likely spelling of "ignore" in a pattern (§17).
 - *A general `walk(value, (path, leaf) => …)` constructor.* A recursion scheme
@@ -1063,7 +1071,7 @@ object written in non-sorted key order; `"binding"` bound and inline; a nested
 form; a symbolic key; concrete mode; the form in a library; an annotated
 binding emitting a single `has-type`; and the parse errors (a marker outside a
 form, inside a call and inside a lambda, a marker-free shape, a duplicate
-name, `?()`, three arguments).
+name, `?shape` with one and with three arguments, `?(a, b)`).
 
 **Questions for the owner.** (1) A duplicate marker name as a parse error,
 rather than one shared symbol. (2) A shape with no marker as a parse error.
@@ -1071,4 +1079,3 @@ rather than one shared symbol. (2) A shape with no marker as a parse error.
 the shape. (4) `"binding"` as `null` for every entry, which is what the
 lowering gives, rather than the structure's name. (5) Whether to add the
 `{~replicas}` shorthand now, since `replicas: ~replicas` repeats the name.
-(6) The spelling `?(key, shape)` rather than a named form.
