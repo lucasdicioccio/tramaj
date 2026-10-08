@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting
+@spend-of = (r) => $r.spend
+map(sort-by($ctx.rows, $spend-of), (r) => $r.name)

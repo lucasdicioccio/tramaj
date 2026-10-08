@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting
+sort-by-descending(["apple", "Zebra", "", "\u{1F600}", "\u{FF5E}", "ab", "a"], (s) => $s)

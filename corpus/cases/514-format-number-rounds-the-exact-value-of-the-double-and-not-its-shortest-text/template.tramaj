@@ -1,0 +1,8 @@
+-- reference.md §11, Number formatting: none of these is a tie: each double lies just below or just above the decimal written
+[format-number(1.005, 2, ""),
+ format-number(0.285, 2, ""),
+ format-number(1.45, 1, ""),
+ format-number(8.345, 2, ""),
+ format-number(1.115, 2, ""),
+ format-number(0.15, 1, ""),
+ format-number(0.35, 1, "")]

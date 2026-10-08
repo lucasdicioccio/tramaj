@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: ties to even would give 0, 2, 2, 4
+[round(0.5), round(1.5), round(2.5), round(3.5), round(-0.5), round(-1.5), round(-2.5), round(-3.5)]

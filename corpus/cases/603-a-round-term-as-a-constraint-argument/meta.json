@@ -1,0 +1,6 @@
+{
+  "name": "a round term as a constraint argument",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic", "round"]
+}

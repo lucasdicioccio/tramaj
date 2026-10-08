@@ -1,0 +1,8 @@
+{
+  "name": "a symbol key before a null key is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "requires": ["sort"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "format-number of a string is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["format-number", "int-float"]
+}

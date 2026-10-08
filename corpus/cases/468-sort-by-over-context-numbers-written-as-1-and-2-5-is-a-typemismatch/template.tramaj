@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: what a key may be: the type of a context number is the form of its text
+sort-by($ctx.rows, (r) => $r.spend)

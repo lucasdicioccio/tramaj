@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting, Checks: the list is checked first
+@d = ?("d")
+sort-by($d, 5)

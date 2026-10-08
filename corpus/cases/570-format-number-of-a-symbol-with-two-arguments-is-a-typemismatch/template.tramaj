@@ -1,0 +1,3 @@
+-- reference.md §11, Number formatting, Arguments: the argument count is checked first
+@s = ?("s")
+format-number($s, 2)

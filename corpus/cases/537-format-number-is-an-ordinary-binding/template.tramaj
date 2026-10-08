@@ -1,0 +1,4 @@
+-- reference.md §6, §11: a builtin is a value in the initial environment
+@fmt = $format-number
+@money = (x) => $fmt($x, 2, ",")
+map([1234, 0.5], $money)

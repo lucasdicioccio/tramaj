@@ -1,0 +1,2 @@
+-- reference.md §5: a malformed special form is a parse error
+sort-by([2, 1])

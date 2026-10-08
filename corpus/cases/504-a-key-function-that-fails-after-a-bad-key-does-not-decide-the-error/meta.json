@@ -1,0 +1,8 @@
+{
+  "name": "a key function that fails after a bad key does not decide the error",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["sort"]
+}

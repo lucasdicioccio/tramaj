@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting, Checks: the first element that fails decides: the PathNotFound of the first element, not the null key of the second
+sort-by($ctx.rows, (r) => $r.k)

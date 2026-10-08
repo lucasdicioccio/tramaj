@@ -1,0 +1,8 @@
+{
+  "name": "an array holding a symbol as a sort key is a TypeMismatch",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["sort"]
+}

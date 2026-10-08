@@ -1,0 +1,9 @@
+-- reference.md §11, Number formatting: counted from the point leftward
+[format-number(1, 0, ","),
+ format-number(12, 0, ","),
+ format-number(123, 0, ","),
+ format-number(1234, 0, ","),
+ format-number(12345, 0, ","),
+ format-number(123456, 0, ","),
+ format-number(1234567, 0, ","),
+ format-number(1234567890, 0, ",")]

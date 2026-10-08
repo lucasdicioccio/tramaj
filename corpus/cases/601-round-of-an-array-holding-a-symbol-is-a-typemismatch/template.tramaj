@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: a fixed-arity builtin does not flatten, and nothing looks inside the array
+@s = ?("s")
+round([$s])

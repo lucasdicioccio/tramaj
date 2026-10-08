@@ -1,0 +1,6 @@
+{
+  "name": "sort-by leaves an already ordered list as it is",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

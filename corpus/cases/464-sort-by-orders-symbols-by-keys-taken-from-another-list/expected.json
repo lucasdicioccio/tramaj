@@ -1,0 +1,13 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [{"$sym": "#1:\"b\"", "path": []}, {"$sym": "#2:\"c\"", "path": []}, {"$sym": "#0:\"a\"", "path": []}],
+  "symbols": [
+    {"binding": "a", "id": "#0:\"a\"", "origin": {"key": "a", "kind": "alloc", "site": 0}},
+    {"binding": "b", "id": "#1:\"b\"", "origin": {"key": "b", "kind": "alloc", "site": 1}},
+    {"binding": "c", "id": "#2:\"c\"", "origin": {"key": "c", "kind": "alloc", "site": 2}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

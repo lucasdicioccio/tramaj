@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting: apart from the key, an element is never inspected
+@items = map($ctx.rows, (r) => {rank: $r.rank, doc: .li($r.name)})
+.ul(map(sort-by($items, (i) => $i.rank), (i) => $i.doc))

@@ -1,0 +1,7 @@
+-- reference.md §11, Number formatting: no negative zero: a result whose digits are all zero carries no sign
+[format-number(-0.4, 0, ""),
+ format-number(-0.001, 2, ","),
+ format-number(-0.0, 2, ""),
+ format-number(0.0, 0, ""),
+ format-number(0.0, 3, ""),
+ format-number(-0.00049, 3, "")]

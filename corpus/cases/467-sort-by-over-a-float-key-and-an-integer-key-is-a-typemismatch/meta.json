@@ -1,0 +1,8 @@
+{
+  "name": "sort-by over a float key and an integer key is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["sort", "int-float"]
+}

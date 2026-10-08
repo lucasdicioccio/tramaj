@@ -1,0 +1,3 @@
+-- v3-symbols §1.5: the spine has no length
+@d = ?("d")
+sort-by-descending($d.items, (x) => $x)

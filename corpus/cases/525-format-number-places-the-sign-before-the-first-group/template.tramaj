@@ -1,0 +1,5 @@
+-- reference.md §11, Number formatting
+[format-number(-123, 0, ","),
+ format-number(-1234, 0, ","),
+ format-number(-123456, 2, ","),
+ format-number(-1234567.5, 1, ",")]

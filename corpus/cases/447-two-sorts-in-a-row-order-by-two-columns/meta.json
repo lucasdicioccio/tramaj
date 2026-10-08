@@ -1,0 +1,6 @@
+{
+  "name": "two sorts in a row order by two columns",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

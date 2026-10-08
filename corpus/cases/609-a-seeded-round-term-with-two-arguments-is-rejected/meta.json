@@ -1,0 +1,8 @@
+{
+  "name": "a seeded round term with two arguments is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic", "round"]
+}

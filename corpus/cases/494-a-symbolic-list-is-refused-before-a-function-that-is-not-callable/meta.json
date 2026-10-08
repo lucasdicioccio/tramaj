@@ -1,0 +1,8 @@
+{
+  "name": "a symbolic list is refused before a function that is not callable",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "requires": ["sort"]
+}

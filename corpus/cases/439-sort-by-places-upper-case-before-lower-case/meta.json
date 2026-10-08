@@ -1,0 +1,6 @@
+{
+  "name": "sort-by places upper case before lower case",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: the computation handed over undone
+@x = ?ctx.x
+round($x)

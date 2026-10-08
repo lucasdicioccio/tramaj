@@ -1,0 +1,6 @@
+{
+  "name": "sort-by-descending orders integers by descending key",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

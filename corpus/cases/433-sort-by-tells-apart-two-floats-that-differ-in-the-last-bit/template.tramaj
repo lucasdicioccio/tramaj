@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: 0.30000000000000004 is the double just above 0.3
+sort-by([0.30000000000000004, 0.3, 0.1, 0.30000000000000004], (x) => $x)

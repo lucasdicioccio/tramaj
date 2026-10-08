@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.7: only the keys are inspected
+@a = ?("a")
+@b = ?("b")
+sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) => $o.k)

@@ -1,0 +1,3 @@
+-- reference.md §11: the arithmetic names are ordinary bindings
+@round = (x) => "mine"
+round(2.5)

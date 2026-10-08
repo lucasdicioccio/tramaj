@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.9: the collection is refused, as for map
+@s = ?("s")
+@t = sum($s, 1)
+sort-by($t, (x) => $x)

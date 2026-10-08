@@ -1,0 +1,6 @@
+{
+  "name": "residual law: the same round with 2.5 in the context in symbolic mode",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic", "round"]
+}

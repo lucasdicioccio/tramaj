@@ -1,0 +1,3 @@
+-- reference.md §5, §11: sort-by is a special-form name, like map
+@sort-by = (list, fn) => "shadowed"
+sort-by([2, 1], (x) => $x)

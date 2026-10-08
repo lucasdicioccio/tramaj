@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: a missing field is whatever the key expression makes of it
+sort-by($ctx.rows, (r) => $r.spend)

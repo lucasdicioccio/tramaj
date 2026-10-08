@@ -1,0 +1,6 @@
+-- reference.md §11, Number formatting: beyond 2^53 a double is an integer whose digits are exact
+[format-number(1e21, 0, ","),
+ format-number(1e21, 2, ""),
+ format-number(1e22, 0, ""),
+ format-number(1e22, 2, ","),
+ format-number(-1e21, 0, ",")]

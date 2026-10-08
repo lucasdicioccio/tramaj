@@ -1,0 +1,6 @@
+{
+  "name": "sort-by does not apply the key function to an empty list",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

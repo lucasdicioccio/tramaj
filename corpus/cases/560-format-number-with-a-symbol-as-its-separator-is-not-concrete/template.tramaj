@@ -1,0 +1,3 @@
+-- v3-symbols §1.5: format-number builds no term
+@s = ?("s")
+format-number(1234.5, 2, $s)

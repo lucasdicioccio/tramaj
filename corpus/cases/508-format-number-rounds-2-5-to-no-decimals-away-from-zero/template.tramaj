@@ -1,0 +1,2 @@
+-- reference.md §11, Number formatting: an exact tie; ties to even would give 2
+format-number(2.5, 0, "")

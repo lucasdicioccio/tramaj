@@ -1,0 +1,4 @@
+-- reference.md §11, Number formatting
+[format-number(1234.56789, 5, ","),
+ format-number(0.123456789, 9, ","),
+ format-number(1234567.0, 6, " ")]

@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting: what a key may be
+@id = (y) => $y
+sort-by([1, 2], (x) => $id)

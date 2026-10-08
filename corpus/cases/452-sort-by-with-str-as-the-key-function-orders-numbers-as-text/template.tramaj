@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: the keys are the strings "10", "9" and "100"
+sort-by([10, 9, 100], $str)

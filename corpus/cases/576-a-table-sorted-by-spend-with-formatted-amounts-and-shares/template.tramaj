@@ -1,0 +1,9 @@
+-- reference.md §11: sorting, number formatting and the arithmetic profile together
+@rows  = $ctx.buckets
+@top   = sort-by-descending($rows, (r) => $r.spend)
+@money = (x) => "$" <> format-number($x, 2, ",")
+
+.table(map($top, (r) =>
+  .tr(.td($r.name),
+      .td($money($r.spend)),
+      .td(format-number(product(100.0, $r.share), 1, "") <> "%"))))

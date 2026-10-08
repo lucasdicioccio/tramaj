@@ -1,0 +1,6 @@
+{
+  "name": "round of a term is a nested term",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic", "round"]
+}

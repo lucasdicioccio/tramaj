@@ -1,0 +1,6 @@
+{
+  "name": "format-number rounds 2.675 to two decimals from its exact value",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["format-number", "int-float"]
+}

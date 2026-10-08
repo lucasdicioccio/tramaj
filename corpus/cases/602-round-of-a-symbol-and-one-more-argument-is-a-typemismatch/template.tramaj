@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: a wrong argument count is refused beside a symbol too
+@s = ?("s")
+round($s, 2)

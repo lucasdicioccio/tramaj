@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: "10" sorts before "9"
+sort-by(["9", "10", "100", "1"], (s) => $s)

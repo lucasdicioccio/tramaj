@@ -1,0 +1,6 @@
+{
+  "name": "a default written with lookup gives a missing field a place",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["sort"]
+}

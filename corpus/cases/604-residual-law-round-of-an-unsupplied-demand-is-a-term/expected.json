@@ -1,0 +1,11 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$term": "round", "arguments": [{"$sym": "#ctx.x", "path": []}]},
+  "symbols": [
+    {"binding": "x", "id": "#ctx.x", "origin": {"kind": "demand", "path": ["x"]}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

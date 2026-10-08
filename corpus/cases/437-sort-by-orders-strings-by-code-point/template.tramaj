@@ -1,0 +1,2 @@
+-- reference.md §11, Sorting: no case folding, no collation, no numeric awareness
+sort-by($ctx.names, (n) => $n)

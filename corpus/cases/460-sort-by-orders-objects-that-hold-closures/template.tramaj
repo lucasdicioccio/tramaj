@@ -1,0 +1,3 @@
+-- reference.md §11, Sorting: apart from the key, an element is never inspected
+@fs = [{k: 2, f: (x) => "two"}, {k: 1, f: (x) => "one"}]
+map(sort-by($fs, (o) => $o.k), (o) => $o.f(0))

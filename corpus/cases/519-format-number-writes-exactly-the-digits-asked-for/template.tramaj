@@ -1,0 +1,8 @@
+-- reference.md §11, Number formatting: 0.1 is exactly 0.1000000000000000055511151231257827...
+[format-number(0.1, 0, ""),
+ format-number(0.1, 1, ""),
+ format-number(0.1, 20, ""),
+ format-number(1.5, 5, ""),
+ format-number(123.456, 1, ""),
+ format-number(0.000001, 3, ""),
+ format-number(0.000001, 6, "")]

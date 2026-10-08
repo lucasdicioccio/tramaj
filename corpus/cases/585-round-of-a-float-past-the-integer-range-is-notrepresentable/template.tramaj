@@ -1,0 +1,2 @@
+-- reference.md §11, Arithmetic: round: like floor, a result outside the integer range is an error
+round(1e19)

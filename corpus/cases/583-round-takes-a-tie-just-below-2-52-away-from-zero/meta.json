@@ -1,0 +1,6 @@
+{
+  "name": "round takes a tie just below 2^52 away from zero",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic", "round"]
+}
