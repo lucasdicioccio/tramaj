@@ -34,6 +34,10 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #purescript #tramaj-halogen
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-halogen"})
 .div(class: "changelog",
@@ -45,6 +49,22 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`Tramaj.Halogen.foldToHalogen\`, wiring each \`action(...)\` to the host's own Action type."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: a scalar is rendered by its type, as \`str\` writes it: an integer as its digits, a float always with a fraction or an exponent. The float \`1.0\` renders as \`1.0\` where it rendered as \`1\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: takes \`Tramaj.Json\` values where it took Argonaut's, following \`tramaj-purs\`."
+          },
+          {
+              "kind": "fixed",
+              "text": "An integer beyond 32 bits is no longer rendered with a fraction."
+          },
+          {
+              "kind": "added",
+              "text": "A term renders as the call that built it, such as \`sum(#0, 1)\`, in a \`code\` element in text position, like a symbol."
           }
       ]
   }).rendered)

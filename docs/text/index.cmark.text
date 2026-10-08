@@ -47,9 +47,11 @@ Go straight to [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/b
 
 - [**For coding agents**](/howto-agents.html ) — a dense syntax cheatsheet and fetch strategy for an LLM emitting tramaj templates.
 
-- [**Roadmap**](/roadmap.html ) — where the five implementations stand, and the folds and registry releases that are wanted next.
+- [**Roadmap**](/roadmap.html ) — where the six implementations stand, and the folds and registry releases that are wanted next.
 
 - [**Two designs accepted**](/design-arithmetic-and-shapes.html ) — arithmetic with integers and floats as two types, and `?shape`, a form that allocates a structure of symbols.
+
+- [**Migrating to integers and floats**](/migrating-to-integers-and-floats.html ) — what the number split changes for existing templates and hosts, and what to do about each change.
 
 - [**About**](/about.html ) — who writes tramaj, and the sites it is related to.
 

@@ -21,8 +21,10 @@ normative text:&lt;/p&gt;
 &lt;li&gt;&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases"&gt;&lt;code&gt;corpus/cases/&lt;/code&gt;&lt;/a&gt;
 in the repository is a conformance corpus: each case is a
 &lt;code&gt;template.tramaj&lt;/code&gt; + &lt;code&gt;ctx.json&lt;/code&gt; + &lt;code&gt;expected.json&lt;/code&gt; triple (plus optional
-&lt;code&gt;libs/*.tramaj&lt;/code&gt;) that both implementations must satisfy — treat these as
-runnable, ground-truth examples rather than prose.
+&lt;code&gt;libs/*.tramaj&lt;/code&gt;) that every implementation must satisfy — treat these as
+runnable, ground-truth examples rather than prose. A case’s &lt;code&gt;meta.json&lt;/code&gt;
+may carry &lt;code&gt;&amp;quot;requires&amp;quot;&lt;/code&gt; (&lt;code&gt;int-float&lt;/code&gt;, &lt;code&gt;arithmetic&lt;/code&gt;, …), naming a feature an
+implementation must declare before it runs that case.
 &lt;/li&gt;
 &lt;li&gt;See also &lt;a href="/tramaj/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary &lt;code&gt;.txt&lt;/code&gt; files under &lt;code&gt;/raw/&lt;/code&gt;, so
@@ -56,6 +58,67 @@ bound, passed to a function, and returned from one:&lt;/p&gt;
 
 .main($panel(&amp;quot;Deployment&amp;quot;, $kids))
 &lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="numbers-and-arithmetic"&gt;Numbers and arithmetic&lt;/h3&gt;
+&lt;p&gt;Two number types, told apart by the text of the literal or of the JSON
+number in the context. Nothing converts between them implicitly.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;written&lt;/th&gt;&lt;th&gt;type&lt;/th&gt;&lt;th&gt;&lt;code&gt;str&lt;/code&gt; gives&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;3&lt;/code&gt;, &lt;code&gt;-7&lt;/code&gt;, &lt;code&gt;1_000_000&lt;/code&gt;&lt;/td&gt;&lt;td&gt;integer&lt;/td&gt;&lt;td&gt;&lt;code&gt;3&lt;/code&gt;, &lt;code&gt;-7&lt;/code&gt;, &lt;code&gt;1000000&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;3.0&lt;/code&gt;, &lt;code&gt;1.5&lt;/code&gt;, &lt;code&gt;1e5&lt;/code&gt;&lt;/td&gt;&lt;td&gt;float&lt;/td&gt;&lt;td&gt;&lt;code&gt;3.0&lt;/code&gt;, &lt;code&gt;1.5&lt;/code&gt;, &lt;code&gt;100000.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;eq(1, 1.0)&lt;/code&gt; is &lt;code&gt;false&lt;/code&gt;. &lt;code&gt;lt&lt;/code&gt;/&lt;code&gt;lte&lt;/code&gt;/&lt;code&gt;gt&lt;/code&gt;/&lt;code&gt;gte&lt;/code&gt; take two integers or two
+floats; a mixed pair is a &lt;code&gt;TypeMismatch&lt;/code&gt;. Write &lt;code&gt;gt($x, 0.0)&lt;/code&gt; for a float.
+&lt;/li&gt;
+&lt;li&gt;There are no operators: no &lt;code&gt;+&lt;/code&gt;, &lt;code&gt;-&lt;/code&gt;, &lt;code&gt;*&lt;/code&gt;, &lt;code&gt;/&lt;/code&gt;. Arithmetic is nine named
+builtins, and there is no subtraction: &lt;code&gt;sum(a, negate(b))&lt;/code&gt;.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;builtin&lt;/th&gt;&lt;th&gt;operands&lt;/th&gt;&lt;th&gt;result&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;sum(…)&lt;/code&gt;, &lt;code&gt;product(…)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;one or more, all integers or all floats; arrays are flattened&lt;/td&gt;&lt;td&gt;same type&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;negate(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;integer or float&lt;/td&gt;&lt;td&gt;same type&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;quotient(a, b)&lt;/code&gt;, &lt;code&gt;inverse(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;floats only&lt;/td&gt;&lt;td&gt;float&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;floor-quotient(a, b)&lt;/code&gt;, &lt;code&gt;modulo(a, b)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;integers only&lt;/td&gt;&lt;td&gt;integer, rounding toward negative infinity&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;floor(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;either&lt;/td&gt;&lt;td&gt;integer&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;real(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;either&lt;/td&gt;&lt;td&gt;float&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;pre&gt;&lt;code&gt;@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@total    = sum(0.0, map($ctx.lines,
+                         (l) =&amp;gt; product(real($l.qty), real($l.price))))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;A mixed call (&lt;code&gt;sum(1, 2.5)&lt;/code&gt;, &lt;code&gt;quotient(1, 2)&lt;/code&gt;) is a &lt;code&gt;TypeMismatch&lt;/code&gt;. When
+the type of a context number is not known, normalize it: &lt;code&gt;real($x)&lt;/code&gt; or
+&lt;code&gt;floor($x)&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;sum()&lt;/code&gt; and &lt;code&gt;sum([])&lt;/code&gt; are a &lt;code&gt;TypeMismatch&lt;/code&gt;. Seed a fold over a list that
+may be empty: &lt;code&gt;sum(0, $xs)&lt;/code&gt; or &lt;code&gt;sum(0.0, $xs)&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;A zero divisor, an integer overflow and a non-finite float are a
+&lt;code&gt;NotRepresentable&lt;/code&gt; error, never &lt;code&gt;null&lt;/code&gt; or &lt;code&gt;0&lt;/code&gt;. Guard with &lt;code&gt;branch&lt;/code&gt;, whose
+unselected arm is not evaluated.
+&lt;/li&gt;
+&lt;li&gt;Arithmetic is a profile the host turns on (&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;).
+Without it the nine names are unbound.
+&lt;/li&gt;
+&lt;li&gt;In symbolic mode, a builtin with a symbol among its operands evaluates to
+a term, &lt;code&gt;{&amp;quot;$term&amp;quot;: &amp;quot;sum&amp;quot;, &amp;quot;arguments&amp;quot;: [...]}&lt;/code&gt;, for the host to evaluate.
+&lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; is a reserved object key, like &lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;$type&amp;quot;&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;The type primitives are &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; (&lt;code&gt;@n : int = 3&lt;/code&gt;); there is no
+&lt;code&gt;number&lt;/code&gt;.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Do not emit &lt;code&gt;round&lt;/code&gt;, &lt;code&gt;sort-by&lt;/code&gt;, &lt;code&gt;sort-by-descending&lt;/code&gt; or &lt;code&gt;format-number&lt;/code&gt;:
+they are specified in the reference, marked &lt;strong&gt;[§20]&lt;/strong&gt;, and no implementation
+has them yet. The number split and the nine builtins above are in the
+PureScript and Haskell implementations, and not yet in the Rust, JavaScript,
+Python and Go ones, where every number is still a double. Templates written
+before the split:
+&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="actions-are-opaque-to-the-language"&gt;Actions are opaque to the language&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;action(&amp;quot;on-click&amp;quot;, &amp;quot;select&amp;quot;, {&amp;quot;id&amp;quot;: $i.id})&lt;/code&gt; attaches structured data to an
 element. The language does not interpret it — a host decides what the key
@@ -95,6 +158,8 @@ AST — no context, no evaluation:&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;which import parameters are still unsupplied
 &lt;/li&gt;
+&lt;li&gt;which arithmetic builtins it references (&lt;code&gt;analyze arithmetic&lt;/code&gt;)
+&lt;/li&gt;
 &lt;li&gt;(v3/v4) what constraints and symbols/types it introduces
 &lt;/li&gt;
 &lt;/ul&gt;
@@ -116,6 +181,13 @@ mutually recursive.
 &lt;/li&gt;
 &lt;li&gt;A library (something loaded via &lt;code&gt;import&lt;/code&gt;) may not call &lt;code&gt;?(key)&lt;/code&gt; — only the
 root program may allocate symbols.
+&lt;/li&gt;
+&lt;li&gt;Don’t compare or combine an integer with a float: &lt;code&gt;gt($ratio, 0)&lt;/code&gt; fails
+when &lt;code&gt;$ratio&lt;/code&gt; is a float. Match the literal to the value, or convert with
+&lt;code&gt;real&lt;/code&gt;/&lt;code&gt;floor&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;Don’t write a count as &lt;code&gt;1.0&lt;/code&gt; or &lt;code&gt;1e3&lt;/code&gt;: a float renders with its fraction
+(&lt;code&gt;1.0&lt;/code&gt;, &lt;code&gt;1000.0&lt;/code&gt;).
 &lt;/li&gt;
 &lt;li&gt;Evaluation order is unconstrained outside of binding precedence: don’t
 write templates that rely on side-effect ordering, because there isn’t

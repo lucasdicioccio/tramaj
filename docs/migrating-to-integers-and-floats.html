@@ -1,0 +1,163 @@
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Migrating to integers and floats</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, migration, breaking changes, integers, floats, arithmetic, numbers"><meta name="description" content="Numbers are now two types, an integer and a float. This page lists what changes for existing templates and hosts, and what to do about each."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Migrating to integers and floats"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Numbers are now two types, an integer and a float. This page lists what changes for existing templates and hosts, and what to do about each."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Migrating to integers and floats"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html"><meta property="og:description" content="Numbers are now two types, an integer and a float. This page lists what changes for existing templates and hosts, and what to do about each."><meta name="article:published_time" content="2026-10-08T15:00:00Z"><meta name="article:modified_time" content="2026-10-08T15:00:00Z"><meta name="ks:article_json" content="/tramaj/json/migrating-to-integers-and-floats.cmark.json"><meta name="ks:article_text" content="/tramaj/text/migrating-to-integers-and-floats.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T15:00:00Z","datePublished":"2026-10-08T15:00:00Z","description":"Numbers are now two types, an integer and a float. This page lists what changes for existing templates and hosts, and what to do about each.","headline":"Migrating to integers and floats","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="migration"><meta name="article:tag" content="breaking changes"><meta name="article:tag" content="integers"><meta name="article:tag" content="floats"><meta name="article:tag" content="arithmetic"><meta name="article:tag" content="numbers"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html" class="doc-nav-current" aria-current="page">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#migrating-to-integers-and-floats">Migrating to integers and floats</a></li><li class="doc-toc-level-3"><a href="#who-is-affected">Who is affected</a></li><li class="doc-toc-level-3"><a href="#the-changes-at-a-glance">The changes at a glance</a></li><li class="doc-toc-level-3"><a href="#1-a-whole-valued-float-is-written-with-a-fraction">1. A whole-valued float is written with a fraction</a></li><li class="doc-toc-level-3"><a href="#2-comparisons-do-not-mix-the-two-types">2. Comparisons do not mix the two types</a></li><li class="doc-toc-level-3"><a href="#3-a-json-number-is-typed-by-its-text">3. A JSON number is typed by its text</a></li><li class="doc-toc-level-3"><a href="#4-term-is-a-reserved-key">4. &quot;$term&quot; is a reserved key</a></li><li class="doc-toc-level-3"><a href="#5-number-is-no-longer-a-type-v4">5. number is no longer a type (v4)</a></li><li class="doc-toc-level-3"><a href="#what-does-not-change">What does not change</a></li><li class="doc-toc-level-3"><a href="#arithmetic-is-separate-and-off-by-default">Arithmetic is separate, and off by default</a></li><li class="doc-toc-level-3"><a href="#where-the-rules-are-written">Where the rules are written</a></li></ul></nav><article><header class="heading"><h1>Migrating to integers and floats</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 983 words, 3 code snippets, 4 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">1/4</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/migration.html"><span class="topic-name">migration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="migrating-to-integers-and-floats">Migrating to integers and floats</h2>
+<p>tramaj had one number type, a double. It now has two, an <strong>integer</strong> and a
+<strong>float</strong>, and nothing converts between them unless the template says so.
+The same change brings arithmetic, as nine named builtins.</p>
+<p>Arithmetic is an addition: a host turns it on, and a template that does not
+use it is unaffected. The number split is not optional, and it changes what
+some existing templates and hosts produce. This page covers the split.</p>
+<h3 id="who-is-affected">Who is affected</h3>
+<table>
+<tr><th>implementation</th><th>number split</th><th>arithmetic</th><th>integer range</th></tr>
+<tr><td><code>tramaj-purs</code>, and <code>tramaj-halogen</code>, <code>tramaj-cli</code> and the playground built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
+</table>
+<p>The PureScript and Haskell changes are on the <code>main</code> branch and in no
+release yet. A host that follows <code>main</code> as a git dependency gets them on its
+next update. The other four implementations still behave as before, and will
+change the same way when they get the split.</p>
+<h3 id="the-changes-at-a-glance">The changes at a glance</h3>
+<table>
+<tr><th>what</th><th>before</th><th>now</th></tr>
+<tr><td><code>str</code> of a whole-valued float</td><td><code>str(1.0)</code> is <code>1</code></td><td><code>str(1.0)</code> is <code>1.0</code></td></tr>
+<tr><td><code>eq</code> across the two types</td><td><code>eq(1, 1.0)</code> is <code>true</code></td><td><code>false</code></td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> across the two types</td><td><code>gt(1.5, 0)</code> is <code>true</code></td><td>a <code>TypeMismatch</code></td></tr>
+<tr><td>a JSON number in the context</td><td>a double, whatever its text</td><td><code>3</code> is an integer, <code>3.0</code> and <code>3e0</code> are floats</td></tr>
+<tr><td>an integer outside the range</td><td>rounded to the nearest double</td><td>refused: a parse error as a literal, a <code>TypeMismatch</code> in the context</td></tr>
+<tr><td>the object key <code>"$term"</code></td><td>an ordinary key</td><td>reserved, like <code>"$sym"</code> and <code>"$type"</code></td></tr>
+<tr><td>the type primitive <code>number</code> (v4)</td><td>a primitive</td><td>gone: <code>int</code> and <code>float</code> replace it</td></tr>
+</table>
+<h3 id="1-a-whole-valued-float-is-written-with-a-fraction">1. A whole-valued float is written with a fraction</h3>
+<p>A number keeps its type when it is written. An integer is written as its
+digits. A float always carries a fraction or an exponent, so a float with no
+fractional part gets <code>.0</code>:</p>
+<table>
+<tr><th>value</th><th>before</th><th>now</th></tr>
+<tr><td><code>1</code></td><td><code>1</code></td><td><code>1</code></td></tr>
+<tr><td><code>1.0</code></td><td><code>1</code></td><td><code>1.0</code></td></tr>
+<tr><td><code>1e5</code></td><td><code>100000</code></td><td><code>100000.0</code></td></tr>
+<tr><td><code>1.5</code></td><td><code>1.5</code></td><td><code>1.5</code></td></tr>
+</table>
+<p>This applies to <code>str</code>, to string interpolation, and to every number in the
+JSON an evaluation returns: text values, attribute values, action payloads,
+value slots, and an expression program’s result.</p>
+<p><strong>What to do.</strong> Look for float literals that are whole (<code>1.0</code>, <code>1e5</code>) and for
+context numbers a producer writes with a fraction (<code>&quot;ratio&quot;: 2.0</code>). Where
+the text matters and the value is a count, make it an integer: write the
+literal <code>100000</code>, or have the producer write <code>2</code>. An integer renders exactly
+as before.</p>
+<p>A consumer that reads the output with an ordinary JSON parser sees the same
+numeric value for <code>3</code> and <code>3.0</code>. Only a consumer that compares the output as
+text, or that decodes it back into a <code>Node</code>, sees the difference.</p>
+<h3 id="2-comparisons-do-not-mix-the-two-types">2. Comparisons do not mix the two types</h3>
+<p><code>eq</code> never equates an integer with a float, and the four ordering
+comparisons take two integers or two floats:</p>
+<pre><code>eq(1, 1.0)         -- false, was true
+gt($ctx.ratio, 0)  -- TypeMismatch when ratio is a float
+</code></pre>
+<p>The first of these is silent: a <code>branch</code> or a <code>filter</code> that compared a
+context number with a literal of the other type now takes the other arm.</p>
+<p><strong>What to do.</strong> Write the literal in the type of what it is compared with:
+<code>gt($ctx.ratio, 0.0)</code> for a float, <code>eq($ctx.count, 0)</code> for an integer.</p>
+<p>When the template does not know which type its host sends, and the
+implementation has arithmetic turned on, normalize with one of the two
+conversions. Each accepts both types:</p>
+<pre><code>gt(real($ctx.ratio), 0.0)   -- real: the float nearest to its argument
+eq(floor($ctx.count), 0)    -- floor: the largest integer not above it
+</code></pre>
+<h3 id="3-a-json-number-is-typed-by-its-text">3. A JSON number is typed by its text</h3>
+<p>A number in the context is read as the literal of the same text. With
+neither a fraction nor an exponent it is an integer; with either it is a
+float. So <code>{&quot;n&quot;: 3}</code> and <code>{&quot;n&quot;: 3.0}</code> are two different contexts.</p>
+<p>Two things follow for a host.</p>
+<p><strong>The producer of the context decides the type.</strong> A serializer with a single
+number type writes the float <code>3.0</code> as <code>3</code>, and the template then receives an
+integer. If a template needs a float from such a producer, it normalizes
+with <code>real</code>, as above.</p>
+<p><strong>The host’s JSON parser must keep the difference.</strong> JavaScript’s
+<code>JSON.parse</code> and Haskell’s <code>aeson</code> <code>Value</code> both lose it. The two
+implementations therefore ship their own JSON value, and their public API
+takes it in place of the previous one:</p>
+<table>
+<tr><th></th><th>PureScript</th><th>Haskell</th></tr>
+<tr><td>module</td><td><code>Tramaj.Json</code></td><td><code>Tramaj.Json</code></td></tr>
+<tr><td>replaces</td><td><code>Data.Argonaut.Core.Json</code></td><td><code>Data.Aeson.Value</code></td></tr>
+<tr><td>read text</td><td><code>jsonParser</code></td><td><code>jsonParser</code></td></tr>
+<tr><td>write text</td><td><code>stringify</code></td><td><code>stringify</code></td></tr>
+<tr><td>bridge</td><td>none: build values with <code>fromInt</code>, <code>fromFloat</code>, …</td><td><code>fromAeson</code>, <code>toAeson</code></td></tr>
+</table>
+<p>The Haskell bridge cannot recover what <code>aeson</code> dropped. <code>fromAeson</code> makes
+every whole number that fits 64 bits an integer, and <code>toAeson</code> gives the type
+up again. Read the JSON text with <code>jsonParser</code> when the difference matters.</p>
+<p><strong>Numbers that are not values are refused.</strong> An integer-form number outside
+the implementation’s integer range is not rounded any more: it is a parse
+error as a literal and a <code>TypeMismatch</code> in the context. So is a float too
+large for a double, such as <code>1e400</code>. The context is checked whole before
+evaluation starts, so the error does not depend on whether the template
+reads that number. <code>-0</code> and <code>-0.0</code> are read as zero.</p>
+<p>The integer range differs between the two implementations (see the table at
+the top). Inside <code>-(2^53 - 1)</code> to <code>2^53 - 1</code> they agree. A larger integer
+that the Haskell implementation emits is refused by the PureScript one.</p>
+<h3 id="4-term-is-a-reserved-key">4. <code>&quot;$term&quot;</code> is a reserved key</h3>
+<p>Over a symbol, an arithmetic builtin does not compute. It evaluates to a
+<em>term</em>, written as an object with the keys <code>&quot;$term&quot;</code> and <code>&quot;arguments&quot;</code>. To
+keep that unambiguous, <code>&quot;$term&quot;</code> joins <code>&quot;$sym&quot;</code> and <code>&quot;$type&quot;</code> as a reserved
+key, whether or not arithmetic is turned on:</p>
+<ul>
+<li>an object literal with the key <code>&quot;$term&quot;</code> in a template is a parse error;
+</li>
+<li>a context that carries the key is a <code>TypeMismatch</code>. The one exception is a
+well-formed term seeded in symbolic mode, with arithmetic turned on.
+</li>
+</ul>
+<p><strong>What to do.</strong> Rename the key in any data that happens to use it.</p>
+<h3 id="5-number-is-no-longer-a-type-v4">5. <code>number</code> is no longer a type (v4)</h3>
+<p>In a type annotation, <code>int</code> and <code>float</code> replace the primitive <code>number</code>:</p>
+<pre><code>@n : int = 3        -- was: @n : number = 3
+@r : float = 0.5
+</code></pre>
+<p><code>number</code> is now an unresolved type name. A host checker that received
+<code>{&quot;$type&quot;: &quot;number&quot;}</code> receives <code>{&quot;$type&quot;: &quot;int&quot;}</code> or <code>{&quot;$type&quot;: &quot;float&quot;}</code>.</p>
+<h3 id="what-does-not-change">What does not change</h3>
+<ul>
+<li>The grammar. There are no new operators and no new syntax.
+</li>
+<li>A template that uses only integers, and whose context holds only numbers
+written without a fraction or an exponent, evaluates to the same output.
+</li>
+<li><code>evalProgram</code> and <code>runProgram</code> keep their signatures, apart from the JSON
+type above. They run without arithmetic.
+</li>
+</ul>
+<h3 id="arithmetic-is-separate-and-off-by-default">Arithmetic is separate, and off by default</h3>
+<p>The nine builtins (<code>sum</code>, <code>product</code>, <code>negate</code>, <code>quotient</code>, <code>inverse</code>,
+<code>floor-quotient</code>, <code>modulo</code>, <code>floor</code>, <code>real</code>) are an optional profile that a
+host chooses per evaluation. Without it the names are unbound, so an existing
+template that binds its own <code>sum</code> or <code>floor</code> keeps working either way: a
+binding shadows the builtin.</p>
+<table>
+<tr><th>where</th><th>how to turn it on</th></tr>
+<tr><td><code>tramaj-purs</code></td><td><code>runProgramWith (defaultOptions { arithmetic = true })</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td><code>runProgramWith defaultOptions { optArithmetic = True }</code></td></tr>
+<tr><td><code>tramaj-cli</code></td><td><code>tramaj-cli --arithmetic template.tramaj context.json</code></td></tr>
+<tr><td>playground</td><td>always on</td></tr>
+</table>
+<p><code>tramaj-cli analyze arithmetic template.tramaj</code> lists the arithmetic names a
+template and its libraries reference, without running anything. A host
+without the profile can use it to refuse a template up front.</p>
+<h3 id="where-the-rules-are-written">Where the rules are written</h3>
+<ul>
+<li><a href="/tramaj/reference-language.html">Language reference</a>, sections 3 (values), 5
+(number literals), 6 (<code>str</code>), 11 (comparisons and arithmetic) and 13 (the
+integer range).
+</li>
+<li><a href="/tramaj/reference-node-json.html">Node JSON representation</a>, <em>Numbers</em>.
+</li>
+<li><a href="/tramaj/reference-v3-symbols.html">Symbols reference</a>, section 1.9 (terms) and
+5.3 (reserved keys).
+</li>
+<li><a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"><code>decisions.md</code></a>,
+section 18, for the reasoning and the alternatives that were rejected.
+</li>
+</ul>
+</section></div><nav class="doc-pager"><div class="doc-prev"><span class="doc-pager-label">Previous: </span><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></div><div class="doc-next"><span class="doc-pager-label">Next: </span><a href="/tramaj/reference.html">Reference</a></div></nav><footer class="footing"><div class="social-links"><a href="https://twitter.com/lucasdicioccio">twitter</a><a rel="me" href="https://fosstodon.org/@lucasdicioccio">mastodon</a><a href="https://github.com/lucasdicioccio">github</a><a href="https://linkedin.com/in/lucasdicioccio">linkedin</a></div></footer></article></div></body></html>

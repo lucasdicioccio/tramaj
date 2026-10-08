@@ -52,8 +52,10 @@ normative text:
 - [`corpus/cases/`](https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases)
   in the repository is a conformance corpus: each case is a
   `template.tramaj` + `ctx.json` + `expected.json` triple (plus optional
-  `libs/*.tramaj`) that both implementations must satisfy — treat these as
-  runnable, ground-truth examples rather than prose.
+  `libs/*.tramaj`) that every implementation must satisfy — treat these as
+  runnable, ground-truth examples rather than prose. A case's `meta.json`
+  may carry `"requires"` (`int-float`, `arithmetic`, …), naming a feature an
+  implementation must declare before it runs that case.
 - See also [`llms.txt`](/raw/llms.txt) for a short machine-readable index of
   the above (Kitchen-Sink serves arbitrary `.txt` files under `/raw/`, so
   this isn't at the conventional `/llms.txt` root path).
@@ -95,6 +97,64 @@ bound, passed to a function, and returned from one:
 
 .main($panel("Deployment", $kids))
 ```
+
+## Numbers and arithmetic
+
+Two number types, told apart by the text of the literal or of the JSON
+number in the context. Nothing converts between them implicitly.
+
+<table>
+<tr><th>written</th><th>type</th><th><code>str</code> gives</th></tr>
+<tr><td><code>3</code>, <code>-7</code>, <code>1_000_000</code></td><td>integer</td><td><code>3</code>, <code>-7</code>, <code>1000000</code></td></tr>
+<tr><td><code>3.0</code>, <code>1.5</code>, <code>1e5</code></td><td>float</td><td><code>3.0</code>, <code>1.5</code>, <code>100000.0</code></td></tr>
+</table>
+
+- `eq(1, 1.0)` is `false`. `lt`/`lte`/`gt`/`gte` take two integers or two
+  floats; a mixed pair is a `TypeMismatch`. Write `gt($x, 0.0)` for a float.
+- There are no operators: no `+`, `-`, `*`, `/`. Arithmetic is nine named
+  builtins, and there is no subtraction: `sum(a, negate(b))`.
+
+<table>
+<tr><th>builtin</th><th>operands</th><th>result</th></tr>
+<tr><td><code>sum(…)</code>, <code>product(…)</code></td><td>one or more, all integers or all floats; arrays are flattened</td><td>same type</td></tr>
+<tr><td><code>negate(x)</code></td><td>integer or float</td><td>same type</td></tr>
+<tr><td><code>quotient(a, b)</code>, <code>inverse(x)</code></td><td>floats only</td><td>float</td></tr>
+<tr><td><code>floor-quotient(a, b)</code>, <code>modulo(a, b)</code></td><td>integers only</td><td>integer, rounding toward negative infinity</td></tr>
+<tr><td><code>floor(x)</code></td><td>either</td><td>integer</td></tr>
+<tr><td><code>real(x)</code></td><td>either</td><td>float</td></tr>
+</table>
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@total    = sum(0.0, map($ctx.lines,
+                         (l) => product(real($l.qty), real($l.price))))
+```
+
+- A mixed call (`sum(1, 2.5)`, `quotient(1, 2)`) is a `TypeMismatch`. When
+  the type of a context number is not known, normalize it: `real($x)` or
+  `floor($x)`.
+- `sum()` and `sum([])` are a `TypeMismatch`. Seed a fold over a list that
+  may be empty: `sum(0, $xs)` or `sum(0.0, $xs)`.
+- A zero divisor, an integer overflow and a non-finite float are a
+  `NotRepresentable` error, never `null` or `0`. Guard with `branch`, whose
+  unselected arm is not evaluated.
+- Arithmetic is a profile the host turns on (`tramaj-cli --arithmetic`).
+  Without it the nine names are unbound.
+- In symbolic mode, a builtin with a symbol among its operands evaluates to
+  a term, `{"$term": "sum", "arguments": [...]}`, for the host to evaluate.
+  `"$term"` is a reserved object key, like `"$sym"` and `"$type"`.
+- The type primitives are `int` and `float` (`@n : int = 3`); there is no
+  `number`.
+
+Do not emit `round`, `sort-by`, `sort-by-descending` or `format-number`:
+they are specified in the reference, marked **[§20]**, and no implementation
+has them yet. The number split and the nine builtins above are in the
+PureScript and Haskell implementations, and not yet in the Rust, JavaScript,
+Python and Go ones, where every number is still a double. Templates written
+before the split:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html).
 
 ## Actions are opaque to the language
 
@@ -140,6 +200,7 @@ AST — no context, no evaluation:
 - what actions it can possibly emit
 - what context paths it reads (`ctx(...)` holes)
 - which import parameters are still unsupplied
+- which arithmetic builtins it references (`analyze arithmetic`)
 - (v3/v4) what constraints and symbols/types it introduces
 
 ![Self-check loop for an agent: draft, run analyze, compare the interface with what was asked, revise or hand over](/gen/images/agent-loop.dot.png)
@@ -160,6 +221,11 @@ your own output.
   mutually recursive.
 - A library (something loaded via `import`) may not call `?(key)` — only the
   root program may allocate symbols.
+- Don't compare or combine an integer with a float: `gt($ratio, 0)` fails
+  when `$ratio` is a float. Match the literal to the value, or convert with
+  `real`/`floor`.
+- Don't write a count as `1.0` or `1e3`: a float renders with its fraction
+  (`1.0`, `1000.0`).
 - Evaluation order is unconstrained outside of binding precedence: don't
   write templates that rely on side-effect ordering, because there isn't
   one — evaluation is meant to be referentially transparent.

@@ -26,6 +26,28 @@ The implementations and how they relate: one specification and corpus, six indep
 </table>
 ```
 
+## Numbers at the boundary
+
+The language has two number types, an integer and a float, and a JSON number is typed by its text: `3` is an integer, `3.0` and `3e0` are floats ([reference](/reference-language.html ), section 3). This matters to a host in three places.
+
+- **Reading the context.** The host's JSON parser must keep the difference between `3` and `3.0`, and must not round a large integer. JavaScript's `JSON.parse` and Haskell's `aeson` `Value` do neither, which is why `tramaj-purs` and `tramaj-hs` each ship a `Tramaj.Json` module with a reader (`jsonParser`) and a writer (`stringify`).
+
+- **Reading the result.** The output keeps the type: an integer is written as digits and a float always with a fraction or an exponent ([`node-json.md`](/reference-node-json.html ), _Numbers_). A fold that renders a scalar child should write it the same way, as `str` does: `tramaj-halogen` renders the float `1.0` as `1.0`.
+
+- **Choosing whether templates may compute.** The nine arithmetic builtins are an optional profile, chosen by the host for each evaluation and off by default. In symbolic mode with the profile on, a result may hold a _term_, `{"$term": "sum", "arguments": [...]}`: arithmetic over a symbol, left for the host to evaluate ([`v3-symbols.md`](/reference-v3-symbols.html ), section 1.9). A host that has not turned the profile on never receives one.
+
+
+```html
+<table>
+<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
+<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+</table>
+```
+
+The first two rows are on the `main` branch and in no release yet. Until the other implementations follow, the same template can give different output on two of them: `str(1.0)` is `1.0` on the first two rows and `1` on the third. The corpus cases that depend on the split or on arithmetic are marked with `"requires"`, and an implementation that does not declare the name skips them. An existing host moving to the split should read [Migrating to integers and floats](/migrating-to-integers-and-floats.html ).
+
 ## PureScript — import as a library, fold with `tramaj-halogen`
 
 `tramaj-purs`, `tramaj-halogen`, `tramaj-cli`, and `playground` are members of one [Spago](https://github.com/purescript/spago ) workspace rooted at this repository. A new PureScript package placed as a subdirectory of the workspace, with `tramaj-purs` (and `tramaj-halogen` if you're rendering through Halogen) listed in its `spago.yaml` dependencies, is picked up by Spago's workspace discovery with no registry publishing step needed.
@@ -37,10 +59,18 @@ The core API:
 parseProgram :: String -> Either ParseError Program
 
 -- Tramaj.Eval
-runProgram :: Mode -> LibraryTable -> Json -> Program -> Either EvalError Json
+runProgram     :: Mode    -> LibraryTable -> Json -> Program -> Either EvalError Json
+runProgramWith :: Options -> LibraryTable -> Json -> Program -> Either EvalError Json
+
+type Options = { mode :: Mode, arithmetic :: Boolean }
+defaultOptions :: Options   -- { mode: Concrete, arithmetic: false }
+
+-- Tramaj.Json
+jsonParser :: String -> Either String Json
+stringify  :: Json -> String
 ```
 
-`Mode` is `Concrete` or `Symbolic` ([`v3-symbols.md`](/reference-v3-symbols.html )); `LibraryTable` supplies whatever the template's `import(...)` calls need. `runProgram` gives you the evaluated document as JSON directly, already encoded per [`node-json.md`](/reference-node-json.html ). If you need the `Node` value itself rather than its JSON encoding — to fold it without a round-trip through JSON — `evalProgramWithEmissions` is the lower-level entry point that stops one step earlier.
+`Mode` is `Concrete` or `Symbolic` ([`v3-symbols.md`](/reference-v3-symbols.html )); `LibraryTable` supplies whatever the template's `import(...)` calls need. `Json` is `Tramaj.Json.Json`, not Argonaut's: a JSON value whose numbers keep their type. Read the context with `jsonParser` and write the result with `stringify`; `JSON.parse` and `JSON.stringify` cannot tell `3` from `3.0`. `runProgram` runs without the arithmetic profile; `runProgramWith (defaultOptions { arithmetic = true })` turns it on. `Tramaj.Analysis.deepArithmeticOps` reports which arithmetic names a program and its libraries reference, so a host without the profile can refuse one before running it. `runProgram` gives you the evaluated document as JSON directly, already encoded per [`node-json.md`](/reference-node-json.html ). If you need the `Node` value itself rather than its JSON encoding — to fold it without a round-trip through JSON — `evalProgramWithEmissions` is the lower-level entry point that stops one step earlier.
 
 If your host renders through [Halogen](https://github.com/purescript-halogen/purescript-halogen ), don't write a fold at all — `tramaj-halogen` already has one:
 
@@ -59,13 +89,15 @@ The first argument is a `dispatch` function: event type, action key, and JSON pa
 
 ## Haskell — the library exists, the fold doesn't yet
 
-`tramaj-hs` is an independent Haskell port, built on megaparsec and aeson, that targets the same grammar as the PureScript `tramaj-purs` and shares its conformance corpus. It's a normal Cabal library exposing `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Analysis`, and `Tramaj.Types` — so a Haskell host can depend on it directly (as a `source-repository-package` or path dependency; it isn't published to Hackage), the same way a PureScript host depends on `tramaj-purs`.
+`tramaj-hs` is an independent Haskell port, built on megaparsec and aeson, that targets the same grammar as the PureScript `tramaj-purs` and shares its conformance corpus. It's a normal Cabal library exposing `Tramaj.Ast`, `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Json`, `Tramaj.Analysis`, and `Tramaj.Types` — so a Haskell host can depend on it directly (as a `source-repository-package` or path dependency; it isn't published to Hackage), the same way a PureScript host depends on `tramaj-purs`.
 
 What it does _not_ have yet is a `tramaj-halogen` equivalent — no fold to Lucid, Blaze, or any other Haskell HTML/UI library ships in this repository. A Haskell host gets the parser, the evaluator, and the `Node` JSON encoding (kept in lockstep with the PureScript `Tramaj.Node`); writing the fold to your actual rendering library is on you. The shape to follow is `tramaj-halogen`'s: case on `Text`/`Element`/`Fragment`, recurse into children, and decide what an `action(...)` payload means in your host.
 
+The evaluator takes and returns `Tramaj.Json.Json`, a JSON value with separate `JInt` and `JFloat` constructors, where it used to take `Data.Aeson.Value`. `jsonParser` reads JSON text and types each number by its text; `stringify` writes it back. `fromAeson` and `toAeson` bridge to aeson, with a loss: aeson has already forgotten whether a number was written `3` or `3.0`, so `fromAeson` makes every whole number that fits 64 bits an integer. Integers cover the signed 64-bit range here, wider than the PureScript implementation's. Arithmetic is off in `runProgram` and on with `runProgramWith defaultOptions {optArithmetic = True}`.
+
 ## Rust — the library exists, plus its own CLI
 
-`tramaj-rs` is an independent, hand-written Rust port of the same grammar and evaluation semantics as the PureScript `tramaj-purs` and Haskell `tramaj-hs`, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language). It's a normal Cargo library crate — `tramaj_rs::{ast, parser, eval, node, analysis, types}` — depended on as a path or git dependency (not published to crates.io yet), the same way a PureScript host depends on `tramaj-purs` or a Haskell host depends on `tramaj-hs`:
+`tramaj-rs` is an independent, hand-written Rust port of the same grammar and evaluation semantics as the PureScript `tramaj-purs` and Haskell `tramaj-hs`, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language; the two number types and arithmetic are not in this port yet, see _Numbers at the boundary_). It's a normal Cargo library crate — `tramaj_rs::{ast, parser, eval, node, analysis, types}` — depended on as a path or git dependency (not published to crates.io yet), the same way a PureScript host depends on `tramaj-purs` or a Haskell host depends on `tramaj-hs`:
 
 ```rust
 // tramaj_rs::parser
@@ -82,11 +114,11 @@ pub fn run_program(
 
 `run_program` gives you the evaluated result as JSON directly, already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on the PureScript and Haskell sides. As with Haskell, there's no `tramaj-halogen` equivalent shipped yet: a Rust host gets the parser, evaluator, `Node` JSON codec, and static analysis, and writes its own fold following the same shape (case on `Text`/`Element`/`Fragment`, recurse into children, decide what an `action(...)` payload means in your host).
 
-Unlike the Haskell port, Rust also has a `tramaj-cli` equivalent — `tramaj-cli-rs` — mirroring `tramaj-cli`'s command surface field-for-field: the same `evaluate`/`analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all>` subcommands, the same `--lib name=path`/`--mode concrete|symbolic` flags, and the same JSON output shapes. If you'd rather shell out than link a Rust library into your host — including from a non-Rust host — `tramaj-cli-rs` is a drop-in alternative to `tramaj-cli` with no Node.js runtime required.
+Unlike the Haskell port, Rust also has a `tramaj-cli` equivalent — `tramaj-cli-rs` — mirroring `tramaj-cli`'s command surface field-for-field: the same `evaluate`/`analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all>` subcommands, the same `--lib name=path`/`--mode concrete|symbolic` flags, and the same JSON output shapes. If you'd rather shell out than link a Rust library into your host — including from a non-Rust host — `tramaj-cli-rs` is an alternative to `tramaj-cli` with no Node.js runtime required. It does not have `tramaj-cli`'s `--arithmetic` flag or `analyze arithmetic` yet, and it writes a whole-valued float without a fraction.
 
 ## JavaScript / TypeScript — import as a library, fold with `tramaj-react`
 
-`tramaj-js` is an independent, hand-written TypeScript port of the same grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell `tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language). It's a normal npm package with no React or DOM dependency — a plain Node or browser host can depend on it the same way a PureScript host depends on `tramaj-purs`:
+`tramaj-js` is an independent, hand-written TypeScript port of the same grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell `tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language; the two number types and arithmetic are not in this port yet). It's a normal npm package with no React or DOM dependency — a plain Node or browser host can depend on it the same way a PureScript host depends on `tramaj-purs`:
 
 ```typescript
 // parseProgram, tryParseProgram
@@ -121,7 +153,7 @@ If you'd rather not add a JS dependency at all — or your host isn't Node — `
 
 ## Python — import as a library, standard library only
 
-`tramaj-py` is an independent, hand-written Python port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types). It needs nothing outside the standard library (Python 3.9+), so it drops into a data pipeline, a notebook or a backend service without a Node or PureScript toolchain as a runtime dependency. It's a normal package — `tramaj` with `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval` modules, laid out one-to-one like `tramaj-js` — installed from the repository's `tramaj-py/` directory (not published to PyPI yet):
+`tramaj-py` is an independent, hand-written Python port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types; the two number types and arithmetic are not in this port yet). It needs nothing outside the standard library (Python 3.9+), so it drops into a data pipeline, a notebook or a backend service without a Node or PureScript toolchain as a runtime dependency. It's a normal package — `tramaj` with `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval` modules, laid out one-to-one like `tramaj-js` — installed from the repository's `tramaj-py/` directory (not published to PyPI yet):
 
 ```python
 from tramaj import parse_program, run_program
@@ -130,13 +162,13 @@ program = parse_program('.p($ctx.name)')          # raises ParseError
 run_program("concrete", {}, {"name": "web"}, program)  # raises EvalError
 ```
 
-`run_program` gives you the evaluated result as plain Python JSON values (`dict`/`list`/`str`/numbers/`bool`/`None`), already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on every other side. A library table is a `dict` from import name to parsed program; the mode is `"concrete"` or `"symbolic"`. `eval_program` is the lower-level entry point if you want the `Node` value itself rather than its JSON encoding. Numbers keep the language's double semantics: an exact integer comes back as an `int`, and `str` renders as ECMAScript's `Number::toString` does, so interpolated text matches the other implementations byte-for-byte.
+`run_program` gives you the evaluated result as plain Python JSON values (`dict`/`list`/`str`/numbers/`bool`/`None`), already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on every other side. A library table is a `dict` from import name to parsed program; the mode is `"concrete"` or `"symbolic"`. `eval_program` is the lower-level entry point if you want the `Node` value itself rather than its JSON encoding. Every number is still a double in this port: an exact integer comes back as an `int`, and `str` renders as ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and Go ports byte-for-byte, and differs from the PureScript and Haskell implementations for a whole-valued float (`1` here, `1.0` there).
 
 As with Haskell and Rust, no fold is shipped: a Python host writes its own following the same shape (case on `text`/`element`/`fragment`, recurse into children, decide what an `action(...)` payload means in your host). Python also has its own `tramaj-cli` equivalent, `python -m tramaj`, mirroring `tramaj-cli-rs`'s `evaluate`/`analyze` subcommands, flags and JSON output shapes, so a non-Python host with a Python interpreter around can shell out to it instead of to Node.
 
 ## Go — import as a module, standard library only
 
-`tramaj-go` is an independent, hand-written Go port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/` — full parity, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types). It needs nothing outside the standard library (Go 1.21+), so it compiles into a service or a static binary with no Node, Python or PureScript toolchain as a runtime dependency. It's one package, `tramaj`, in the repository's `tramaj-go/` directory (no tagged module release yet):
+`tramaj-go` is an independent, hand-written Go port of the same grammar and evaluation semantics as the other implementations, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types; the two number types and arithmetic are not in this port yet). It needs nothing outside the standard library (Go 1.21+), so it compiles into a service or a static binary with no Node, Python or PureScript toolchain as a runtime dependency. It's one package, `tramaj`, in the repository's `tramaj-go/` directory (no tagged module release yet):
 
 ```go
 import tramaj "github.com/lucasdicioccio/tramaj/tramaj-go"
@@ -147,7 +179,7 @@ out, err := tramaj.RunProgram(tramaj.Concrete, nil, ctx, program) // err is a *t
 fmt.Println(tramaj.PrettyJSON(out))
 ```
 
-`RunProgram` gives you the evaluated result as a `tramaj.JSON` value (`nil`, `bool`, `float64`, `string`, `[]tramaj.JSON` or `*tramaj.Object`, an object that keeps its keys in order), already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on every other side. A library table is a `tramaj.Libraries`, a map from import name to parsed program; the mode is `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry point if you want the `*tramaj.Node` itself rather than its JSON encoding. Every number is a `float64`, as the language specifies, and `str` renders as ECMAScript's `Number::toString` does, so interpolated text matches the other implementations byte-for-byte.
+`RunProgram` gives you the evaluated result as a `tramaj.JSON` value (`nil`, `bool`, `float64`, `string`, `[]tramaj.JSON` or `*tramaj.Object`, an object that keeps its keys in order), already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on every other side. A library table is a `tramaj.Libraries`, a map from import name to parsed program; the mode is `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry point if you want the `*tramaj.Node` itself rather than its JSON encoding. Every number is still a `float64` in this port, and `str` renders as ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and Python ports byte-for-byte, and differs from the PureScript and Haskell implementations for a whole-valued float (`1` here, `1.0` there).
 
 As with Haskell, Rust and Python, no fold is shipped: a Go host writes its own following the same shape (switch on the node's `Type`, recurse into `Children`, decide what an action attribute means in your host). Go also has its own `tramaj-cli` equivalent, `tramaj-go` (`go build ./cmd/tramaj-go`), mirroring `tramaj-cli-rs`'s `evaluate`/`analyze` subcommands, flags and JSON output shapes.
 
@@ -161,9 +193,10 @@ For a host in a language with no PureScript, Haskell, Rust, JavaScript, Python o
 
 ```bash
 tramaj-cli template.tramaj context.json
+tramaj-cli --arithmetic template.tramaj context.json   # with the arithmetic builtins
 ```
 
-which prints the evaluated `Node` as JSON on stdout, exactly per [`node-json.md`](/reference-node-json.html ). Your host only needs to write the _fold_ — parse that JSON, case on whether each node is text, an element, or a fragment, recurse into children, and decide what each element's `action(...)` entries mean in your host — the same shape as `tramaj-halogen`'s fold, just written against decoded JSON instead of a native `Node` value. `tramaj-cli`'s `analyze` subcommands (`imports`/`actions`/`holes`/`unsupplied`/`constraints`/`symbols`/`types`) are available the same way, without a context file, if your host wants the static-analysis facts from [Properties](/properties.html ) rather than a rendered document.
+which prints the evaluated `Node` as JSON on stdout, exactly per [`node-json.md`](/reference-node-json.html ). In that JSON `3` is an integer and `3.0` a float; a host that needs the difference reads it with a parser that keeps it. Your host only needs to write the _fold_ — parse that JSON, case on whether each node is text, an element, or a fragment, recurse into children, and decide what each element's `action(...)` entries mean in your host — the same shape as `tramaj-halogen`'s fold, just written against decoded JSON instead of a native `Node` value. `tramaj-cli`'s `analyze` subcommands (`imports`/`actions`/`holes`/`unsupplied`/`constraints`/`symbols`/`arithmetic`/`types`) are available the same way, without a context file, if your host wants the static-analysis facts from [Properties](/properties.html ) rather than a rendered document.
 
 This is also the fastest way to prototype an integration in any language before deciding whether a full reimplementation is ever worth it.
 

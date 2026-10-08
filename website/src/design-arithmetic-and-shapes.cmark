@@ -33,7 +33,7 @@ is and how far along it is. The short version:
 
 <table>
 <tr><th>design</th><th>accepted</th><th>specified</th><th>implemented</th></tr>
-<tr><td>arithmetic, and integers and floats as two types</td><td>2026-10-06</td><td>yes, in the reference</td><td>PureScript and Haskell, on <code>main</code>, not released</td></tr>
+<tr><td>arithmetic, and integers and floats as two types</td><td>2026-10-06</td><td>yes, in the reference</td><td>PureScript (with the command-line tool, the Halogen fold and the playground) and Haskell, on <code>main</code>, not released</td></tr>
 <tr><td><code>?shape</code>, a form that allocates a structure of symbols</td><td>2026-10-08</td><td>design only</td><td>no</td></tr>
 </table>
 
@@ -111,9 +111,14 @@ The normative text is in the
 [language reference](/reference-language.html) and the
 [symbols reference](/reference-v3-symbols.html), and the conformance corpus
 has the fixtures. The PureScript and Haskell implementations have the number
-split and the nine builtins on `main`. They are not in a release, and the
-command-line tool and the [playground](/playground.html) do not have them
-yet. The Rust, JavaScript, Python and Go implementations follow.
+split and the nine builtins on `main`, and so do the command-line tool
+(`tramaj-cli --arithmetic`), the Halogen fold and the
+[playground](/playground.html). They are not in a release. The Rust,
+JavaScript, Python and Go implementations follow.
+
+The split changes what some existing templates produce, beyond the `str`
+case above: see
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html).
 
 ## `?shape`: a structure of symbols in one form
 
@@ -180,7 +185,9 @@ A third design was accepted on the same day, in section 20 of the same file:
 `sort-by(list, fn)` and `sort-by-descending(list, fn)`, which take a key
 function as `map` does, and `format-number(x, decimals, group)`, which turns
 `1234567.891` into `1,234,567.89` by one rounding rule every implementation
-must agree on. It is a design only as well.
+must agree on, with `round` as a tenth arithmetic builtin. Its normative text
+is now in the [language reference](/reference-language.html), marked
+**[§20]**; no implementation has it yet.
 
 =base:main-css.tramaj-json
 { "format": "css"

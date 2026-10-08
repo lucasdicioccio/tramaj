@@ -5,6 +5,7 @@ For coding agents: https://lucasdicioccio.github.io/tramaj/howto-agents.html
 Getting started (humans): https://lucasdicioccio.github.io/tramaj/howto-humans.html
 Properties: https://lucasdicioccio.github.io/tramaj/properties.html
 Use cases: https://lucasdicioccio.github.io/tramaj/use-cases.html
+Migrating to integers and floats (breaking changes of the number split): https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html
 Interactive playground: https://lucasdicioccio.github.io/tramaj/playground.html
 
 Specs (canonical source, on GitHub):

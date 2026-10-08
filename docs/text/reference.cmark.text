@@ -15,6 +15,8 @@ How the documents relate: the language reference is the base, the Node JSON form
 - [**v4 — Types**](/reference-v4-types.html ) — the nominal type algebra, type parameters through imports, and typed annotations.
 
 
+Not every implementation has everything in these pages yet. Passages marked **[§18]** (integers and floats as two types, and the arithmetic builtins) are implemented in PureScript and Haskell only, and those marked **[§20]** (`round`, sorting, `format-number`) in none. The marks are section numbers of `decisions.md`. For what the number split changes in existing templates, see [Migrating to integers and floats](/migrating-to-integers-and-floats.html ).
+
 Two more documents exist only in the repository, not mirrored here since they're development history rather than language reference:
 
 - [`laws.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/laws.md ) — the design invariants, rewritten in prose on the [Properties](/properties.html ) page.

@@ -13,12 +13,13 @@ and §9 says how far it gets on its own.
 Status: frozen as a design. Not implemented in either `tramaj/` or
 `tramaj-hs/`.
 
-**Terms are specified ahead of the implementations.** §1.9, and what the rest
-of this document says about terms and about `"$term"`, is accepted design
-(decisions §18) that no implementation has yet. It depends on ref §11's
-arithmetic profile, which none has either. The same holds for the two number
-types (ref §3) wherever this document writes a number: in canon (§1.4) and in
-the envelope (§5.2).
+**Terms are not in every implementation yet.** §1.9, and what the rest of
+this document says about terms and about `"$term"`, is accepted design
+(decisions §18). It depends on ref §11's arithmetic profile. `tramaj/`
+(PureScript) and `tramaj-hs/` (Haskell) implement both, for the nine names
+other than `round`; the Rust, JavaScript, Python and Go ports have neither
+yet. The same holds for the two number types (ref §3) wherever this document
+writes a number: in canon (§1.4) and in the envelope (§5.2).
 
 ---
 
@@ -284,7 +285,8 @@ with them, which the language does not.
 
 ### 1.9 Terms
 
-*Specified, not yet implemented (decisions §18).* This section applies to an
+*Implemented in `tramaj/` and `tramaj-hs/`, for the nine names other than
+`round`; not yet in the other ports (decisions §18).* This section applies to an
 implementation with the arithmetic profile (ref §11, §5.5).
 
 ```
@@ -686,7 +688,7 @@ by `"kind"`. A symbol:
 {"$sym": "#0:\"d\"", "path": ["replicas"]}
 ```
 
-and a term (§1.9; not yet implemented), whose `op` is one of the ten names
+and a term (§1.9; not in every implementation yet), whose `op` is one of the ten names
 of ref §11's *Arithmetic*, `round` among them:
 
 ```json
@@ -774,7 +776,7 @@ profile too, so that the two grammars agree.
 
 An implementation of the **symbolic profile** implements both modes.
 
-The **arithmetic profile** (ref §11; not yet implemented) is a third,
+The **arithmetic profile** (ref §11; not in every implementation yet) is a third,
 independent of both: either of the above may have it or not. It is not
 refused at parse time, since its ten builtins are names and not syntax; a
 program that uses one on an implementation without it fails with

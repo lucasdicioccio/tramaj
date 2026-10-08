@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - tramaj for coding agents</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, agents, LLM, coding agent, grammar, cheatsheet"><meta name="description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - tramaj for coding agents"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - tramaj for coding agents"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><meta property="og:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/howto-agents.cmark.json"><meta name="ks:article_text" content="/tramaj/text/howto-agents.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates.","headline":"tramaj for coding agents","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/howto-agents.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="agents"><meta name="article:tag" content="LLM"><meta name="article:tag" content="coding agent"><meta name="article:tag" content="grammar"><meta name="article:tag" content="cheatsheet"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html" class="doc-nav-current" aria-current="page">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-for-coding-agents">tramaj for coding agents</a></li><li class="doc-toc-level-3"><a href="#fetch-the-canonical-source-first">Fetch the canonical source first</a></li><li class="doc-toc-level-3"><a href="#leaders--what-each-sigil-means">Leaders — what each sigil means</a></li><li class="doc-toc-level-3"><a href="#shape-of-a-program">Shape of a program</a></li><li class="doc-toc-level-3"><a href="#documents-are-ordinary-values">Documents are ordinary values</a></li><li class="doc-toc-level-3"><a href="#actions-are-opaque-to-the-language">Actions are opaque to the language</a></li><li class="doc-toc-level-3"><a href="#imports">Imports</a></li><li class="doc-toc-level-3"><a href="#v3--symbols-and-constraints-frozen-implemented">v3 — symbols and constraints (frozen, implemented)</a></li><li class="doc-toc-level-3"><a href="#v4--types-draft-implemented">v4 — types (draft, implemented)</a></li><li class="doc-toc-level-3"><a href="#static-analyses-available-without-evaluating">Static analyses available without evaluating</a></li><li class="doc-toc-level-3"><a href="#common-pitfalls">Common pitfalls</a></li></ul></nav><article><header class="heading"><h1>tramaj for coding agents</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 649 words, 2 code snippets, 9 links, 1images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/integrate-tramaj.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">3/3</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/agents.html"><span class="topic-name">agents</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="tramaj-for-coding-agents">tramaj for coding agents</h2>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - tramaj for coding agents</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, agents, LLM, coding agent, grammar, cheatsheet"><meta name="description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - tramaj for coding agents"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - tramaj for coding agents"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/howto-agents.html"><meta property="og:description" content="A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates."><meta name="article:published_time" content="2026-09-10T01:00:00Z"><meta name="article:modified_time" content="2026-09-10T01:00:00Z"><meta name="ks:article_json" content="/tramaj/json/howto-agents.cmark.json"><meta name="ks:article_text" content="/tramaj/text/howto-agents.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-10T01:00:00Z","datePublished":"2026-09-10T01:00:00Z","description":"A dense syntax reference and fetch strategy for an LLM or agent emitting tramaj templates.","headline":"tramaj for coding agents","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/howto-agents.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="agents"><meta name="article:tag" content="LLM"><meta name="article:tag" content="coding agent"><meta name="article:tag" content="grammar"><meta name="article:tag" content="cheatsheet"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html" class="doc-nav-current" aria-current="page">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-for-coding-agents">tramaj for coding agents</a></li><li class="doc-toc-level-3"><a href="#fetch-the-canonical-source-first">Fetch the canonical source first</a></li><li class="doc-toc-level-3"><a href="#leaders--what-each-sigil-means">Leaders — what each sigil means</a></li><li class="doc-toc-level-3"><a href="#shape-of-a-program">Shape of a program</a></li><li class="doc-toc-level-3"><a href="#documents-are-ordinary-values">Documents are ordinary values</a></li><li class="doc-toc-level-3"><a href="#numbers-and-arithmetic">Numbers and arithmetic</a></li><li class="doc-toc-level-3"><a href="#actions-are-opaque-to-the-language">Actions are opaque to the language</a></li><li class="doc-toc-level-3"><a href="#imports">Imports</a></li><li class="doc-toc-level-3"><a href="#v3--symbols-and-constraints-frozen-implemented">v3 — symbols and constraints (frozen, implemented)</a></li><li class="doc-toc-level-3"><a href="#v4--types-draft-implemented">v4 — types (draft, implemented)</a></li><li class="doc-toc-level-3"><a href="#static-analyses-available-without-evaluating">Static analyses available without evaluating</a></li><li class="doc-toc-level-3"><a href="#common-pitfalls">Common pitfalls</a></li></ul></nav><article><header class="heading"><h1>tramaj for coding agents</h1><p>On <span>Thu, 10 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 980 words, 3 code snippets, 10 links, 1images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/integrate-tramaj.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">4/4</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/agents.html"><span class="topic-name">agents</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="tramaj-for-coding-agents">tramaj for coding agents</h2>
 <p>tramaj was designed to be as easy for a model to emit correctly as for a
 person to write by hand — a small builtin set, one expression grammar, and
 no template/expression phase split to keep track of. This page is a dense
@@ -21,8 +21,10 @@ normative text:</p>
 <li><a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus/cases"><code>corpus/cases/</code></a>
 in the repository is a conformance corpus: each case is a
 <code>template.tramaj</code> + <code>ctx.json</code> + <code>expected.json</code> triple (plus optional
-<code>libs/*.tramaj</code>) that both implementations must satisfy — treat these as
-runnable, ground-truth examples rather than prose.
+<code>libs/*.tramaj</code>) that every implementation must satisfy — treat these as
+runnable, ground-truth examples rather than prose. A case’s <code>meta.json</code>
+may carry <code>&quot;requires&quot;</code> (<code>int-float</code>, <code>arithmetic</code>, …), naming a feature an
+implementation must declare before it runs that case.
 </li>
 <li>See also <a href="/tramaj/raw/llms.txt"><code>llms.txt</code></a> for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary <code>.txt</code> files under <code>/raw/</code>, so
@@ -56,6 +58,67 @@ bound, passed to a function, and returned from one:</p>
 
 .main($panel(&quot;Deployment&quot;, $kids))
 </code></pre>
+<h3 id="numbers-and-arithmetic">Numbers and arithmetic</h3>
+<p>Two number types, told apart by the text of the literal or of the JSON
+number in the context. Nothing converts between them implicitly.</p>
+<table>
+<tr><th>written</th><th>type</th><th><code>str</code> gives</th></tr>
+<tr><td><code>3</code>, <code>-7</code>, <code>1_000_000</code></td><td>integer</td><td><code>3</code>, <code>-7</code>, <code>1000000</code></td></tr>
+<tr><td><code>3.0</code>, <code>1.5</code>, <code>1e5</code></td><td>float</td><td><code>3.0</code>, <code>1.5</code>, <code>100000.0</code></td></tr>
+</table>
+<ul>
+<li><code>eq(1, 1.0)</code> is <code>false</code>. <code>lt</code>/<code>lte</code>/<code>gt</code>/<code>gte</code> take two integers or two
+floats; a mixed pair is a <code>TypeMismatch</code>. Write <code>gt($x, 0.0)</code> for a float.
+</li>
+<li>There are no operators: no <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>. Arithmetic is nine named
+builtins, and there is no subtraction: <code>sum(a, negate(b))</code>.
+</li>
+</ul>
+<table>
+<tr><th>builtin</th><th>operands</th><th>result</th></tr>
+<tr><td><code>sum(…)</code>, <code>product(…)</code></td><td>one or more, all integers or all floats; arrays are flattened</td><td>same type</td></tr>
+<tr><td><code>negate(x)</code></td><td>integer or float</td><td>same type</td></tr>
+<tr><td><code>quotient(a, b)</code>, <code>inverse(x)</code></td><td>floats only</td><td>float</td></tr>
+<tr><td><code>floor-quotient(a, b)</code>, <code>modulo(a, b)</code></td><td>integers only</td><td>integer, rounding toward negative infinity</td></tr>
+<tr><td><code>floor(x)</code></td><td>either</td><td>integer</td></tr>
+<tr><td><code>real(x)</code></td><td>either</td><td>float</td></tr>
+</table>
+<pre><code>@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@total    = sum(0.0, map($ctx.lines,
+                         (l) =&gt; product(real($l.qty), real($l.price))))
+</code></pre>
+<ul>
+<li>A mixed call (<code>sum(1, 2.5)</code>, <code>quotient(1, 2)</code>) is a <code>TypeMismatch</code>. When
+the type of a context number is not known, normalize it: <code>real($x)</code> or
+<code>floor($x)</code>.
+</li>
+<li><code>sum()</code> and <code>sum([])</code> are a <code>TypeMismatch</code>. Seed a fold over a list that
+may be empty: <code>sum(0, $xs)</code> or <code>sum(0.0, $xs)</code>.
+</li>
+<li>A zero divisor, an integer overflow and a non-finite float are a
+<code>NotRepresentable</code> error, never <code>null</code> or <code>0</code>. Guard with <code>branch</code>, whose
+unselected arm is not evaluated.
+</li>
+<li>Arithmetic is a profile the host turns on (<code>tramaj-cli --arithmetic</code>).
+Without it the nine names are unbound.
+</li>
+<li>In symbolic mode, a builtin with a symbol among its operands evaluates to
+a term, <code>{&quot;$term&quot;: &quot;sum&quot;, &quot;arguments&quot;: [...]}</code>, for the host to evaluate.
+<code>&quot;$term&quot;</code> is a reserved object key, like <code>&quot;$sym&quot;</code> and <code>&quot;$type&quot;</code>.
+</li>
+<li>The type primitives are <code>int</code> and <code>float</code> (<code>@n : int = 3</code>); there is no
+<code>number</code>.
+</li>
+</ul>
+<p>Do not emit <code>round</code>, <code>sort-by</code>, <code>sort-by-descending</code> or <code>format-number</code>:
+they are specified in the reference, marked <strong>[§20]</strong>, and no implementation
+has them yet. The number split and the nine builtins above are in the
+PureScript and Haskell implementations, and not yet in the Rust, JavaScript,
+Python and Go ones, where every number is still a double. Templates written
+before the split:
+<a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a>.</p>
 <h3 id="actions-are-opaque-to-the-language">Actions are opaque to the language</h3>
 <p><code>action(&quot;on-click&quot;, &quot;select&quot;, {&quot;id&quot;: $i.id})</code> attaches structured data to an
 element. The language does not interpret it — a host decides what the key
@@ -95,6 +158,8 @@ AST — no context, no evaluation:</p>
 </li>
 <li>which import parameters are still unsupplied
 </li>
+<li>which arithmetic builtins it references (<code>analyze arithmetic</code>)
+</li>
 <li>(v3/v4) what constraints and symbols/types it introduces
 </li>
 </ul>
@@ -116,6 +181,13 @@ mutually recursive.
 </li>
 <li>A library (something loaded via <code>import</code>) may not call <code>?(key)</code> — only the
 root program may allocate symbols.
+</li>
+<li>Don’t compare or combine an integer with a float: <code>gt($ratio, 0)</code> fails
+when <code>$ratio</code> is a float. Match the literal to the value, or convert with
+<code>real</code>/<code>floor</code>.
+</li>
+<li>Don’t write a count as <code>1.0</code> or <code>1e3</code>: a float renders with its fraction
+(<code>1.0</code>, <code>1000.0</code>).
 </li>
 <li>Evaluation order is unconstrained outside of binding precedence: don’t
 write templates that rely on side-effect ordering, because there isn’t
