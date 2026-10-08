@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj — Language Reference</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-language.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj — Language Reference"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj — Language Reference"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-language.html"><meta property="og:description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-08T08:31:40Z"><meta name="article:modified_time" content="2026-10-08T08:31:40Z"><meta name="ks:article_json" content="/tramaj/json/reference-language.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-language.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T08:31:40Z","datePublished":"2026-10-08T08:31:40Z","description":"Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.","headline":"Tramaj — Language Reference","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-language.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html" class="doc-nav-current" aria-current="page">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj--language-reference">Tramaj — Language Reference</a></li><li class="doc-toc-level-3"><a href="#1-shape-of-the-language">1. Shape of the language</a></li><li class="doc-toc-level-3"><a href="#2-core-ast">2. Core AST</a></li><li class="doc-toc-level-3"><a href="#3-values">3. Values</a></li><li class="doc-toc-level-3"><a href="#4-node-output">4. Node (output)</a></li><li class="doc-toc-level-3"><a href="#5-surface-syntax">5. Surface syntax</a></li><li class="doc-toc-level-3"><a href="#6-evaluation">6. Evaluation</a></li><li class="doc-toc-level-3"><a href="#7-imports">7. Imports</a></li><li class="doc-toc-level-3"><a href="#8-desugaring">8. Desugaring</a></li><li class="doc-toc-level-3"><a href="#9-static-analysis">9. Static analysis</a></li><li class="doc-toc-level-3"><a href="#10-actions-and-adaptation">10. Actions and adaptation</a></li><li class="doc-toc-level-3"><a href="#11-builtins">11. Builtins</a></li><li class="doc-toc-level-3"><a href="#12-errors">12. Errors</a></li><li class="doc-toc-level-3"><a href="#13-implementation-defined">13. Implementation-defined</a></li><li class="doc-toc-level-3"><a href="#14-open">14. Open</a></li></ul></nav><article><header class="heading"><h1>Tramaj — Language Reference</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 4333 words, 16 code snippets, 4 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">5/5</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"><code>specs/reference.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj — Language Reference</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-language.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj — Language Reference"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj — Language Reference"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-language.html"><meta property="og:description" content="Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-08T09:55:36Z"><meta name="article:modified_time" content="2026-10-08T09:55:36Z"><meta name="ks:article_json" content="/tramaj/json/reference-language.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-language.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T09:55:36Z","datePublished":"2026-10-08T09:55:36Z","description":"Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.","headline":"Tramaj — Language Reference","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-language.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html" class="doc-nav-current" aria-current="page">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj--language-reference">Tramaj — Language Reference</a></li><li class="doc-toc-level-3"><a href="#1-shape-of-the-language">1. Shape of the language</a></li><li class="doc-toc-level-3"><a href="#2-core-ast">2. Core AST</a></li><li class="doc-toc-level-3"><a href="#3-values">3. Values</a></li><li class="doc-toc-level-3"><a href="#4-node-output">4. Node (output)</a></li><li class="doc-toc-level-3"><a href="#5-surface-syntax">5. Surface syntax</a></li><li class="doc-toc-level-3"><a href="#6-evaluation">6. Evaluation</a></li><li class="doc-toc-level-3"><a href="#7-imports">7. Imports</a></li><li class="doc-toc-level-3"><a href="#8-desugaring">8. Desugaring</a></li><li class="doc-toc-level-3"><a href="#9-static-analysis">9. Static analysis</a></li><li class="doc-toc-level-3"><a href="#10-actions-and-adaptation">10. Actions and adaptation</a></li><li class="doc-toc-level-3"><a href="#11-builtins">11. Builtins</a></li><li class="doc-toc-level-3"><a href="#12-errors">12. Errors</a></li><li class="doc-toc-level-3"><a href="#13-implementation-defined">13. Implementation-defined</a></li><li class="doc-toc-level-3"><a href="#14-open">14. Open</a></li></ul></nav><article><header class="heading"><h1>Tramaj — Language Reference</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 5697 words, 20 code snippets, 4 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">5/5</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"><code>specs/reference.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
 <h2 id="tramaj--language-reference">Tramaj — Language Reference</h2>
 <p>This is the reference for the language <strong>as implemented</strong>. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -8,13 +8,19 @@ normative for the output wire format and is not repeated in full here.</p>
 <p>Two implementations are held to this document: <code>tramaj/</code> (PureScript) and
 <code>tramaj-hs/</code> (Haskell). Anything below marked <em>implementation-defined</em> is
 where they are permitted to differ; everything else they must not.</p>
-<p><strong>One part is specified ahead of the implementations.</strong> The split of numbers
-into integers and floats, and the arithmetic builtins, are accepted design
-(decisions §18) and are normative here, but no implementation has them yet:
-today every number is a double, <code>str(1.0)</code> is <code>1</code>, and the nine names of §11’s
-<em>Arithmetic</em> are unbound. Each passage this applies to is marked <strong>[§18]</strong>.
-The number split is to land first, in every implementation, and the builtins
-after it.</p>
+<p><strong>One part is not in every implementation yet.</strong> The split of numbers into
+integers and floats, and the arithmetic builtins, are accepted design
+(decisions §18) and are normative here. <code>tramaj/</code> (PureScript, with the
+guaranteed integer range) and <code>tramaj-hs/</code> (Haskell, with the 64-bit range)
+implement both, the nine arithmetic names without <code>round</code>. The Rust,
+JavaScript, Python and Go ports do not yet: there every number is a double,
+<code>str(1.0)</code> is <code>1</code>, and the nine names of §11’s <em>Arithmetic</em> are unbound. Each
+passage this applies to is marked <strong>[§18]</strong>.</p>
+<p><strong>A second part is specified ahead in the same way.</strong> Sorting (<code>sort-by</code>,
+<code>sort-by-descending</code>), <code>format-number</code> and <code>round</code> are accepted design
+(decisions §20) and are normative here, but no implementation has them yet:
+the two sort names parse as ordinary calls, and all four names are unbound.
+Each passage this applies to is marked <strong>[§20]</strong>.</p>
 <hr />
 <h3 id="1-shape-of-the-language">1. Shape of the language</h3>
 <p>Tramaj is expression-oriented. There is one expression language, and
@@ -59,6 +65,8 @@ Expr
   | Filter       collection: Expr, function: Expr
   | Scan         collection: Expr, initial: Expr, function: Expr
   | Fold         collection: Expr, initial: Expr, function: Expr
+  | SortBy       descending: Boolean,          -- [§20] sort-by and
+                 collection: Expr, function: Expr  -- sort-by-descending
   | Concat       left: Expr, right: Expr
   | Import       name: String, parameters: List&lt;(String, ParamValue)&gt;
   | AdaptActions target: Expr, adaptation: ActionAdaptation,
@@ -217,6 +225,7 @@ one.</p>
 <tr><td><code>value(expr)</code></td><td>element value slot; at most one, attribute position</td></tr>
 <tr><td><code>action("event", "key", payload)</code></td><td>action; attribute position, any number</td></tr>
 <tr><td><code>map/filter(coll, fn)</code>, <code>scan/fold(coll, init, fn)</code></td><td>array primitives</td></tr>
+<tr><td><code>sort-by(coll, fn)</code>, <code>sort-by-descending(coll, fn)</code></td><td><strong>[§20]</strong> a stable sort, by the key <code>fn</code> gives each element (§11)</td></tr>
 <tr><td><code>branch(fallback, p1, v1, …)</code></td><td>conditional</td></tr>
 <tr><td><code>import("name", {k: expr, j: ctx(path)})</code></td><td>import; a parameter may also be left out and supplied later</td></tr>
 <tr><td><code>adapt-actions(node, prefix("ns:") \| identity [, fn])</code></td><td>action adaptation</td></tr>
@@ -283,6 +292,10 @@ interpolation, and that position cannot be computed.</p>
 <p><strong>A malformed special form is a parse error.</strong> Name recognition backtracks;
 the shape does not. <code>action(&quot;on-click&quot;, $computed, {})</code> fails to parse rather
 than quietly becoming a call to an unbound function named <code>action</code>.</p>
+<p><strong>[§20]</strong> <code>sort-by</code> and <code>sort-by-descending</code> are special-form names, as <code>map</code>
+is. Each takes exactly two arguments, and any other count is a parse error.
+Being recognized by the parser, neither can be shadowed by a binding, and
+neither can be passed by reference.</p>
 <h4 id="program-kind">Program kind</h4>
 <p>A program is bindings followed by a root expression. <code>parseProgram</code> reports
 <code>DocumentProgram</code> if the root is written as a document (<code>.tag(...)</code> or
@@ -337,7 +350,7 @@ not be observable here either. Both implementations must produce these
 character for character.</p>
 <p><strong>[§18]</strong> The two number rows are the serialization rule of <code>node-json.md</code>:
 <code>str</code> renders what the value is, so <code>str(1)</code> is <code>1</code> and <code>str(1.0)</code> is <code>1.0</code>.
-Until the number split lands, implementations render every number by
+An implementation without the number split yet renders every number by
 <code>Number::toString</code> alone, which differs for a whole-valued float and for
 nothing else.</p>
 <hr />
@@ -448,7 +461,7 @@ follows imports through a library table and cuts cycles.</p>
 <tr><td><code>contextHoles</code> / <code>deepContextHoles</code></td><td>which context paths it declares as holes with <code>ctx(...)</code></td></tr>
 <tr><td><code>contextReads</code></td><td>every path it reads from its own context, <code>$ctx.a</code> and <code>ctx(a)</code> alike</td></tr>
 <tr><td><code>unsuppliedParams</code></td><td>per import, the paths its library reads that the import does not supply</td></tr>
-<tr><td><code>arithmeticOps</code> / <code>deepArithmeticOps</code></td><td><strong>[§18]</strong> which of §11's nine arithmetic names it references free</td></tr>
+<tr><td><code>arithmeticOps</code> / <code>deepArithmeticOps</code></td><td><strong>[§18]</strong> which of §11's ten arithmetic names it references free</td></tr>
 </table>
 <p><code>contextReads</code> of a library is the shape of the parameter object it expects,
 since a library’s context is its parameters. <code>unsuppliedParams</code> is that set
@@ -467,6 +480,11 @@ only in such an arm. A name that is imported but missing from the table is
 reported too — an unresolvable dependency is what a caller wants to hear
 about — though it contributes no unsupplied parameters, since what it needs
 is unknowable rather than nothing.</p>
+<p><strong>[§20]</strong> Every analysis traverses <code>SortBy</code> as it traverses <code>Map</code>: through
+the collection and through the function. A read, an import, an action key or
+an arithmetic name inside a key function is therefore reported. <code>round</code> is
+one of the ten names <code>arithmeticOps</code> reports. <code>format-number</code> is not: it is
+not part of the arithmetic profile.</p>
 <p><code>arithmeticOps</code> reports a name whether it is called or passed by reference
 (<code>fold($xs, 0, $sum)</code>). It is scope-aware: a name shadowed by a binding, a
 lambda parameter or a pattern name is not reported. A host without the
@@ -505,6 +523,8 @@ of the restriction.</p>
 <tr><td><code>has(container, key)</code></td><td>tolerant: a missing key, out-of-range index or wrong-shaped container answers <code>false</code></td></tr>
 <tr><td><code>lookup(container, key, fallback)</code></td><td>dynamic access; the fallback is mandatory, so this never errors</td></tr>
 <tr><td><code>map</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td>also core constructors — see below</td></tr>
+<tr><td><code>sort-by(list, fn)</code>, <code>sort-by-descending(list, fn)</code></td><td><strong>[§20]</strong> core constructors too: a stable sort by key — see <em>Sorting</em></td></tr>
+<tr><td><code>format-number(x, decimals, group)</code></td><td><strong>[§20]</strong> a number as positional decimal text — see <em>Number formatting</em></td></tr>
 <tr><td><code>concat(…)</code></td><td>variadic array join; every argument must be an array</td></tr>
 <tr><td><code>append(arr, item)</code></td><td>adds one element; an array item is added whole, not spliced</td></tr>
 </table>
@@ -513,21 +533,182 @@ longer than the input. <code>fold</code> takes the same <code>(acc, item)</code>
 only the final accumulator.</p>
 <p><strong>There are no arithmetic operators.</strong> No <code>+</code>, <code>-</code>, <code>*</code> or <code>/</code>: <code>-</code> stays part
 of a number literal, <code>--</code> a comment, and <code>&lt;&gt;</code> the only infix operator (§5).
-Arithmetic is nine named builtins, below, in an optional profile. An
+Arithmetic is ten named builtins, below, in an optional profile. An
 implementation without that profile has no numeric builtins beyond the
-comparisons above.</p>
-<p><code>map</code>/<code>filter</code>/<code>scan</code>/<code>fold</code> are core constructors rather than builtins
-because their function argument needs a fresh binding per element. <code>branch</code> is
+comparisons and <code>format-number</code>.</p>
+<p><code>map</code>/<code>filter</code>/<code>scan</code>/<code>fold</code> and the two sorts are core constructors rather
+than builtins because their function argument needs a fresh binding per
+element. <code>branch</code> is
 a core constructor because it must leave an arm unevaluated, which no builtin
 can do.</p>
+<h4 id="sorting">Sorting</h4>
+<p><strong>[§20] Specified, not yet implemented.</strong></p>
+<pre><code>sort-by($rows, (r) =&gt; $r.spend)                 -- by a field
+sort-by($rows, (r) =&gt; cardinality($r.members))  -- by a computed value
+sort-by-descending($names, (n) =&gt; $n)           -- a list of scalars
+sort-by($rows, $spend-of)                       -- a function by reference
+</code></pre>
+<p><code>sort-by(list, fn)</code> applies <code>fn</code> to each element of <code>list</code> to get its <strong>key</strong>,
+and returns the elements ordered by ascending key. <code>sort-by-descending</code>
+orders them by descending key. Both lower to the one constructor <code>SortBy</code>
+(§2). They belong to the core language: no profile is needed for them.</p>
+<p><strong>The order.</strong> Element <code>i</code> precedes element <code>j</code> when its key is smaller
+(larger, for <code>sort-by-descending</code>), or when the two keys are equal and
+<code>i &lt; j</code>. Two keys are equal when they are the same number or the same
+sequence of code points. That is a total order on positions, so there is
+exactly one result, and an implementation may use any algorithm that produces
+it.</p>
+<p>Both sorts are therefore <strong>stable</strong>, each on its own terms.
+<code>sort-by-descending</code> is not the reversal of <code>sort-by</code>, which would reverse
+the ties as well. For elements <code>a</code>, <code>b</code>, <code>c</code> whose keys are <code>2</code>, <code>1</code>, <code>2</code>,
+<code>sort-by</code> gives <code>b</code>, <code>a</code>, <code>c</code> and <code>sort-by-descending</code> gives <code>a</code>, <code>c</code>, <code>b</code>.</p>
+<p>A sort on several columns is one sort per column, the least significant key
+first:</p>
+<pre><code>@by-name = sort-by($rows, (r) =&gt; $r.name)
+@ranked  = sort-by-descending($by-name, (r) =&gt; $r.spend)
+-- highest spend first, equal spends in name order
+</code></pre>
+<p><strong>What a key may be.</strong> The keys of one call are all integers, or all floats,
+or all strings. Anything else is refused.</p>
+<table>
+<tr><th>keys</th><th>result</th></tr>
+<tr><td>all integers</td><td>numeric order</td></tr>
+<tr><td>all floats</td><td>numeric order; there is no NaN and no negative zero (§3), so the order is total</td></tr>
+<tr><td>all strings</td><td>lexicographic by Unicode code point; a proper prefix sorts first</td></tr>
+<tr><td>an integer and a float in one call</td><td><code>TypeMismatch</code></td></tr>
+<tr><td>a number and a string in one call</td><td><code>TypeMismatch</code></td></tr>
+<tr><td><code>null</code>, a boolean, an array, an object, a document, a closure, a builtin, an import</td><td><code>TypeMismatch</code></td></tr>
+<tr><td>a symbol or a term</td><td><code>NotConcrete</code> (v3-symbols §1.5)</td></tr>
+</table>
+<ul>
+<li><em>Integers against floats</em> are not compared, here as in <code>lt</code>. Keys of
+unknown number type are normalized by the key function:
+<code>(r) =&gt; real($r.spend)</code>.
+</li>
+<li><em>Strings</em> are compared by code point. That is the byte order of their UTF-8
+encoding, and it is <strong>not</strong> the order of UTF-16 code units: U+FF5E sorts
+before U+1F600. An implementation whose strings are UTF-16 MUST compare by
+code point. There is no case folding, no normalization, no numeric
+awareness and no collation:
+<code>[&quot;&quot;, &quot;10&quot;, &quot;9&quot;, &quot;Zebra&quot;, &quot;apple&quot;, &quot;banana&quot;, &quot;eclair&quot;, &quot;éclair&quot;]</code> is in
+order.
+</li>
+<li><em><code>null</code> and a missing value</em> have no place in the order. A <code>null</code> key is a
+<code>TypeMismatch</code>, and a missing field is whatever the key function makes of
+it: <code>$r.spend</code> fails with <code>PathNotFound</code>, and <code>lookup($r, &quot;spend&quot;, 0)</code>
+supplies a default.
+</li>
+<li><em>Booleans</em> are not ordered. <code>branch(1, $r.active, 0)</code> states the order the
+author wants.
+</li>
+<li><code>lt</code> and its siblings are unchanged: they stay numbers-only.
+</li>
+</ul>
+<p><strong>Checks, in this order</strong>, all before anything is reordered:</p>
+<ol>
+<li>An argument count other than two is a parse error (§5).
+</li>
+<li><code>list</code>: a symbol or a term is <code>NotConcrete</code>, as for <code>map</code>; any other
+non-array is a <code>TypeMismatch</code>.
+</li>
+<li><code>fn</code>: a value that is not callable is a <code>TypeMismatch</code>, when <code>map</code> would
+raise it.
+</li>
+<li>For each element, in index order: <code>fn</code> is applied, and an error it raises
+is the error; then the key is checked. A symbol or a term is
+<code>NotConcrete</code>; a value of a kind that is never a key, or of a different
+type from the first key, is a <code>TypeMismatch</code>. The first element that fails
+decides.
+</li>
+</ol>
+<p><code>fn</code> is applied exactly once per element, in index order. Apart from that the
+elements are never inspected, so a list of documents, of closures or of
+objects holding a symbol sorts like any other. Every key is checked, even
+when the list has one element: <code>sort-by([$a], (x) =&gt; null)</code> is a
+<code>TypeMismatch</code> although nothing would move. An empty list gives <code>[]</code>, and
+<code>fn</code> is not applied.</p>
+<h4 id="number-formatting">Number formatting</h4>
+<p><strong>[§20] Specified, not yet implemented.</strong></p>
+<p><code>format-number(x, decimals, group)</code> writes a number in positional decimal
+notation, with exactly <code>decimals</code> digits after the point, and <code>group</code> between
+each group of three digits of the integer part. It is an ordinary builtin of
+the core language. It needs no profile, it can be shadowed and passed by
+reference, and it does not depend on the arithmetic builtins.</p>
+<pre><code>format-number(1234567.891, 2, &quot;,&quot;)   -- &quot;1,234,567.89&quot;
+format-number(1234567.891, 2, &quot; &quot;)   -- &quot;1 234 567.89&quot;
+format-number(1234.5, 2, &quot;&quot;)         -- &quot;1234.50&quot;
+format-number(1234.5, 0, &quot;,&quot;)        -- &quot;1,235&quot;
+format-number(1234, 2, &quot;,&quot;)          -- &quot;1,234.00&quot;
+format-number(-1234567, 0, &quot;,&quot;)      -- &quot;-1,234,567&quot;
+format-number(999.995, 2, &quot;&quot;)        -- &quot;1000.00&quot;
+</code></pre>
+<p><strong>The rounding rule.</strong> Let <code>v</code> be the exact mathematical value of <code>x</code>. A float
+is a binary fraction, so <code>v</code> has a finite decimal expansion: <code>0.1</code> is exactly
+<code>0.1000000000000000055511151231257827021181583404541015625</code>. The result
+denotes the multiple of <code>10^-decimals</code> nearest to <code>v</code>; when two are equally
+near, the one farther from zero. Implementations MUST agree byte for byte.
+No native formatter follows this rule in every case, so each implementation
+writes it out.</p>
+<ul>
+<li>A tie exists only when <code>v</code> is exactly halfway, which happens for values a
+double holds exactly. Those round away from zero:
+<code>format-number(2.5, 0, &quot;&quot;)</code> is <code>3</code>, <code>format-number(-2.5, 0, &quot;&quot;)</code> is <code>-3</code>
+and <code>format-number(0.125, 2, &quot;&quot;)</code> is <code>0.13</code>.
+</li>
+<li>The builtin rounds the number the program has, not the text it was written
+as. <code>format-number(1.005, 2, &quot;&quot;)</code> is <code>1.00</code> and
+<code>format-number(2.675, 2, &quot;&quot;)</code> is <code>2.67</code>, because the doubles nearest to
+those literals are <code>1.00499999999999989…</code> and <code>2.67499999999999982…</code>.
+</li>
+</ul>
+<p><strong>The remaining rules.</strong></p>
+<ol>
+<li><em>Arguments.</em> <code>x</code> is an integer or a float. An integer is formatted from
+its exact value, so nothing is converted. <code>decimals</code> is an integer from
+<code>0</code> to <code>20</code>. <code>group</code> is a string. An argument count other than three is a
+<code>TypeMismatch</code>. The arguments are then examined left to right, and the
+first that is not acceptable decides the error: a symbol or a term is
+<code>NotConcrete</code>, anything else of the wrong type is a <code>TypeMismatch</code>. So is
+a float <code>decimals</code> (<code>2.0</code>), and so is one outside <code>0</code> to <code>20</code>.
+</li>
+<li><em>Shape of the text.</em> An optional <code>-</code>, the integer part, and, when
+<code>decimals</code> is not zero, a <code>.</code> and exactly <code>decimals</code> digits. The integer
+part has at least one digit and no leading zero beyond it (<code>0.50</code>, never
+<code>.50</code>). With zero decimals there is no point: <code>1235</code>, never <code>1235.</code>.
+</li>
+<li><em>Never an exponent.</em> Every float formats, however large:
+<code>format-number(1e21, 0, &quot;,&quot;)</code> is <code>1,000,000,000,000,000,000,000</code>. The
+digits are those of the exact value, so <code>format-number(1e23, 0, &quot;&quot;)</code> is
+<code>99999999999999991611392</code>.
+</li>
+<li><em>No negative zero.</em> A result whose digits are all zero carries no sign:
+<code>format-number(-0.001, 2, &quot;&quot;)</code> is <code>0.00</code>. <code>format-number(-0.005, 2, &quot;&quot;)</code>
+is <code>-0.01</code>, since <code>-0.005</code> is the double <code>-0.005000000000000000104…</code>.
+</li>
+<li><em>Grouping.</em> When <code>group</code> is not empty, it is inserted between groups of
+three digits of the integer part, counted from the point leftward. The
+fraction is never grouped, and the sign precedes the first group. <code>&quot;&quot;</code>
+means no grouping. The string is inserted as it is, whatever it is;
+nothing validates it.
+</li>
+<li><em>The decimal mark is always <code>.</code></em>, and there is no locale.
+</li>
+</ol>
+<p>There is no prefix, suffix or percent option. <code>&lt;&gt;</code> and interpolation do the
+first two, and the builtin does not multiply:</p>
+<pre><code>&quot;$&quot; &lt;&gt; format-number($x, 2, &quot;,&quot;)
+format-number(product(100.0, $ratio), 1, &quot;&quot;) &lt;&gt; &quot;%&quot;
+</code></pre>
 <h4 id="arithmetic">Arithmetic</h4>
-<p><strong>[§18] Specified, not yet implemented.</strong> No implementation has the
-arithmetic profile today.</p>
+<p><strong>[§18]</strong> Implemented in <code>tramaj/</code> (PureScript) and <code>tramaj-hs/</code> (Haskell),
+with the nine names other than <code>round</code>; not yet in the Rust, JavaScript,
+Python and Go ports. <strong>[§20]</strong> <code>round</code> is the tenth name, added to the
+profile after the other nine, and no implementation has it yet.</p>
 <p><strong>The arithmetic profile</strong> is optional, and independent of v3-symbols §5.5’s
 core and symbolic profiles. The two number types of §3 are not part of it:
 they belong to the value domain in every profile.</p>
 <ul>
-<li>An implementation with the profile puts the nine names below in the initial
+<li>An implementation with the profile puts the ten names below in the initial
 environment. One without it does not, and a program that uses one fails with
 <code>UnboundName</code>. Nothing is refused at parse time: these are names, not
 syntax.
@@ -551,6 +732,7 @@ program before running it.
 <tr><td><code>modulo(a, b)</code></td><td>2</td><td>two integers</td><td><code>a - b * floor-quotient(a, b)</code></td></tr>
 <tr><td><code>floor(x)</code></td><td>1</td><td>float or integer</td><td>the largest integer not above <code>x</code>, as an integer</td></tr>
 <tr><td><code>real(x)</code></td><td>1</td><td>integer or float</td><td>the float nearest to <code>x</code></td></tr>
+<tr><td><code>round(x)</code></td><td>1</td><td>float or integer</td><td><strong>[§20]</strong> the integer nearest to <code>x</code>, ties away from zero, as an integer</td></tr>
 </table>
 <pre><code>@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
 @share    = branch(0, gt($ctx.total, 0),
@@ -560,9 +742,18 @@ program before running it.
                          (l) =&gt; product(real($l.qty), real($l.price))))
 </code></pre>
 <ul>
-<li><strong><code>real</code> and <code>floor</code> are the only conversions</strong>, one in each direction. Each
+<li><strong><code>real</code> and <code>floor</code> are the conversions</strong>, one in each direction. Each
 accepts both types, so that it can normalize a number of unknown type:
 <code>real</code> of a float and <code>floor</code> of an integer are the identity.
+</li>
+<li><strong>[§20] <code>round</code> is <code>floor</code>’s sibling.</strong> It gives the integer nearest to the
+exact value of <code>x</code>, and when two are equally near, the one farther from
+zero: <code>round(2.5)</code> is <code>3</code>, <code>round(-2.5)</code> is <code>-3</code> and <code>round(-0.4)</code> is <code>0</code>.
+It accepts both types and is the identity on an integer.
+<code>floor(sum(x, 0.5))</code> only approximates it: for <code>0.49999999999999994</code> that
+sum is exactly <code>1.0</code>, where <code>round</code> gives <code>0</code>. The tie rule is the one
+<code>format-number</code> uses, so for a float <code>x</code> whose rounding is in range,
+<code>str(round(x))</code> and <code>format-number(x, 0, &quot;&quot;)</code> are the same text.
 </li>
 <li><strong>There is no subtraction</strong>: <code>sum(a, negate(b))</code>. Negation is exact, so for
 floats this is bit for bit <code>a - b</code>.
@@ -582,13 +773,15 @@ magnitude than <code>b</code>, so it is always in range.
 <code>quotient(a, b)</code>: it rounds twice. <code>product(49.0, inverse(49.0))</code> is
 <code>0.9999999999999999</code>, where <code>quotient(49.0, 49.0)</code> is <code>1.0</code>.
 </li>
-<li>Rounding to nearest, decimal formatting, <code>min</code> and <code>max</code> are not provided.
+<li><code>min</code>, <code>max</code>, <code>ceiling</code> and <code>truncate</code> are not provided. Neither is
+rounding to a number of decimals as a float: a rounded decimal is text, and
+<code>format-number</code> is the builtin that produces it.
 </li>
 </ul>
 <p><strong>Arrays as arguments.</strong> <code>sum</code> and <code>product</code> flatten their arguments by the
 rule children use (§6): an array contributes each of its elements,
 recursively, in order. <code>sum($xs)</code>, <code>sum(1, $xs, 2)</code> and <code>sum([1, [2, 3]])</code> are
-all legal. The seven fixed-arity builtins do not flatten: <code>negate([1])</code> is a
+all legal. The eight fixed-arity builtins do not flatten: <code>negate([1])</code> is a
 <code>TypeMismatch</code>, whatever the array holds, and <code>map($xs, $negate)</code> is the way
 to write it. <code>and</code>, <code>or</code> and <code>concat</code> are unchanged.</p>
 <p>A <code>sum</code> or <code>product</code> with no operand after flattening has no type to take, so
@@ -633,7 +826,8 @@ double, which may be zero, as for a literal (§5).
 </li>
 <li><em>The conversions.</em> <code>floor</code> of a float whose floor is outside the
 implementation’s integer range is a <code>NotRepresentable</code>: <code>floor(1e19)</code>
-everywhere, <code>floor(1e16)</code> with the guaranteed range only. <code>real</code> never
+everywhere, <code>floor(1e16)</code> with the guaranteed range only. <code>round</code> follows
+the same rule for the integer it rounds to. <code>real</code> never
 fails. It is exact inside the guaranteed range; beyond it, with the 64-bit
 range, it rounds to nearest, ties to even.
 </li>
@@ -671,6 +865,11 @@ exception: it sorts, so it is deterministic.
 <li><strong>Error message text.</strong> The error <em>kinds</em> above are stable; their prose is
 not.
 </li>
+<li><strong>The place of an ill-formed string in a sort. [§20]</strong> The string order of
+§11’s <em>Sorting</em> is defined for well-formed strings. Whether a string may
+hold an unpaired surrogate is not specified, and neither is where one would
+sort.
+</li>
 <li><strong>Integer range. [§18]</strong> Either the guaranteed range, <code>-(2^53 - 1)</code> to
 <code>2^53 - 1</code>, or the signed 64-bit range, <code>-2^63</code> to <code>2^63 - 1</code>; no other is
 permitted, and an implementation documents which it has (§3). Inside the
@@ -680,8 +879,9 @@ integer exactly or refuses it (a parse error for a literal, a
 result) and never rounds it.
 Outside 64 bits every implementation refuses. A value one implementation
 emits above the guaranteed range is therefore rejected by one that has only
-that range. Until the number split lands, numbers are doubles, integers
-beyond 2^53 are not exact, and <code>str</code> renders whatever double survived.
+that range. In an implementation without the number split yet, numbers
+are doubles, integers beyond 2^53 are not exact, and <code>str</code> renders whatever
+double survived.
 </li>
 </ul>
 <hr />

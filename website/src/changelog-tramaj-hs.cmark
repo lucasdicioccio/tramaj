@@ -34,9 +34,52 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #haskell #tramaj-hs
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-hs"})
 .div(class: "changelog",
+  $version({
+      "version": "(none)",
+      "date": "unreleased",
+      "summary": "On the main branch after 0.3.0.0, not released yet: two number types and arithmetic.",
+      "changes": [
+          {
+              "kind": "changed",
+              "text": "Breaking: numbers are two types, an integer and a float (decisions section 18). A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the signed 64-bit range; one outside it is a parse error as a literal and a \`TypeMismatch\` in the context."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: a number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and every JSON boundary writes a float with a fraction or an exponent."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`eq\` never equates an integer with a float, and \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`Tramaj.Json\` replaces \`Data.Aeson.Value\` in the public API, with \`JInt\` and \`JFloat\`; \`fromAeson\` and \`toAeson\` bridge the two."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`\"$term\"\` is a reserved object key, and \`int\` and \`float\` replace \`number\` as v4 type primitives."
+          },
+          {
+              "kind": "added",
+              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`defaultOptions\`, \`evalProgramWith\` and \`runProgramWith\` turn it on."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
+          },
+          {
+              "kind": "added",
+              "text": "\`arithmeticOps\` and \`deepArithmeticOps\`, the arithmetic names a program references."
+          }
+      ]
+  }).rendered,
   $version({
       "version": "0.3.0.0",
       "date": "date not recorded",

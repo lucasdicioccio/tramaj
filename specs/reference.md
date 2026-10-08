@@ -10,13 +10,14 @@ Two implementations are held to this document: `tramaj/` (PureScript) and
 `tramaj-hs/` (Haskell). Anything below marked *implementation-defined* is
 where they are permitted to differ; everything else they must not.
 
-**One part is specified ahead of the implementations.** The split of numbers
-into integers and floats, and the arithmetic builtins, are accepted design
-(decisions §18) and are normative here, but no implementation has them yet:
-today every number is a double, `str(1.0)` is `1`, and the nine names of §11's
-*Arithmetic* are unbound. Each passage this applies to is marked **[§18]**.
-The number split is to land first, in every implementation, and the builtins
-after it.
+**One part is not in every implementation yet.** The split of numbers into
+integers and floats, and the arithmetic builtins, are accepted design
+(decisions §18) and are normative here. `tramaj/` (PureScript, with the
+guaranteed integer range) and `tramaj-hs/` (Haskell, with the 64-bit range)
+implement both, the nine arithmetic names without `round`. The Rust,
+JavaScript, Python and Go ports do not yet: there every number is a double,
+`str(1.0)` is `1`, and the nine names of §11's *Arithmetic* are unbound. Each
+passage this applies to is marked **[§18]**.
 
 **A second part is specified ahead in the same way.** Sorting (`sort-by`,
 `sort-by-descending`), `format-number` and `round` are accepted design
@@ -391,7 +392,7 @@ character for character.
 
 **[§18]** The two number rows are the serialization rule of `node-json.md`:
 `str` renders what the value is, so `str(1)` is `1` and `str(1.0)` is `1.0`.
-Until the number split lands, implementations render every number by
+An implementation without the number split yet renders every number by
 `Number::toString` alone, which differs for a whole-valued float and for
 nothing else.
 
@@ -802,9 +803,10 @@ format-number(product(100.0, $ratio), 1, "") <> "%"
 
 ### Arithmetic
 
-**[§18] Specified, not yet implemented.** No implementation has the
-arithmetic profile today. **[§20]** `round` is the tenth name, added to the
-profile after the other nine.
+**[§18]** Implemented in `tramaj/` (PureScript) and `tramaj-hs/` (Haskell),
+with the nine names other than `round`; not yet in the Rust, JavaScript,
+Python and Go ports. **[§20]** `round` is the tenth name, added to the
+profile after the other nine, and no implementation has it yet.
 
 **The arithmetic profile** is optional, and independent of v3-symbols §5.5's
 core and symbolic profiles. The two number types of §3 are not part of it:
@@ -969,8 +971,9 @@ Programs must not depend on any of these.
   result) and never rounds it.
   Outside 64 bits every implementation refuses. A value one implementation
   emits above the guaranteed range is therefore rejected by one that has only
-  that range. Until the number split lands, numbers are doubles, integers
-  beyond 2^53 are not exact, and `str` renders whatever double survived.
+  that range. In an implementation without the number split yet, numbers
+  are doubles, integers beyond 2^53 are not exact, and `str` renders whatever
+  double survived.
 
 ---
 

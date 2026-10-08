@@ -2,6 +2,8 @@
 
 Release history of `tramaj-purs`, the reference PureScript implementation: parser, evaluator, Node codec and analyses. Releases happen when there are major changes rather than on a schedule; each entry below is one version. Every implementation has its own page like this one, and each page is tagged so the site builds one Atom feed per implementation: #changelog #purescript #tramaj-purs
 
+The unreleased entry has breaking changes to numbers: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) says what to do about each.
+
 
 
 

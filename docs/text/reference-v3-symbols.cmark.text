@@ -8,7 +8,7 @@ Types are **not** in v3. Nominal types, type declarations, imported type namespa
 
 Status: frozen as a design. Not implemented in either `tramaj/` or `tramaj-hs/`.
 
-**Terms are specified ahead of the implementations.** §1.9, and what the rest of this document says about terms and about `"$term"`, is accepted design (decisions §18) that no implementation has yet. It depends on ref §11's arithmetic profile, which none has either. The same holds for the two number types (ref §3) wherever this document writes a number: in canon (§1.4) and in the envelope (§5.2).
+**Terms are not in every implementation yet.** §1.9, and what the rest of this document says about terms and about `"$term"`, is accepted design (decisions §18). It depends on ref §11's arithmetic profile. `tramaj/` (PureScript) and `tramaj-hs/` (Haskell) implement both, for the nine names other than `round`; the Rust, JavaScript, Python and Go ports have neither yet. The same holds for the two number types (ref §3) wherever this document writes a number: in canon (§1.4) and in the envelope (§5.2).
 
 -----------------------------
 
@@ -128,18 +128,22 @@ A symbol is data. It may be bound, passed to a lambda, returned from one, stored
 <tr><td><code>.p($s)</code>, <code>.div(class: $s)</code>, <code>action(e, k, {r: $s})</code></td><td>fine — §5.2 carries it</td></tr>
 <tr><td><code>$s.field</code></td><td>a projection (§1.6) — <strong>the one exception</strong></td></tr>
 <tr><td><code>branch($s, …)</code></td><td><code>NotConcrete</code> — no arm can be selected</td></tr>
-<tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
+<tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code>, <code>sort-by</code>, <code>sort-by-descending</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
+<tr><td><code>sort-by(xs, f)</code> where <code>f</code> gives a symbol as a key</td><td><code>NotConcrete</code> — a sort inspects its keys; an array or an object as a key is a <code>TypeMismatch</code>, whatever it holds</td></tr>
 <tr><td><code>eq</code> on anything <em>containing</em> a symbol</td><td><code>NotConcrete</code> — deep equality needs the whole value</td></tr>
 <tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> with a symbol as an operand</td><td><code>NotConcrete</code>; an array or object operand is the <code>TypeMismatch</code> it always was, whatever it holds</td></tr>
 <tr><td><code>str</code> of anything <em>containing</em> a symbol, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
 <tr><td><code>cardinality($s)</code>, <code>has($s, k)</code>, <code>lookup($s, k, d)</code></td><td><code>NotConcrete</code></td></tr>
+<tr><td><code>format-number</code> with a symbol as any of its three arguments</td><td><code>NotConcrete</code> — the result is text (§1.8); an array argument is a <code>TypeMismatch</code>, whatever it holds</td></tr>
 <tr><td><code>$s &lt;&gt; x</code></td><td><code>NotConcrete</code></td></tr>
 </table>
 ```
 
 `has` and `lookup` are called out because both are deliberately _tolerant_ today — `has` answers `false` for a wrong-shaped container and `lookup` never errors. Neither may answer about a symbol: a tolerant `false` would be a lie, and `lookup`'s fallback would silently discard the symbol.
 
-Consequence worth stating: v3 can constrain the elements of a list whose length is known, and cannot constrain a list whose length is symbolic. That is the ceiling, and it is where a real symbolic evaluator would have to begin. Declining to go there is what keeps `map` free of any `if value is Symbol` branch — no evaluator rule in ref §6 changes, and no builtin learns a new case beyond refusing. The nine arithmetic builtins are the one exception: over a symbol they build a term (§1.9).
+Consequence worth stating: v3 can constrain the elements of a list whose length is known, and cannot constrain a list whose length is symbolic. That is the ceiling, and it is where a real symbolic evaluator would have to begin. Declining to go there is what keeps `map` free of any `if value is Symbol` branch — no evaluator rule in ref §6 changes, and no builtin learns a new case beyond refusing. The ten arithmetic builtins are the one exception: over a symbol they build a term (§1.9).
+
+The two sorts and `format-number` (ref §11; decisions §20, not yet implemented) follow the rule and only refuse. A sort builds no term, since a term stands for a number and the result of a sort is an array: a list whose order depends on an unsupplied value cannot be rendered, which is the ceiling above. The elements themselves are not inspected, so `sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) => $o.k)` sorts. `format-number` builds no term either, since its result is text. Its arguments are examined left to right and the first that is not acceptable decides between `NotConcrete` and `TypeMismatch` (ref §11); a sort's keys are examined in index order in the same way.
 
 A term is data in the same way. Every row above that refuses a symbol refuses a term in the same position, and a row that says _containing_ looks as deep for a term as it does for a symbol. The one difference is projection, which a term does not have (§1.9).
 
@@ -189,13 +193,13 @@ Reconstructing a string from those pieces, if a downstream consumer wants one, i
 
 ### 1.9 Terms
 
-_Specified, not yet implemented (decisions §18)._ This section applies to an implementation with the arithmetic profile (ref §11, §5.5).
+_Implemented in `tramaj/` and `tramaj-hs/`, for the nine names other than `round`; not yet in the other ports (decisions §18)._ This section applies to an implementation with the arithmetic profile (ref §11, §5.5).
 
 ```
 !constraint("lte", sum($a, $b), 10)
 ```
 
-A call to one of the nine arithmetic builtins whose flattened operands are all numbers computes, by ref §11. If at least one operand is a symbol or a term, the result is a `Term` with that `op` and **the flattened operands exactly as written**: same order, nothing folded, nothing simplified, no nested term spliced.
+A call to one of the ten arithmetic builtins whose flattened operands are all numbers computes, by ref §11. If at least one operand is a symbol or a term, the result is a `Term` with that `op` and **the flattened operands exactly as written**: same order, nothing folded, nothing simplified, no nested term spliced.
 
 ```html
 <table>
@@ -204,7 +208,7 @@ A call to one of the nine arithmetic builtins whose flattened operands are all n
 <tr><td><code>sum(1, [$s, 2])</code></td><td><code>sum(1, $s, 2)</code> — arrays are flattened (ref §11)</td></tr>
 <tr><td><code>sum($a, sum($b, 1))</code></td><td>a term whose second argument is a term</td></tr>
 <tr><td><code>inverse($s)</code></td><td><code>inverse($s)</code>, not <code>quotient(1.0, $s)</code></td></tr>
-<tr><td><code>floor($s)</code>, <code>real($s)</code></td><td>terms; neither is the identity over a symbol</td></tr>
+<tr><td><code>floor($s)</code>, <code>real($s)</code>, <code>round($s)</code></td><td>terms; none is the identity over a symbol</td></tr>
 </table>
 ```
 
@@ -213,12 +217,12 @@ Preserving is required, not stylistic: `(1.0 + s) + 2.0` and `s + 3.0` are diffe
     A host that evaluates a term by ref §11's concrete rules, after substituting numbers for its symbols, gets byte for byte what the program would have produced had those numbers been in the context, errors included.
 
 
-Tramaj still solves nothing (§0). A term is the computation the language would have performed had it known the operands, handed over undone, and its vocabulary is closed: nine operations whose meaning ref §11 defines, so an `op` is not host vocabulary the way a constraint name is.
+Tramaj still solves nothing (§0). A term is the computation the language would have performed had it known the operands, handed over undone, and its vocabulary is closed: ten operations whose meaning ref §11 defines, so an `op` is not host vocabulary the way a constraint name is.
 
 - **A symbol operand stands for one number, of either type**, and a term carries no type. Concrete operands are checked as far as they can be without one: each MUST be a number, and those of one call MUST agree with each other and with what the builtin accepts. `sum("a", $s)`, `sum(1, $s, 2.0)` and `quotient(1, $s)` are `TypeMismatch`, and so is a wrong argument count.
 
 
-- **An operand is a symbol or a term only when it is one itself.** The seven fixed-arity builtins do not flatten (ref §11), so an array given to one is a `TypeMismatch` whatever it holds: `negate([$s])` is a `TypeMismatch`, like `negate([1])`, and not a `NotConcrete`. Nothing looks inside the array. `sum` and `product` flatten first, and `sum({k: $s})` is a `TypeMismatch` for the same reason: an object is not a number.
+- **An operand is a symbol or a term only when it is one itself.** The eight fixed-arity builtins do not flatten (ref §11), so an array given to one is a `TypeMismatch` whatever it holds: `negate([$s])` is a `TypeMismatch`, like `negate([1])`, and not a `NotConcrete`. Nothing looks inside the array. `sum` and `product` flatten first, and `sum({k: $s})` is a `TypeMismatch` for the same reason: an object is not a number.
 
 
 - **Nothing is inferred through a symbol or a nested term.** `sum(real($s), 1)` is built, and fails when the host evaluates it, as the residual law says it should. `inverse($s)` is a term even if the host later supplies `0.0`; an author who cares writes `!constraint("ne", $s, 0.0)` in the host's vocabulary.
@@ -231,7 +235,7 @@ Tramaj still solves nothing (§0). A term is the computation the language would 
 
 - - `eq`, `str` and so interpolation, and an allocation key need the whole value, so they refuse anything _containing_ a term: `eq([$t], [1])` and `str({k: $t})` are `NotConcrete`.
 
-- `branch`, the comparisons, `cardinality`, `has`, `lookup`, `<>` and the spine of `map`, `filter`, `scan` and `fold` refuse a term given _as_ the condition, the operand, the container or the collection. A concrete structure that holds a term is not special (§1.7): `cardinality([$t])` is `1`, `[$t] <> [1]` has two elements, and `map([$t], f)` applies `f` to the term.
+- `branch`, the comparisons, `cardinality`, `has`, `lookup`, `<>`, the spine of `map`, `filter`, `scan`, `fold` and the two sorts, a sort key and an argument of `format-number` refuse a term given _as_ the condition, the operand, the container, the collection, the key or the argument. A concrete structure that holds a term is not special (§1.7): `cardinality([$t])` is `1`, `[$t] <> [1]` has two elements, and `map([$t], f)` applies `f` to the term.
 
 
 - The comparisons do **not** become symbolic: a boolean term could only feed `branch`, and control flow must be concrete.
@@ -488,7 +492,7 @@ A host fold may then: run a solver over `"constraints"`; render an input for eve
 {"$sym": "#0:\"d\"", "path": ["replicas"]}
 ```
 
-and a term (§1.9; not yet implemented):
+and a term (§1.9; not in every implementation yet), whose `op` is one of the ten names of ref §11's _Arithmetic_, `round` among them:
 
 ```json
 {"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
@@ -543,7 +547,7 @@ An implementation MAY implement the **core profile** only — the language of `r
 
 An implementation of the **symbolic profile** implements both modes.
 
-The **arithmetic profile** (ref §11; not yet implemented) is a third, independent of both: either of the above may have it or not. It is not refused at parse time, since its nine builtins are names and not syntax; a program that uses one on an implementation without it fails with `UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms (§1.9) exist only where the symbolic and arithmetic profiles meet. The two number types (ref §3) and the reserved `"$term"` key (§5.3) belong to every profile.
+The **arithmetic profile** (ref §11; not in every implementation yet) is a third, independent of both: either of the above may have it or not. It is not refused at parse time, since its ten builtins are names and not syntax; a program that uses one on an implementation without it fails with `UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms (§1.9) exist only where the symbolic and arithmetic profiles meet. The two number types (ref §3) and the reserved `"$term"` key (§5.3) belong to every profile.
 
 -----------------------------
 
@@ -636,7 +640,7 @@ Recorded as considered and declined, to be revisited only if practice asks:
 
 - .1 **A `label` field on the symbol table entry.** `!constraint("label", $x, "Replicas")` already says it, and says it in the host's vocabulary rather than the language's.
 
-- .1 **Symbolic strings.** §1.8 has the cost: the value domain would gain string terms, over a vocabulary that is not closed. Arithmetic took that step for numbers (§1.9) because numbers have no alternative and its nine operations are closed; text has one, separate children, which a form renderer wants anyway.
+- .1 **Symbolic strings.** §1.8 has the cost: the value domain would gain string terms, over a vocabulary that is not closed. Arithmetic took that step for numbers (§1.9) because numbers have no alternative and its ten operations are closed; text has one, separate children, which a form renderer wants anyway.
 
 
 

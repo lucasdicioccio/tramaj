@@ -29,6 +29,45 @@ them.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-go&lt;/code&gt; directly, or shell out to its &lt;code&gt;tramaj-go&lt;/code&gt; CLI&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
+&lt;h3 id="numbers-at-the-boundary"&gt;Numbers at the boundary&lt;/h3&gt;
+&lt;p&gt;The language has two number types, an integer and a float, and a JSON number
+is typed by its text: &lt;code&gt;3&lt;/code&gt; is an integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats
+(&lt;a href="/tramaj/reference-language.html"&gt;reference&lt;/a&gt;, section 3). This matters to a host
+in three places.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Reading the context.&lt;/strong&gt; The host’s JSON parser must keep the difference
+between &lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt;, and must not round a large integer. JavaScript’s
+&lt;code&gt;JSON.parse&lt;/code&gt; and Haskell’s &lt;code&gt;aeson&lt;/code&gt; &lt;code&gt;Value&lt;/code&gt; do neither, which is why
+&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-hs&lt;/code&gt; each ship a &lt;code&gt;Tramaj.Json&lt;/code&gt; module with a
+reader (&lt;code&gt;jsonParser&lt;/code&gt;) and a writer (&lt;code&gt;stringify&lt;/code&gt;).
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Reading the result.&lt;/strong&gt; The output keeps the type: an integer is written
+as digits and a float always with a fraction or an exponent
+(&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;, &lt;em&gt;Numbers&lt;/em&gt;). A fold that
+renders a scalar child should write it the same way, as &lt;code&gt;str&lt;/code&gt; does:
+&lt;code&gt;tramaj-halogen&lt;/code&gt; renders the float &lt;code&gt;1.0&lt;/code&gt; as &lt;code&gt;1.0&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Choosing whether templates may compute.&lt;/strong&gt; The nine arithmetic builtins
+are an optional profile, chosen by the host for each evaluation and off by
+default. In symbolic mode with the profile on, a result may hold a &lt;em&gt;term&lt;/em&gt;,
+&lt;code&gt;{&amp;quot;$term&amp;quot;: &amp;quot;sum&amp;quot;, &amp;quot;arguments&amp;quot;: [...]}&lt;/code&gt;: arithmetic over a symbol, left for
+the host to evaluate (&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;,
+section 1.9). A host that has not turned the profile on never receives one.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Two number types&lt;/th&gt;&lt;th&gt;Arithmetic profile&lt;/th&gt;&lt;th&gt;Integer range&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;every number is a double&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;The first two rows are on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet. Until the
+other implementations follow, the same template can give different output on
+two of them: &lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt; on the first two rows and &lt;code&gt;1&lt;/code&gt; on the third.
+The corpus cases that depend on the split or on arithmetic are marked with
+&lt;code&gt;&amp;quot;requires&amp;quot;&lt;/code&gt;, and an implementation that does not declare the name skips
+them. An existing host moving to the split should read
+&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
 &lt;a href="https://github.com/purescript/spago"&gt;Spago&lt;/a&gt; workspace rooted at this
@@ -41,10 +80,26 @@ workspace discovery with no registry publishing step needed.&lt;/p&gt;
 parseProgram :: String -&amp;gt; Either ParseError Program
 
 -- Tramaj.Eval
-runProgram :: Mode -&amp;gt; LibraryTable -&amp;gt; Json -&amp;gt; Program -&amp;gt; Either EvalError Json
+runProgram     :: Mode    -&amp;gt; LibraryTable -&amp;gt; Json -&amp;gt; Program -&amp;gt; Either EvalError Json
+runProgramWith :: Options -&amp;gt; LibraryTable -&amp;gt; Json -&amp;gt; Program -&amp;gt; Either EvalError Json
+
+type Options = { mode :: Mode, arithmetic :: Boolean }
+defaultOptions :: Options   -- { mode: Concrete, arithmetic: false }
+
+-- Tramaj.Json
+jsonParser :: String -&amp;gt; Either String Json
+stringify  :: Json -&amp;gt; String
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;&lt;code&gt;Mode&lt;/code&gt; is &lt;code&gt;Concrete&lt;/code&gt; or &lt;code&gt;Symbolic&lt;/code&gt; (&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;);
 &lt;code&gt;LibraryTable&lt;/code&gt; supplies whatever the template’s &lt;code&gt;import(...)&lt;/code&gt; calls need.
+&lt;code&gt;Json&lt;/code&gt; is &lt;code&gt;Tramaj.Json.Json&lt;/code&gt;, not Argonaut’s: a JSON value whose numbers keep
+their type. Read the context with &lt;code&gt;jsonParser&lt;/code&gt; and write the result with
+&lt;code&gt;stringify&lt;/code&gt;; &lt;code&gt;JSON.parse&lt;/code&gt; and &lt;code&gt;JSON.stringify&lt;/code&gt; cannot tell &lt;code&gt;3&lt;/code&gt; from &lt;code&gt;3.0&lt;/code&gt;.
+&lt;code&gt;runProgram&lt;/code&gt; runs without the arithmetic profile;
+&lt;code&gt;runProgramWith (defaultOptions { arithmetic = true })&lt;/code&gt; turns it on.
+&lt;code&gt;Tramaj.Analysis.deepArithmeticOps&lt;/code&gt; reports which arithmetic names a program
+and its libraries reference, so a host without the profile can refuse one
+before running it.
 &lt;code&gt;runProgram&lt;/code&gt; gives you the evaluated document as JSON directly, already
 encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. If you need the
 &lt;code&gt;Node&lt;/code&gt; value itself rather than its JSON encoding — to fold it without a
@@ -75,8 +130,8 @@ instead).&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt; is an independent Haskell port, built on megaparsec and aeson,
 that targets the same grammar as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and shares its
 conformance corpus. It’s a normal Cabal library exposing &lt;code&gt;Tramaj.Ast&lt;/code&gt;,
-&lt;code&gt;Tramaj.Parser&lt;/code&gt;, &lt;code&gt;Tramaj.Eval&lt;/code&gt;, &lt;code&gt;Tramaj.Node&lt;/code&gt;, &lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and
-&lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (as a
+&lt;code&gt;Tramaj.Parser&lt;/code&gt;, &lt;code&gt;Tramaj.Eval&lt;/code&gt;, &lt;code&gt;Tramaj.Node&lt;/code&gt;, &lt;code&gt;Tramaj.Json&lt;/code&gt;,
+&lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and &lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (as a
 &lt;code&gt;source-repository-package&lt;/code&gt; or path dependency; it isn’t published to
 Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;What it does &lt;em&gt;not&lt;/em&gt; have yet is a &lt;code&gt;tramaj-halogen&lt;/code&gt; equivalent — no fold to
@@ -86,13 +141,23 @@ JSON encoding (kept in lockstep with the PureScript &lt;code&gt;Tramaj.Node&lt;/
 the fold to your actual rendering library is on you. The shape to follow is
 &lt;code&gt;tramaj-halogen&lt;/code&gt;’s: case on &lt;code&gt;Text&lt;/code&gt;/&lt;code&gt;Element&lt;/code&gt;/&lt;code&gt;Fragment&lt;/code&gt;, recurse into
 children, and decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host.&lt;/p&gt;
+&lt;p&gt;The evaluator takes and returns &lt;code&gt;Tramaj.Json.Json&lt;/code&gt;, a JSON value with
+separate &lt;code&gt;JInt&lt;/code&gt; and &lt;code&gt;JFloat&lt;/code&gt; constructors, where it used to take
+&lt;code&gt;Data.Aeson.Value&lt;/code&gt;. &lt;code&gt;jsonParser&lt;/code&gt; reads JSON text and types each number by
+its text; &lt;code&gt;stringify&lt;/code&gt; writes it back. &lt;code&gt;fromAeson&lt;/code&gt; and &lt;code&gt;toAeson&lt;/code&gt; bridge to
+aeson, with a loss: aeson has already forgotten whether a number was written
+&lt;code&gt;3&lt;/code&gt; or &lt;code&gt;3.0&lt;/code&gt;, so &lt;code&gt;fromAeson&lt;/code&gt; makes every whole number that fits 64 bits an
+integer. Integers cover the signed 64-bit range here, wider than the
+PureScript implementation’s. Arithmetic is off in &lt;code&gt;runProgram&lt;/code&gt; and on with
+&lt;code&gt;runProgramWith defaultOptions {optArithmetic = True}&lt;/code&gt;.&lt;/p&gt;
 &lt;h3 id="rust--the-library-exists-plus-its-own-cli"&gt;Rust — the library exists, plus its own CLI&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; is an independent, hand-written Rust port of the same grammar
 and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and Haskell &lt;code&gt;tramaj-hs&lt;/code&gt;,
-held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity,
-including &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
+held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
 and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
-core language). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
+core language; the two number types and arithmetic are not in this port yet,
+see &lt;em&gt;Numbers at the boundary&lt;/em&gt;). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
 published to crates.io yet), the same way a PureScript host depends on
 &lt;code&gt;tramaj-purs&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
@@ -120,15 +185,18 @@ the same &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze &amp;lt;imports|a
 subcommands, the same &lt;code&gt;--lib name=path&lt;/code&gt;/&lt;code&gt;--mode concrete|symbolic&lt;/code&gt; flags,
 and the same JSON output shapes. If you’d rather shell out than link a Rust
 library into your host — including from a non-Rust host — &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is
-a drop-in alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required.&lt;/p&gt;
+an alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required. It does not
+have &lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;--arithmetic&lt;/code&gt; flag or &lt;code&gt;analyze arithmetic&lt;/code&gt; yet, and it
+writes a whole-valued float without a fraction.&lt;/p&gt;
 &lt;h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react"&gt;JavaScript / TypeScript — import as a library, fold with &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-js&lt;/code&gt; is an independent, hand-written TypeScript port of the same
 grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt;, Haskell
 &lt;code&gt;tramaj-hs&lt;/code&gt;, and Rust &lt;code&gt;tramaj-rs&lt;/code&gt;, held to the same shared conformance
-corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
+corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
-core language). It’s a normal npm package with no React or DOM dependency
+core language; the two number types and arithmetic are not in this port
+yet). It’s a normal npm package with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
@@ -172,9 +240,10 @@ shape of folding its JSON output by hand.&lt;/p&gt;
 &lt;h3 id="python--import-as-a-library-standard-library-only"&gt;Python — import as a library, standard library only&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-py&lt;/code&gt; is an independent, hand-written Python port of the same grammar
 and evaluation semantics as the other implementations, held to the
-same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
+same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
-&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types). It needs
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types; the two number
+types and arithmetic are not in this port yet). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It’s a normal package — &lt;code&gt;tramaj&lt;/code&gt; with
@@ -192,10 +261,11 @@ document, or the concrete/symbolic envelope from
 &lt;code&gt;runProgram&lt;/code&gt; returns on every other side. A library table is a &lt;code&gt;dict&lt;/code&gt; from
 import name to parsed program; the mode is &lt;code&gt;&amp;quot;concrete&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;symbolic&amp;quot;&lt;/code&gt;.
 &lt;code&gt;eval_program&lt;/code&gt; is the lower-level entry point if you want the &lt;code&gt;Node&lt;/code&gt; value
-itself rather than its JSON encoding. Numbers keep the language’s double
-semantics: an exact integer comes back as an &lt;code&gt;int&lt;/code&gt;, and &lt;code&gt;str&lt;/code&gt; renders as
-ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does, so interpolated text matches the
-other implementations byte-for-byte.&lt;/p&gt;
+itself rather than its JSON encoding. Every number is still a double
+in this port: an exact integer comes back as an &lt;code&gt;int&lt;/code&gt;, and &lt;code&gt;str&lt;/code&gt; renders as
+ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does. That matches the Rust, JavaScript and
+Go ports byte-for-byte, and differs from the PureScript and Haskell
+implementations for a whole-valued float (&lt;code&gt;1&lt;/code&gt; here, &lt;code&gt;1.0&lt;/code&gt; there).&lt;/p&gt;
 &lt;p&gt;As with Haskell and Rust, no fold is shipped: a Python host writes its own
 following the same shape (case on &lt;code&gt;text&lt;/code&gt;/&lt;code&gt;element&lt;/code&gt;/&lt;code&gt;fragment&lt;/code&gt;, recurse into
 children, decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host). Python
@@ -206,9 +276,10 @@ to it instead of to Node.&lt;/p&gt;
 &lt;h3 id="go--import-as-a-module-standard-library-only"&gt;Go — import as a module, standard library only&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-go&lt;/code&gt; is an independent, hand-written Go port of the same grammar and
 evaluation semantics as the other implementations, held to the same shared
-conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
+conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
-&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types). It needs nothing
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types; the two number
+types and arithmetic are not in this port yet). It needs nothing
 outside the standard library (Go 1.21+), so it compiles into a service or a
 static binary with no Node, Python or PureScript toolchain as a runtime
 dependency. It’s one package, &lt;code&gt;tramaj&lt;/code&gt;, in the repository’s &lt;code&gt;tramaj-go/&lt;/code&gt;
@@ -228,9 +299,10 @@ document, or the concrete/symbolic envelope from
 &lt;code&gt;tramaj.Libraries&lt;/code&gt;, a map from import name to parsed program; the mode is
 &lt;code&gt;tramaj.Concrete&lt;/code&gt; or &lt;code&gt;tramaj.Symbolic&lt;/code&gt;. &lt;code&gt;EvalProgram&lt;/code&gt; is the lower-level entry
 point if you want the &lt;code&gt;*tramaj.Node&lt;/code&gt; itself rather than its JSON encoding.
-Every number is a &lt;code&gt;float64&lt;/code&gt;, as the language specifies, and &lt;code&gt;str&lt;/code&gt; renders as
-ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does, so interpolated text matches the other
-implementations byte-for-byte.&lt;/p&gt;
+Every number is still a &lt;code&gt;float64&lt;/code&gt; in this port, and &lt;code&gt;str&lt;/code&gt; renders as
+ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does. That matches the Rust, JavaScript and
+Python ports byte-for-byte, and differs from the PureScript and Haskell
+implementations for a whole-valued float (&lt;code&gt;1&lt;/code&gt; here, &lt;code&gt;1.0&lt;/code&gt; there).&lt;/p&gt;
 &lt;p&gt;As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node’s &lt;code&gt;Type&lt;/code&gt;, recurse into
 &lt;code&gt;Children&lt;/code&gt;, decide what an action attribute means in your host). Go also has
@@ -252,14 +324,17 @@ new implementation should be checked against the same corpus.&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;(b) Partial implementation, starting from &lt;code&gt;tramaj-cli&lt;/code&gt;’s output.&lt;/strong&gt; For
 most hosts this is the pragmatic choice: don’t reimplement the parser or
 evaluator at all. Shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;:&lt;/p&gt;
-&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-cli&lt;/span&gt; template.tramaj context.json&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;which prints the evaluated &lt;code&gt;Node&lt;/code&gt; as JSON on stdout, exactly per
-&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. Your host only needs to write
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-cli&lt;/span&gt; template.tramaj context.json&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-cli&lt;/span&gt; &lt;span class="at"&gt;--arithmetic&lt;/span&gt; template.tramaj context.json   &lt;span class="co"&gt;# with the arithmetic builtins&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;which prints the evaluated &lt;code&gt;Node&lt;/code&gt; as JSON on stdout, exactly per
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;. In that JSON &lt;code&gt;3&lt;/code&gt; is an integer
+and &lt;code&gt;3.0&lt;/code&gt; a float; a host that needs the difference reads it with a parser
+that keeps it. Your host only needs to write
 the &lt;em&gt;fold&lt;/em&gt; — parse that JSON, case on whether each node is text, an
 element, or a fragment, recurse into children, and decide what each
 element’s &lt;code&gt;action(...)&lt;/code&gt; entries mean in your host — the same shape as
 &lt;code&gt;tramaj-halogen&lt;/code&gt;’s fold, just written against decoded JSON instead of a
 native &lt;code&gt;Node&lt;/code&gt; value. &lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;analyze&lt;/code&gt; subcommands
-(&lt;code&gt;imports&lt;/code&gt;/&lt;code&gt;actions&lt;/code&gt;/&lt;code&gt;holes&lt;/code&gt;/&lt;code&gt;unsupplied&lt;/code&gt;/&lt;code&gt;constraints&lt;/code&gt;/&lt;code&gt;symbols&lt;/code&gt;/&lt;code&gt;types&lt;/code&gt;)
+(&lt;code&gt;imports&lt;/code&gt;/&lt;code&gt;actions&lt;/code&gt;/&lt;code&gt;holes&lt;/code&gt;/&lt;code&gt;unsupplied&lt;/code&gt;/&lt;code&gt;constraints&lt;/code&gt;/&lt;code&gt;symbols&lt;/code&gt;/&lt;code&gt;arithmetic&lt;/code&gt;/&lt;code&gt;types&lt;/code&gt;)
 are available the same way, without a context file, if your host wants the
 static-analysis facts from &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt; rather than a
 rendered document.&lt;/p&gt;

@@ -50,6 +50,35 @@ spago run -p tramaj-cli --args "hello.tramaj hello.json"
 
 This prints the evaluated `Node` AST as JSON — a `p` element wrapping the text `there are 3 item(s)`. See [`node-json.md`](/reference-node-json.html ) for what that JSON shape means, or fold it into real HTML by rendering it through a host like `tramaj-halogen`.
 
+## Computing with numbers
+
+A number is an integer or a float, decided by how it is written: `3` is an integer, `3.0` and `3e0` are floats. That holds for a literal in the template and for a number in the context file. The two types do not mix: `eq(3, 3.0)` is `false`, and `gt(1.5, 0)` is an error that `gt(1.5, 0.0)` fixes.
+
+There are no operators. Arithmetic is nine named builtins: `sum`, `product`, `negate`, `quotient`, `inverse`, `floor-quotient`, `modulo`, `floor` and `real`. Create `bill.tramaj`:
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+.p("subtotal `$subtotal`, `$share`% used")
+```
+
+and `bill.json`:
+
+```json
+{"compute": 120, "storage": 30, "credit": 25, "used": 3, "total": 8}
+```
+
+Arithmetic is a profile the host turns on. With the CLI that is the `--arithmetic` flag:
+
+```bash
+spago run -p tramaj-cli --args "--arithmetic bill.tramaj bill.json"
+```
+
+The result is a `p` element with the text `subtotal 125, 37% used`. Without the flag the nine names are unbound, and the CLI says which ones the template uses. `sum` and `product` take all integers or all floats, never a mix; `real(x)` and `floor(x)` convert, and each accepts both types.
+
+The [playground](/playground.html ) runs with arithmetic on and has an _arithmetic-demo_ tab. Numbers used to be a single type: if you have templates written before the split, read [Migrating to integers and floats](/migrating-to-integers-and-floats.html ). The split and arithmetic are in the PureScript and Haskell implementations; the Rust, JavaScript, Python and Go ones do not have them yet.
+
 ## Splitting a template into libraries
 
 A template can `import(...)` another template as a library. Pass each one with `--lib name=path`:
@@ -69,6 +98,7 @@ node tramaj-cli/dist/tramaj-cli.js analyze imports hello.tramaj
 node tramaj-cli/dist/tramaj-cli.js analyze actions hello.tramaj
 node tramaj-cli/dist/tramaj-cli.js analyze holes hello.tramaj
 node tramaj-cli/dist/tramaj-cli.js analyze unsupplied hello.tramaj
+node tramaj-cli/dist/tramaj-cli.js analyze arithmetic bill.tramaj
 node tramaj-cli/dist/tramaj-cli.js analyze all hello.tramaj
 ```
 
@@ -85,6 +115,8 @@ Running templates from the command line is one thing; wiring them into an actual
 - [Reference](/reference.html ) for the full grammar, builtins, and the v3/v4 extensions.
 
 - [Integrating tramaj](/integrate-tramaj.html ) for embedding it in a host application.
+
+- [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) if you have templates or a host written before numbers became two types.
 
 - [For coding agents](/howto-agents.html ) if you're setting an LLM loose on tramaj templates rather than writing them by hand.
 

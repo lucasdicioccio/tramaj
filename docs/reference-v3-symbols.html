@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-08T08:31:40Z"><meta name="article:modified_time" content="2026-10-08T08:31:40Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T08:31:40Z","datePublished":"2026-10-08T08:31:40Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 5258 words, 20 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-08T09:55:36Z"><meta name="article:modified_time" content="2026-10-08T09:55:36Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-08T09:55:36Z","datePublished":"2026-10-08T09:55:36Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Thu, 08 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 5423 words, 20 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
 <h2 id="tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</h2>
 <p>This document is <strong>normative</strong> for the symbolic extension. It builds on
 <code>reference.md</code>, which remains normative for everything else; section numbers
@@ -10,12 +10,13 @@ namespaces and typed annotations are drafted separately in
 and §9 says how far it gets on its own.</p>
 <p>Status: frozen as a design. Not implemented in either <code>tramaj/</code> or
 <code>tramaj-hs/</code>.</p>
-<p><strong>Terms are specified ahead of the implementations.</strong> §1.9, and what the rest
-of this document says about terms and about <code>&quot;$term&quot;</code>, is accepted design
-(decisions §18) that no implementation has yet. It depends on ref §11’s
-arithmetic profile, which none has either. The same holds for the two number
-types (ref §3) wherever this document writes a number: in canon (§1.4) and in
-the envelope (§5.2).</p>
+<p><strong>Terms are not in every implementation yet.</strong> §1.9, and what the rest of
+this document says about terms and about <code>&quot;$term&quot;</code>, is accepted design
+(decisions §18). It depends on ref §11’s arithmetic profile. <code>tramaj/</code>
+(PureScript) and <code>tramaj-hs/</code> (Haskell) implement both, for the nine names
+other than <code>round</code>; the Rust, JavaScript, Python and Go ports have neither
+yet. The same holds for the two number types (ref §3) wherever this document
+writes a number: in canon (§1.4) and in the envelope (§5.2).</p>
 <hr />
 <h3 id="0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</h3>
 <p>Three things: an expression <code>?</code> that introduces a <strong>symbol</strong>, a statement <code>!</code>
@@ -149,11 +150,13 @@ language to <em>know</em> something about it is an error:</p>
 <tr><td><code>.p($s)</code>, <code>.div(class: $s)</code>, <code>action(e, k, {r: $s})</code></td><td>fine — §5.2 carries it</td></tr>
 <tr><td><code>$s.field</code></td><td>a projection (§1.6) — <strong>the one exception</strong></td></tr>
 <tr><td><code>branch($s, …)</code></td><td><code>NotConcrete</code> — no arm can be selected</td></tr>
-<tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
+<tr><td><code>map($s, f)</code>, <code>filter</code>, <code>scan</code>, <code>fold</code>, <code>sort-by</code>, <code>sort-by-descending</code></td><td><code>NotConcrete</code> — the spine has no length</td></tr>
+<tr><td><code>sort-by(xs, f)</code> where <code>f</code> gives a symbol as a key</td><td><code>NotConcrete</code> — a sort inspects its keys; an array or an object as a key is a <code>TypeMismatch</code>, whatever it holds</td></tr>
 <tr><td><code>eq</code> on anything <em>containing</em> a symbol</td><td><code>NotConcrete</code> — deep equality needs the whole value</td></tr>
 <tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> with a symbol as an operand</td><td><code>NotConcrete</code>; an array or object operand is the <code>TypeMismatch</code> it always was, whatever it holds</td></tr>
 <tr><td><code>str</code> of anything <em>containing</em> a symbol, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
 <tr><td><code>cardinality($s)</code>, <code>has($s, k)</code>, <code>lookup($s, k, d)</code></td><td><code>NotConcrete</code></td></tr>
+<tr><td><code>format-number</code> with a symbol as any of its three arguments</td><td><code>NotConcrete</code> — the result is text (§1.8); an array argument is a <code>TypeMismatch</code>, whatever it holds</td></tr>
 <tr><td><code>$s &lt;&gt; x</code></td><td><code>NotConcrete</code></td></tr>
 </table>
 <p><code>has</code> and <code>lookup</code> are called out because both are deliberately <em>tolerant</em>
@@ -165,8 +168,18 @@ length is known, and cannot constrain a list whose length is symbolic. That is
 the ceiling, and it is where a real symbolic evaluator would have to begin.
 Declining to go there is what keeps <code>map</code> free of any <code>if value is Symbol</code>
 branch — no evaluator rule in ref §6 changes, and no builtin learns a new
-case beyond refusing. The nine arithmetic builtins are the one exception:
+case beyond refusing. The ten arithmetic builtins are the one exception:
 over a symbol they build a term (§1.9).</p>
+<p>The two sorts and <code>format-number</code> (ref §11; decisions §20, not yet
+implemented) follow the rule and only refuse. A sort builds no term, since a
+term stands for a number and the result of a sort is an array: a list whose
+order depends on an unsupplied value cannot be rendered, which is the ceiling
+above. The elements themselves are not inspected, so
+<code>sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) =&gt; $o.k)</code> sorts. <code>format-number</code>
+builds no term either, since its result is text. Its arguments are examined
+left to right and the first that is not acceptable decides between
+<code>NotConcrete</code> and <code>TypeMismatch</code> (ref §11); a sort’s keys are examined in
+index order in the same way.</p>
 <p>A term is data in the same way. Every row above that refuses a symbol refuses
 a term in the same position, and a row that says <em>containing</em> looks as deep
 for a term as it does for a symbol. The one difference is projection, which a
@@ -219,11 +232,12 @@ the same three text children.</p>
 is that consumer’s job. It has them in order and knows what its target does
 with them, which the language does not.</p>
 <h4 id="19-terms">1.9 Terms</h4>
-<p><em>Specified, not yet implemented (decisions §18).</em> This section applies to an
+<p><em>Implemented in <code>tramaj/</code> and <code>tramaj-hs/</code>, for the nine names other than
+<code>round</code>; not yet in the other ports (decisions §18).</em> This section applies to an
 implementation with the arithmetic profile (ref §11, §5.5).</p>
 <pre><code>!constraint(&quot;lte&quot;, sum($a, $b), 10)
 </code></pre>
-<p>A call to one of the nine arithmetic builtins whose flattened operands are all
+<p>A call to one of the ten arithmetic builtins whose flattened operands are all
 numbers computes, by ref §11. If at least one operand is a symbol or a term,
 the result is a <code>Term</code> with that <code>op</code> and <strong>the flattened operands exactly as
 written</strong>: same order, nothing folded, nothing simplified, no nested term
@@ -234,7 +248,7 @@ spliced.</p>
 <tr><td><code>sum(1, [$s, 2])</code></td><td><code>sum(1, $s, 2)</code> — arrays are flattened (ref §11)</td></tr>
 <tr><td><code>sum($a, sum($b, 1))</code></td><td>a term whose second argument is a term</td></tr>
 <tr><td><code>inverse($s)</code></td><td><code>inverse($s)</code>, not <code>quotient(1.0, $s)</code></td></tr>
-<tr><td><code>floor($s)</code>, <code>real($s)</code></td><td>terms; neither is the identity over a symbol</td></tr>
+<tr><td><code>floor($s)</code>, <code>real($s)</code>, <code>round($s)</code></td><td>terms; none is the identity over a symbol</td></tr>
 </table>
 <p>Preserving is required, not stylistic: <code>(1.0 + s) + 2.0</code> and <code>s + 3.0</code> are
 different doubles for some <code>s</code>, and for integers one grouping can overflow
@@ -246,7 +260,7 @@ produced had those numbers been in the context, errors included.</p>
 </blockquote>
 <p>Tramaj still solves nothing (§0). A term is the computation the language would
 have performed had it known the operands, handed over undone, and its
-vocabulary is closed: nine operations whose meaning ref §11 defines, so an
+vocabulary is closed: ten operations whose meaning ref §11 defines, so an
 <code>op</code> is not host vocabulary the way a constraint name is.</p>
 <ul>
 <li>
@@ -257,7 +271,7 @@ and with what the builtin accepts. <code>sum(&quot;a&quot;, $s)</code>, <code>su
 <code>quotient(1, $s)</code> are <code>TypeMismatch</code>, and so is a wrong argument count.</p>
 </li>
 <li>
-<p><strong>An operand is a symbol or a term only when it is one itself.</strong> The seven
+<p><strong>An operand is a symbol or a term only when it is one itself.</strong> The eight
 fixed-arity builtins do not flatten (ref §11), so an array given to one is
 a <code>TypeMismatch</code> whatever it holds: <code>negate([$s])</code> is a <code>TypeMismatch</code>,
 like <code>negate([1])</code>, and not a <code>NotConcrete</code>. Nothing looks inside the
@@ -284,9 +298,11 @@ used as a constraint argument, and used as an operand.</p>
 value, so they refuse anything <em>containing</em> a term: <code>eq([$t], [1])</code> and
 <code>str({k: $t})</code> are <code>NotConcrete</code>.
 </li>
-<li><code>branch</code>, the comparisons, <code>cardinality</code>, <code>has</code>, <code>lookup</code>, <code>&lt;&gt;</code> and the
-spine of <code>map</code>, <code>filter</code>, <code>scan</code> and <code>fold</code> refuse a term given <em>as</em> the
-condition, the operand, the container or the collection. A concrete
+<li><code>branch</code>, the comparisons, <code>cardinality</code>, <code>has</code>, <code>lookup</code>, <code>&lt;&gt;</code>, the
+spine of <code>map</code>, <code>filter</code>, <code>scan</code>, <code>fold</code> and the two sorts, a sort key
+and an argument of <code>format-number</code> refuse a term given <em>as</em> the
+condition, the operand, the container, the collection, the key or the
+argument. A concrete
 structure that holds a term is not special (§1.7): <code>cardinality([$t])</code>
 is <code>1</code>, <code>[$t] &lt;&gt; [1]</code> has two elements, and <code>map([$t], f)</code> applies <code>f</code> to
 the term.
@@ -582,7 +598,8 @@ implements and fail with an unsupported-kind error before doing anything else.</
 <p><code>Value</code> in symbolic mode is JSON extended with tagged shapes, in the style
 <code>node-json.md</code> already uses to discriminate nodes by <code>&quot;type&quot;</code> and attributes
 by <code>&quot;kind&quot;</code>. A symbol:</p>
-<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;replicas&quot;</span><span class="ot">]</span><span class="fu">}</span></span></code></pre></div></div><p>and a term (§1.9; not yet implemented):</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">d</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;replicas&quot;</span><span class="ot">]</span><span class="fu">}</span></span></code></pre></div></div><p>and a term (§1.9; not in every implementation yet), whose <code>op</code> is one of the ten names
+of ref §11’s <em>Arithmetic</em>, <code>round</code> among them:</p>
 <div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;$term&quot;</span><span class="fu">:</span> <span class="st">&quot;sum&quot;</span><span class="fu">,</span> <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">1</span><span class="ot">,</span> <span class="fu">{</span><span class="dt">&quot;$sym&quot;</span><span class="fu">:</span> <span class="st">&quot;#0:</span><span class="ch">\&quot;</span><span class="st">s</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="ot">[]</span><span class="fu">}</span><span class="ot">,</span> <span class="dv">2</span><span class="ot">]</span><span class="fu">}</span></span></code></pre></div></div><p>Both fields of each are required. <code>&quot;$term&quot;</code> is the <code>op</code>; <code>&quot;arguments&quot;</code> holds
 the term’s operands in order, each a number, a symbol or a term.</p>
 <p>The ambiguity to rule out is a template, or a context, carrying a data object
@@ -671,9 +688,9 @@ them, so that a symbolic template fails on it instead of quietly losing its
 holes and its constraints. §5.3’s reserved-key rule belongs to the core
 profile too, so that the two grammars agree.</p>
 <p>An implementation of the <strong>symbolic profile</strong> implements both modes.</p>
-<p>The <strong>arithmetic profile</strong> (ref §11; not yet implemented) is a third,
+<p>The <strong>arithmetic profile</strong> (ref §11; not in every implementation yet) is a third,
 independent of both: either of the above may have it or not. It is not
-refused at parse time, since its nine builtins are names and not syntax; a
+refused at parse time, since its ten builtins are names and not syntax; a
 program that uses one on an implementation without it fails with
 <code>UnboundName</code>, and <code>deepArithmeticOps</code> (ref §9) detects that beforehand. Terms
 (§1.9) exist only where the symbolic and arithmetic profiles meet. The two
@@ -797,7 +814,7 @@ host’s vocabulary rather than the language’s.
 </li>
 <li><strong>Symbolic strings.</strong> §1.8 has the cost: the value domain would gain string
 terms, over a vocabulary that is not closed. Arithmetic took that step for
-numbers (§1.9) because numbers have no alternative and its nine operations
+numbers (§1.9) because numbers have no alternative and its ten operations
 are closed; text has one, separate children, which a form renderer wants
 anyway.
 </li>

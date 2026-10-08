@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-08T15:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html</id><title type="text">Migrating to integers and floats</title><updated>2026-10-08T15:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="migrating-to-integers-and-floats"&gt;Migrating to integers and floats&lt;/h2&gt;
+&lt;p&gt;tramaj had one number type, a double. It now has two, an &lt;strong&gt;integer&lt;/strong&gt; and a
+&lt;strong&gt;float&lt;/strong&gt;, and nothing converts between them unless the template says so.
+The same change brings arithmetic, as nine named builtins.&lt;/p&gt;
+&lt;p&gt;Arithmetic is an addition: a host turns it on, and a template that does not
+use it is unaffected. The number split is not optional, and it changes what
+some existing templates and hosts produce. This page covers the split.&lt;/p&gt;
+&lt;h3 id="who-is-affected"&gt;Who is affected&lt;/h3&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;implementation&lt;/th&gt;&lt;th&gt;number split&lt;/th&gt;&lt;th&gt;arithmetic&lt;/th&gt;&lt;th&gt;integer range&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, and &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt; and the playground built on it&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;numbers are doubles&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;The PureScript and Haskell changes are on the &lt;code&gt;main&lt;/code&gt; branch and in no
+release yet. A host that follows &lt;code&gt;main&lt;/code&gt; as a git dependency gets them on its
+next update. The other four implementations still behave as before, and will
+change the same way when they get the split.&lt;/p&gt;
+&lt;h3 id="the-changes-at-a-glance"&gt;The changes at a glance&lt;/h3&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;what&lt;/th&gt;&lt;th&gt;before&lt;/th&gt;&lt;th&gt;now&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;str&lt;/code&gt; of a whole-valued float&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;eq&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;eq(1, 1.0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;gt(1.5, 0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a &lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a JSON number in the context&lt;/td&gt;&lt;td&gt;a double, whatever its text&lt;/td&gt;&lt;td&gt;&lt;code&gt;3&lt;/code&gt; is an integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;an integer outside the range&lt;/td&gt;&lt;td&gt;rounded to the nearest double&lt;/td&gt;&lt;td&gt;refused: a parse error as a literal, a &lt;code&gt;TypeMismatch&lt;/code&gt; in the context&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the object key &lt;code&gt;"$term"&lt;/code&gt;&lt;/td&gt;&lt;td&gt;an ordinary key&lt;/td&gt;&lt;td&gt;reserved, like &lt;code&gt;"$sym"&lt;/code&gt; and &lt;code&gt;"$type"&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the type primitive &lt;code&gt;number&lt;/code&gt; (v4)&lt;/td&gt;&lt;td&gt;a primitive&lt;/td&gt;&lt;td&gt;gone: &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; replace it&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h3 id="1-a-whole-valued-float-is-written-with-a-fraction"&gt;1. A whole-valued float is written with a fraction&lt;/h3&gt;
+&lt;p&gt;A number keeps its type when it is written. An integer is written as its
+digits. A float always carries a fraction or an exponent, so a float with no
+fractional part gets &lt;code&gt;.0&lt;/code&gt;:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;value&lt;/th&gt;&lt;th&gt;before&lt;/th&gt;&lt;th&gt;now&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;1.0&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;1e5&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;100000&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;100000.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;1.5&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1.5&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;1.5&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;This applies to &lt;code&gt;str&lt;/code&gt;, to string interpolation, and to every number in the
+JSON an evaluation returns: text values, attribute values, action payloads,
+value slots, and an expression program’s result.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;What to do.&lt;/strong&gt; Look for float literals that are whole (&lt;code&gt;1.0&lt;/code&gt;, &lt;code&gt;1e5&lt;/code&gt;) and for
+context numbers a producer writes with a fraction (&lt;code&gt;&amp;quot;ratio&amp;quot;: 2.0&lt;/code&gt;). Where
+the text matters and the value is a count, make it an integer: write the
+literal &lt;code&gt;100000&lt;/code&gt;, or have the producer write &lt;code&gt;2&lt;/code&gt;. An integer renders exactly
+as before.&lt;/p&gt;
+&lt;p&gt;A consumer that reads the output with an ordinary JSON parser sees the same
+numeric value for &lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt;. Only a consumer that compares the output as
+text, or that decodes it back into a &lt;code&gt;Node&lt;/code&gt;, sees the difference.&lt;/p&gt;
+&lt;h3 id="2-comparisons-do-not-mix-the-two-types"&gt;2. Comparisons do not mix the two types&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;eq&lt;/code&gt; never equates an integer with a float, and the four ordering
+comparisons take two integers or two floats:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;eq(1, 1.0)         -- false, was true
+gt($ctx.ratio, 0)  -- TypeMismatch when ratio is a float
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The first of these is silent: a &lt;code&gt;branch&lt;/code&gt; or a &lt;code&gt;filter&lt;/code&gt; that compared a
+context number with a literal of the other type now takes the other arm.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;What to do.&lt;/strong&gt; Write the literal in the type of what it is compared with:
+&lt;code&gt;gt($ctx.ratio, 0.0)&lt;/code&gt; for a float, &lt;code&gt;eq($ctx.count, 0)&lt;/code&gt; for an integer.&lt;/p&gt;
+&lt;p&gt;When the template does not know which type its host sends, and the
+implementation has arithmetic turned on, normalize with one of the two
+conversions. Each accepts both types:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;gt(real($ctx.ratio), 0.0)   -- real: the float nearest to its argument
+eq(floor($ctx.count), 0)    -- floor: the largest integer not above it
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="3-a-json-number-is-typed-by-its-text"&gt;3. A JSON number is typed by its text&lt;/h3&gt;
+&lt;p&gt;A number in the context is read as the literal of the same text. With
+neither a fraction nor an exponent it is an integer; with either it is a
+float. So &lt;code&gt;{&amp;quot;n&amp;quot;: 3}&lt;/code&gt; and &lt;code&gt;{&amp;quot;n&amp;quot;: 3.0}&lt;/code&gt; are two different contexts.&lt;/p&gt;
+&lt;p&gt;Two things follow for a host.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The producer of the context decides the type.&lt;/strong&gt; A serializer with a single
+number type writes the float &lt;code&gt;3.0&lt;/code&gt; as &lt;code&gt;3&lt;/code&gt;, and the template then receives an
+integer. If a template needs a float from such a producer, it normalizes
+with &lt;code&gt;real&lt;/code&gt;, as above.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;The host’s JSON parser must keep the difference.&lt;/strong&gt; JavaScript’s
+&lt;code&gt;JSON.parse&lt;/code&gt; and Haskell’s &lt;code&gt;aeson&lt;/code&gt; &lt;code&gt;Value&lt;/code&gt; both lose it. The two
+implementations therefore ship their own JSON value, and their public API
+takes it in place of the previous one:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;&lt;/th&gt;&lt;th&gt;PureScript&lt;/th&gt;&lt;th&gt;Haskell&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;module&lt;/td&gt;&lt;td&gt;&lt;code&gt;Tramaj.Json&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;Tramaj.Json&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;replaces&lt;/td&gt;&lt;td&gt;&lt;code&gt;Data.Argonaut.Core.Json&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;Data.Aeson.Value&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;read text&lt;/td&gt;&lt;td&gt;&lt;code&gt;jsonParser&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;jsonParser&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;write text&lt;/td&gt;&lt;td&gt;&lt;code&gt;stringify&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;stringify&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;bridge&lt;/td&gt;&lt;td&gt;none: build values with &lt;code&gt;fromInt&lt;/code&gt;, &lt;code&gt;fromFloat&lt;/code&gt;, …&lt;/td&gt;&lt;td&gt;&lt;code&gt;fromAeson&lt;/code&gt;, &lt;code&gt;toAeson&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;The Haskell bridge cannot recover what &lt;code&gt;aeson&lt;/code&gt; dropped. &lt;code&gt;fromAeson&lt;/code&gt; makes
+every whole number that fits 64 bits an integer, and &lt;code&gt;toAeson&lt;/code&gt; gives the type
+up again. Read the JSON text with &lt;code&gt;jsonParser&lt;/code&gt; when the difference matters.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Numbers that are not values are refused.&lt;/strong&gt; An integer-form number outside
+the implementation’s integer range is not rounded any more: it is a parse
+error as a literal and a &lt;code&gt;TypeMismatch&lt;/code&gt; in the context. So is a float too
+large for a double, such as &lt;code&gt;1e400&lt;/code&gt;. The context is checked whole before
+evaluation starts, so the error does not depend on whether the template
+reads that number. &lt;code&gt;-0&lt;/code&gt; and &lt;code&gt;-0.0&lt;/code&gt; are read as zero.&lt;/p&gt;
+&lt;p&gt;The integer range differs between the two implementations (see the table at
+the top). Inside &lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt; they agree. A larger integer
+that the Haskell implementation emits is refused by the PureScript one.&lt;/p&gt;
+&lt;h3 id="4-term-is-a-reserved-key"&gt;4. &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; is a reserved key&lt;/h3&gt;
+&lt;p&gt;Over a symbol, an arithmetic builtin does not compute. It evaluates to a
+&lt;em&gt;term&lt;/em&gt;, written as an object with the keys &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;arguments&amp;quot;&lt;/code&gt;. To
+keep that unambiguous, &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; joins &lt;code&gt;&amp;quot;$sym&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;$type&amp;quot;&lt;/code&gt; as a reserved
+key, whether or not arithmetic is turned on:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;an object literal with the key &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; in a template is a parse error;
+&lt;/li&gt;
+&lt;li&gt;a context that carries the key is a &lt;code&gt;TypeMismatch&lt;/code&gt;. The one exception is a
+well-formed term seeded in symbolic mode, with arithmetic turned on.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;What to do.&lt;/strong&gt; Rename the key in any data that happens to use it.&lt;/p&gt;
+&lt;h3 id="5-number-is-no-longer-a-type-v4"&gt;5. &lt;code&gt;number&lt;/code&gt; is no longer a type (v4)&lt;/h3&gt;
+&lt;p&gt;In a type annotation, &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; replace the primitive &lt;code&gt;number&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;@n : int = 3        -- was: @n : number = 3
+@r : float = 0.5
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;number&lt;/code&gt; is now an unresolved type name. A host checker that received
+&lt;code&gt;{&amp;quot;$type&amp;quot;: &amp;quot;number&amp;quot;}&lt;/code&gt; receives &lt;code&gt;{&amp;quot;$type&amp;quot;: &amp;quot;int&amp;quot;}&lt;/code&gt; or &lt;code&gt;{&amp;quot;$type&amp;quot;: &amp;quot;float&amp;quot;}&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id="what-does-not-change"&gt;What does not change&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;The grammar. There are no new operators and no new syntax.
+&lt;/li&gt;
+&lt;li&gt;A template that uses only integers, and whose context holds only numbers
+written without a fraction or an exponent, evaluates to the same output.
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;evalProgram&lt;/code&gt; and &lt;code&gt;runProgram&lt;/code&gt; keep their signatures, apart from the JSON
+type above. They run without arithmetic.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="arithmetic-is-separate-and-off-by-default"&gt;Arithmetic is separate, and off by default&lt;/h3&gt;
+&lt;p&gt;The nine builtins (&lt;code&gt;sum&lt;/code&gt;, &lt;code&gt;product&lt;/code&gt;, &lt;code&gt;negate&lt;/code&gt;, &lt;code&gt;quotient&lt;/code&gt;, &lt;code&gt;inverse&lt;/code&gt;,
+&lt;code&gt;floor-quotient&lt;/code&gt;, &lt;code&gt;modulo&lt;/code&gt;, &lt;code&gt;floor&lt;/code&gt;, &lt;code&gt;real&lt;/code&gt;) are an optional profile that a
+host chooses per evaluation. Without it the names are unbound, so an existing
+template that binds its own &lt;code&gt;sum&lt;/code&gt; or &lt;code&gt;floor&lt;/code&gt; keeps working either way: a
+binding shadows the builtin.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;where&lt;/th&gt;&lt;th&gt;how to turn it on&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;runProgramWith (defaultOptions { arithmetic = true })&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;runProgramWith defaultOptions { optArithmetic = True }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj-cli --arithmetic template.tramaj context.json&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;playground&lt;/td&gt;&lt;td&gt;always on&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;code&gt;tramaj-cli analyze arithmetic template.tramaj&lt;/code&gt; lists the arithmetic names a
+template and its libraries reference, without running anything. A host
+without the profile can use it to refuse a template up front.&lt;/p&gt;
+&lt;h3 id="where-the-rules-are-written"&gt;Where the rules are written&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="/tramaj/reference-language.html"&gt;Language reference&lt;/a&gt;, sections 3 (values), 5
+(number literals), 6 (&lt;code&gt;str&lt;/code&gt;), 11 (comparisons and arithmetic) and 13 (the
+integer range).
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="/tramaj/reference-node-json.html"&gt;Node JSON representation&lt;/a&gt;, &lt;em&gt;Numbers&lt;/em&gt;.
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="/tramaj/reference-v3-symbols.html"&gt;Symbols reference&lt;/a&gt;, section 1.9 (terms) and
+5.3 (reserved keys).
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"&gt;&lt;code&gt;decisions.md&lt;/code&gt;&lt;/a&gt;,
+section 18, for the reasoning and the alternatives that were rejected.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html" rel="alternate"/><summary type="text">Numbers are now two types, an integer and a float. This page lists what changes for existing templates and hosts, and what to do about each.</summary></entry></feed>

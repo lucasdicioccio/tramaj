@@ -34,6 +34,10 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #purescript #tramaj-cli
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-cli"})
 .div(class: "changelog",
@@ -49,6 +53,18 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`analyze imports|actions|holes|unsupplied|constraints\` subcommands over the static analyses."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: follows \`tramaj-purs\` in telling integers from floats. \`3\` and \`3.0\` stay two values from the context file to the output, a whole-valued float is written with a fraction (\`1.0\`), and a context with an integer outside -(2^53 - 1) to 2^53 - 1 is refused."
+          },
+          {
+              "kind": "added",
+              "text": "\`evaluate --arithmetic\` turns the arithmetic builtins on for the run. Without it, an evaluation that fails names the arithmetic builtins the program references and the flag."
+          },
+          {
+              "kind": "added",
+              "text": "\`analyze arithmetic\`, and an \`\"arithmetic\"\` field in \`analyze all\`: the arithmetic names a template and its libraries reference."
           }
       ]
   }).rendered)

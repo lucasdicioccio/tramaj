@@ -1,0 +1,160 @@
+# Migrating to integers and floats
+
+tramaj had one number type, a double. It now has two, an **integer** and a **float**, and nothing converts between them unless the template says so. The same change brings arithmetic, as nine named builtins.
+
+Arithmetic is an addition: a host turns it on, and a template that does not use it is unaffected. The number split is not optional, and it changes what some existing templates and hosts produce. This page covers the split.
+
+## Who is affected
+
+```html
+<table>
+<tr><th>implementation</th><th>number split</th><th>arithmetic</th><th>integer range</th></tr>
+<tr><td><code>tramaj-purs</code>, and <code>tramaj-halogen</code>, <code>tramaj-cli</code> and the playground built on it</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
+</table>
+```
+
+The PureScript and Haskell changes are on the `main` branch and in no release yet. A host that follows `main` as a git dependency gets them on its next update. The other four implementations still behave as before, and will change the same way when they get the split.
+
+## The changes at a glance
+
+```html
+<table>
+<tr><th>what</th><th>before</th><th>now</th></tr>
+<tr><td><code>str</code> of a whole-valued float</td><td><code>str(1.0)</code> is <code>1</code></td><td><code>str(1.0)</code> is <code>1.0</code></td></tr>
+<tr><td><code>eq</code> across the two types</td><td><code>eq(1, 1.0)</code> is <code>true</code></td><td><code>false</code></td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> across the two types</td><td><code>gt(1.5, 0)</code> is <code>true</code></td><td>a <code>TypeMismatch</code></td></tr>
+<tr><td>a JSON number in the context</td><td>a double, whatever its text</td><td><code>3</code> is an integer, <code>3.0</code> and <code>3e0</code> are floats</td></tr>
+<tr><td>an integer outside the range</td><td>rounded to the nearest double</td><td>refused: a parse error as a literal, a <code>TypeMismatch</code> in the context</td></tr>
+<tr><td>the object key <code>"$term"</code></td><td>an ordinary key</td><td>reserved, like <code>"$sym"</code> and <code>"$type"</code></td></tr>
+<tr><td>the type primitive <code>number</code> (v4)</td><td>a primitive</td><td>gone: <code>int</code> and <code>float</code> replace it</td></tr>
+</table>
+```
+
+## 1. A whole-valued float is written with a fraction
+
+A number keeps its type when it is written. An integer is written as its digits. A float always carries a fraction or an exponent, so a float with no fractional part gets `.0`:
+
+```html
+<table>
+<tr><th>value</th><th>before</th><th>now</th></tr>
+<tr><td><code>1</code></td><td><code>1</code></td><td><code>1</code></td></tr>
+<tr><td><code>1.0</code></td><td><code>1</code></td><td><code>1.0</code></td></tr>
+<tr><td><code>1e5</code></td><td><code>100000</code></td><td><code>100000.0</code></td></tr>
+<tr><td><code>1.5</code></td><td><code>1.5</code></td><td><code>1.5</code></td></tr>
+</table>
+```
+
+This applies to `str`, to string interpolation, and to every number in the JSON an evaluation returns: text values, attribute values, action payloads, value slots, and an expression program's result.
+
+**What to do.** Look for float literals that are whole (`1.0`, `1e5`) and for context numbers a producer writes with a fraction (`"ratio": 2.0`). Where the text matters and the value is a count, make it an integer: write the literal `100000`, or have the producer write `2`. An integer renders exactly as before.
+
+A consumer that reads the output with an ordinary JSON parser sees the same numeric value for `3` and `3.0`. Only a consumer that compares the output as text, or that decodes it back into a `Node`, sees the difference.
+
+## 2. Comparisons do not mix the two types
+
+`eq` never equates an integer with a float, and the four ordering comparisons take two integers or two floats:
+
+```
+eq(1, 1.0)         -- false, was true
+gt($ctx.ratio, 0)  -- TypeMismatch when ratio is a float
+```
+
+The first of these is silent: a `branch` or a `filter` that compared a context number with a literal of the other type now takes the other arm.
+
+**What to do.** Write the literal in the type of what it is compared with: `gt($ctx.ratio, 0.0)` for a float, `eq($ctx.count, 0)` for an integer.
+
+When the template does not know which type its host sends, and the implementation has arithmetic turned on, normalize with one of the two conversions. Each accepts both types:
+
+```
+gt(real($ctx.ratio), 0.0)   -- real: the float nearest to its argument
+eq(floor($ctx.count), 0)    -- floor: the largest integer not above it
+```
+
+## 3. A JSON number is typed by its text
+
+A number in the context is read as the literal of the same text. With neither a fraction nor an exponent it is an integer; with either it is a float. So `{"n": 3}` and `{"n": 3.0}` are two different contexts.
+
+Two things follow for a host.
+
+**The producer of the context decides the type.** A serializer with a single number type writes the float `3.0` as `3`, and the template then receives an integer. If a template needs a float from such a producer, it normalizes with `real`, as above.
+
+**The host's JSON parser must keep the difference.** JavaScript's `JSON.parse` and Haskell's `aeson` `Value` both lose it. The two implementations therefore ship their own JSON value, and their public API takes it in place of the previous one:
+
+```html
+<table>
+<tr><th></th><th>PureScript</th><th>Haskell</th></tr>
+<tr><td>module</td><td><code>Tramaj.Json</code></td><td><code>Tramaj.Json</code></td></tr>
+<tr><td>replaces</td><td><code>Data.Argonaut.Core.Json</code></td><td><code>Data.Aeson.Value</code></td></tr>
+<tr><td>read text</td><td><code>jsonParser</code></td><td><code>jsonParser</code></td></tr>
+<tr><td>write text</td><td><code>stringify</code></td><td><code>stringify</code></td></tr>
+<tr><td>bridge</td><td>none: build values with <code>fromInt</code>, <code>fromFloat</code>, …</td><td><code>fromAeson</code>, <code>toAeson</code></td></tr>
+</table>
+```
+
+The Haskell bridge cannot recover what `aeson` dropped. `fromAeson` makes every whole number that fits 64 bits an integer, and `toAeson` gives the type up again. Read the JSON text with `jsonParser` when the difference matters.
+
+**Numbers that are not values are refused.** An integer-form number outside the implementation's integer range is not rounded any more: it is a parse error as a literal and a `TypeMismatch` in the context. So is a float too large for a double, such as `1e400`. The context is checked whole before evaluation starts, so the error does not depend on whether the template reads that number. `-0` and `-0.0` are read as zero.
+
+The integer range differs between the two implementations (see the table at the top). Inside `-(2^53 - 1)` to `2^53 - 1` they agree. A larger integer that the Haskell implementation emits is refused by the PureScript one.
+
+## 4. `"$term"` is a reserved key
+
+Over a symbol, an arithmetic builtin does not compute. It evaluates to a _term_, written as an object with the keys `"$term"` and `"arguments"`. To keep that unambiguous, `"$term"` joins `"$sym"` and `"$type"` as a reserved key, whether or not arithmetic is turned on:
+
+- an object literal with the key `"$term"` in a template is a parse error;
+
+- a context that carries the key is a `TypeMismatch`. The one exception is a well-formed term seeded in symbolic mode, with arithmetic turned on.
+
+
+**What to do.** Rename the key in any data that happens to use it.
+
+## 5. `number` is no longer a type (v4)
+
+In a type annotation, `int` and `float` replace the primitive `number`:
+
+```
+@n : int = 3        -- was: @n : number = 3
+@r : float = 0.5
+```
+
+`number` is now an unresolved type name. A host checker that received `{"$type": "number"}` receives `{"$type": "int"}` or `{"$type": "float"}`.
+
+## What does not change
+
+- The grammar. There are no new operators and no new syntax.
+
+- A template that uses only integers, and whose context holds only numbers written without a fraction or an exponent, evaluates to the same output.
+
+- `evalProgram` and `runProgram` keep their signatures, apart from the JSON type above. They run without arithmetic.
+
+
+## Arithmetic is separate, and off by default
+
+The nine builtins (`sum`, `product`, `negate`, `quotient`, `inverse`, `floor-quotient`, `modulo`, `floor`, `real`) are an optional profile that a host chooses per evaluation. Without it the names are unbound, so an existing template that binds its own `sum` or `floor` keeps working either way: a binding shadows the builtin.
+
+```html
+<table>
+<tr><th>where</th><th>how to turn it on</th></tr>
+<tr><td><code>tramaj-purs</code></td><td><code>runProgramWith (defaultOptions { arithmetic = true })</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td><code>runProgramWith defaultOptions { optArithmetic = True }</code></td></tr>
+<tr><td><code>tramaj-cli</code></td><td><code>tramaj-cli --arithmetic template.tramaj context.json</code></td></tr>
+<tr><td>playground</td><td>always on</td></tr>
+</table>
+```
+
+`tramaj-cli analyze arithmetic template.tramaj` lists the arithmetic names a template and its libraries reference, without running anything. A host without the profile can use it to refuse a template up front.
+
+## Where the rules are written
+
+- [Language reference](/reference-language.html ), sections 3 (values), 5 (number literals), 6 (`str`), 11 (comparisons and arithmetic) and 13 (the integer range).
+
+- [Node JSON representation](/reference-node-json.html ), _Numbers_.
+
+- [Symbols reference](/reference-v3-symbols.html ), section 1.9 (terms) and 5.3 (reserved keys).
+
+- [`decisions.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md ), section 18, for the reasoning and the alternatives that were rejected.
+
+
+

@@ -23,5 +23,6 @@ https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html
 https://lucasdicioccio.github.io/tramaj/reference.html
 https://lucasdicioccio.github.io/tramaj/index.html
 https://lucasdicioccio.github.io/tramaj/about.html
+https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html
 https://lucasdicioccio.github.io/tramaj/properties.html
 https://lucasdicioccio.github.io/tramaj/use-cases.html

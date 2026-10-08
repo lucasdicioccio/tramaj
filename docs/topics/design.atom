@@ -3,7 +3,7 @@
 is and how far along it is. The short version:&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;design&lt;/th&gt;&lt;th&gt;accepted&lt;/th&gt;&lt;th&gt;specified&lt;/th&gt;&lt;th&gt;implemented&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;arithmetic, and integers and floats as two types&lt;/td&gt;&lt;td&gt;2026-10-06&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;PureScript and Haskell, on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;arithmetic, and integers and floats as two types&lt;/td&gt;&lt;td&gt;2026-10-06&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;PureScript (with the command-line tool, the Halogen fold and the playground) and Haskell, on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?shape&lt;/code&gt;, a form that allocates a structure of symbols&lt;/td&gt;&lt;td&gt;2026-10-08&lt;/td&gt;&lt;td&gt;design only&lt;/td&gt;&lt;td&gt;no&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Both are recorded in
@@ -59,9 +59,13 @@ those numbers been in the context. Tramaj still solves nothing.&lt;/p&gt;
 &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt; and the
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;symbols reference&lt;/a&gt;, and the conformance corpus
 has the fixtures. The PureScript and Haskell implementations have the number
-split and the nine builtins on &lt;code&gt;main&lt;/code&gt;. They are not in a release, and the
-command-line tool and the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt; do not have them
-yet. The Rust, JavaScript, Python and Go implementations follow.&lt;/p&gt;
+split and the nine builtins on &lt;code&gt;main&lt;/code&gt;, and so do the command-line tool
+(&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;), the Halogen fold and the
+&lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt;. They are not in a release. The Rust,
+JavaScript, Python and Go implementations follow.&lt;/p&gt;
+&lt;p&gt;The split changes what some existing templates produce, beyond the &lt;code&gt;str&lt;/code&gt;
+case above: see
+&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="shape-a-structure-of-symbols-in-one-form"&gt;&lt;code&gt;?shape&lt;/code&gt;: a structure of symbols in one form&lt;/h3&gt;
 &lt;p&gt;In symbolic mode a template allocates a solver variable with &lt;code&gt;?(key)&lt;/code&gt;. One
 variable at a time is fine. A structure of them is not: every variable is
@@ -120,5 +124,7 @@ a list: that needs a &lt;code&gt;range&lt;/code&gt;, which is a separate questio
 &lt;code&gt;sort-by(list, fn)&lt;/code&gt; and &lt;code&gt;sort-by-descending(list, fn)&lt;/code&gt;, which take a key
 function as &lt;code&gt;map&lt;/code&gt; does, and &lt;code&gt;format-number(x, decimals, group)&lt;/code&gt;, which turns
 &lt;code&gt;1234567.891&lt;/code&gt; into &lt;code&gt;1,234,567.89&lt;/code&gt; by one rounding rule every implementation
-must agree on. It is a design only as well.&lt;/p&gt;
+must agree on, with &lt;code&gt;round&lt;/code&gt; as a tenth arithmetic builtin. Its normative text
+is now in the &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt;, marked
+&lt;strong&gt;[§20]&lt;/strong&gt;; no implementation has it yet.&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html" rel="alternate"/><summary type="text">A template can now compute with numbers, and will soon declare a whole structure of solver variables in one form. Both designs are written down and accepted; neither is in a release yet.</summary></entry></feed>
