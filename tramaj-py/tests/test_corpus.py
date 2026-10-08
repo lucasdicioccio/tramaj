@@ -73,15 +73,18 @@ def read_libs(case_dir: str) -> dict:
 # can provide. A case naming any other one is skipped. ``base`` is the language
 # without any profile. ``int-float`` is the two number types, and ``int64`` the
 # integer range this port has (the signed 64-bit range, so not ``int53``).
-# ``arithmetic`` is the arithmetic profile, with nine names: ``round`` is a
-# name of its own, not provided here, and neither are ``sort`` and
-# ``format-number``.
-PROVIDED_PROFILES: frozenset = frozenset({"base", "int-float", "arithmetic", "int64"})
+# ``arithmetic`` is the arithmetic profile, and ``round`` its tenth name,
+# listed apart because it was added after the other nine. ``sort`` is the two
+# sorts and ``format-number`` the builtin of that name; both belong to the
+# language in every profile.
+PROVIDED_PROFILES: frozenset = frozenset(
+    {"base", "int-float", "arithmetic", "int64", "sort", "format-number", "round"}
+)
 
 
 def arithmetic_on(meta: dict) -> bool:
     """The arithmetic profile is an option of each evaluation: on for a case
-    that lists ``arithmetic``, off for every other one, where the nine names
+    that lists ``arithmetic``, off for every other one, where the ten names
     are unbound."""
     return "arithmetic" in meta.get("profiles", [])
 

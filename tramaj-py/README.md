@@ -86,18 +86,46 @@ run_program("concrete", {}, {"compute": 40, "storage": 5, "credit": 3}, program)
 # EvalError: UnboundName sum
 ```
 
-With it on, nine names are in the initial environment of the program and of
+With it on, ten names are in the initial environment of the program and of
 every library it imports: `sum`, `product`, `negate`, `inverse`, `quotient`,
-`floor-quotient`, `modulo`, `floor` and `real`. `round`, the tenth name of
-the profile, is not implemented in this port yet, and neither are `sort-by`,
-`sort-by-descending` and `format-number`. Without the option the names are
-unbound, and `deep_arithmetic_ops(libs, program)` lists the ones a program
-references so a host can refuse it before running it.
+`floor-quotient`, `modulo`, `floor`, `real` and `round`. Without the option
+the names are unbound, and `deep_arithmetic_ops(libs, program)` lists the
+ones a program references so a host can refuse it before running it.
+
+`round(x)` gives the integer nearest to the exact value of `x`, ties away
+from zero: `round(2.5)` is `3` and `round(-2.5)` is `-3`. It is not Python's
+`round`, which rounds ties to even.
 
 Over a symbol, in symbolic mode, a builtin does not compute: it returns a term,
 `{"$term": "sum", "arguments": [...]}`, with its operands as written
 (`../specs/v3-symbols.md` §1.9). A well-formed term in the context is read
 back as a term when the option is on.
+
+## Sorting and number formatting
+
+Both belong to the language in every profile (`../specs/reference.md` §11,
+*Sorting* and *Number formatting*); neither needs the arithmetic option.
+
+```python
+rows = [{"name": "b", "spend": 1234.5}, {"name": "a", "spend": 98765.125}]
+program = parse_program(
+    'map(sort-by-descending($ctx, (r) => $r.spend),'
+    ' (r) => $r.name <> ": " <> format-number($r.spend, 2, ","))'
+)
+run_program("concrete", {}, rows, program)
+# ['a: 98,765.13', 'b: 1,234.50']
+```
+
+- `sort-by(list, fn)` and `sort-by-descending(list, fn)` are special forms,
+  like `map`, and lower to one AST constructor, `ast.SortBy(descending,
+  collection, fn)`. The key function runs once per element, in index order.
+  The keys of one call are all integers, all floats or all strings, and
+  strings compare by code point. Each sort is stable on its own terms, so
+  the descending one is not the reversal of the ascending one.
+- `format-number(x, decimals, group)` is an ordinary builtin. It rounds the
+  exact value of the number, ties away from zero, to 0 to 20 decimals, and
+  never writes an exponent or a negative zero. It is computed on
+  `fractions.Fraction` and Python integers, not with `round` or `"%f"`.
 
 ## Command line
 
@@ -113,7 +141,7 @@ value, or the symbolic envelope. A parse error exits 2 and an evaluation error
 exits 1, each printed on stderr leading with the error kind.
 
 `--arithmetic` turns the arithmetic profile on for the run. When an
-evaluation fails without it and the program references one of the nine names,
+evaluation fails without it and the program references one of the ten names,
 the error names them and the flag. `analyze arithmetic` prints
 `deep_arithmetic_ops`. Numbers keep the type their text has, in the context
 file and in the output.
@@ -128,10 +156,14 @@ or `python3 -m unittest discover -s tests`; nothing needs installing.
 
 `tests/test_corpus.py` runs every case under `../corpus/cases` in the mode its
 `meta.json` names, with the arithmetic profile on only for a case that lists
-`arithmetic`. It declares the profiles `base`, `int-float`, `arithmetic` and
-`int64`, and skips a case that lists any other (`sort`, `format-number`,
-`round`, `int53`), counted in `OK (skipped=N)`. `tests/test_node_json.py`
+`arithmetic`. It declares the profiles `base`, `int-float`, `arithmetic`,
+`int64`, `sort`, `format-number` and `round`, and skips a case that lists any
+other (`int53`), counted in `OK (skipped=N)`. `tests/test_node_json.py`
 covers the decoder's rejection list and the round-trip law;
 `tests/test_analysis.py` covers the analyses and the number rendering;
 `tests/test_numbers.py` covers the integer range, the Python binding of the
-two number types, the arithmetic option and the command line.
+two number types, the arithmetic option and the command line;
+`tests/test_sort_format.py` covers what the corpus cannot state about the
+sorts, `format-number` and `round`: one application of the key function per
+element, the analyses inside a key function, the parser, and the rounding
+rule against an exact computation on random doubles.

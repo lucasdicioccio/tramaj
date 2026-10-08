@@ -8,12 +8,13 @@ Numbers are two types (reference.md section 3): ``VInt`` holds a Python
 unless the program says so, with ``real`` or ``floor``.
 
 The arithmetic profile (section 11) is an option of each evaluation, off by
-default: ``run_program(..., arithmetic=True)`` puts its nine names in the
+default: ``run_program(..., arithmetic=True)`` puts its ten names in the
 initial environment, of the program and of every library it imports."""
 
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -359,7 +360,7 @@ def run_program(
     """Evaluates and serializes to the wire JSON a host compares against ``expected.json``.
 
     ``arithmetic`` is reference.md section 11's arithmetic profile, per
-    evaluation and off by default. With it on, the nine names of
+    evaluation and off by default. With it on, the ten names of
     ``analysis.ARITHMETIC_NAMES`` are in the initial environment of the
     program and of every library it imports, and a seeded term is accepted in
     symbolic mode. With it off they are unbound, so a program that uses one
@@ -449,7 +450,7 @@ def _symbol_entry_to_json(e: SymbolEntry) -> Json:
 
 BUILTIN_NAMES = (
     "cardinality", "count", "str", "not", "and", "or", "eq", "lt", "lte", "gt", "gte",
-    "has", "lookup", "concat", "append",
+    "has", "lookup", "concat", "append", "format-number",
 )
 
 
@@ -525,6 +526,10 @@ def _eval_expr(ctx: EvalCtx, env: Env, e: A.Expr) -> Value:
             if _require_bool("a filter predicate", _apply(ctx, "filter", fn_val, [item])):
                 kept.append(item)
         return VArray(kept)
+    if t == "SortBy":
+        who = "sort-by-descending" if e.descending else "sort-by"
+        items = _eval_collection(ctx, env, who, e.collection)
+        return _sort_by(ctx, who, e.descending, items, _eval_expr(ctx, env, e.fn))
     if t == "Scan":
         items = _eval_collection(ctx, env, "scan", e.collection)
         acc = _eval_expr(ctx, env, e.initial)
@@ -700,6 +705,45 @@ def _eval_collection(ctx: EvalCtx, env: Env, who: str, e: A.Expr) -> list[Value]
     if _is_symbolic(v):
         raise EvalError.not_concrete(who)
     raise EvalError.type_mismatch(f"{who} expects an array as its first argument, got {_describe_value(v)}")
+
+
+# Sorting (reference.md section 11) ---------------------------------------------
+
+_KEY_TYPES = ("int", "float", "str")
+
+
+def _sort_by(ctx: EvalCtx, who: str, descending: bool, items: list[Value], fn: Value) -> Value:
+    """``sort-by`` and ``sort-by-descending`` over an evaluated list.
+
+    The key function is applied exactly once per element, in index order, and
+    each key is checked as soon as it is known, so the first element whose
+    application or key fails decides the error, before anything is reordered.
+    The keys of one call are all integers, all floats or all strings; a
+    symbol or a term is ``NotConcrete``, anything else a ``TypeMismatch``. The
+    elements themselves are never inspected.
+
+    The order: element ``i`` precedes element ``j`` when its key is smaller
+    (larger, when descending), or when the keys are equal and ``i < j``.
+    Python's sort is stable in both directions, ``reverse=True`` included, so
+    a descending sort is not the reversal of the ascending one. Python
+    compares ``str`` by code point, which is the order asked for; it is not
+    ``utf16_key``, which this package uses to write object keys."""
+    keys: list[Value] = []
+    for item in items:
+        k = _apply(ctx, who, fn, [item])
+        if _is_symbolic(k):
+            raise EvalError.not_concrete(who)
+        if k.t not in _KEY_TYPES:
+            raise EvalError.type_mismatch(
+                f"{who} expects each key to be an integer, a float or a string, got {_describe_value(k)}"
+            )
+        if keys and k.t != keys[0].t:
+            raise EvalError.type_mismatch(
+                f"{who} expects keys of one type, got {_describe_value(keys[0])} and {_describe_value(k)}"
+            )
+        keys.append(k)
+    order = sorted(range(len(items)), key=lambda i: keys[i].value, reverse=descending)
+    return VArray([items[i] for i in order])
 
 
 # Concat -----------------------------------------------------------------------
@@ -1137,6 +1181,10 @@ def _eval_builtin(name: str, args: list[Value]) -> Value:
         if len(args) != 2:
             raise arity_err(2)
         return VArray([*_as_array(name, args[0]), args[1]])
+    if name == "format-number":
+        if len(args) != 3:
+            raise arity_err(3)
+        return VStr(_format_number(name, args[0], args[1], args[2]))
     if name in ARITHMETIC_NAMES:
         return _arithmetic(name, args)
     raise EvalError.unbound_name(name)
@@ -1197,6 +1245,64 @@ def _lookup_impl(name: str, container: Value, key: Value, fallback: Value) -> Va
             return fallback
         return container.items[i]
     return fallback
+
+
+# Number formatting (reference.md section 11) -------------------------------------
+
+_MAX_DECIMALS = 20
+
+
+def _round_half_away(numerator: int, denominator: int) -> int:
+    """The integer nearest to ``numerator / denominator``, the first
+    non-negative and the second positive; of two equally near, the larger. On
+    Python's unbounded integers this is exact. With the sign put back by the
+    caller it is "ties away from zero", the one rounding rule of
+    ``format-number`` and ``round``. Python's own ``round`` and ``%f`` round
+    ties to even."""
+    q, r = divmod(numerator, denominator)
+    return q + 1 if 2 * r >= denominator else q
+
+
+def _format_number(name: str, x: Value, decimals: Value, group: Value) -> str:
+    """``format-number(x, decimals, group)``: positional decimal text with
+    exactly ``decimals`` digits after the point.
+
+    The arguments are examined left to right and the first that is not
+    acceptable decides the error: a symbol or a term is ``NotConcrete``,
+    anything else a ``TypeMismatch``, a float ``decimals`` and one outside 0
+    to 20 included.
+
+    The value rounded is the exact one: ``Fraction`` of a float is the binary
+    fraction the double holds, and an integer is itself. So ``1.005`` gives
+    ``1.00``, its double being a little under, and ``0.125`` gives ``0.13``,
+    a real tie. There is never an exponent, and a result whose digits are all
+    zero carries no sign."""
+    x = _as_number(name, x)
+    if decimals.t != "int":
+        if _is_symbolic(decimals):
+            raise EvalError.not_concrete(name)
+        raise EvalError.type_mismatch(
+            f"{name} expects an integer number of decimals, got {_describe_value(decimals)}"
+        )
+    d = decimals.value
+    if d < 0 or d > _MAX_DECIMALS:
+        raise EvalError.type_mismatch(f"{name} expects 0 to {_MAX_DECIMALS} decimals, got {d}")
+    if group.t != "str":
+        if _is_symbolic(group):
+            raise EvalError.not_concrete(name)
+        raise EvalError.type_mismatch(
+            f"{name} expects a string as its group separator, got {_describe_value(group)}"
+        )
+    exact = Fraction(x.value)
+    scaled = _round_half_away(abs(exact.numerator) * 10**d, exact.denominator)
+    digits = str(scaled).rjust(d + 1, "0")
+    whole, fraction = (digits[:-d], digits[-d:]) if d else (digits, "")
+    if group.value != "":
+        head = len(whole) % 3 or 3
+        parts = [whole[:head]] + [whole[i : i + 3] for i in range(head, len(whole), 3)]
+        whole = group.value.join(parts)
+    sign = "-" if exact < 0 and scaled != 0 else ""
+    return sign + whole + ("." + fraction if d else "")
 
 
 # Arithmetic (reference.md section 11) ------------------------------------------
@@ -1266,7 +1372,7 @@ def _arithmetic_operands(name: str, args: list[Value]) -> list[Value]:
     elif name in _VARIADIC:
         accepted, wanted = all_ints or all_floats, "all integers or all floats"
     else:
-        # negate, floor and real take a number of either type.
+        # negate, floor, real and round take a number of either type.
         accepted, wanted = True, ""
     if not accepted:
         got = ", ".join(_describe_value(n) for n in numbers)
@@ -1345,4 +1451,12 @@ def _compute(name: str, operands: list[Value]) -> Value:
         # int -> float is correctly rounded: exact up to 2^53, the nearest
         # double, ties to even, beyond.
         return VFloat(float(first.value))
+    if name == "round":
+        if first.t == "int":
+            return first
+        # The integer nearest to the exact value, ties away from zero. Nothing
+        # adds 0.5, which would round 0.49999999999999994 up to 1.
+        exact = Fraction(first.value)
+        magnitude = _round_half_away(abs(exact.numerator), exact.denominator)
+        return _integer_result(name, -magnitude if exact < 0 else magnitude)
     raise AssertionError(f"unknown arithmetic builtin {name}")

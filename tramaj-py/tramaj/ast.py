@@ -282,6 +282,17 @@ class Filter:
 
 
 @dataclass
+class SortBy:
+    """``sort-by(list, fn)`` and ``sort-by-descending(list, fn)`` (reference.md
+    section 11, *Sorting*): the two names lower to this one constructor."""
+
+    descending: bool
+    collection: "Expr"
+    fn: "Expr"
+    t: str = field(default="SortBy", init=False)
+
+
+@dataclass
 class Scan:
     collection: "Expr"
     initial: "Expr"
@@ -383,7 +394,8 @@ class TypeEmit:
 
 Expr = Union[
     Path, FieldAccess, Call, Lambda, Let, StringLit, NumberLit, BoolLit, NullLit,
-    ArrayLit, ObjectLit, Element, Fragment, Branch, Map, Filter, Scan, Fold,
+    ArrayLit, ObjectLit, Element, Fragment, Branch, Map, Filter, SortBy, Scan,
+    Fold,
     Concat, Import, AdaptActions, Constrain, Emit, Alloc, Demand, TypeDecl,
     TypeAnnotate, TypeEmit,
 ]
@@ -416,7 +428,7 @@ def sub_exprs(e: Expr) -> list[Expr]:
         return list(e.children)
     if t == "Branch":
         return [e.condition, e.then, e.else_]
-    if t in ("Map", "Filter"):
+    if t in ("Map", "Filter", "SortBy"):
         return [e.collection, e.fn]
     if t in ("Scan", "Fold"):
         return [e.collection, e.initial, e.fn]
