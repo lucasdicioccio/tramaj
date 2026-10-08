@@ -1,0 +1,6 @@
+{
+  "name": "sum passed by reference to fold over symbols nests one term per step",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

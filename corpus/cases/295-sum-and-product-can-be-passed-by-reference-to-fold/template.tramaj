@@ -1,0 +1,2 @@
+-- reference.md §11: fold($xs, 0, $sum)
+[fold($ctx.xs, 0, $sum), fold($ctx.xs, 1, $product)]

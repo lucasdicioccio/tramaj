@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: the fixed-arity builtins do not flatten, and nothing looks inside the array
+@s = ?("s")
+quotient([$s], 1.0)

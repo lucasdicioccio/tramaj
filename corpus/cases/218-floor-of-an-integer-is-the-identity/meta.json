@@ -1,0 +1,6 @@
+{
+  "name": "floor of an integer is the identity",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

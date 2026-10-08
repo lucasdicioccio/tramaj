@@ -1,0 +1,6 @@
+{
+  "name": "a term in an action payload",
+  "kind": "document",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

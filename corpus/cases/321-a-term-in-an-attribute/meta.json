@@ -1,0 +1,6 @@
+{
+  "name": "a term in an attribute",
+  "kind": "document",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

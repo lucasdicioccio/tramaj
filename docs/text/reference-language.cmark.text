@@ -6,6 +6,8 @@ This is the reference for the language **as implemented**. Where the earlier dra
 
 Two implementations are held to this document: `tramaj/` (PureScript) and `tramaj-hs/` (Haskell). Anything below marked _implementation-defined_ is where they are permitted to differ; everything else they must not.
 
+**One part is specified ahead of the implementations.** The split of numbers into integers and floats, and the arithmetic builtins, are accepted design (decisions §18) and are normative here, but no implementation has them yet: today every number is a double, `str(1.0)` is `1`, and the nine names of §11's _Arithmetic_ are unbound. Each passage this applies to is marked **[§18]**. The number split is to land first, in every implementation, and the builtins after it.
+
 -----------------------------
 
 ## 1. Shape of the language
@@ -42,7 +44,7 @@ Expr
   | Lambda       parameters: List<String>, body: Expr
   | Let          name: String, value: Expr, body: Expr
   | StringLit    String
-  | NumberLit    Number
+  | NumberLit    Number               -- an integer or a float (§3, §5)
   | BoolLit      Boolean
   | NullLit
   | ArrayLit     elements: List<Expr>
@@ -83,7 +85,7 @@ There is no partial-import constructor, and partiality is not visible in the syn
 
 ```text
 Value
-  = Null | Boolean | Number | String
+  = Null | Boolean | Integer | Float | String
   | Array   List<Value>
   | Object  Map<String, Value>
   | Node                        -- a document
@@ -96,6 +98,21 @@ Value
 Arrays and objects hold `Value`s, **not** JSON — so a document can travel inside a structure. That is what makes the JSX-children pattern work without a separate "template value" category.
 
 JSON is required only at the boundaries where a document would be meaningless: an attribute value, an action payload, an element's value slot, and an expression program's result. A closure, a builtin, an import result, an import that has not run, or a document reaching one of those positions is an error, not a silent serialization.
+
+**Numbers. [§18]** There are two number types, and nothing converts between them unless the program says so (§11's `real` and `floor`).
+
+- An **integer** is a signed whole number, held exactly. Every implementation MUST cover the _guaranteed range_, `-(2^53 - 1)` to `2^53 - 1`. It SHOULD cover the signed 64-bit range, `-2^63` to `2^63 - 1`, and MUST NOT go beyond it. Its range is one of those two (§13).
+
+- A **float** is a finite IEEE 754 binary64. There is no NaN, no infinity and no negative zero.
+
+- **A JSON number is typed by its text**, by the rule for literals (§5): one with neither a fraction nor an exponent is an integer, one with either is a float. `3` is an integer; `3.0` and `3e0` are floats. An integer-form number outside the implementation's range is rejected, not rounded. This holds for the context, for library parameters and for a seeded value (v3-symbols §5.4).
+
+- **Written as JSON, a number keeps its type**: `node-json.md` has the rule, and `str` (§6) follows it.
+
+
+The type of a context number is therefore decided by whoever serialized it, and a producer with one number type writes the float `3.0` as `3`. A template that needs a float from a host it does not control normalizes at the point of use, with `real`.
+
+A host that passes native values rather than JSON text maps its own integer and float types to these two. How it does so is that implementation's binding and is not specified here.
 
 -----------------------------
 
@@ -115,7 +132,7 @@ NodeAttribute
 Annotations = Map<String, JSON>
 ```
 
-- The text leaf carries a **`Value`**, so a scalar child keeps its type: `.td($ctx.count)` yields the number `3`, not `"3"`. How that becomes characters is the host's decision.
+- The text leaf carries a **`Value`**, so a scalar child keeps its type: `.td($ctx.count)` yields the integer `3`, not `"3"`. How that becomes characters is the host's decision.
 
 - `Element` carries a **value slot** alongside its children, for targets that attach a body value to a tagged node. It is `null` unless set.
 
@@ -153,7 +170,7 @@ Three leader characters: `.` builds a document, `$` reads a name, `@` defines on
 <tr><td><code>$lib.vals.fn(1)</code></td><td>the callee may be a dotted path</td></tr>
 <tr><td><code>f(x).rendered</code></td><td>field access on a call's result</td></tr>
 <tr><td><code>"text"</code>, <code>"n: `$x`"</code></td><td>string literal, backtick interpolation</td></tr>
-<tr><td><code>123</code>, <code>-1.5</code>, <code>1e5</code>, <code>1_000_000</code></td><td>number literal; see <em>Number literals</em> below</td></tr>
+<tr><td><code>123</code>, <code>-1.5</code>, <code>1e5</code>, <code>1_000_000</code></td><td>number literal, an integer or a float by its form; see <em>Number literals</em> below</td></tr>
 <tr><td><code>true</code>, <code>false</code>, <code>null</code></td><td>keyword literals</td></tr>
 <tr><td><code>[a, b]</code></td><td>array literal</td></tr>
 <tr><td><code>{"k": v}</code>, <code>{k: v}</code>, <code>{foo}</code></td><td>object literal; keys may be bare; <code>{foo}</code> is shorthand for <code>{"foo": $foo}</code></td></tr>
@@ -187,15 +204,19 @@ number = ["-"] digits ["." digits] [("e" | "E") ["+" | "-"] digits]
 digits = digit { ["_"] digit }
 ```
 
-- The `-` is part of the literal, not an operator (there is no arithmetic, §11), so it must touch the first digit: `- 1` is a parse error, and so is a leading `+`. `--1` is a comment, like any other `--`.
+- The `-` is part of the literal, not an operator (there are no arithmetic operators, §11), so it must touch the first digit: `- 1` is a parse error, and so is a leading `+`. `--1` is a comment, like any other `--`.
 
 - A `_` separates digits for readability and means nothing: `1_000_000` is `1000000`. It is allowed only _between two digits_ — `1_`, `1__0`, `1_.5`, `1._5` and `1e_5` are all parse errors — and may appear in the integer, fraction and exponent parts alike (`0.000_001`, `1e1_0`).
 
 - Both parts around a `.` need at least one digit: `.5` and `5.` are not numbers.
 
-- The literal denotes the double nearest to its decimal value (round to nearest, ties to even). A literal too large for a double (`1e400`) is a parse error rather than an infinity; one too small rounds to zero.
+- **[§18]** The form decides the type (§3), with no new syntax. A literal with neither a fraction nor an exponent is an **integer**: `1`, `-7`, `1_000_000`. One with either is a **float**: `1.0`, `-1.5`, `1e5`.
 
-- There is no negative zero: a literal that denotes zero is `0` whatever its sign, so `-0` and `-1e-400` both evaluate to `0`.
+- An integer literal denotes exactly its value. One outside the implementation's integer range (§13) is a parse error. The sign is part of the literal, so `-9223372036854775808` is in the 64-bit range.
+
+- A float literal denotes the double nearest to its decimal value (round to nearest, ties to even). One too large for a double (`1e400`) is a parse error rather than an infinity; one too small rounds to zero.
+
+- There is no negative zero: a float literal that denotes zero is `0.0` whatever its sign, so `-0.0` and `-1e-400` both evaluate to `0.0`. `-0` is the integer `0`.
 
 
 **Attribute position before children.** Attributes, `action(...)` and `value(...)` must all precede any child; a child first is a parse error.
@@ -254,12 +275,15 @@ Mixed types are an error. Object key order is not semantically significant.
 <tr><td>string</td><td>itself, raw</td></tr>
 <tr><td><code>null</code></td><td><code>""</code></td></tr>
 <tr><td>boolean</td><td><code>true</code> / <code>false</code></td></tr>
-<tr><td>number</td><td>exactly as ECMAScript's <code>Number::toString</code> — <code>3</code>, <code>1.5</code>, <code>0.05</code>, <code>100000000000</code>, <code>1e+21</code>, <code>1e-7</code></td></tr>
-<tr><td>array / object</td><td>compact JSON, <strong>keys sorted</strong>, numbers by the same rule, strings JSON-quoted</td></tr>
+<tr><td>integer</td><td>its decimal digits, with a <code>-</code> when negative — <code>3</code>, <code>-7</code>, <code>100000000000</code></td></tr>
+<tr><td>float</td><td>the shortest round-trip text of ECMAScript's <code>Number::toString</code>, with <code>.0</code> appended when that text has neither a fraction nor an exponent — <code>1.0</code>, <code>1.5</code>, <code>0.05</code>, <code>100000000000.0</code>, <code>1e+21</code>, <code>1e-7</code></td></tr>
+<tr><td>array / object</td><td>compact JSON, <strong>keys sorted</strong>, numbers by the same two rules, strings JSON-quoted</td></tr>
 </table>
 ```
 
 Keys are sorted because key order is not semantically significant, so it must not be observable here either. Both implementations must produce these character for character.
+
+**[§18]** The two number rows are the serialization rule of `node-json.md`: `str` renders what the value is, so `str(1)` is `1` and `str(1.0)` is `1.0`. Until the number split lands, implementations render every number by `Number::toString` alone, which differs for a whole-valued float and for nothing else.
 
 -----------------------------
 
@@ -366,6 +390,7 @@ All of these answer from the AST alone — no context, no library evaluation, no
 <tr><td><code>contextHoles</code> / <code>deepContextHoles</code></td><td>which context paths it declares as holes with <code>ctx(...)</code></td></tr>
 <tr><td><code>contextReads</code></td><td>every path it reads from its own context, <code>$ctx.a</code> and <code>ctx(a)</code> alike</td></tr>
 <tr><td><code>unsuppliedParams</code></td><td>per import, the paths its library reads that the import does not supply</td></tr>
+<tr><td><code>arithmeticOps</code> / <code>deepArithmeticOps</code></td><td><strong>[§18]</strong> which of §11's nine arithmetic names it references free</td></tr>
 </table>
 ```
 
@@ -374,6 +399,8 @@ All of these answer from the AST alone — no context, no library evaluation, no
 `staticActionKeys` **applies** adaptation rather than ignoring it, using the same function the evaluator does: `adapt-actions(x, prefix("user:"))` over `{save, delete}` yields `{user:save, user:delete}`. That is the payoff of restricting adaptation to identity-or-prefix.
 
 These are over-approximations: keys under a `Branch` arm that a given context will never select are still reported, and so is a parameter a library reads only in such an arm. A name that is imported but missing from the table is reported too — an unresolvable dependency is what a caller wants to hear about — though it contributes no unsupplied parameters, since what it needs is unknowable rather than nothing.
+
+`arithmeticOps` reports a name whether it is called or passed by reference (`fold($xs, 0, $sum)`). It is scope-aware: a name shadowed by a binding, a lambda parameter or a pattern name is not reported. A host without the arithmetic profile (§11) refuses a program up front when `deepArithmeticOps` is non-empty.
 
 -----------------------------
 
@@ -408,8 +435,8 @@ The vocabulary is fixed, not user-extensible.
 <tr><td><code>str(x)</code></td><td>§6's rendering; what interpolation uses</td></tr>
 <tr><td><code>not(b)</code></td><td></td></tr>
 <tr><td><code>and(…)</code>, <code>or(…)</code></td><td>variadic, including zero arguments (<code>and()</code> is <code>true</code>, <code>or()</code> is <code>false</code>)</td></tr>
-<tr><td><code>eq(a, b)</code></td><td>deep equality; no cross-type coercion, so <code>eq(1, "1")</code> is <code>false</code></td></tr>
-<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code></td><td>numbers only</td></tr>
+<tr><td><code>eq(a, b)</code></td><td>deep equality; no cross-type coercion, so <code>eq(1, "1")</code> is <code>false</code>, and <strong>[§18]</strong> so is <code>eq(1, 1.0)</code></td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code></td><td>numbers only; <strong>[§18]</strong> two integers or two floats, and a mixed pair is a <code>TypeMismatch</code>, so <code>gt(1.5, 0)</code> is written <code>gt(1.5, 0.0)</code></td></tr>
 <tr><td><code>has(container, key)</code></td><td>tolerant: a missing key, out-of-range index or wrong-shaped container answers <code>false</code></td></tr>
 <tr><td><code>lookup(container, key, fallback)</code></td><td>dynamic access; the fallback is mandatory, so this never errors</td></tr>
 <tr><td><code>map</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td>also core constructors — see below</td></tr>
@@ -420,9 +447,84 @@ The vocabulary is fixed, not user-extensible.
 
 `scan` is `scanl`, not `scanl1`: its output starts with the seed and is one longer than the input. `fold` takes the same `(acc, item)` step and returns only the final accumulator.
 
-**There is no arithmetic.** No `+`, `-`, `*`, and no numeric builtins beyond the comparisons above — a template compares and selects, it does not compute. Numbers reach a program through `$ctx`, a literal, or a host-supplied library.
+**There are no arithmetic operators.** No `+`, `-`, `*` or `/`: `-` stays part of a number literal, `--` a comment, and `<>` the only infix operator (§5). Arithmetic is nine named builtins, below, in an optional profile. An implementation without that profile has no numeric builtins beyond the comparisons above.
 
 `map`/`filter`/`scan`/`fold` are core constructors rather than builtins because their function argument needs a fresh binding per element. `branch` is a core constructor because it must leave an arm unevaluated, which no builtin can do.
+
+### Arithmetic
+
+**[§18] Specified, not yet implemented.** No implementation has the arithmetic profile today.
+
+**The arithmetic profile** is optional, and independent of v3-symbols §5.5's core and symbolic profiles. The two number types of §3 are not part of it: they belong to the value domain in every profile.
+
+- An implementation with the profile puts the nine names below in the initial environment. One without it does not, and a program that uses one fails with `UnboundName`. Nothing is refused at parse time: these are names, not syntax.
+
+- They are ordinary bindings (§6). A program that binds `sum`, `floor` or any other of them (a binding, a lambda parameter, a pattern name) shadows the builtin, and one may be passed by reference: `fold($xs, 0, $sum)`.
+
+- `deepArithmeticOps` (§9) is how a host without the profile refuses a program before running it.
+
+
+```html
+<table>
+<tr><th>builtin</th><th>arity</th><th>operands</th><th>result</th></tr>
+<tr><td><code>sum(…)</code></td><td>one or more</td><td>all integers or all floats</td><td>left fold of <code>+</code></td></tr>
+<tr><td><code>product(…)</code></td><td>one or more</td><td>all integers or all floats</td><td>left fold of <code>*</code></td></tr>
+<tr><td><code>negate(x)</code></td><td>1</td><td>integer or float</td><td><code>-x</code>, of the same type</td></tr>
+<tr><td><code>quotient(a, b)</code></td><td>2</td><td>two floats</td><td><code>a / b</code>, correctly rounded</td></tr>
+<tr><td><code>inverse(x)</code></td><td>1</td><td>float</td><td><code>quotient(1.0, x)</code>, by definition</td></tr>
+<tr><td><code>floor-quotient(a, b)</code></td><td>2</td><td>two integers</td><td>the largest integer not above <code>a / b</code></td></tr>
+<tr><td><code>modulo(a, b)</code></td><td>2</td><td>two integers</td><td><code>a - b * floor-quotient(a, b)</code></td></tr>
+<tr><td><code>floor(x)</code></td><td>1</td><td>float or integer</td><td>the largest integer not above <code>x</code>, as an integer</td></tr>
+<tr><td><code>real(x)</code></td><td>1</td><td>integer or float</td><td>the float nearest to <code>x</code></td></tr>
+</table>
+```
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@stripe   = branch("odd", eq(modulo($i, 2), 0), "even")
+@total    = sum(0.0, map($ctx.lines,
+                         (l) => product(real($l.qty), real($l.price))))
+```
+
+- **`real` and `floor` are the only conversions**, one in each direction. Each accepts both types, so that it can normalize a number of unknown type: `real` of a float and `floor` of an integer are the identity.
+
+- **There is no subtraction**: `sum(a, negate(b))`. Negation is exact, so for floats this is bit for bit `a - b`.
+
+- **`quotient` is float division and `floor-quotient` integer division.** Neither accepts the other's type, so a result never depends on whether a producer wrote `1` or `1.0`. `floor-quotient` rounds toward negative infinity: `floor-quotient(-7, 2)` is `-4`.
+
+- **`modulo` is its remainder**: `a` is always `b * floor-quotient(a, b) + modulo(a, b)`, and the result is zero or has the sign of the divisor. `modulo(-7, 2)` is `1` and `modulo(7, -2)` is `-1`. The table's formula is over the mathematical integers; the result is smaller in magnitude than `b`, so it is always in range.
+
+- **`inverse` is `quotient(1.0, x)`**, and `product(a, inverse(b))` is not `quotient(a, b)`: it rounds twice. `product(49.0, inverse(49.0))` is `0.9999999999999999`, where `quotient(49.0, 49.0)` is `1.0`.
+
+- Rounding to nearest, decimal formatting, `min` and `max` are not provided.
+
+
+**Arrays as arguments.** `sum` and `product` flatten their arguments by the rule children use (§6): an array contributes each of its elements, recursively, in order. `sum($xs)`, `sum(1, $xs, 2)` and `sum([1, [2, 3]])` are all legal. The seven fixed-arity builtins do not flatten: `negate([1])` is a `TypeMismatch`, and `map($xs, $negate)` is the way to write it. `and`, `or` and `concat` are unchanged.
+
+A `sum` or `product` with no operand after flattening has no type to take, so it is a `TypeMismatch`: `sum()`, `sum([])` and `product([[]])` alike. A fold over a list that may be empty is seeded with the identity of the intended type: `sum(0, $xs)` or `sum(0.0, $xs)`.
+
+**Semantics.** Implementations MUST agree byte for byte.
+
+- .1 _No coercion and no promotion._ A `TypeMismatch` is raised by an operand that is not a number (`sum(1, "2")`, `sum(null)`, `negate(true)`), by a number of the wrong type (`sum(1, 1.5)`, `quotient(1, 2)`, `floor-quotient(1.0, 2.0)`, `inverse(2)`), by a wrong argument count for a fixed-arity builtin, and by an empty `sum` or `product`. All operands are checked, in flattened order, before anything is computed, so `sum(1e308, 1e308, "a")` is a `TypeMismatch` and not a `NotRepresentable`.
+
+- .1 _Integer arithmetic is exact or it is an error._ `sum` and `product` are a left fold over the flattened operands, starting from the first: `sum(a, b, c)` is `(a + b) + c`. A step whose mathematical result is outside the implementation's integer range is a `NotRepresentable`; nothing wraps, saturates or rounds. The check is per step, so `sum(9223372036854775807, 1, -1)` is an error on every implementation although its total is in the 64-bit range. So are `floor-quotient(x, 0)` and `modulo(x, 0)`, and, with the 64-bit range, `negate(-9223372036854775808)` and `floor-quotient(-9223372036854775808, -1)`.
+
+- .1 _Float arithmetic is one correctly rounded operation at a time_, round to nearest, ties to even, over the same left fold: `sum(0.1, 0.2, 0.3)` is `0.6000000000000001`. No pairwise or compensated summation, no reordering and no fused multiply-add.
+
+- .1 _A non-finite float result is a `NotRepresentable`._ This covers `inverse(0.0)`, `quotient(x, 0.0)`, `quotient(0.0, 0.0)` and overflow (`sum(1e308, 1e308)`). Underflow is not an error: the result is the nearest double, which may be zero, as for a literal (§5).
+
+- .1 _There is no negative zero._ A float result that is zero is `0.0`: `negate(0.0)` is `0.0`, and so is `product(-1.0, 0.0)`.
+
+- .1 _The conversions._ `floor` of a float whose floor is outside the implementation's integer range is a `NotRepresentable`: `floor(1e19)` everywhere, `floor(1e16)` with the guaranteed range only. `real` never fails. It is exact inside the guaranteed range; beyond it, with the 64-bit range, it rounds to nearest, ties to even.
+
+- .1 _`str` renders what the value is_ (§6): `sum(0.1, 0.2)` interpolates as `0.30000000000000004` and `sum(0.5, 0.5)` as `1.0`.
+
+
+Division by a value that happens to be zero is an error, not `null` or `0`, because either would reach the document as a plausible answer. The guard is `branch`, whose unselected arm is never evaluated (§6), as in `@share` above.
+
+Over a symbol these builtins do not compute; they build a term (v3-symbols §1.9).
 
 -----------------------------
 
@@ -438,6 +540,7 @@ The vocabulary is fixed, not user-extensible.
 <tr><td><code>UnknownLibrary</code></td><td>an import name the host table does not resolve</td></tr>
 <tr><td><code>ImportCycle</code></td><td>a library re-entered while already being evaluated</td></tr>
 <tr><td><code>InLibrary</code></td><td>wraps whatever an imported library failed with, naming that library; nests through a chain of imports</td></tr>
+<tr><td><code>NotRepresentable</code></td><td><strong>[§18]</strong> an arithmetic operation has no result in the type of its operands: integer overflow, a zero divisor, a non-finite float (§11)</td></tr>
 </table>
 ```
 
@@ -453,7 +556,7 @@ Programs must not depend on any of these.
 
 - **Error message text.** The error _kinds_ above are stable; their prose is not.
 
-- **Number precision.** Numbers are doubles. Beyond 2^53 integers are not exact, and `str` renders whatever double survived.
+- **Integer range. [§18]** Either the guaranteed range, `-(2^53 - 1)` to `2^53 - 1`, or the signed 64-bit range, `-2^63` to `2^63 - 1`; no other is permitted, and an implementation documents which it has (§3). Inside the guaranteed range all implementations agree. Between the two, one holds an integer exactly or refuses it (a parse error for a literal, a rejection for a JSON number, a `NotRepresentable` for a result) and never rounds it. Outside 64 bits every implementation refuses. A value one implementation emits above the guaranteed range is therefore rejected by one that has only that range. Until the number split lands, numbers are doubles, integers beyond 2^53 are not exact, and `str` renders whatever double survived.
 
 
 -----------------------------

@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 3: (0.1 + 0.2) + 0.3, whatever the nesting of the arrays
+sum([0.1, [0.2]], 0.3)

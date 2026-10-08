@@ -1,0 +1,2 @@
+-- reference.md §11, Arrays as arguments: no operand, so no type to take
+product()

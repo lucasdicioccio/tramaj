@@ -1,0 +1,2 @@
+-- reference.md §5: `1`, `-7`, `1_000_000` are integers; `-0` is the integer `0`
+[1, -7, 1_000_000, 0, -0]

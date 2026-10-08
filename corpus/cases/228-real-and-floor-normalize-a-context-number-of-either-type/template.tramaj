@@ -1,0 +1,2 @@
+-- reference.md §3: a JSON number is typed by its text; real and floor accept both
+[real($ctx.i), real($ctx.f), floor($ctx.i), floor($ctx.f)]

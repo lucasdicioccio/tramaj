@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2: the check is per step; (2^32 * 2^32) * 0 fails at the first
+product(4294967296, 4294967296, 0)

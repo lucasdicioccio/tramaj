@@ -1,0 +1,48 @@
+{
+  "constraints": [
+    {
+      "arguments": [
+        {
+          "x": 1.0,
+          "y": 2
+        },
+        {
+          "$type": "root:Point"
+        }
+      ],
+      "name": "has-type"
+    }
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "x": 1.0,
+    "y": 2
+  },
+  "symbols": [],
+  "type-constraints": [],
+  "types": [
+    {
+      "definition": {
+        "fields": [
+          {
+            "name": "x",
+            "type": {
+              "kind": "prim",
+              "name": "float"
+            }
+          },
+          {
+            "name": "y",
+            "type": {
+              "kind": "prim",
+              "name": "int"
+            }
+          }
+        ],
+        "kind": "record"
+      },
+      "id": "root:Point"
+    }
+  ]
+}

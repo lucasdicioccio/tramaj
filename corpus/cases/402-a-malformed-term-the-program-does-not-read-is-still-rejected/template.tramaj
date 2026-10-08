@@ -1,0 +1,2 @@
+-- v3-symbols §5.3: the context is decoded whole, before evaluation starts
+$ctx.a

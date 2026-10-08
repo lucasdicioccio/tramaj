@@ -1,0 +1,14 @@
+{
+  "constraints": [
+    {"arguments": [{"$term": "sum", "arguments": [{"$sym": "#0:\"a\"", "path": []}, {"$sym": "#1:\"b\"", "path": []}]}, 10], "name": "lte"}
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": 1,
+  "symbols": [
+    {"binding": "a", "id": "#0:\"a\"", "origin": {"key": "a", "kind": "alloc", "site": 0}},
+    {"binding": "b", "id": "#1:\"b\"", "origin": {"key": "b", "kind": "alloc", "site": 1}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

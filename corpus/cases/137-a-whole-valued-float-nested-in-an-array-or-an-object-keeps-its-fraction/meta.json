@@ -1,0 +1,6 @@
+{
+  "name": "a whole-valued float nested in an array or an object keeps its fraction",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

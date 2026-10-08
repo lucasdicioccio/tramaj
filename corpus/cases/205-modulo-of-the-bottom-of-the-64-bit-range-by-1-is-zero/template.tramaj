@@ -1,0 +1,3 @@
+-- reference.md §11: the formula is over the mathematical integers, and the result is
+-- smaller in magnitude than b, so it is always in range
+modulo(-9223372036854775808, -1)

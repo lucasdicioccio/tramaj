@@ -1,0 +1,6 @@
+{
+  "name": "negate of a float is a float and sum with negate is subtraction",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

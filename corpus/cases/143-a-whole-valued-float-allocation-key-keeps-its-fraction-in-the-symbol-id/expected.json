@@ -1,0 +1,11 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$sym": "#0:1.0", "path": []},
+  "symbols": [
+    {"binding": null, "id": "#0:1.0", "origin": {"key": 1.0, "kind": "alloc", "site": 0}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

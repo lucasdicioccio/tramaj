@@ -1,0 +1,2 @@
+-- reference.md §3: a parameter is a value the importer built, not JSON text
+import("echo", {i: 3, f: 3.0, c: $ctx.x, d: $ctx.y}).rendered

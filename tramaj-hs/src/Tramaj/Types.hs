@@ -65,6 +65,7 @@ module Tramaj.Types
   , programTypeRoots
   ) where
 
+import Data.Int (Int64)
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -394,7 +395,8 @@ eraseExpr libs prog = go
     go (Lambda params body) = Lambda params <$> go body
     go (Let name value body) = Let name <$> go value <*> go body
     go e@(StringLit _) = pure e
-    go e@(NumberLit _) = pure e
+    go e@(IntLit _) = pure e
+    go e@(FloatLit _) = pure e
     go e@(BoolLit _) = pure e
     go NullLit = pure NullLit
     go (ArrayLit elems) = ArrayLit <$> traverse go elems
@@ -433,12 +435,13 @@ eraseExpr libs prog = go
 -- Type constraints (v4-types \S5, roadmap Phase 12) -----------------------
 
 -- | A resolved @!type-constraint@ argument: a type, or one of the four
--- scalar shapes \S5 allows -- the type-realm counterpart of the
+-- scalar shapes \S5 allows, a number being an integer or a float -- the type-realm counterpart of the
 -- already-evaluated 'Value'' a v3 constraint's argument becomes.
 data ResolvedConstraintArg
   = RCType ResolvedType
   | RCScalarStr Text
-  | RCScalarNum Double
+  | RCScalarInt Int64
+  | RCScalarFloat Double
   | RCScalarBool Bool
   | RCScalarNull
   deriving stock (Eq, Ord, Show)
@@ -446,7 +449,8 @@ data ResolvedConstraintArg
 resolveConstraintArg :: Map Text Program -> Program -> TypeConstraintArg -> Either TypeError ResolvedConstraintArg
 resolveConstraintArg libs prog (TCType t) = RCType <$> resolveTypeExpr libs prog t
 resolveConstraintArg _ _ (TCScalarStr s) = Right (RCScalarStr s)
-resolveConstraintArg _ _ (TCScalarNum n) = Right (RCScalarNum n)
+resolveConstraintArg _ _ (TCScalarInt n) = Right (RCScalarInt n)
+resolveConstraintArg _ _ (TCScalarFloat n) = Right (RCScalarFloat n)
 resolveConstraintArg _ _ (TCScalarBool b) = Right (RCScalarBool b)
 resolveConstraintArg _ _ TCScalarNull = Right RCScalarNull
 

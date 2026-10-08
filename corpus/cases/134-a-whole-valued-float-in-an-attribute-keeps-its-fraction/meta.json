@@ -1,0 +1,6 @@
+{
+  "name": "a whole-valued float in an attribute keeps its fraction",
+  "kind": "document",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

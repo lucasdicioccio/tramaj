@@ -66,6 +66,58 @@ Not yet ported to the PureScript `tramaj` package, which still implements v1.
 
 ## Unreleased
 
+**Breaking: integers and floats are two number types** (`../specs/decisions.md`
+\S18, `../specs/reference.md` \S3). A literal or a JSON number with neither a
+fraction nor an exponent is an integer; one with either is a float. Nothing
+converts between them: `eq(1, 1.0)` is `false`, `lt`/`lte`/`gt`/`gte` over an
+integer and a float are a `TypeMismatch`, and `has`/`lookup` take an integer
+index. The integer range is the signed 64-bit one; an integer literal outside
+it is a parse error and a context integer outside it a `TypeMismatch`. A
+float is written with a fraction or an exponent everywhere, so `str(1.0)` is
+`1.0` where it was `1`. The arithmetic builtins are not part of this.
+
+New `Tramaj.Json`: a JSON value with `JInt` and `JFloat`, `jsonParser` (which
+types a number by its text) and `stringify`. `evalProgram`, `runProgram`,
+`Output`, `Node`, `NodeAttribute`, `Annotations`, `nodeToJson`,
+`nodeFromJson`, `nodeAttributeToJson` and `mapActions` use it where they used
+`Data.Aeson.Value`, which holds one number type; `fromAeson` and `toAeson`
+bridge the two. `NumberLit` is split into `IntLit`/`FloatLit`, `TCScalarNum`
+into `TCScalarInt`/`TCScalarFloat` and `RCScalarNum` into
+`RCScalarInt`/`RCScalarFloat`. The type primitive `number` is gone; `int` and
+`float` replace it. Needs `aeson >= 2.2.1`, for its token decoder.
+
+**The arithmetic profile** (`../specs/reference.md` \S9, \S11, \S12,
+`../specs/v3-symbols.md` \S1.9, \S5.2 to \S5.5), as an option of one
+evaluation that is off by default. Nine builtins: `sum`, `product`, `negate`,
+`inverse`, `quotient`, `floor-quotient`, `modulo`, `floor` and `real`, over
+the two number types with no conversion or promotion. Integer results are
+held to the signed 64-bit range at every step of a fold and nothing wraps;
+float results are one correctly rounded double operation at a time, in a left
+fold. Over a symbol they build a term, written
+`{"$term": <op>, "arguments": [...]}`, which crosses wherever a symbol does
+and is refused wherever a symbol is.
+
+New in `Tramaj.Eval`: `Options (..)` (`optMode`, `optArithmetic`),
+`defaultOptions` (concrete mode, arithmetic off), `evalProgramWith` and
+`runProgramWith`, which take an `Options` where `evalProgram` and
+`runProgram` take a `Mode`. Those two keep their signatures and run without
+the profile, so the nine names stay unbound there and `sum(1, 2)` is an
+`UnboundName`. The option applies to the root and to every library the
+evaluation runs. New in `Tramaj.Analysis`: `arithmeticNames`, `arithmeticOps`
+and `deepArithmeticOps`, which report the arithmetic names a program
+references free, so a host that leaves the profile off can refuse a program
+before running it.
+
+**Breaking**, with or without the profile:
+
+- `EvalError` gains the constructor `NotRepresentable`: integer overflow, a
+  zero divisor, a float result that is not finite. A host that matches every
+  constructor needs a case for it.
+- `"$term"` joins `"$sym"` and `"$type"` as a reserved key. `{"$term": 1}` in
+  a program is a parse error, and a context carrying that key is a
+  `TypeMismatch`, in concrete mode always and in symbolic mode unless it is a
+  well-formed term and the profile is on.
+
 Adds `fold(arr, init, fn)`, a fourth functional array primitive alongside
 `map`/`filter`/`scan`: same `(acc, item)` step and `scanl` iteration order as
 `scan`, but returns only the final accumulator instead of every intermediate

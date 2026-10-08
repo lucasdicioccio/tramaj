@@ -1,0 +1,4 @@
+-- v4-types §1 and §10
+type T = number
+@d : T = 1
+$d

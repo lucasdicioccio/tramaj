@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: the fixed-arity builtins do not flatten, and nothing looks inside the array
+@s = ?("s")
+@t = sum($s, 1)
+floor([$t])

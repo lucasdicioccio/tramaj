@@ -1,0 +1,9 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$term": "sum", "arguments": [{"$term": "negate", "arguments": [{"$sym": "#ctx.s", "path": []}]}, 1]},
+  "symbols": [],
+  "type-constraints": [],
+  "types": []
+}

@@ -1,0 +1,6 @@
+{
+  "name": "inverse is quotient of 1.0 by its operand",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

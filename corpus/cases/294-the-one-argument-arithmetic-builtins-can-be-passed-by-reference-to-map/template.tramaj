@@ -1,0 +1,2 @@
+-- reference.md §6, §11: builtins are ordinary bindings
+[map($ctx.is, $negate), map($ctx.is, $real), map($ctx.fs, $floor), map($ctx.fs, $inverse)]

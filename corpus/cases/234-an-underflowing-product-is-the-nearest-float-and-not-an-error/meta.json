@@ -1,0 +1,6 @@
+{
+  "name": "an underflowing product is the nearest float and not an error",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

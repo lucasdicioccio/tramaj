@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: the same program as the next case, with the symbol left open
+@d = ?ctx.d
+floor-quotient(10, $d)

@@ -1,0 +1,8 @@
+{
+  "name": "floor-quotient of a float by an integer zero is a TypeMismatch and not a NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,2 @@
+-- reference.md §11, Arrays as arguments: 1 + 4 + 9
+sum(map($ctx.xs, (x) => product($x, $x)))

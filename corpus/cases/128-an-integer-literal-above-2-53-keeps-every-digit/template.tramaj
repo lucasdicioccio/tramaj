@@ -1,0 +1,2 @@
+-- 2^53 and 2^53 + 1: a double holds the first and rounds the second
+[str(9007199254740992), str(9007199254740993)]

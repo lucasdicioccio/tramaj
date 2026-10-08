@@ -1,0 +1,6 @@
+{
+  "name": "two constraints over reordered terms are two constraints",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

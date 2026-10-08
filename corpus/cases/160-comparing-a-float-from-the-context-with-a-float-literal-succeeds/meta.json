@@ -1,0 +1,6 @@
+{
+  "name": "comparing a float from the context with a float literal succeeds",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float"]
+}

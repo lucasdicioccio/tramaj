@@ -1,0 +1,2 @@
+-- reference.md §6, §11: each step is builtin(acc, item)
+[fold($ctx.fs, 100.0, $quotient), fold($ctx.is, 100, $floor-quotient), fold($ctx.is, 100, $modulo)]

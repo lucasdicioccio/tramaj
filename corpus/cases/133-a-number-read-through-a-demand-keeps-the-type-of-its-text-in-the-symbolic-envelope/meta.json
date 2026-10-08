@@ -1,0 +1,6 @@
+{
+  "name": "a number read through a demand keeps the type of its text in the symbolic envelope",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float"]
+}

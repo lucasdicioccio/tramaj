@@ -15,10 +15,10 @@ particular UI framework (see &lt;a href="/tramaj/properties.html"&gt;Properties&
 always something &lt;em&gt;you&lt;/em&gt; write for your host, even where this repository
 already ships one for you. Which of the six paths below applies depends
 only on what language your host is written in.&lt;/p&gt;
-&lt;p&gt;The implementations and how they relate: one specification and corpus, five
+&lt;p&gt;The implementations and how they relate: one specification and corpus, six
 independently written ports, and the folds and CLIs layered on top of two of
 them.&lt;/p&gt;
-&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, and tramaj-py" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go" /&gt;&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;Host language&lt;/th&gt;&lt;th&gt;Get the &lt;code&gt;Node&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Write the fold&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-purs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
@@ -26,6 +26,7 @@ them.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-rs&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-js&lt;/code&gt; directly, or shell out to &lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-react&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-py&lt;/code&gt; directly, or shell out to &lt;code&gt;python -m tramaj&lt;/code&gt;&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-go&lt;/code&gt; directly, or shell out to its &lt;code&gt;tramaj-go&lt;/code&gt; CLI&lt;/td&gt;&lt;td&gt;write your own — none shipped yet&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;anything else&lt;/td&gt;&lt;td&gt;shell out to &lt;code&gt;tramaj-cli&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, or reimplement the evaluator&lt;/td&gt;&lt;td&gt;write your own, over the JSON&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
@@ -170,7 +171,7 @@ the exact CLI invocations, and &lt;em&gt;Any other language&lt;/em&gt; below for
 shape of folding its JSON output by hand.&lt;/p&gt;
 &lt;h3 id="python--import-as-a-library-standard-library-only"&gt;Python — import as a library, standard library only&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-py&lt;/code&gt; is an independent, hand-written Python port of the same grammar
-and evaluation semantics as the other four implementations, held to the
+and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types). It needs
@@ -202,9 +203,43 @@ also has its own &lt;code&gt;tramaj-cli&lt;/code&gt; equivalent, &lt;code&gt;pyt
 &lt;code&gt;tramaj-cli-rs&lt;/code&gt;’s &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze&lt;/code&gt; subcommands, flags and JSON output
 shapes, so a non-Python host with a Python interpreter around can shell out
 to it instead of to Node.&lt;/p&gt;
+&lt;h3 id="go--import-as-a-module-standard-library-only"&gt;Go — import as a module, standard library only&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;tramaj-go&lt;/code&gt; is an independent, hand-written Go port of the same grammar and
+evaluation semantics as the other implementations, held to the same shared
+conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; — full parity, including
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types). It needs nothing
+outside the standard library (Go 1.21+), so it compiles into a service or a
+static binary with no Node, Python or PureScript toolchain as a runtime
+dependency. It’s one package, &lt;code&gt;tramaj&lt;/code&gt;, in the repository’s &lt;code&gt;tramaj-go/&lt;/code&gt;
+directory (no tagged module release yet):&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; tramaj &lt;span class="st"&gt;&amp;quot;github.com/lucasdicioccio/tramaj/tramaj-go&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;program&lt;span class="op"&gt;,&lt;/span&gt; err &lt;span class="op"&gt;:=&lt;/span&gt; tramaj&lt;span class="op"&gt;.&lt;/span&gt;ParseProgram&lt;span class="op"&gt;(&lt;/span&gt;&lt;span class="st"&gt;`.p($ctx.name)`&lt;/span&gt;&lt;span class="op"&gt;)&lt;/span&gt; &lt;span class="co"&gt;// err is a *tramaj.ParseError&lt;/span&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;ctx&lt;span class="op"&gt;,&lt;/span&gt; _ &lt;span class="op"&gt;:=&lt;/span&gt; tramaj&lt;span class="op"&gt;.&lt;/span&gt;ParseJSON&lt;span class="op"&gt;([]&lt;/span&gt;&lt;span class="dt"&gt;byte&lt;/span&gt;&lt;span class="op"&gt;(&lt;/span&gt;&lt;span class="st"&gt;`{&amp;quot;name&amp;quot;: &amp;quot;web&amp;quot;}`&lt;/span&gt;&lt;span class="op"&gt;))&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;out&lt;span class="op"&gt;,&lt;/span&gt; err &lt;span class="op"&gt;:=&lt;/span&gt; tramaj&lt;span class="op"&gt;.&lt;/span&gt;RunProgram&lt;span class="op"&gt;(&lt;/span&gt;tramaj&lt;span class="op"&gt;.&lt;/span&gt;Concrete&lt;span class="op"&gt;,&lt;/span&gt; &lt;span class="ot"&gt;nil&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt; ctx&lt;span class="op"&gt;,&lt;/span&gt; program&lt;span class="op"&gt;)&lt;/span&gt; &lt;span class="co"&gt;// err is a *tramaj.EvalError&lt;/span&gt;&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;fmt&lt;span class="op"&gt;.&lt;/span&gt;Println&lt;span class="op"&gt;(&lt;/span&gt;tramaj&lt;span class="op"&gt;.&lt;/span&gt;PrettyJSON&lt;span class="op"&gt;(&lt;/span&gt;out&lt;span class="op"&gt;))&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;RunProgram&lt;/code&gt; gives you the evaluated result as a &lt;code&gt;tramaj.JSON&lt;/code&gt; value (&lt;code&gt;nil&lt;/code&gt;,
+&lt;code&gt;bool&lt;/code&gt;, &lt;code&gt;float64&lt;/code&gt;, &lt;code&gt;string&lt;/code&gt;, &lt;code&gt;[]tramaj.JSON&lt;/code&gt; or &lt;code&gt;*tramaj.Object&lt;/code&gt;, an object
+that keeps its keys in order), already encoded per
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt; when the program produces a
+document, or the concrete/symbolic envelope from
+&lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; §5 otherwise — the same shape
+&lt;code&gt;runProgram&lt;/code&gt; returns on every other side. A library table is a
+&lt;code&gt;tramaj.Libraries&lt;/code&gt;, a map from import name to parsed program; the mode is
+&lt;code&gt;tramaj.Concrete&lt;/code&gt; or &lt;code&gt;tramaj.Symbolic&lt;/code&gt;. &lt;code&gt;EvalProgram&lt;/code&gt; is the lower-level entry
+point if you want the &lt;code&gt;*tramaj.Node&lt;/code&gt; itself rather than its JSON encoding.
+Every number is a &lt;code&gt;float64&lt;/code&gt;, as the language specifies, and &lt;code&gt;str&lt;/code&gt; renders as
+ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does, so interpolated text matches the other
+implementations byte-for-byte.&lt;/p&gt;
+&lt;p&gt;As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
+own following the same shape (switch on the node’s &lt;code&gt;Type&lt;/code&gt;, recurse into
+&lt;code&gt;Children&lt;/code&gt;, decide what an action attribute means in your host). Go also has
+its own &lt;code&gt;tramaj-cli&lt;/code&gt; equivalent, &lt;code&gt;tramaj-go&lt;/code&gt; (&lt;code&gt;go build ./cmd/tramaj-go&lt;/code&gt;),
+mirroring &lt;code&gt;tramaj-cli-rs&lt;/code&gt;’s &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze&lt;/code&gt; subcommands, flags and JSON
+output shapes.&lt;/p&gt;
 &lt;h3 id="any-other-language"&gt;Any other language&lt;/h3&gt;
-&lt;p&gt;For a host in a language with no PureScript, Haskell, Rust, JavaScript, or
-Python interop story — Go, Java, whatever — there are two options:&lt;/p&gt;
+&lt;p&gt;For a host in a language with no PureScript, Haskell, Rust, JavaScript,
+Python or Go interop story — Java, C#, whatever — there are two options:&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;(a) Full reimplementation.&lt;/strong&gt; Port the parser and evaluator to your
 language, the way &lt;code&gt;tramaj-hs&lt;/code&gt; ports the PureScript original. Worth it only
 if you need to &lt;em&gt;evaluate&lt;/em&gt; templates natively (e.g. embedding evaluation in
@@ -212,7 +247,7 @@ a process that can’t shell out, or needs it to run in-process for
 performance). &lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; is the full
 grammar and evaluation semantics to implement against, and the conformance
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt; in the repository — template + context + expected
-output triples) is what the five existing implementations are held to; a
+output triples) is what the six existing implementations are held to; a
 new implementation should be checked against the same corpus.&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;(b) Partial implementation, starting from &lt;code&gt;tramaj-cli&lt;/code&gt;’s output.&lt;/strong&gt; For
 most hosts this is the pragmatic choice: don’t reimplement the parser or
@@ -231,8 +266,9 @@ rendered document.&lt;/p&gt;
 &lt;p&gt;This is also the fastest way to prototype an integration in any language
 before deciding whether a full reimplementation is ever worth it.&lt;/p&gt;
 &lt;p&gt;See the &lt;a href="/tramaj/roadmap.html"&gt;Roadmap&lt;/a&gt; for what a new implementation needs to
-cover and where to start if you want to build one; Rust, JavaScript and
-Python each have one now (&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-py&lt;/code&gt;, above).&lt;/p&gt;
+cover and where to start if you want to build one; Rust, JavaScript, Python
+and Go each have one now (&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and
+&lt;code&gt;tramaj-go&lt;/code&gt;, above).&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html" rel="alternate"/><summary type="text">Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/howto-humans.html</id><title type="text">Getting started with tramaj</title><updated>2026-09-10T01:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="getting-started-with-tramaj"&gt;Getting started with tramaj&lt;/h2&gt;
 &lt;p&gt;This is a practical walkthrough. For the language’s core ideas, see the
 overview on the &lt;a href="/tramaj/"&gt;home page&lt;/a&gt;; for the full grammar, see the

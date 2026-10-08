@@ -1,5 +1,6 @@
 {
   "name": "negative, exponent and underscore-separated number literals",
   "kind": "expression",
-  "mode": "concrete"
+  "mode": "concrete",
+  "requires": ["int-float"]
 }

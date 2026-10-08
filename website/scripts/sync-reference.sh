@@ -19,7 +19,7 @@ GITHUB_BASE="https://github.com/lucasdicioccio/tramaj/blob/main/specs"
 DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 sync_one() {
-  local spec_file="$1" out_name="$2" topic="$3"
+  local spec_file="$1" out_name="$2" topic="$3" order="$4"
   local src="$SPECS_DIR/$spec_file"
   local out="$OUT_DIR/$out_name.cmark"
   local title
@@ -27,8 +27,10 @@ sync_one() {
 
   {
     echo '=base:build-info.json'
-    echo '{"layout":"article"'
+    echo '{"layout":"documentation"'
     echo ',"publicationStatus":"Public"'
+    echo ',"group":"Reference"'
+    echo ",\"order\":$order"
     echo '}'
     echo
     echo '=base:preamble.json'
@@ -66,6 +68,7 @@ sync_one() {
     echo '  , "@import \"`$ctx.pathPrefix`/css/colors.css\";"'
     echo '  , "@import \"`$ctx.pathPrefix`/css/article.css\";"'
     echo '  , "@import \"`$ctx.pathPrefix`/css/navigation.css\";"'
+    echo '  , "@import \"`$ctx.pathPrefix`/css/documentation.css\";"'
     echo '  ]'
     echo '}'
   } > "$out"
@@ -73,7 +76,9 @@ sync_one() {
   echo "==> wrote $out"
 }
 
-sync_one reference.md   reference-language  reference
-sync_one node-json.md   reference-node-json reference
-sync_one v3-symbols.md  reference-v3-symbols reference
-sync_one v4-types.md    reference-v4-types  reference
+# The last argument orders the page within the "Reference" group of the
+# documentation layout (website/src/reference.cmark, the group's overview, is 40).
+sync_one reference.md   reference-language  reference 50
+sync_one node-json.md   reference-node-json reference 60
+sync_one v3-symbols.md  reference-v3-symbols reference 70
+sync_one v4-types.md    reference-v4-types  reference 80

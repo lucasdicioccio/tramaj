@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2: 2^32 * 2^31 is 2^63, outside both permitted ranges
+product(4294967296, 2147483648)

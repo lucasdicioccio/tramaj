@@ -1,0 +1,6 @@
+{
+  "name": "floor and real of a symbol are terms",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

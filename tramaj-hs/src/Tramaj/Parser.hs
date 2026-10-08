@@ -33,6 +33,7 @@ module Tramaj.Parser
   ) where
 
 import Data.Char (chr, isAlphaNum, isDigit, isHexDigit, isLetter)
+import Data.Int (Int64)
 import Data.List (nub)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -220,9 +221,14 @@ desugarString parts = case map partExpr (coalesce parts) of
 -- may sit between two digits (reference.md §5, /Number literals/). The
 -- fraction and exponent are taken only when complete, so a stray @.@, @e@
 -- or @_@ is left for the caller to reject. The underscores are dropped and
--- the exponent's sign normalized before the text reaches 'reads'; an
--- overflow to infinity is refused and a zero is normalized so @-0@ never
--- escapes.
+-- the exponent's sign normalized before the text is read.
+--
+-- The form decides the type (\S5, decisions \S18). With neither a fraction
+-- nor an exponent the literal is an integer, denoting exactly its value, and
+-- one outside the signed 64-bit range is refused; the sign is part of the
+-- literal, so @-9223372036854775808@ is in range. With either it is a float:
+-- an overflow to infinity is refused and a zero is normalized so @-0.0@
+-- never escapes.
 numberLit :: P Expr
 numberLit = lexeme $ try $ do
   sign <- optional (char '-')
@@ -238,12 +244,19 @@ numberLit = lexeme $ try $ do
           <> intPart
           <> maybe "" ("." <>) fracPart
           <> maybe "" ("e" <>) expPart
-  case reads (T.unpack fullStr) :: [(Double, String)] of
-    [(n, "")]
-      | isInfinite n -> fail ("number literal out of range: " <> T.unpack fullStr)
-      | n == 0 -> pure (NumberLit 0)
-      | otherwise -> pure (NumberLit n)
-    _ -> fail ("invalid number literal: " <> T.unpack fullStr)
+  case (fracPart, expPart) of
+    (Nothing, Nothing) -> case reads (T.unpack fullStr) :: [(Integer, String)] of
+      [(n, "")]
+        | n < toInteger (minBound :: Int64) || n > toInteger (maxBound :: Int64) ->
+            fail ("integer literal outside the signed 64-bit range: " <> T.unpack fullStr)
+        | otherwise -> pure (IntLit (fromInteger n))
+      _ -> fail ("invalid number literal: " <> T.unpack fullStr)
+    _ -> case reads (T.unpack fullStr) :: [(Double, String)] of
+      [(n, "")]
+        | isInfinite n -> fail ("number literal out of range: " <> T.unpack fullStr)
+        | n == 0 -> pure (FloatLit 0)
+        | otherwise -> pure (FloatLit n)
+      _ -> fail ("invalid number literal: " <> T.unpack fullStr)
   where
     digits = do
       first <- takeWhile1P (Just "digit") isDigit
@@ -297,14 +310,15 @@ objectLit = lexeme $ do
 objectKey :: P Text
 objectKey = staticString <|> identifier
 
--- | @"$sym"@ and @"$type"@ are reserved across the value domain (v3-symbols
--- \S5.3, v4-types \S0): the tag a symbolic or typed envelope uses to mark a
--- value that is not an ordinary object. An object literal spelling either as
--- a key is a parse error in every profile, not just the symbolic one, so a
--- program's legality never depends on which profile runs it.
+-- | @"$sym"@, @"$type"@ and @"$term"@ are reserved across the value domain
+-- (v3-symbols \S5.3, v4-types \S0): the tag a symbolic or typed envelope
+-- uses to mark a value that is not an ordinary object. An object literal
+-- spelling one of them as a key is a parse error in every profile, not just
+-- the symbolic or the arithmetic one, so a program's legality never depends
+-- on which profile runs it.
 reservedKeyRefused :: Text -> P ()
 reservedKeyRefused k
-  | k `elem` (["$sym", "$type"] :: [Text]) =
+  | k `elem` (["$sym", "$type", "$term"] :: [Text]) =
       fail ("\"" <> T.unpack k <> "\" is a reserved key and cannot be used as an object key")
   | otherwise = pure ()
 
@@ -604,11 +618,13 @@ specialForm = do
 
 -- Types ---------------------------------------------------------------------
 
--- | The five value-domain shapes v4-types \S1 reserves as type primitives.
+-- | The six value-domain shapes v4-types \S1 reserves as type primitives.
 -- Fixed and closed, so recognized here rather than left for a later
--- resolution pass to classify.
+-- resolution pass to classify. @int@ and @float@ are the value domain's two
+-- number types; @number@ is no longer a primitive, so it parses as an
+-- ordinary name and resolves only if a program declares it.
 primNames :: [Text]
-primNames = ["string", "number", "bool", "null", "document"]
+primNames = ["string", "int", "float", "bool", "null", "document"]
 
 -- | A type expression (v4-types \S1), in the position a full 'TypeExpr' may
 -- appear: a declaration's right-hand side, a record field's type, an array's
@@ -742,7 +758,8 @@ typeConstraintArg = (TCType <$> markedTypeExpr) <|> scalarArg
         <|> (asScalar <$> keywordLit)
 
     asScalar :: Expr -> TypeConstraintArg
-    asScalar (NumberLit n) = TCScalarNum n
+    asScalar (IntLit n) = TCScalarInt n
+    asScalar (FloatLit n) = TCScalarFloat n
     asScalar (BoolLit b) = TCScalarBool b
     asScalar NullLit = TCScalarNull
     asScalar (StringLit s) = TCScalarStr s

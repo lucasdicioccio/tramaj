@@ -1,0 +1,4 @@
+-- v3-symbols §1.9, §6: a term stands for a number, and a number has no fields
+@s = ?("s")
+@t = sum($s, 1)
+$t.field

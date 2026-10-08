@@ -1,0 +1,6 @@
+{
+  "name": "negate quotient floor-quotient and modulo over a symbol are terms",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

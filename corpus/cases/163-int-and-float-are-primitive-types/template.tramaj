@@ -1,0 +1,4 @@
+-- v4-types §1: `int` and `float` replace the primitive `number`
+type Point = { x : float, y : int }
+@p : Point = {"x": 1.0, "y": 2}
+$p

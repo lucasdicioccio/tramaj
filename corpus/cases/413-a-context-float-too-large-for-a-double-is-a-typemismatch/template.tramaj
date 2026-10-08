@@ -1,0 +1,2 @@
+-- reference.md §3: a float too large for a double is refused, as the literal is a parse error
+$ctx.x

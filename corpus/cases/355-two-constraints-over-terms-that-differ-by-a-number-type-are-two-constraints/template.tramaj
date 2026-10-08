@@ -1,0 +1,5 @@
+-- v3-symbols §1.9: equal arguments in the same order; reference.md §11: eq(1, 1.0) is false
+@a = ?("a")
+!constraint("lte", sum($a, 1), 10)
+!constraint("lte", sum($a, 1.0), 10)
+1

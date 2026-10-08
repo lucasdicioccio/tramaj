@@ -1,0 +1,2 @@
+-- reference.md §11, Arrays as arguments
+sum(1, $ctx.xs, 2)

@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: the same program as the next two cases, with the symbol left open
+@s = ?ctx.s
+sum(0.1, $s, 0.3)

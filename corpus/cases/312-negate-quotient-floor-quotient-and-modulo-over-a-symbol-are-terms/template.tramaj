@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: a call with a symbol operand builds a term with that op
+@s = ?("s")
+[negate($s), quotient($s, 2.0), floor-quotient(7, $s), modulo($s, 2)]

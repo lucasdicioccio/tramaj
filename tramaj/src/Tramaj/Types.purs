@@ -453,7 +453,8 @@ eraseExpr libs prog = go
   go (Lambda params body) = Lambda params <$> go body
   go (Let name value body) = Let name <$> go value <*> go body
   go e@(StringLit _) = pure e
-  go e@(NumberLit _) = pure e
+  go e@(IntLit _) = pure e
+  go e@(FloatLit _) = pure e
   go e@(BoolLit _) = pure e
   go NullLit = pure NullLit
   go (ArrayLit elems) = ArrayLit <$> traverse go elems
@@ -497,7 +498,8 @@ eraseExpr libs prog = go
 data ResolvedConstraintArg
   = RCType ResolvedType
   | RCScalarStr String
-  | RCScalarNum Number
+  | RCScalarInt Number
+  | RCScalarFloat Number
   | RCScalarBool Boolean
   | RCScalarNull
 
@@ -507,14 +509,16 @@ derive instance ordResolvedConstraintArg :: Ord ResolvedConstraintArg
 instance showResolvedConstraintArg :: Show ResolvedConstraintArg where
   show (RCType t) = "RCType (" <> show t <> ")"
   show (RCScalarStr s) = "RCScalarStr " <> show s
-  show (RCScalarNum n) = "RCScalarNum " <> show n
+  show (RCScalarInt n) = "RCScalarInt " <> show n
+  show (RCScalarFloat n) = "RCScalarFloat " <> show n
   show (RCScalarBool b) = "RCScalarBool " <> show b
   show RCScalarNull = "RCScalarNull"
 
 resolveConstraintArg :: Map String Program -> Program -> TypeConstraintArg -> Either TypeError ResolvedConstraintArg
 resolveConstraintArg libs prog (TCType t) = RCType <$> resolveTypeExpr libs prog t
 resolveConstraintArg _ _ (TCScalarStr s) = Right (RCScalarStr s)
-resolveConstraintArg _ _ (TCScalarNum n) = Right (RCScalarNum n)
+resolveConstraintArg _ _ (TCScalarInt n) = Right (RCScalarInt n)
+resolveConstraintArg _ _ (TCScalarFloat n) = Right (RCScalarFloat n)
 resolveConstraintArg _ _ (TCScalarBool b) = Right (RCScalarBool b)
 resolveConstraintArg _ _ TCScalarNull = Right RCScalarNull
 

@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: an object is not a number, whatever it holds
+@s = ?("s")
+sum({k: $s})

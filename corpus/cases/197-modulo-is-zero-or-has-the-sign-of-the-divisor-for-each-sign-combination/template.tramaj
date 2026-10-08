@@ -1,0 +1,2 @@
+-- reference.md §11: a - b * floor-quotient(a, b)
+[modulo(7, 2), modulo(-7, 2), modulo(7, -2), modulo(-7, -2)]

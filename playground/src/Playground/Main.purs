@@ -30,8 +30,6 @@ module Playground.Main (main) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify, stringifyWithIndent, toArray, toObject, toString)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (null, reverse)
 import Data.Array as Array
 import Data.Either (Either(..), either)
@@ -52,6 +50,7 @@ import Tramaj.Analysis.Card (programCard)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
 import Tramaj.Halogen (foldToHalogen, renderCard, renderConstraintTable, renderSymbolTable, renderTypeConstraintTable, renderTypesTable, validateAttrNames)
+import Tramaj.Json (Json, jsonParser, stringify, stringifyWithIndent, toArray, toObject, toString)
 import Tramaj.Node (Node, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseProgram)
 
@@ -285,7 +284,7 @@ initialState =
 
 -- An ordinary nominal declaration, structural in its own body. "Zone" is
 -- an enum: a union whose arms carry no payload.
-type Deployment = { replicas : number, zone : Zone }
+type Deployment = { replicas : int, zone : Zone }
 type Zone = | Eu | Us
 
 -- "message" is parameterised over a type: %ctx.payload inside it is a

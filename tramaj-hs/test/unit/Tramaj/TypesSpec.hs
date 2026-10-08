@@ -48,12 +48,12 @@ resolutionSpec = describe "canonical ids" $ do
 
   resolvesTo
     Map.empty
-    (prog "type Inner = { x : number }\ntype Outer = { items : [ Inner ] }\ntrue")
+    (prog "type Inner = { x : int }\ntype Outer = { items : [ Inner ] }\ntrue")
     "Outer"
     "{items:[root:Inner]}"
 
   resolvesTo
-    (Map.fromList [("message", prog "type Envelope = { to : string, id : number }\ntrue")])
+    (Map.fromList [("message", prog "type Envelope = { to : string, id : int }\ntrue")])
     (prog "@msg=import(\"message\", {})\ntype UsesEnvelope = { env : $msg.types.Envelope }\ntrue")
     "UsesEnvelope"
     "{env:\"message\":Envelope}"
@@ -63,9 +63,9 @@ resolutionSpec = describe "canonical ids" $ do
   -- author happened to write things in.
   resolvesTo
     Map.empty
-    (prog "type Shape = | Square { s : number } | Circle { r : number } | Dev\ntrue")
+    (prog "type Shape = | Square { s : float } | Circle { r : float } | Dev\ntrue")
     "Shape"
-    "|Circle {r:number}|Dev|Square {s:number}"
+    "|Circle {r:float}|Dev|Square {s:float}"
 
   -- A root declaration and a same-named library declaration must render to
   -- different strings -- the whole point of \"root\" being a token no

@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2: 2^63 is not in the 64-bit range
+floor-quotient(-9223372036854775808, -1)

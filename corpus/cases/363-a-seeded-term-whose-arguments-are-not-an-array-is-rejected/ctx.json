@@ -1,0 +1,1 @@
+{"t": {"$term": "negate", "arguments": {"$sym": "#ctx.s", "path": []}}}

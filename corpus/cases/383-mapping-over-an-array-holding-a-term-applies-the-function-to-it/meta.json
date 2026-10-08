@@ -1,0 +1,6 @@
+{
+  "name": "mapping over an array holding a term applies the function to it",
+  "kind": "expression",
+  "mode": "symbolic",
+  "requires": ["int-float", "arithmetic"]
+}

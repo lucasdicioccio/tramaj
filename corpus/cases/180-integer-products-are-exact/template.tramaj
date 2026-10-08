@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2
+[product(2, 3, 4), product(-3, 4), product(-3, -4), product(7, 0)]

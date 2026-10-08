@@ -1,0 +1,2 @@
+-- reference.md §11: inverse(x) is quotient(1.0, x), by definition
+[inverse(4.0), inverse(-2.0), inverse(3.0), inverse(49.0)]

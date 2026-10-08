@@ -1,0 +1,5 @@
+-- v3-symbols §1.9, §4: equality of terms is structural
+@a = ?("a")
+!constraint("lte", sum($a, 1), 10)
+!constraint("lte", sum($a, 1), 10)
+1

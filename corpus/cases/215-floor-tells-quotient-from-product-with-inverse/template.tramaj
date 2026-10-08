@@ -1,0 +1,2 @@
+-- decisions.md §18: floor of product(49.0, inverse(49.0)) is 0
+[floor(quotient(49.0, 49.0)), floor(product(49.0, inverse(49.0)))]

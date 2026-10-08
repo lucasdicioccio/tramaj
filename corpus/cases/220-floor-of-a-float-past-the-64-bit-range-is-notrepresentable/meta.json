@@ -1,0 +1,8 @@
+{
+  "name": "floor of a float past the 64-bit range is NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "requires": ["int-float", "arithmetic"]
+}

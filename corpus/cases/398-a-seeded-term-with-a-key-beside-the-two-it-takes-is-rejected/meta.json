@@ -1,0 +1,8 @@
+{
+  "name": "a seeded term with a key beside the two it takes is rejected",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

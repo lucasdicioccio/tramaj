@@ -1,0 +1,2 @@
+-- reference.md §3: 1e19 is a float by its text, so the integer range does not apply
+[$ctx.x, str($ctx.x)]

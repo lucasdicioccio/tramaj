@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 2: 2^32 * 2^32 is 2^64; nothing wraps, saturates or rounds
+product(4294967296, 4294967296)

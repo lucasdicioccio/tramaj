@@ -1,0 +1,8 @@
+{
+  "name": "floor-quotient with three arguments is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

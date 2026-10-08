@@ -390,9 +390,521 @@ duplicate name and a rejected default/rest; then `reference.md` §8/§14 and
 on a failing index read. (2) `{bar: baz}` as the rename spelling. (3) Annotated
 patterns rejected for now. (4) Reserve default and rest syntax as a parse error.
 
+## 18. Arithmetic: integers and floats as two types, nine named builtins, no operators, and a term for what a symbol leaves unevaluated
+
+*Status: accepted by the owner on 2026-10-06, with the decisions listed at the end. The normative text is written: `reference.md` §3, §5, §6, §9, §11 (*Arithmetic*), §12 and §13; `node-json.md` (*Numbers*); `v3-symbols.md` §1.1, §1.4, §1.5, §1.9, §5.2 to §5.5 and §6 to §9; `v4-types.md` §1; `laws.md`. Nothing here is implemented in any port, and each of those passages says so.*
+
+`reference.md` §11 states that a template "compares and selects, it does not
+compute", and §5 and this file's §9 lean on it. This section proposes to
+reverse that position, so it records why first.
+
+**Why reverse it.** The position assumed that every derived number can be
+computed by whoever builds the context. That holds when the host and the
+template author are the same party. It fails when they are not: a template
+handed a set of counters by a host it does not control cannot show a subtotal,
+a share in percent or a bar width unless someone upstream precomputes each one
+and stores it next to the raw numbers. The template then depends on a second
+program staying in step with it, which is the coupling a template language
+exists to remove. The reversal is narrow: the *grammar* does not change at all.
+
+**Two number types.** Arithmetic is where "numbers are doubles" (ref §13)
+stops being good enough: a counter must add exactly and a ratio must not. The
+value domain's `Number` therefore splits in two, and nothing converts between
+them unless the program says so.
+
+- An **integer** is a signed whole number, held exactly. Every port MUST
+  cover the **guaranteed range**, `-(2^53 - 1)` to `2^53 - 1`, which is the
+  set of integers a double holds without ambiguity, so a port on JavaScript
+  can keep an integer in a `number` and test a result with
+  `Number.isSafeInteger`. A port SHOULD cover the full signed 64-bit range,
+  `-2^63` to `2^63 - 1`, and MUST NOT go beyond it. A port's range is one of
+  those two, and it documents which.
+- Inside the guaranteed range all ports agree. Between the two ranges a port
+  either holds the value exactly or refuses it, and never rounds it; which of
+  the two is implementation-defined (ref §13), and a portable program stays
+  inside the guaranteed range. Outside 64 bits every port refuses.
+- A **float** is an IEEE 754 binary64, finite, with no negative zero (ref §5).
+- *Literals need no new syntax.* The grammar of ref §5 is unchanged; what a
+  literal denotes now depends on its form. One with neither a fraction nor an
+  exponent is an integer (`1`, `-7`, `1_000_000`); one with either is a float
+  (`1.0`, `-1.5`, `1e5`). An integer literal outside the port's range is a
+  parse error, as `1e400` already is. The sign is part of the literal, so
+  `-9223372036854775808` is in the 64-bit range.
+- *A JSON number is read by the same rule*, applied to its text: `3` is an
+  integer, `3.0` and `3e0` are floats. An integer-form number outside the
+  port's range is rejected rather than rounded. This holds for the context, for
+  library parameters and for a seeded value.
+- *Serialization keeps the type.* Wherever a value is written as JSON (the
+  `Node`, the symbolic envelope, canon), an integer is written as decimal
+  digits and a float always carries a fraction or an exponent: the shortest
+  round-trip text of ECMAScript's `Number::toString`, with `.0` appended when
+  that text has neither (`1.0`, `100000000000.0`, `1e+21`, `0.1`). `str`
+  follows the same rule, so `str(1)` is `1` and `str(1.0)` is `1.0`. This
+  changes today's rendering of a whole-valued float and of nothing else.
+  Canon stays injective (v3-symbols §1.4), which it must, since `1` and `1.0`
+  are now two values.
+- *`eq` and the comparisons follow their existing rules.* `eq` does not
+  coerce across types, so `eq(1, 1.0)` is `false`, like `eq(1, "1")`.
+  `lt`/`lte`/`gt`/`gte` take two integers or two floats, and a mixed pair is a
+  `TypeMismatch`, like any other mixed pair (ref §6).
+- *v4-types.* §1's primitive `number` splits into `int` and `float`. Its
+  stated reason for leaving `Int` out was that the value domain had no such
+  boundary; it now has one.
+
+The cost of the JSON rule is that the type of a context number is decided by
+whoever serialized it, and a producer whose language has one number type
+writes the float `3.0` as `3`. A template that expects a float from a host it
+does not control therefore normalizes at the point of use, with `real`, which
+accepts either type. The alternative, promoting an integer silently when it
+meets a float, is the conversion this section declines: it is inexact above
+`2^53`, and it would make the type of a result depend on the data.
+
+A port whose host passes native values rather than JSON text maps its native
+integer and float types to the two types. A port on JavaScript must say how it
+classifies a `number`, and must read JSON text with a parser that keeps
+integer digits past `2^53`. Both are that port's binding and are not
+normative here; the corpus is JSON text and follows the rule above.
+
+**Scope.** Nine builtins, as ordinary names in the initial environment. No
+infix operator, no new leader, no new literal form.
+
+| builtin | arity | operands | concrete result |
+|---|---|---|---|
+| `sum(…)` | one or more | all integers or all floats | left fold of `+` |
+| `product(…)` | one or more | all integers or all floats | left fold of `*` |
+| `negate(x)` | 1 | integer or float | `-x`, of the same type |
+| `quotient(a, b)` | 2 | two floats | `a / b`, correctly rounded |
+| `inverse(x)` | 1 | float | `quotient(1.0, x)`, by definition |
+| `floor-quotient(a, b)` | 2 | two integers | the largest integer not above `a / b` |
+| `modulo(a, b)` | 2 | two integers | `a - b * floor-quotient(a, b)` |
+| `floor(x)` | 1 | float or integer | the largest integer not above `x`, as an integer |
+| `real(x)` | 1 | integer or float | the float nearest to `x` |
+
+```
+@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
+@share    = branch(0, gt($ctx.total, 0),
+                   floor-quotient(product(100, $ctx.used), $ctx.total))
+@stripe   = branch("odd", eq(modulo($i, 2), 0), "even")
+@total    = sum(0.0, map($ctx.lines,
+                         (l) => product(real($l.qty), real($l.price))))
+```
+
+- *`real` and `floor` are the only conversions*, one in each direction, and
+  each accepts both types so that it can normalize a number of unknown type:
+  `real` of a float and `floor` of an integer are the identity. `real` of an
+  integer is exact inside the guaranteed range; beyond it, on a 64-bit port,
+  it rounds to nearest, ties to even.
+- *Subtraction is not a builtin.* Negation is exact for a float, so
+  `sum(a, negate(b))` is bit for bit `a - b`. For integers the guaranteed
+  range is symmetric, so the same holds; on a 64-bit port the two differ for
+  the single operand `b = -2^63`, whose negation is out of range. A
+  `difference` would add a name for that one value.
+- *Float division is a primitive, although it was not asked for by name.*
+  `product(a, inverse(b))` rounds twice where `a / b` rounds once, and the
+  results differ: `product(49.0, inverse(49.0))` is `0.9999999999999999`, so
+  `floor` of it is `0`; 98, 103 and 107 behave the same way. `quotient` is
+  therefore the primitive and `inverse(x)` is defined as `quotient(1.0, x)`,
+  which keeps the requested name and its meaning.
+- *Integer division has its own name.* `quotient` over two integers is a
+  `TypeMismatch` and does not mean floored division. If one name covered
+  both, `quotient($ctx.used, $ctx.total)` would be `0.5` or `0` depending on
+  whether the producer wrote `1.0` or `1`, with no error either way.
+  `floor-quotient` rounds toward negative infinity, which agrees with `floor`.
+- *`modulo` is its remainder*, so `a` is always
+  `b * floor-quotient(a, b) + modulo(a, b)` and the result is zero or has the
+  sign of the divisor. It is expressible from the other builtins, as
+  `sum(a, negate(product(b, floor-quotient(a, b))))`, and is a builtin
+  because that is too long to write correctly each time a template stripes
+  rows or groups items.
+- *Rejected: a `divmod` returning both.* Over a symbol it would be a term
+  standing for a pair, and a term has no projection (below). Reading the pair
+  would also need an object pattern, since array patterns are not available
+  (§17).
+- *`inverse` takes a float only.* The inverse of an integer is not an integer
+  except for `1` and `-1`.
+- *Rounding to nearest and decimal formatting are left out.* They are display
+  concerns and belong to the number-formatting work;
+  `floor(sum(x, 0.5))` only approximates rounding (it is wrong for the double
+  just below `0.5`).
+- *`min` and `max` are left out of this cut.* `fold` with a `branch` covers
+  the concrete case. Adding them later is compatible: they would refuse an
+  empty call as `sum` does.
+
+The existing `-` rule is untouched: `-` stays part of a number literal, `--`
+stays a comment, `<>` stays the only infix operator, and §9's argument that no
+expression begins with a hyphen still holds. Only the parenthetical in ref §5
+("there is no arithmetic") needs rewording to "there are no arithmetic
+operators".
+
+**Arrays as arguments.** `sum` and `product` flatten their arguments by the
+rule children (ref §6) and `!` (v3-symbols §2.2) already use: an array
+contributes each of its elements, recursively, in order. So `sum($xs)`,
+`sum(1, $xs, 2)` and `sum([1, [2, 3]])` are all legal.
+There is no spread syntax and this does not add one; a separate
+`sum-of(array)` form would make the author pick a spelling by the shape of the
+data, and the language already answers "an array in a sequence position is a
+sequence" twice. The seven fixed-arity builtins do not flatten: `negate([1])`
+is a `TypeMismatch`, and `map($xs, $negate)` is the way to write it. `and`,
+`or` and `concat` are unchanged.
+
+An empty `sum` or `product` has no operand to take a type from, so it is a
+`TypeMismatch`: `sum()`, `sum([])` and `product([[]])` alike. A fold over a
+list that may be empty is seeded with the identity of the intended type,
+`sum(0, $xs)` or `sum(0.0, $xs)`, as in the example above. Returning an
+integer `0` instead would give a float total the wrong type on empty data
+only, which is the kind of failure the seed makes impossible.
+
+**Optional, but builtin: a profile.** Arithmetic is a third profile next to
+v3-symbols §5.5's core and symbolic ones, and independent of both. The two
+number types are not part of it: they belong to the value domain in every
+profile.
+
+- An implementation with the **arithmetic profile** puts the nine names in
+  the initial environment. One without it does not, and a program that uses
+  one fails with the existing `UnboundName`. No new refusal mechanism is
+  needed, and none at parse time is possible: these are names, not syntax, and
+  `@sum = …` may legitimately bind one.
+- Because builtins are ordinary bindings, a program that already binds `sum`,
+  `floor` or any of the others (a binding, a lambda parameter, a pattern name)
+  shadows the builtin and behaves exactly as before. Adding the names breaks
+  no existing program.
+- A new static analysis, `arithmeticOps` with a deep variant, reports which of
+  the nine names a program references **free**, called or passed by reference
+  (`fold($xs, 0, $sum)`). It is scope-aware, so a shadowed name is not
+  reported, and it over-approximates like every analysis in ref §9. A host
+  without the profile refuses a program up front when `deepArithmeticOps` is
+  non-empty, the same way `deepConstraintKinds` is used.
+
+*Rejected: a reserved library, `import("math", {})`.* Its optionality story is
+the cleanest available, since `UnknownLibrary` and `staticImportNames` already
+exist. It costs every call three segments (`$m.vals.sum(…)`), needs an import
+with an empty parameter object, would be the first library that cannot be
+written in Tramaj, and takes a name out of the host's library table, which
+ref §7 gives to the host entirely.
+
+**Concrete semantics.** These are the rules that make six ports agree byte for
+byte.
+
+1. *No coercion and no promotion.* An operand that is not a number is a
+   `TypeMismatch` (`sum(1, "2")`, `sum(null)`, `negate(true)`), like `eq`'s
+   refusal to equate `1` and `"1"`. So is a number of the wrong type
+   (`sum(1, 1.5)`, `quotient(1, 2)`, `floor-quotient(1.0, 2.0)`, `inverse(2)`), and so is
+   a wrong argument count for a fixed-arity builtin, and so is a `sum` or
+   `product` with no operand after flattening. All operands are checked,
+   in flattened order, before anything is computed, so
+   `sum(1e308, 1e308, "a")` is a `TypeMismatch` and not a `NotRepresentable`.
+2. *Integer arithmetic is exact or it is an error.* `sum` and `product` are a
+   left fold over the flattened operands, starting from the first, and every
+   step is checked: `sum(a, b, c)` is `(a + b) + c`. A step whose mathematical
+   result is outside the port's range is a `NotRepresentable`, and nothing
+   wraps, saturates or rounds. The check is per step, so
+   `sum(9223372036854775807, 1, -1)` is an error on every port although its
+   total is in the 64-bit range. The same kind covers `floor-quotient(x, 0)`
+   and `modulo(x, 0)` and, on a 64-bit port,
+   `negate(-9223372036854775808)` and
+   `floor-quotient(-9223372036854775808, -1)`. A port that keeps integers in doubles can
+   implement the check as "the computed result is not a safe integer": a sum
+   or product of two safe integers that leaves the guaranteed range rounds to
+   a double of magnitude at least `2^53`, which is never one.
+3. *Float arithmetic is one correctly rounded operation at a time*, round to
+   nearest, ties to even, over the same left fold. No pairwise or compensated
+   summation, no reordering, and no fused multiply-add: a port whose compiler
+   may contract `a * b + c` must prevent it.
+4. *A non-finite float result is a `NotRepresentable`* as well. NaN and the
+   infinities are not JSON and are not values. This covers `inverse(0.0)`,
+   `quotient(x, 0.0)`, `quotient(0.0, 0.0)` and overflow with one rule and no
+   test for a zero divisor. Once a fold's running value is non-finite it stays
+   so, so checking the final result is equivalent to checking each step.
+   Underflow is not an error: the result is the nearest double, which may be
+   zero, as for a literal (ref §5).
+5. *There is no negative zero.* A float result that is zero is `0.0`, as for
+   literals: `negate(0.0)` is `0.0`, and so is `product(-1.0, 0.0)`.
+6. *The conversions.* `floor` of a float whose floor is outside the port's
+   integer range is a `NotRepresentable`: `floor(1e19)` on every port,
+   `floor(1e16)` on a 53-bit one. `real` never fails: every integer has a
+   nearest double, and it is finite.
+7. *`str` renders what the value is*, so `sum(0.1, 0.2)` interpolates as
+   `0.30000000000000004` and `sum(0.5, 0.5)` as `1.0`. Hiding either belongs
+   to formatting, not to arithmetic.
+
+`NotRepresentable` is the one new error kind: the operation has no result in
+the type of its operands. Division by a value that happens to be zero at
+render time is the case a template will meet in practice (an empty counter).
+It is an error rather than `null` or `0` because either of those would flow
+into the document as a plausible-looking answer. The guard is the lazy
+`branch` shown above, whose unselected arm is never evaluated (ref §6).
+
+**Symbolic semantics.** v3-symbols §1.5 makes everything that inspects a symbol
+`NotConcrete`, and §9 declined symbolic strings because "the value domain would
+gain terms, not just variables". Arithmetic over a symbol is that step. Three
+ways to take it:
+
+- *(a) A term in the value domain.* `sum(1, $s, 2)` evaluates to a value that
+  records the operation and its operands.
+- *(b) A derived symbol plus an emitted constraint.* `sum($a, $b)` yields a
+  fresh symbol and emits a constraint relating it to its operands, so the value
+  domain stays term-free.
+- *(c) Two libraries with the same names*, one concrete and one symbolic,
+  chosen by the author.
+
+**Recommended: (a).**
+
+(c) is ruled out by v3-symbols §5.1: a library written against `?ctx.path` must
+run whether its caller supplied a number or a symbol, so its author cannot know
+which library to call. It is also the eye strain the request asked to avoid.
+
+(b) keeps the value domain flat, which suits a solver, but breaks four rules
+the language holds elsewhere. The derived symbol needs an id that is identical
+across ports, and a builtin has no site (it can be passed by reference and
+called under `map`), so the id would have to be the canonical rendering of the
+operation and its operands: the term, hidden in a string the host must parse.
+A builtin would emit, where today only `!` does and a constraint never reached
+by a `!` is discarded (§2.2). A library doing arithmetic on a symbolic
+parameter would mint symbols, against §1.4's "only a root program may
+allocate". And the language would claim constraint names (`"sum"`) in a
+vocabulary §0 gives wholly to the host.
+
+(a) costs one new tagged shape. What distinguishes it from the declined
+symbolic strings: text had a better alternative (separate children, §1.8, which
+a form renderer wants anyway) and numbers have none; and the vocabulary is
+closed, nine operations whose meaning the language itself defines, so a term is
+not host vocabulary. It is the computation the language would have performed
+had it known the operands, handed over undone.
+
+```text
+Value
+  = ...
+  | Term  op: String, arguments: List<Value>   -- arguments: numbers, symbols, terms
+```
+
+- A call to one of the nine builtins whose flattened operands are all numbers
+  computes, as above. If at least one operand is a symbol or a term, the result
+  is a `Term` with that `op` and **the flattened operands exactly as written**:
+  same order, nothing folded, nothing simplified, no nested term spliced.
+  `sum(1, $s, 2)` is `sum(1, $s, 2)`, not `sum($s, 3)`; `inverse($s)` is
+  `inverse($s)`, not `quotient(1.0, $s)`.
+- Preserving rather than folding is forced by both types: `(1.0 + s) + 2.0`
+  and `s + 3.0` are different doubles for some `s`, and for integers one
+  grouping can overflow where the other does not. It buys the **residual
+  law**: a host that evaluates a term by the concrete rules above, after
+  substituting numbers for its symbols, gets byte for byte what the program
+  would have produced had those numbers been in the context, errors included.
+  It also keeps the promise of §0 that Tramaj solves nothing, and it is the
+  least code in six ports.
+- A symbol operand stands for one number of either type, and a term carries no
+  type. Concrete operands are checked as far as they can be without it: each
+  must be a number, and those of one call must agree with each other and with
+  what the builtin accepts, so `sum("a", $s)`, `sum(1, $s, 2.0)` and
+  `quotient(1, $s)` are `TypeMismatch`. Nothing is inferred through a symbol
+  or a nested term: `sum(real($s), 1)` is built, and fails when the host
+  evaluates it, as the residual law says it should. `inverse($s)` is a term
+  even if the host later supplies `0.0`, and the author who cares writes
+  `!constraint("ne", $s, 0.0)` in the host's vocabulary.
+- A term is data, exactly as a symbol is (§1.5): it may be bound, passed,
+  stored, placed in an attribute, a payload, a value slot or a text child, used
+  as a constraint argument, and used as an operand. `constraint("lte",
+  sum($a, $b), 10)` is the point of the exercise.
+- Everything that inspects refuses, as for a symbol: `branch`, `eq`, `lt`,
+  `lte`, `gt`, `gte`, `str` and interpolation, `cardinality`, `has`, `lookup`,
+  `<>`, a `map` spine and an allocation key are `NotConcrete` on anything
+  containing a term. The comparisons do **not** become symbolic: a boolean term
+  could only feed `branch`, and control flow must be concrete.
+- A term has no projection. `$t.field` is a `TypeMismatch`, since a term stands
+  for a number and a number has no fields.
+- A symbol operand counts as one number. A symbol standing for a whole array
+  cannot be summed; that is §1.7's ceiling, unchanged.
+- Equality of terms, for constraint deduplication (§4), is structural:
+  `sum($a, 1)` and `sum(1, $a)` are two terms.
+- Concrete mode is untouched. No symbol can exist there (§5.1), so no term can.
+
+**Envelope.** The value domain gains a third tagged shape:
+
+```json
+{"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
+```
+
+- Numbers inside a term are written by the serialization rule above, so `1`
+  and `1.0` stay distinct. The residual law depends on it, and a host that
+  evaluates terms must read them with a parser that keeps the difference.
+- Both fields are required. `"$term"` joins `"$sym"` and `"$type"` as a key
+  reserved in the value domain in both modes and all profiles (§5.3): a parse
+  error in a program, rejected in a context unless it is a well-formed term in
+  symbolic mode. Well-formed means a known `op`, the right argument count, and
+  arguments that are numbers, symbols or terms with at least one symbol
+  somewhere inside. Seeding (§5.4) accepts it on those terms.
+- The envelope's own fields do not change, and the format stays
+  `tramaj/symbolic/1`, following v4-types §8. A term can reach a host only if
+  that host enabled the arithmetic profile, which is the host changing its
+  mind in §5.2's sense, and `deepArithmeticOps` tells it beforehand which
+  operations can appear.
+- No list is added. A term is carried where it is used; it is not an entity
+  with an identity, so it has no table.
+
+**Follow-up.** This is two pieces of work. The number split lands first, on
+its own, in every port; the builtins follow. The split does not depend on the
+arithmetic profile, and until the builtins land a program has no conversion
+between the two types, so no release should fall between the two where that
+can be avoided.
+
+*The number split* touches every port and existing fixtures. Normative text:
+ref §3 (the value domain), §5 (what a literal denotes), §6 (`str`, `eq`, the
+comparisons), §13 (the precision entry becomes the integer range); `node-json.md` and
+v3-symbols §1.4 for serialization and canon; v4-types §1 (`int` and `float`
+for `number`). The PureScript reference and the TypeScript port can stay on
+doubles with the 53-bit range, and still need to tell `3` from `3.0` in JSON
+text, which `JSON.parse` alone does not; Python needs range checks on its
+unbounded integers; Haskell, Rust and Go need the two cases kept apart where
+they are one today, and take the 64-bit range. The corpus marks a case that
+needs the wider range (`"requires": ["int64"]` in `meta.json`); every other
+case stays inside the guaranteed one or outside 64 bits, where all ports
+agree. Fixtures:
+
+- literals: each form to its type, both ends of the guaranteed range, one
+  past each end of the 64-bit range, and both 64-bit ends under `int64`;
+- context numbers: `3`, `3.0`, `3e0`, both ends of the guaranteed range, an
+  integer-form number beyond 64 bits rejected, and under `int64` one above
+  2^53 kept exactly;
+- serialization: a whole-valued float in a `Node` attribute, in `str`, in
+  interpolation, nested in an array, and in canon; a round trip of each type;
+- `eq(1, 1.0)`, and each comparison over a mixed pair;
+- existing fixtures that render a whole-valued float or compare a float with
+  an integer literal, which change and must be reviewed one by one.
+
+*The builtins.* Normative text: ref §5 (the parenthetical), §9
+(`arithmeticOps`), §11 (the table and the "no arithmetic" paragraph), §12
+(`NotRepresentable`); v3-symbols §1.1, §1.5, §5.2 to §5.5, §7, §8 and §9's
+third "declined" entry; `laws.md` for the residual law. Then the six ports.
+The corpus needs a way to mark a case as needing a profile (an optional
+`"requires": ["arithmetic"]` in `meta.json`), and these families:
+
+- the empty case: `sum()`, `product()`, `sum([])` and a nested empty array
+  refused, one operand of each type, and the seeds `sum(0, [])` and
+  `sum(0.0, [])`;
+- flattening: nested arrays, arrays mixed with scalars, a `map` result;
+- integers: exact sums and products up to the ends of the guaranteed range,
+  overflow past 64 bits in `sum` and `product`, and a fold that overflows at a
+  step although its total is in range; under `int64`, exact results above
+  2^53, both range ends, and `negate(-9223372036854775808)`;
+- `floor-quotient` and `modulo`: each sign combination, an exact division, a
+  zero divisor for each, the identity that relates them, and under `int64`
+  `floor-quotient(-9223372036854775808, -1)` with `modulo` of the same pair;
+- float fold order: a three-operand sum whose two groupings differ
+  (`sum(0.1, 0.2, 0.3)` is `0.6000000000000001`), and the same for `product`;
+- `quotient` against `product` with `inverse` (49.0), and `inverse` itself;
+- `floor` of negative floats, of whole-valued floats, of an integer, and of a
+  float past the 64-bit range;
+- `real` of a float and of integers up to the ends of the guaranteed range;
+  under `int64`, integers above 2^53 that round down, round up and tie;
+- zero: `negate(0.0)`, `product(-1.0, 0.0)`, an underflowing product;
+- `NotRepresentable` for floats: `inverse(0.0)`, `quotient(0.0, 0.0)`, overflow
+  in `sum` and `product`, and the `branch` guard that avoids it;
+- `TypeMismatch`: each non-number operand kind, each mixed pair of number
+  types, each builtin given the type it does not accept, wrong arity, an array
+  given to a fixed-arity builtin, and precedence over `NotRepresentable`;
+- a builtin passed by reference to `map` and `fold`; a shadowing binding;
+- terms: mixed operands preserved in order, a nested term, a flattened array of
+  symbols, concrete operands of two types refused, an integer and a float
+  operand each surviving the envelope, a term in an attribute, a payload, a value slot, a text child and a
+  constraint argument;
+- terms refused: every inspecting builtin, interpolation, projection;
+- deduplication of two constraints over equal and over reordered terms;
+- seeding: a well-formed term round-trips, a malformed or symbol-free one is
+  rejected, and `"$term"` in a concrete-mode context is rejected;
+- the residual law: one program run symbolically, and concretely with the
+  symbol seeded as a number.
+
+**Decided by the owner, 2026-10-06.**
+
+1. Nine builtins: the four asked for, plus `quotient`, `floor-quotient`,
+   `modulo`, `floor` and `real`. `min`/`max`, rounding and formatting are left
+   out, and `divmod` is rejected.
+2. `sum` and `product` flatten arrays; `and`/`or` do not. An empty `sum` or
+   `product` is a `TypeMismatch`, and the seed is the idiom.
+3. A profile gated by `UnboundName` and `deepArithmeticOps`, not a reserved
+   `import("math", {})`.
+4. `NotRepresentable` as the one new error kind, for integer overflow,
+   division by zero and a non-finite float alike. Integer overflow is checked
+   at each step of a fold. Division by zero is an error and not a value.
+5. Terms in the value domain, preserved exactly as written, with no folding of
+   concrete operands.
+6. `"$term"` reserved in every profile, which rejects a context that carries
+   that key today. The envelope stays `tramaj/symbolic/1`.
+7. A fraction or an exponent makes a literal a float, so `1e5` is a float. No
+   new syntax.
+8. A JSON number is typed by its text. The producer decides the type of a
+   context number, and `real` is the author's defence.
+9. `str(1.0)` renders as `1.0`, by the same rule as JSON serialization. This
+   changes existing output for whole-valued floats.
+10. Strict comparisons: `eq(1, 1.0)` is `false` and `gt(1.5, 0)` is a
+    `TypeMismatch`. An existing `gt($ctx.ratio, 0)` over a float must become
+    `gt($ctx.ratio, 0.0)`.
+11. The number split ships first, ahead of the builtins.
+12. Integers are guaranteed to 53 bits and recommended at 64, with exactly
+    those two ranges permitted. In the gap a port holds the value exactly or
+    refuses it. A value a 64-bit port emits above 2^53 is rejected by a 53-bit
+    port that receives it.
+
+**Decided afterwards, 2026-10-07.** Points the fixtures found open or
+contradictory. The owner's rule: error on input that is unexpected, or whose
+acceptable semantics are hard to converge on, with an existing error kind.
+Where this list and the text above disagree, this list and the normative
+specs win.
+
+1. A concrete structure holding a term counts, iterates and merges, as one
+   holding a symbol does (v3-symbols §1.7, §1.9). `eq`, `str` and an
+   allocation key refuse anything *containing* a term; the rest refuse a
+   term given as the operand or container. Reason: a term is refused exactly
+   where a symbol is, so no port needs a second rule or a deep scan.
+2. `negate([$s])`, and any array given to a fixed-arity builtin, is a
+   `TypeMismatch`, not a `NotConcrete` (v3-symbols §1.9). Reason: these
+   builtins do not flatten, so nothing looks inside the array, and it is
+   what the residual law gives once `$s` is a number.
+3. A well-formed seeded term is one a call could have built: exactly the
+   keys `"$term"` and `"arguments"`, number arguments that agree in type and
+   suit the builtin, no array argument, and every nested term well-formed,
+   so containing a symbol (v3-symbols §5.3). Reason: the decoder reuses the
+   call's check, and a host cannot seed what the language cannot produce.
+4. The decoder's rejection is a `TypeMismatch` in both modes, for a reserved
+   key and a malformed symbol or term alike (v3-symbols §5.3, §6). Cases 360
+   to 369 are confirmed. Reason: it is what `"$sym"` and `"$type"` already
+   raise in every port.
+5. *Not decided.* How the corpus expresses behaviour of a 53-bit-only port
+   or of one without the arithmetic profile, and a case shape for
+   `arithmeticOps`, are corpus mechanisms the rule does not settle.
+6. A demand needs no binding to be an operand: `sum(?ctx.s, 1)` is legal and
+   its symbol table entry has `"binding": null` (v3-symbols §1.3, §5.2).
+   Reason: a demand is an expression, and refusing it inline would change
+   the v3 grammar.
+7. Wording. ref §11's example of a step overflow on every implementation is
+   `product(4294967296, 4294967296, 0)`; `sum(9223372036854775807, 1, -1)`
+   is the 64-bit example and a parse error on a 53-bit port. A demand's
+   origin path omits `ctx` (v3-symbols §5.2), as the ports and case 066
+   have it.
+8. An integer-form context number outside the port's range is a
+   `TypeMismatch` (ref §3, §12), and the corpus writes it as an
+   `eval-error` case, like a reserved key. Reason: one refusal for
+   everything the context decoder rejects; `NotRepresentable` stays an
+   operation that had no result.
+9. `-0.0` in context JSON is `0.0`, and `-0` the integer `0` (ref §3). It is
+   not rejected. Reason: a JSON number is read as the literal of the same
+   text, which already says so; rejecting would need a second number reader
+   and would refuse what common serializers write for a negative zero.
+10. A context float too large for a double (`1e400`) is a `TypeMismatch`;
+    one too small rounds to zero (ref §3, `node-json.md`). Reason: the same
+    literal rule, where `1e400` is a parse error.
+11. A library parameter is a value the importer built, not JSON text; it
+    keeps the type it has and nothing is typed again at the import (ref §3).
+    Reason: "typed by its text" has no text to apply to there.
+
 ## 19. A traverse form for allocation: `?(key, shape)`
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. (Numbered 19 because another open proposal uses 18; renumber on merge if that one does not land.)*
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved.*
+
+*Vocabulary.* A **null position** is a place in the shape whose value is `null`.
+An **implicit symbol** is the symbol the form allocates there: implicit because
+no `?(k)` is written for it, and in every other respect an ordinary allocation.
+The word "hole" is avoided: it already means a context read (§2, §10) and an
+unsupplied type parameter (§16).
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -403,7 +915,7 @@ grid is two nested `map`s with a `[$r, $c]` key. Those need nothing new. Three
 programs do:
 
 ```
--- (a) a record of holes per service: four sites, four hand-composed keys,
+-- (a) a record of symbols per service: four sites, four hand-composed keys,
 --     each one restating the position it is already written at
 @ds = map($ctx.services, (s) => {
   replicas: ?([$s.name, "replicas"]),
@@ -420,8 +932,8 @@ programs do:
 --     branch per path, and again cannot follow a shape that is data
 ```
 
-So the gap is: keys that only repeat the position, one site per hole, no walk
-over objects or over mixed depth, and no way to fill the holes of a value. It
+So the gap is: keys that only repeat the position, one site per symbol, no walk
+over objects or over mixed depth, and no way to fill the nulls of a value. It
 is *not* "N symbols from the number N": that needs a collection of length N,
 which is a `range`/arithmetic question and stays out of this section.
 
@@ -451,7 +963,7 @@ replaced by a symbol** and everything else returned as it is:
 
 | position in the shape | result |
 |---|---|
-| `null` | a fresh allocation, identified by the path to it (below) |
+| `null` | an implicit symbol, identified by the path to it (below) |
 | array | an array of the same length, each element traversed, in index order |
 | object | an object with the same keys, each value traversed, in sorted key order |
 | boolean, number, string | itself |
@@ -471,15 +983,15 @@ Consequences, all intended:
 - A shape with no `null` is returned unchanged and allocates nothing. `[]` and
   `{}` are such shapes.
 - It is idempotent on its own output, and a symbol the host seeded (v3-symbols
-  §5.4) into the shape survives: a re-run with half the holes solved and the
-  other half seeded or still `null` needs no change to the template.
+  §5.4) into the shape survives: a re-run with half the null positions solved and
+  the other half seeded or still `null` needs no change to the template.
 - A legitimate `null` cannot be kept through the form. An author who needs one
   merges it back with `<>`. This is the cost of not adding a marker.
 - "Is this leaf `null`?" is asked of concrete values only. A symbol is never
   inspected (v3-symbols §1.5); it is passed through by constructor, the same way
   an array literal holds one.
 
-**Identity.** The symbol allocated at path *p* by `?(k, shape)` at site *n* is
+**Identity.** The implicit symbol allocated at path *p* by `?(k, shape)` at site *n* is
 **the symbol `?([k, p])` would allocate at site *n***:
 
 ```
@@ -492,7 +1004,7 @@ p  = the JSON array of steps from the shape's root: an object key as a string,
 ```
 
 - *Both* an author key and the path, for the reason v3-symbols §1.2 gives. The
-  path says which hole of the shape; the key says which evaluation of the site,
+  path says which null position of the shape; the key says which evaluation of the site,
   and under a `map` nothing else does. A constant key under a `map` shares the
   whole shape's symbols across iterations, as a constant key shares one symbol
   today. The key MUST be concrete (`NotConcrete` otherwise), as in §1.2.
@@ -502,7 +1014,7 @@ p  = the JSON array of steps from the shape's root: an object key as a string,
   sequence across both forms.
 - Order-independent: the id is a function of the program text, the key and the
   position. No counter is involved.
-- An array hole is identified by index. A flat array that should be keyed by
+- A null position in an array is identified by index. A flat array that should be keyed by
   name, and so survive reordering, is still `map(xs, (x) => ?($x.name))`. The
   two are different promises and the source says which was made.
 
@@ -530,10 +1042,10 @@ Each allocation is an ordinary entry whose origin is an ordinary `alloc`:
 **Interaction with existing rules.**
 
 - *Root only.* The site is a `?(`, so `AllocationInLibrary` applies lexically
-  and unchanged, including to a shape that would have had no hole.
+  and unchanged, including to a shape that would have had no `null`.
 - *Concrete mode.* `SymbolsUnavailable` is raised when a `null` is reached, not
   by the form's presence: "a symbol would have to be minted" (v3-symbols §6) is
-  already the right wording. A hole-free shape passes through in concrete mode.
+  already the right wording. A shape with no `null` passes through in concrete mode.
   That makes `?("plan", $ctx.plan)` the root's analogue of a supplied
   `?ctx.path`. Key and shape are evaluated first in both modes, and the shape's
   `TypeMismatch` takes precedence over `SymbolsUnavailable`.
@@ -564,8 +1076,8 @@ the constructor is one evaluator case and one line in each analysis per port;
 `Alloc` itself is untouched.
 
 **Errors.** No new kind. `NotConcrete` (a symbol in the key), `TypeMismatch` (a
-non-data value in the shape), `SymbolsUnavailable` (a hole reached in concrete
-mode), `AllocationInLibrary` (lexical), and a parse error for `?()` and for
+non-data value in the shape), `SymbolsUnavailable` (a `null` reached in
+concrete mode), `AllocationInLibrary` (lexical), and a parse error for `?()` and for
 three or more arguments.
 
 **Rejected or deferred**
@@ -576,12 +1088,12 @@ three or more arguments.
   language that has none, the lambda cannot test a leaf that is a symbol
   (`eq` is `NotConcrete`), and the common case becomes a four-line idiom. Worth
   reconsidering only if a second, non-symbolic use appears.
-- *A hole marker in literals (`?(k, {a: _, b: [_, _]})`).* Desugars cleanly but
+- *A marker in literals (`?(k, {a: _, b: [_, _]})`).* Desugars cleanly but
   only covers shapes written in the source, so (b) and (c) stay inexpressible.
   As a runtime value instead, a marker is a new `Value` constructor in six
   ports that every JSON boundary must then refuse.
-- *Every scalar leaf is a hole.* `?(k, $ctx.services)` would then give one
-  symbol per string, but a record could no longer mix known fields and holes,
+- *Every scalar leaf gets an implicit symbol.* `?(k, $ctx.services)` would then give one
+  symbol per string, but a record could no longer mix known fields and symbols,
   and (c) is lost.
 - *Leaves as keys (`?each(["a", "b"])` meaning `[?("a"), ?("b")]`).* That is
   `map(xs, (k) => ?($k))` with a second spelling, and still invents every key.
@@ -595,20 +1107,20 @@ three or more arguments.
 **Follow-up once approved:** normative text in `specs/v3-symbols.md` (§1.2,
 §1.4, §1.7, §3, §5.1, §7, §8 and the §9 table); the parser, evaluator and
 `symbolSites` change in the PureScript reference, then the other five ports.
-Corpus families: a literal shape with holes at several depths; table order for
-an object written in non-sorted key order; a hole-free shape in both modes; a
+Corpus families: a literal shape with nulls at several depths; table order for
+an object written in non-sorted key order; a shape with no `null` in both modes; a
 bare `?(k, null)`; key per iteration under `map`, and a constant key under
 `map` sharing symbols; a shape from `$ctx`; a seeded symbol and an earlier
 allocation inside the shape; an object key `"0"` beside an array index `0`;
-`"binding"` bound and inline; a symbolic key; a closure in the shape; a hole
+`"binding"` bound and inline; a symbolic key; a closure in the shape; a `null`
 reached in concrete mode; the form in a library; `?()` and three arguments;
 an annotated binding emitting a single `has-type`.
 
-**Questions for the owner.** (1) `null` as the hole, at the price of not being
+**Questions for the owner.** (1) `null` as the place of an implicit symbol, at the price of not being
 able to keep a `null`, versus a dedicated marker. (2) The spelling `?(key,
 shape)` rather than a named form. (3) Identity as `?([key, path])` with no
 envelope change, so a host cannot tell the form from hand-written allocations.
 (4) `"binding"` reporting the structure's name for every entry, rather than
 `null`. (5) A new `AllocIn` constructor, given that a faithful desugaring only
-exists for literal shapes. (6) Concrete mode accepting a hole-free shape rather
+exists for literal shapes. (6) Concrete mode accepting a shape with no `null` rather
 than refusing the form outright.

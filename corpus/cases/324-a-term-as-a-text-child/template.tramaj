@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: a term may be a text child
+@s = ?("s")
+@t = sum($s, 1)
+.p("Total ", $t)

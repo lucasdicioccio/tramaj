@@ -1,0 +1,6 @@
+{
+  "name": "integer products are exact up to both ends of the guaranteed range",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

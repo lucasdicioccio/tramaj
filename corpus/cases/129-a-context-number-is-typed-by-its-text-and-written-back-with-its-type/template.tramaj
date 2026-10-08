@@ -1,0 +1,2 @@
+-- reference.md §3: `3` is an integer; `3.0` and `3e0` are floats
+[$ctx.a, $ctx.b, $ctx.c]

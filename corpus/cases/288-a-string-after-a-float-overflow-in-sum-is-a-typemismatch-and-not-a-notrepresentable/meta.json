@@ -1,0 +1,8 @@
+{
+  "name": "a string after a float overflow in sum is a TypeMismatch and not a NotRepresentable",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

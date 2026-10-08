@@ -1,0 +1,6 @@
+{
+  "name": "a context integer above 2^53 is kept exactly",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "int64"]
+}

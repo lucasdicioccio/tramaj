@@ -1,0 +1,6 @@
+{
+  "name": "an integer seed gives an empty list an integer result",
+  "kind": "expression",
+  "mode": "concrete",
+  "requires": ["int-float", "arithmetic"]
+}

@@ -1,0 +1,2 @@
+-- reference.md §11, Semantics 4
+sum(1e308, 1e308)

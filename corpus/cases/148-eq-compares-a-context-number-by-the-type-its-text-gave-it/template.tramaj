@@ -1,0 +1,1 @@
+[eq($ctx.i, 3), eq($ctx.f, 3), eq($ctx.f, 3.0), eq($ctx.i, $ctx.f)]

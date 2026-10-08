@@ -1,0 +1,8 @@
+{
+  "name": "an array given to floor is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

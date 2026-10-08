@@ -1,0 +1,3 @@
+-- v3-symbols §1.9: (2^63 - 1 + 1) - 1; folding the two concrete operands first would not fail
+@s = ?ctx.s
+sum(9223372036854775807, $s, -1)

@@ -1,0 +1,4 @@
+-- v3-symbols §1.9: a term may be placed in a payload
+@s = ?("s")
+@t = sum($s, 1)
+.button(action("on-click", "save", {"n": $t}))

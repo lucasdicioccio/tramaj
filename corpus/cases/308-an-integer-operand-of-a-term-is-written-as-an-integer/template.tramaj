@@ -1,0 +1,3 @@
+-- v3-symbols §5.2: numbers in a term are written by node-json.md's rule
+@s = ?("s")
+sum(1, $s)

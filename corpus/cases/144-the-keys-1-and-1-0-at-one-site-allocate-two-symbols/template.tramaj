@@ -1,0 +1,2 @@
+-- v3-symbols §1.4: canon is injective, and 1 and 1.0 are two values
+map([1, 1.0], (k) => ?($k))

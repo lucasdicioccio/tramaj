@@ -1,0 +1,2 @@
+-- v3-symbols §5.2: numbers are written by node-json.md's rule in the envelope
+[?ctx.i, ?ctx.f]

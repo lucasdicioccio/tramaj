@@ -1,0 +1,11 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {"$term": "floor-quotient", "arguments": [10, {"$sym": "#ctx.d", "path": []}]},
+  "symbols": [
+    {"binding": "d", "id": "#ctx.d", "origin": {"kind": "demand", "path": ["d"]}}
+  ],
+  "type-constraints": [],
+  "types": []
+}

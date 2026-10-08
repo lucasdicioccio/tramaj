@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.9: everything that inspects refuses a term, as for a symbol
+@s = ?("s")
+@t = sum($s, 1)
+lt($t, 1)

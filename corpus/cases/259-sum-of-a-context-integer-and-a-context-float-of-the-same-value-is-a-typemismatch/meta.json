@@ -1,0 +1,8 @@
+{
+  "name": "sum of a context integer and a context float of the same value is a TypeMismatch",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "TypeMismatch",
+  "requires": ["int-float", "arithmetic"]
+}

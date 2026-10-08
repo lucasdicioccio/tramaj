@@ -43,6 +43,7 @@ module Tramaj.Ast
   , numberAllocs
   ) where
 
+import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -84,7 +85,13 @@ data Expr
     -- ones.
     Let Text Expr Expr
   | StringLit Text
-  | NumberLit Double
+  | -- | A number literal with neither a fraction nor an exponent
+    -- (reference.md \S5): an integer, denoting exactly its value. The parser
+    -- refuses one outside the signed 64-bit range.
+    IntLit Int64
+  | -- | A number literal with a fraction or an exponent: a float, the
+    -- finite double nearest to its decimal value, never a negative zero.
+    FloatLit Double
   | BoolLit Bool
   | NullLit
   | ArrayLit [Expr]
@@ -177,7 +184,8 @@ data Expr
 data TypeConstraintArg
   = TCType TypeExpr
   | TCScalarStr Text
-  | TCScalarNum Double
+  | TCScalarInt Int64
+  | TCScalarFloat Double
   | TCScalarBool Bool
   | TCScalarNull
   deriving stock (Eq, Show)
@@ -191,7 +199,7 @@ data TypeConstraintArg
 -- declaration name from a typo.
 --
 -- 'TPrim' is recognized here, at parse time, rather than left for resolution
--- to classify: the five primitive names are a closed, reserved lexical set
+-- to classify: the six primitive names are a closed, reserved lexical set
 -- (v4-types \S1), not ordinary identifiers that happen to resolve to a
 -- primitive.
 data TypeExpr
@@ -284,7 +292,8 @@ subExprs (Call fn args) = fn : args
 subExprs (Lambda _ body) = [body]
 subExprs (Let _ value body) = [value, body]
 subExprs (StringLit _) = []
-subExprs (NumberLit _) = []
+subExprs (IntLit _) = []
+subExprs (FloatLit _) = []
 subExprs (BoolLit _) = []
 subExprs NullLit = []
 subExprs (ArrayLit elems) = elems
@@ -408,7 +417,8 @@ numberAllocs e = snd (go 0 e)
           (n2, body') = go n1 body
        in (n2, Let name value' body')
     go n e'@(StringLit _) = (n, e')
-    go n e'@(NumberLit _) = (n, e')
+    go n e'@(IntLit _) = (n, e')
+    go n e'@(FloatLit _) = (n, e')
     go n e'@(BoolLit _) = (n, e')
     go n NullLit = (n, NullLit)
     go n (ArrayLit elems) = let (n', elems') = goList n elems in (n', ArrayLit elems')

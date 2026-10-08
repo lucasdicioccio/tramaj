@@ -1,0 +1,2 @@
+-- reference.md §11: floor accepts both types so that it can normalize
+[floor(7), floor(-7), floor(0)]
