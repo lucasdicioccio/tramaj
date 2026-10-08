@@ -146,6 +146,12 @@ data Expr
   | Filter Expr Expr
   | Scan Expr Expr Expr
   | Fold Expr Expr Expr
+  | -- | `sort-by(collection, function)` and, with the flag set,
+    -- | `sort-by-descending(collection, function)` (reference.md §11,
+    -- | *Sorting*): the elements of the collection ordered by the key the
+    -- | function gives each of them. A core constructor for the reason
+    -- | `Map` is one: the key function needs a fresh binding per element.
+    SortBy Boolean Expr Expr
   | Concat Expr Expr
   | Import String (Array (Tuple String ParamValue))
   | AdaptActions Expr ActionAdaptation (Maybe Expr)
@@ -245,6 +251,7 @@ instance showExpr :: Show Expr where
   show (Filter coll fn) = "Filter (" <> show coll <> ") (" <> show fn <> ")"
   show (Scan coll initial fn) = "Scan (" <> show coll <> ") (" <> show initial <> ") (" <> show fn <> ")"
   show (Fold coll initial fn) = "Fold (" <> show coll <> ") (" <> show initial <> ") (" <> show fn <> ")"
+  show (SortBy descending coll fn) = "SortBy " <> show descending <> " (" <> show coll <> ") (" <> show fn <> ")"
   show (Concat l r) = "Concat (" <> show l <> ") (" <> show r <> ")"
   show (Import name params) = "Import " <> show name <> " " <> show params
   show (AdaptActions target adaptation fn) =
@@ -496,6 +503,7 @@ subExprs (Map coll fn) = [ coll, fn ]
 subExprs (Filter coll fn) = [ coll, fn ]
 subExprs (Scan coll initial fn) = [ coll, initial, fn ]
 subExprs (Fold coll initial fn) = [ coll, initial, fn ]
+subExprs (SortBy _ coll fn) = [ coll, fn ]
 subExprs (Concat l r) = [ l, r ]
 subExprs (Import _ params) = Array.mapMaybe paramExpr params
   where
@@ -589,6 +597,10 @@ numberAllocs e = (go 0 e).expr
         r2 = go r1.next initial
         r3 = go r2.next fn
     in { next: r3.next, expr: Fold r1.expr r2.expr r3.expr }
+  go n (SortBy descending coll fn) =
+    let r1 = go n coll
+        r2 = go r1.next fn
+    in { next: r2.next, expr: SortBy descending r1.expr r2.expr }
   go n (Concat l r) =
     let r1 = go n l
         r2 = go r1.next r

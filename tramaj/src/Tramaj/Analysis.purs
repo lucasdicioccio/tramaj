@@ -295,7 +295,8 @@ deepSymbolDemands libs prog =
 
 -- Arithmetic -------------------------------------------------------------------
 
--- | The nine names of the arithmetic profile (reference.md §11). They are
+-- | The ten names of the arithmetic profile (reference.md §11), `round`
+-- | being the tenth (decisions §20). They are
 -- | names and not syntax: an implementation with the profile binds them in
 -- | the initial environment, and a program may bind any of them itself.
 arithmeticNames :: Array String
@@ -309,6 +310,7 @@ arithmeticNames =
   , "modulo"
   , "floor"
   , "real"
+  , "round"
   ]
 
 -- | Which of `arithmeticNames` this program references free (reference.md

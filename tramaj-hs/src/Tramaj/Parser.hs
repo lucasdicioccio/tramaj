@@ -464,7 +464,7 @@ specialForm = do
   name <- try $ do
     _ <- optional (char '$')
     n <- identifier
-    if n `elem` (["map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint"] :: [Text])
+    if n `elem` (["map", "filter", "scan", "fold", "sort-by", "sort-by-descending", "branch", "import", "adapt-actions", "constraint"] :: [Text])
       then pure n
       else fail "not a special form"
   base <- case name of
@@ -472,6 +472,8 @@ specialForm = do
     "filter" -> binaryShape Filter
     "scan" -> ternaryShape Scan
     "fold" -> ternaryShape Fold
+    "sort-by" -> binaryShape (SortBy False)
+    "sort-by-descending" -> binaryShape (SortBy True)
     "branch" -> branchShape
     "import" -> importShape
     "adapt-actions" -> adaptActionsShape

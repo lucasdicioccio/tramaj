@@ -76,7 +76,7 @@ cases/<NNN-slug>/
     may list it to say that running without any profile is its point.
   * `"arithmetic"` — the arithmetic profile (reference.md §11). It is on for
     a case only if the case lists it. A case that does not list it runs with
-    arithmetic off on every implementation, where the nine arithmetic names
+    arithmetic off on every implementation, where the arithmetic names
     are unbound and `sum(1, 2)` is an `UnboundName`; that is how the
     behaviour of an implementation without the profile is tested.
   * `"int53"` and `"int64"` — the integer range (reference.md §13): the
@@ -180,12 +180,12 @@ the language's own spelling), and the table of analyses beside it
 
 | implementation | profiles |
 |---|---|
-| PureScript | `base`, `int-float`, `arithmetic`, `int53` |
-| Haskell | `base`, `int-float`, `arithmetic`, `int64` |
+| PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
+| Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | Rust, TypeScript, Go, Python | `base` |
 
-No list holds `"sort"`, `"format-number"` or `"round"` yet, so the cases
-that list one are skipped by every suite.
+The other four lists do not hold `"sort"`, `"format-number"` or `"round"`
+yet, so the cases that list one are skipped by those four suites.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
@@ -193,19 +193,20 @@ that list it start running in that suite; no case needs editing.
 In the Haskell and PureScript implementations the arithmetic profile is an
 option of each evaluation, off by default. Their runners turn it on for a
 case that lists `"arithmetic"` and leave it off for every other case. The
-other four do not implement arithmetic yet, so the nine names are unbound
+other four do not implement arithmetic yet, so the ten names are unbound
 there whatever a runner does: they run the cases that do not list
 `"arithmetic"` and skip the ones that do. When one of them gains the
 profile it must come as a per-evaluation option, since its runner has to
 keep it off for the cases that do not list it.
-`round` will join the nine names under the same option.
+`round` is the tenth name under the same option, in the two
+implementations that have it.
 
-Until an implementation runs them, the expected texts of the
-`format-number` and `round` cases stand on one reference computation
-(exact rational arithmetic over the value of each literal), cross-checked
-against ECMAScript's `toFixed` below `1e21`. The expected output of the
-other `"sort"`, `"format-number"` and `"round"` cases was written by hand
-from specs/reference.md §11.
+The expected texts of the `format-number` and `round` cases come from one
+reference computation (exact rational arithmetic over the value of each
+literal), cross-checked against ECMAScript's `toFixed` below `1e21`, and the
+expected output of the other `"sort"`, `"format-number"` and `"round"` cases
+was written by hand from specs/reference.md §11. The Haskell and PureScript
+implementations, written independently of both, give every one of them.
 
 A name the runner does not know is, by that rule, not provided, so the case
 is skipped rather than rejected.

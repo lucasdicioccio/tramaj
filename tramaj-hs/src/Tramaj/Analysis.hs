@@ -262,7 +262,8 @@ deepSymbolDemands libs prog =
 
 -- Arithmetic -------------------------------------------------------------------
 
--- | The nine names of the arithmetic profile (reference.md \S11). They are
+-- | The ten names of the arithmetic profile (reference.md \S11), @round@
+-- being the tenth (decisions \S20). They are
 -- names and not syntax: an evaluation with the profile on binds them in the
 -- initial environment ('Tramaj.Eval.optArithmetic'), and a program may bind
 -- any of them itself.
@@ -277,6 +278,7 @@ arithmeticNames =
   , "modulo"
   , "floor"
   , "real"
+  , "round"
   ]
 
 -- | Which of 'arithmeticNames' this program references free (reference.md

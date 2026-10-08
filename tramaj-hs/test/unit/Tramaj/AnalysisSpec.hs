@@ -24,6 +24,7 @@ spec = do
   constraintSpec
   symbolSpec
   arithmeticSpec
+  sortSpec
   typeParamSpec
 
 prog :: Text -> Program
@@ -228,15 +229,54 @@ typeParamSpec = describe "type declarations and parameters" $ do
      in unsuppliedTypeParams typedLibs (prog "@msg=import(\"message\", {payload: %string})\ntrue")
           `shouldBe` [("message", Set.empty)]
 
--- | reference.md \S9: which of the nine arithmetic names a program
+-- | reference.md \S9: every analysis traverses a sort as it traverses a
+-- @map@, through the collection and through the key function. The corpus
+-- cannot state this for the analyses it has no case shape for, so each one
+-- is checked here, under both names.
+sortSpec :: Spec
+sortSpec = describe "a sort" $ do
+  it "has its collection and its key function read by contextReads" $ do
+    contextReads (prog "sort-by($ctx.rows, (r) => lookup($r, $ctx.column, 0))")
+      `shouldBe` Set.fromList [["rows"], ["column"]]
+    contextReads (prog "sort-by-descending($ctx.rows, (r) => lookup($r, $ctx.column, 0))")
+      `shouldBe` Set.fromList [["rows"], ["column"]]
+
+  it "has a hole inside its key function reported by contextHoles" $
+    contextHoles (prog "sort-by($ctx.rows, (r) => import(\"button\", {name: ctx(sort.label)}).vals.n)")
+      `shouldBe` Set.fromList [["sort", "label"]]
+
+  it "has an import inside its key function reported, and followed" $ do
+    staticImportNames (prog "sort-by-descending(import(\"panel\", {}).vals.rows, (r) => import(\"row\", {}).vals.k)")
+      `shouldBe` Set.fromList ["panel", "row"]
+    transitiveImportNames libs (prog "sort-by([], (r) => import(\"row\", {}).vals.k)")
+      `shouldBe` Set.fromList ["row", "button"]
+
+  it "has an action key inside its key function reported" $ do
+    staticActionKeys (prog "sort-by($ctx.rows, (r) => .b(action(\"on-click\", \"pick\", {})))")
+      `shouldBe` Set.fromList ["pick"]
+    deepActionKeys libs (prog "sort-by(import(\"row\", {}).rendered, (r) => .b(action(\"on-click\", \"pick\", {})))")
+      `shouldBe` Set.fromList ["pick", "select", "deploy"]
+
+  it "has an arithmetic name inside its key function reported, called or by reference" $ do
+    arithmeticOps (prog "sort-by($ctx.rows, (r) => real($r.spend))") `shouldBe` Set.fromList ["real"]
+    arithmeticOps (prog "sort-by-descending(map($ctx.xs, $negate), $round)") `shouldBe` Set.fromList ["negate", "round"]
+
+  it "scopes the parameter of its key function, for arithmeticOps" $
+    arithmeticOps (prog "[sort-by($ctx.xs, (floor) => $floor), sum(1, 2)]") `shouldBe` Set.fromList ["sum"]
+
+  it "has a demand and an allocation inside its key function reported" $ do
+    symbolDemands (prog "sort-by($ctx.rows, (r) => ?ctx.weight)") `shouldBe` Set.fromList [["weight"]]
+    length (symbolSites (prog "sort-by($ctx.rows, (r) => ?($r.id))")) `shouldBe` 1
+
+-- | reference.md \S9: which of the ten arithmetic names a program
 -- references free. The shared corpus holds the same cases as
 -- @"expect": "analysis"@ ones (@corpus/README.md@), which the PureScript
 -- port runs too.
 arithmeticSpec :: Spec
 arithmeticSpec = describe "arithmetic operations" $ do
-  it "names the nine builtins of the profile" $
+  it "names the ten builtins of the profile" $
     arithmeticNames
-      `shouldBe` ["sum", "product", "negate", "inverse", "quotient", "floor-quotient", "modulo", "floor", "real"]
+      `shouldBe` ["sum", "product", "negate", "inverse", "quotient", "floor-quotient", "modulo", "floor", "real", "round"]
 
   it "reports a name that is called" $
     arithmeticOps (prog "sum(1, negate($ctx.x))") `shouldBe` Set.fromList ["sum", "negate"]
@@ -244,8 +284,8 @@ arithmeticSpec = describe "arithmetic operations" $ do
   it "reports a name passed by reference" $
     arithmeticOps (prog "fold($ctx.xs, 0, $sum)") `shouldBe` Set.fromList ["sum"]
 
-  it "reports every one of the nine" $
-    arithmeticOps (prog "[$sum, $product, $negate, $inverse, $quotient, $floor-quotient, $modulo, $floor, $real]")
+  it "reports every one of the ten" $
+    arithmeticOps (prog "[$sum, $product, $negate, $inverse, $quotient, $floor-quotient, $modulo, $floor, $real, $round]")
       `shouldBe` Set.fromList arithmeticNames
 
   it "reports none in a program that uses none, whatever other builtin it calls" $

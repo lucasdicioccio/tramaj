@@ -118,6 +118,41 @@ before running it.
   `TypeMismatch`, in concrete mode always and in symbolic mode unless it is a
   well-formed term and the profile is on.
 
+**Sorting, number formatting and `round`** (`../specs/decisions.md` \S20,
+`../specs/reference.md` \S11).
+
+- `sort-by(list, fn)` and `sort-by-descending(list, fn)` order a list by the
+  key `fn` gives each element. Keys are all integers, all floats or all
+  strings (compared by code point); anything else is a `TypeMismatch`, and a
+  symbol or a term a `NotConcrete`. Both are stable, each on its own terms,
+  and `fn` is applied once per element, in index order. They are core
+  forms, in every profile.
+- `format-number(x, decimals, group)` writes an integer or a float in
+  positional decimal notation with `decimals` digits (0 to 20) after the
+  point and `group` between the groups of three digits of the integer part.
+  It rounds the exact value of the number, ties away from zero, never writes
+  an exponent or a negative zero, and has no locale. An ordinary builtin, in
+  every profile.
+- `round(x)` is the tenth builtin of the arithmetic profile: the integer
+  nearest to `x`, ties away from zero, a `NotRepresentable` outside the
+  integer range, and a term over a symbol.
+
+**Breaking:**
+
+- `Expr` gains the constructor `SortBy Bool Expr Expr` (descending,
+  collection, key function). A host that matches every constructor needs a
+  case for it; `subExprs` and every analysis already traverse it.
+- `sort-by` and `sort-by-descending` are special-form names, as `map` is. A
+  program that bound one of them and called it (`$sort-by(...)`) now gets
+  the form, or a parse error if the call does not have two arguments.
+- `format-number` joins `builtinNames`, and `round` joins `arithmeticNames`,
+  so `arithmeticOps` reports it. A program that binds either name still
+  shadows it.
+
+New in `Tramaj.Eval`: `emittedConstraintCount`, the number of constraints an
+evaluation emitted before equal ones are made one. It is there for tests,
+which have no other way to count the applications of a function.
+
 Adds `fold(arr, init, fn)`, a fourth functional array primitive alongside
 `map`/`filter`/`scan`: same `(acc, item)` step and `scanl` iteration order as
 `scan`, but returns only the final accumulator instead of every intermediate

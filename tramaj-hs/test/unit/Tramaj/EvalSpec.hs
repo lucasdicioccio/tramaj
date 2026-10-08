@@ -10,7 +10,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
-import Tramaj.Ast (Program)
+import Tramaj.Ast (Expr (..), Program (..))
 import Tramaj.Eval
 import Tramaj.Json (Json (..))
 import Tramaj.Node
@@ -34,6 +34,7 @@ spec = do
   errorSpec
   typeSpec
   arithmeticSpec
+  sortSpec
 
 -- Helpers -------------------------------------------------------------------
 
@@ -683,7 +684,7 @@ arithmeticSpec = describe "the arithmetic profile" $ do
   it "is off by default: concrete mode, no arithmetic" $
     defaultOptions `shouldBe` Options {optMode = Concrete, optArithmetic = False}
 
-  it "leaves the nine names unbound through evalProgram and runProgram" $ do
+  it "leaves the names unbound through evalProgram and runProgram" $ do
     evalProgram Concrete Map.empty JNull (parsed "sum(1, 2)") `shouldSatisfy` isUnbound "sum"
     runProgram Concrete Map.empty JNull (parsed "sum(1, 2)") `shouldSatisfy` isUnbound "sum"
     runProgram Symbolic Map.empty JNull (parsed "map([1.5], $floor)") `shouldSatisfy` isUnbound "floor"
@@ -747,3 +748,55 @@ arithmeticSpec = describe "the arithmetic profile" $ do
     arith "sum(1e16, 1.0, 1.0)" `shouldBe` Right (JFloat 1.0e16)
     arith "sum(1.0, 1.0, 1e16)" `shouldBe` Right (JFloat 1.0000000000000002e16)
     arith "product(49.0, inverse(49.0))" `shouldBe` Right (JFloat 0.9999999999999999)
+
+-- | Sorting (reference.md \S11). What a sort gives is the shared corpus's
+-- business; here is what no program can observe and the corpus therefore
+-- cannot state: how many times the key function is applied. The key
+-- function below emits one constraint each time it runs. A lambda written
+-- in a template cannot do that, so the program is built as an AST, and
+-- 'emittedConstraintCount' counts the emissions before equal ones are made
+-- one.
+sortSpec :: Spec
+sortSpec = describe "the key function of a sort" $ do
+  let row :: Int -> Expr
+      row k = ObjectLit [("k", IntLit (fromIntegral k))]
+      -- (x) => { !constraint("applied"); $x.k }
+      counting = Lambda ["x"] (Emit (Constrain "applied" []) (Path "x" ["k"]))
+      -- (x) => { !constraint("applied", $x.k); $x.k }
+      tracing = Lambda ["x"] (Emit (Constrain "applied" [Path "x" ["k"]]) (Path "x" ["k"]))
+      sorting descending keys fn = ExpressionProgram (SortBy descending (ArrayLit (map row keys)) fn)
+      applications descending keys = emittedConstraintCount defaultOptions Map.empty JNull (sorting descending keys counting)
+      shuffled = [5, 3, 9, 1, 7, 3, 8, 2, 6, 4, 0, 5] :: [Int]
+
+  it "is applied exactly once per element, whatever the order of the keys" $ do
+    applications False shuffled `shouldBe` Right (length shuffled)
+    applications False [1 .. 16] `shouldBe` Right 16
+    applications False (reverse [1 .. 16]) `shouldBe` Right 16
+    applications False (replicate 9 4) `shouldBe` Right 9
+
+  it "is applied exactly once per element by the descending sort" $ do
+    applications True shuffled `shouldBe` Right (length shuffled)
+    applications True [1 .. 16] `shouldBe` Right 16
+
+  it "is applied once to a single element, and not at all to an empty list" $ do
+    applications False [7] `shouldBe` Right 1
+    applications False [] `shouldBe` Right 0
+    applications True [] `shouldBe` Right 0
+
+  it "is applied in index order, not in the order of the result" $
+    case runProgramWith defaultOptions {optMode = Symbolic} Map.empty JNull (sorting False [3, 1, 2] tracing) of
+      Right (JObject o) -> do
+        Map.lookup "root" o `shouldBe` Just (arr [object ["k" .= (1 :: Int)], object ["k" .= (2 :: Int)], object ["k" .= (3 :: Int)]])
+        Map.lookup "constraints" o
+          `shouldBe` Just (arr [object ["name" .= ("applied" :: Text), "arguments" .= [k]] | k <- [3, 1, 2 :: Int]])
+      other -> expectationFailure ("expected a symbolic envelope object, got " <> show other)
+
+  it "is not applied past the first element whose key is refused" $
+    emittedConstraintCount
+      defaultOptions
+      Map.empty
+      JNull
+      (ExpressionProgram (SortBy False (ArrayLit [row 1, ObjectLit [("k", NullLit)], row 2]) counting))
+      `shouldSatisfy` \case
+        Left (TypeMismatch _) -> True
+        _ -> False

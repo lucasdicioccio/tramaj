@@ -31,7 +31,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Test.Corpus (runCorpus)
 import Tramaj.Analysis (arithmeticNames, arithmeticOps, constraintKinds, contextHoles, contextReads, deepActionKeys, deepArithmeticOps, deepConstraintKinds, deepContextHoles, deepSymbolDemands, staticActionKeys, staticImportNames, symbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
 import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), TypeConstraintArg(..), TypeExpr(..), programRoot, typeDecls, unlets)
-import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Options, Output(..), defaultOptions, evalProgram, runProgram, runProgramWith)
+import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Options, Output(..), defaultOptions, emittedConstraintCount, evalProgram, runProgram, runProgramWith)
 import Tramaj.Json (Json(..), fromArgonaut, fromArray, jsonNull, jsonParser, normalizeNumbers, stringify, stringifyWithIndent, toArgonaut, toObject)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
 import Tramaj.Parser (parseExpr, parseProgram)
@@ -52,6 +52,7 @@ main = do
   runJsonChecks
   runNumberChecks
   runArithmeticChecks
+  runSortChecks
   log "All tramaj checks passed."
 
 -- Parser ---------------------------------------------------------------
@@ -73,6 +74,15 @@ runParserChecks = do
     , Tuple "an unknown adaptation" "adapt-actions($x, replace(\"a\", \"b\"))"
     , Tuple "a malformed import" "import(\"lib\")"
     , Tuple "a malformed map" "map($xs)"
+    -- reference.md §5: a sort takes exactly two arguments, under both names
+    -- and both spellings, and its name cannot be passed by reference.
+    , Tuple "a sort with one argument" "sort-by($xs)"
+    , Tuple "a sort with three arguments" "sort-by($xs, (x) => $x, true)"
+    , Tuple "a sort with no argument" "sort-by()"
+    , Tuple "a descending sort with one argument" "sort-by-descending($xs)"
+    , Tuple "a descending sort with three arguments" "sort-by-descending($xs, (x) => $x, true)"
+    , Tuple "a dollar-spelled sort with one argument" "$sort-by($xs)"
+    , Tuple "a sort passed by reference" "map($xs, $sort-by)"
     , Tuple "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
     , Tuple "an unknown escape sequence" "\"a\\qb\""
     , Tuple "trailing input after the root" ".div() .span()"
@@ -116,6 +126,13 @@ runParserChecks = do
         )
     , Tuple "adapt-actions($x, prefix(\"ns:\"))"
         (AdaptActions (Path "x" []) (Prefix "ns:") Nothing)
+    -- reference.md §2, §5: the two sort names lower to the one constructor.
+    , Tuple "sort-by($xs, (x) => $x.k)"
+        (SortBy false (Path "xs" []) (Lambda [ "x" ] (Path "x" [ "k" ])))
+    , Tuple "sort-by-descending($xs, $key-of)"
+        (SortBy true (Path "xs" []) (Path "key-of" []))
+    , Tuple "$sort-by($xs, $str)"
+        (SortBy false (Path "xs" []) (Path "str" []))
     ]
   log "ok - parser acceptance, rejection and desugaring"
   where
@@ -550,8 +567,8 @@ runAnalysisChecks = do
   check "an arithmetic name that is called, and one passed by reference"
     (Set.toUnfoldable (arithmeticOps (unsafeParse "[sum(1, 2), fold($ctx.xs, 1, $product)]")))
     [ "product", "sum" ]
-  check "each of the nine names, and no other builtin"
-    (Set.toUnfoldable (arithmeticOps (unsafeParse "[sum(1), product(1), negate(1), inverse(1.0), quotient(1.0, 2.0), floor-quotient(1, 2), modulo(1, 2), floor(1.5), real(1), cardinality([]), str(1)]")))
+  check "each of the ten names, and no other builtin"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "[sum(1), product(1), negate(1), inverse(1.0), quotient(1.0, 2.0), floor-quotient(1, 2), modulo(1, 2), floor(1.5), real(1), round(1.5), cardinality([]), str(1), format-number(1, 0, \"\")]")))
     (Array.sort arithmeticNames)
   check "none in a program that computes nothing"
     (Set.toUnfoldable (arithmeticOps (unsafeParse ".p($ctx.sum, \"floor\")")))
@@ -580,6 +597,46 @@ runAnalysisChecks = do
   check "a cycle terminates for arithmetic names too"
     (Set.toUnfoldable (deepArithmeticOps libs (unsafeParse ".div(import(\"loopy\", {}).rendered)")))
     ([] :: Array String)
+  -- reference.md §9: every analysis traverses a sort as it traverses a
+  -- `map`, through the collection and through the key function. The corpus
+  -- has no case shape for most of these, so each is checked here, under
+  -- both names.
+  check "a sort's collection and key function are read by contextReads"
+    (Set.toUnfoldable (contextReads (unsafeParse "sort-by($ctx.rows, (r) => lookup($r, $ctx.column, 0))")))
+    [ [ "column" ], [ "rows" ] ]
+  check "a descending sort's collection and key function are read by contextReads"
+    (Set.toUnfoldable (contextReads (unsafeParse "sort-by-descending($ctx.rows, (r) => lookup($r, $ctx.column, 0))")))
+    [ [ "column" ], [ "rows" ] ]
+  check "a hole inside a key function"
+    (Set.toUnfoldable (contextHoles (unsafeParse "sort-by($ctx.rows, (r) => import(\"button\", {name: ctx(sort.label)}).vals.n)")))
+    [ [ "sort", "label" ] ]
+  check "an import in a sort's collection and one inside its key function"
+    (Set.toUnfoldable (staticImportNames (unsafeParse "sort-by-descending(import(\"panel\", {}).vals.rows, (r) => import(\"row\", {}).vals.k)")))
+    [ "panel", "row" ]
+  check "an import inside a key function is followed"
+    (Set.toUnfoldable (transitiveImportNames libs (unsafeParse "sort-by([], (r) => import(\"row\", {}).vals.k)")))
+    [ "button", "row" ]
+  check "an action key inside a key function"
+    (Set.toUnfoldable (staticActionKeys (unsafeParse "sort-by($ctx.rows, (r) => .b(action(\"on-click\", \"pick\", {})))")))
+    [ "pick" ]
+  check "action keys of a library in a sort's collection, with the table"
+    (Set.toUnfoldable (deepActionKeys libs (unsafeParse "sort-by(import(\"row\", {}).rendered, (r) => .b(action(\"on-click\", \"pick\", {})))")))
+    [ "deploy", "pick", "select" ]
+  check "an arithmetic name called inside a key function"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "sort-by($ctx.rows, (r) => real($r.spend))")))
+    [ "real" ]
+  check "an arithmetic name passed by reference as a key function, and one in the collection"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "sort-by-descending(map($ctx.xs, $negate), $round)")))
+    [ "negate", "round" ]
+  check "the parameter of a key function shadows inside it only"
+    (Set.toUnfoldable (arithmeticOps (unsafeParse "[sort-by($ctx.xs, (floor) => $floor), sum(1, 2)]")))
+    [ "sum" ]
+  check "a demand inside a key function"
+    (Set.toUnfoldable (symbolDemands (unsafeParse "sort-by($ctx.rows, (r) => ?ctx.weight)")))
+    [ [ "weight" ] ]
+  check "an allocation site inside a key function"
+    (Set.size (symbolSites (unsafeParse "sort-by($ctx.rows, (r) => ?($r.id))")))
+    1
   log "ok - static analyses"
   where
   check :: forall a. Eq a => Show a => String -> a -> a -> Effect Unit
@@ -1144,7 +1201,7 @@ runArithmeticChecks = do
     , { template: "[floor-quotient(-9007199254740991, 9007199254740990), modulo(-9007199254740991, 9007199254740990)]", ctx: "null", expected: "[-2,9007199254740989]" }
     , { template: "[floor-quotient(-9007199254740991, -1), modulo(-9007199254740991, -1)]", ctx: "null", expected: "[9007199254740991,0]" }
     , { template: "[floor-quotient(9007199254740991, 2), modulo(9007199254740991, 2)]", ctx: "null", expected: "[4503599627370495,1]" }
-    -- No negative zero of either type, out of any of the nine.
+    -- No negative zero of either type, out of any of them.
     , { template: "[negate(0), product(-1, 0), floor-quotient(0, -5), modulo(-4, 2), floor(-0.0), str(negate(0))]", ctx: "null", expected: "[0,0,0,0,0,\"0\"]" }
     , { template: "[negate(0.0), product(-1.0, 0.0), quotient(0.0, -5.0), sum(-0.0, -0.0), real(negate(0)), str(negate(0.0))]", ctx: "null", expected: "[0.0,0.0,0.0,0.0,0.0,\"0.0\"]" }
     -- The ends of the integer range are reached exactly, and not passed.
@@ -1194,6 +1251,52 @@ runArithmeticChecks = do
       Left err | Array.head (String.split (Pattern " ") (show err)) == Just kind -> pure unit
       Left err -> throw (template <> ": expected a " <> kind <> ", got " <> show err)
       Right v -> throw (template <> ": expected a " <> kind <> ", got " <> stringify v)
+
+-- Sorting --------------------------------------------------------------------
+
+-- | Sorting (reference.md §11). What a sort gives is the shared corpus's
+-- | business; here is what no program can observe and the corpus therefore
+-- | cannot state: how many times the key function is applied. The key
+-- | function below emits one constraint each time it runs. A lambda written
+-- | in a template cannot do that, so the program is built as an AST, and
+-- | `emittedConstraintCount` counts the emissions before equal ones are
+-- | made one.
+runSortChecks :: Effect Unit
+runSortChecks = do
+  traverse_ (\keys -> applications false keys (Array.length keys))
+    [ shuffled, ascending, Array.reverse ascending, Array.replicate 9 4.0, [ 7.0 ], [] ]
+  traverse_ (\keys -> applications true keys (Array.length keys))
+    [ shuffled, ascending, Array.reverse ascending, Array.replicate 9 4.0, [ 7.0 ], [] ]
+  -- In index order, not in the order of the result: the constraints come
+  -- out in the order the key function ran.
+  case runProgramWith (defaultOptions { mode = Symbolic }) Map.empty jsonNull (sorting false [ 3.0, 1.0, 2.0 ] tracing) of
+    Right v
+      | stringify v == "{\"format\":\"tramaj/symbolic/1\",\"kind\":\"expression\",\"root\":[{\"k\":1},{\"k\":2},{\"k\":3}],\"symbols\":[],\"constraints\":[{\"name\":\"applied\",\"arguments\":[3]},{\"name\":\"applied\",\"arguments\":[1]},{\"name\":\"applied\",\"arguments\":[2]}],\"types\":[],\"type-constraints\":[]}" ->
+          pure unit
+    other -> throw ("the key function of a sort runs in index order, got " <> show (map stringify other))
+  -- Not applied past the first element whose key is refused.
+  case emittedConstraintCount defaultOptions Map.empty jsonNull (ExpressionProgram (SortBy false (ArrayLit [ row 1.0, ObjectLit [ Tuple "k" NullLit ], row 2.0 ]) counting)) of
+    Left (TypeMismatch _) -> pure unit
+    other -> throw ("a null sort key is a TypeMismatch, got " <> show other)
+  log "ok - the key function of a sort is applied once per element"
+  where
+  row k = ObjectLit [ Tuple "k" (IntLit k) ]
+
+  -- (x) => { !constraint("applied"); $x.k }
+  counting = Lambda [ "x" ] (Emit (Constrain "applied" []) (Path "x" [ "k" ]))
+
+  -- (x) => { !constraint("applied", $x.k); $x.k }
+  tracing = Lambda [ "x" ] (Emit (Constrain "applied" [ Path "x" [ "k" ] ]) (Path "x" [ "k" ]))
+
+  sorting descending keys fn = ExpressionProgram (SortBy descending (ArrayLit (map row keys)) fn)
+
+  shuffled = [ 5.0, 3.0, 9.0, 1.0, 7.0, 3.0, 8.0, 2.0, 6.0, 4.0, 0.0, 5.0 ]
+  ascending = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0 ]
+
+  applications descending keys expected =
+    case emittedConstraintCount defaultOptions Map.empty jsonNull (sorting descending keys counting) of
+      Right n | n == expected -> pure unit
+      other -> throw ("a sort of " <> show (Array.length keys) <> " elements applies its key function once per element, got " <> show other)
 
 -- Helpers ------------------------------------------------------------------
 
