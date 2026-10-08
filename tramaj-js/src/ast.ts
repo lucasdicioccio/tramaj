@@ -23,7 +23,13 @@ export type Expr =
   | { t: "Lambda"; params: string[]; body: Expr }
   | { t: "Let"; name: string; value: Expr; body: Expr }
   | { t: "StringLit"; value: string }
-  | { t: "NumberLit"; value: number }
+  /**
+   * A number literal is an integer or a float by its form (`reference.md` §5):
+   * `IntLit` holds a whole number in the integer range, `FloatLit` a finite
+   * double, and neither a negative zero.
+   */
+  | { t: "IntLit"; value: number }
+  | { t: "FloatLit"; value: number }
   | { t: "BoolLit"; value: boolean }
   | { t: "NullLit" }
   | { t: "ArrayLit"; elements: Expr[] }
@@ -35,6 +41,12 @@ export type Expr =
   | { t: "Filter"; collection: Expr; fn: Expr }
   | { t: "Scan"; collection: Expr; initial: Expr; fn: Expr }
   | { t: "Fold"; collection: Expr; initial: Expr; fn: Expr }
+  /**
+   * `sort-by(list, fn)` and, with `descending`, `sort-by-descending(list, fn)`
+   * (`reference.md` §11, *Sorting*): the list ordered by the key `fn` gives
+   * each element.
+   */
+  | { t: "SortBy"; descending: boolean; collection: Expr; fn: Expr }
   | { t: "Concat"; left: Expr; right: Expr }
   | { t: "Import"; name: string; params: Array<[string, ParamValue]> }
   | { t: "AdaptActions"; target: Expr; adaptation: ActionAdaptation; fn: Expr | null }
@@ -71,7 +83,8 @@ export type TypeExpr =
 export type TypeConstraintArg =
   | { t: "Type"; type: TypeExpr }
   | { t: "ScalarStr"; value: string }
-  | { t: "ScalarNum"; value: number }
+  | { t: "ScalarInt"; value: number }
+  | { t: "ScalarFloat"; value: number }
   | { t: "ScalarBool"; value: boolean }
   | { t: "ScalarNull" };
 
@@ -99,7 +112,8 @@ export function subExprs(e: Expr): Expr[] {
   switch (e.t) {
     case "Path":
     case "StringLit":
-    case "NumberLit":
+    case "IntLit":
+    case "FloatLit":
     case "BoolLit":
     case "NullLit":
     case "Demand":
@@ -124,6 +138,7 @@ export function subExprs(e: Expr): Expr[] {
       return [e.condition, e.then, e.else];
     case "Map":
     case "Filter":
+    case "SortBy":
       return [e.collection, e.fn];
     case "Scan":
     case "Fold":

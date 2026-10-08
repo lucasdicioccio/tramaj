@@ -1,14 +1,17 @@
 //! `Value`, the environment, and the evaluator — concrete and symbolic modes
-//! (`specs/reference.md` §6, §7, §10; `specs/v3-symbols.md` §4-6). Mirrors
-//! `tramaj-hs/src/Tramaj/Eval.hs`, covering R1 (core v2) plus R2 (v3
-//! symbols/constraints): no v4 types.
+//! (`specs/reference.md` §6, §7, §10, §11; `specs/v3-symbols.md` §1.9, §4-6).
+//! Mirrors `tramaj-hs/src/Tramaj/Eval.hs`.
+//!
+//! A number is an integer or a float (`reference.md` §3), and nothing here
+//! converts one into the other. The integer range is the signed 64-bit one
+//! (`reference.md` §13). The arithmetic profile (`reference.md` §11) is an
+//! option of each evaluation, off by default: see [`Options`].
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use serde_json::{Map as JsonMap, Number as JsonNumber, Value as Json};
-
-use crate::analysis::symbol_sites;
+use crate::analysis::{symbol_sites, ARITHMETIC_NAMES};
+use crate::json::{self, Json};
 use crate::ast::{ActionAdaptation, Attribute, Expr, ParamValue, Program};
 use crate::node::{self, Node, NodeAttribute};
 
@@ -16,6 +19,36 @@ use crate::node::{self, Node, NodeAttribute};
 pub enum Mode {
     Concrete,
     Symbolic,
+}
+
+/// What a host chooses for one evaluation. Like `Mode`, each field is a host
+/// parameter and not a property of the program.
+///
+/// `arithmetic` is `reference.md` §11's arithmetic profile, per evaluation:
+/// with it on, the names of `analysis::ARITHMETIC_NAMES` are in the initial
+/// environment of the program and of every library it runs, and a seeded
+/// term is accepted in symbolic mode (v3-symbols §5.4). With it off they are
+/// unbound, so a program that uses one fails with `UnboundName`, and every
+/// seeded term is refused. The two number types and the reserved `"$term"`
+/// key do not depend on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Options {
+    pub mode: Mode,
+    pub arithmetic: bool,
+}
+
+impl Default for Options {
+    /// Concrete mode, without the arithmetic profile. `eval_program` and
+    /// `run_program` run with these options and the mode they are given.
+    /// The profile is off unless a host asks for it, so that a host which
+    /// has not opted in never receives a term, and can refuse a program up
+    /// front with `analysis::deep_arithmetic_ops`.
+    fn default() -> Self {
+        Options {
+            mode: Mode::Concrete,
+            arithmetic: false,
+        }
+    }
 }
 
 /// Host-supplied library table: import name -> parsed library program.
@@ -51,6 +84,11 @@ pub enum EvalError {
     /// `types::TypeError` still needs a home in the one error type every
     /// entry point already returns.
     TypeErr(crate::types::TypeError),
+    /// An arithmetic operation has no result in the type of its operands
+    /// (`reference.md` §11, §12): an integer result outside the integer
+    /// range, a zero divisor, a float result that is not finite. Nothing
+    /// wraps, saturates or rounds instead.
+    NotRepresentable(String),
 }
 
 impl std::fmt::Display for EvalError {
@@ -67,6 +105,7 @@ impl std::fmt::Display for EvalError {
             EvalError::NotConcrete(m) => write!(f, "NotConcrete {m}"),
             EvalError::AllocationInLibrary(n) => write!(f, "AllocationInLibrary {n}"),
             EvalError::TypeErr(e) => write!(f, "TypeErr {e}"),
+            EvalError::NotRepresentable(m) => write!(f, "NotRepresentable {m}"),
         }
     }
 }
@@ -77,11 +116,16 @@ type EResult<T> = Result<T, EvalError>;
 
 /// The language's value domain. Arrays/objects hold `Value`, not JSON, so a
 /// document node can travel inside a structure like any other value.
+///
+/// A number is an integer or a float (`reference.md` §3), and nothing here
+/// converts one into the other. `Int` covers the signed 64-bit range;
+/// `Float` holds a finite double that is never a negative zero.
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
     Bool(bool),
-    Number(f64),
+    Int(i64),
+    Float(f64),
     Str(String),
     Array(Vec<Value>),
     Object(HashMap<String, Value>),
@@ -103,6 +147,13 @@ pub enum Value {
     /// array, right up until it tries to cross a JSON boundary (`to_json`
     /// refuses it) or is left unreached by any `!`.
     Constraint(String, Vec<Value>),
+    /// A term (v3-symbols §1.9): an arithmetic operation left unevaluated
+    /// because one of its operands is a symbol or a term. It holds the name
+    /// of the builtin and its operands exactly as the call had them once
+    /// flattened: each an `Int`, a `Float`, a `Symbol` or a `Term`, nothing
+    /// folded and no nested term spliced. It is data as a symbol is, and is
+    /// refused wherever a symbol is.
+    Term(String, Vec<Value>),
 }
 
 /// A symbol's identity (v3-symbols §1.4): a string, identical in every
@@ -114,7 +165,8 @@ impl PartialEq for Value {
         match (self, other) {
             (Value::Null, Value::Null) => true,
             (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Str(a), Value::Str(b)) => a == b,
             (Value::Array(a), Value::Array(b)) => a == b,
             (Value::Object(a), Value::Object(b)) => a == b,
@@ -185,6 +237,9 @@ struct EvalCtx<'a> {
     /// (v3-symbols §1.3, §1.4) — a library never allocates or mints, no
     /// matter how deep the chain that reached it.
     is_root: bool,
+    /// Whether the arithmetic profile is on (`Options`): the same for the
+    /// root and for every library, since it is what the host enabled.
+    arithmetic: bool,
     emissions: &'a RefCell<Emissions>,
 }
 
@@ -196,6 +251,7 @@ fn enter_library<'a>(name: &str, ctx: &EvalCtx<'a>) -> EvalCtx<'a> {
         in_progress,
         mode: ctx.mode,
         is_root: false,
+        arithmetic: ctx.arithmetic,
         emissions: ctx.emissions,
     }
 }
@@ -215,42 +271,81 @@ pub enum Output {
     OValue(Json),
 }
 
+/// Evaluates a program in the given mode, without the arithmetic profile.
 pub fn eval_program(
     mode: Mode,
     libs: &LibraryTable,
     ctx: &Json,
     program: &Program,
 ) -> EResult<Output> {
-    Ok(eval_program_with_emissions(mode, libs, ctx, program)?.0)
+    eval_program_with(&Options { mode, ..Options::default() }, libs, ctx, program)
 }
 
-/// As `eval_program`, but also returns the deduplicated `Emissions`
+/// As `eval_program`, with every per-evaluation option given (`Options`).
+pub fn eval_program_with(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<Output> {
+    Ok(eval_program_with_emissions(options, libs, ctx, program)?.0)
+}
+
+/// How many constraints an evaluation emitted, counted before equal ones
+/// are made one (v3-symbols §4). No program and no output can tell this
+/// number: it is here for tests, as the one way to count how many times a
+/// function was applied, which `reference.md` §11 fixes for the key function
+/// of a sort. `tramaj` and `tramaj-hs` export the same function.
+pub fn emitted_constraint_count(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<usize> {
+    let (_, emissions) = eval_program_raw(options, libs, ctx, program)?;
+    Ok(emissions.constraints.len())
+}
+
+/// As `eval_program_with`, but also returns the deduplicated `Emissions`
 /// (v3-symbols §4) — empty for any program that emits or allocates nothing,
 /// and always empty in what concrete mode goes on to serialize, since
 /// concrete mode discards them (§5.1) and cannot produce a symbol at all.
 fn eval_program_with_emissions(
-    mode: Mode,
+    options: &Options,
     libs: &LibraryTable,
     ctx: &Json,
     program: &Program,
 ) -> EResult<(Output, Emissions)> {
-    let erased = crate::types::erase_types(libs, program).map_err(EvalError::TypeErr)?;
-    let ctx_val = checked_from_json(mode, ctx)?;
-    let emissions = RefCell::new(Emissions::default());
-    let eval_ctx = EvalCtx {
-        libs,
-        in_progress: HashSet::new(),
-        mode,
-        is_root: true,
-        emissions: &emissions,
-    };
-    let env = initial_env(ctx_val);
-    let v = eval_expr(&eval_ctx, &env, erased.root())?;
+    let (v, emissions) = eval_program_raw(options, libs, ctx, program)?;
     let output = match v {
         Value::Node(n) => Output::ONode(n),
         other => Output::OValue(to_json(&other)?),
     };
-    Ok((output, dedupe(emissions.into_inner())))
+    Ok((output, dedupe(emissions)))
+}
+
+/// The value of a program and everything it emitted, in evaluation order
+/// and before `dedupe`.
+fn eval_program_raw(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<(Value, Emissions)> {
+    let erased = crate::types::erase_types(libs, program).map_err(EvalError::TypeErr)?;
+    let ctx_val = checked_from_json(options, ctx)?;
+    let emissions = RefCell::new(Emissions::default());
+    let eval_ctx = EvalCtx {
+        libs,
+        in_progress: HashSet::new(),
+        mode: options.mode,
+        is_root: true,
+        arithmetic: options.arithmetic,
+        emissions: &emissions,
+    };
+    let env = initial_env(options.arithmetic, ctx_val);
+    let v = eval_expr(&eval_ctx, &env, erased.root())?;
+    Ok((v, emissions.into_inner()))
 }
 
 /// Two constraints with the same name and equal arguments are one
@@ -293,15 +388,26 @@ fn constraint_eq(a: &Value, b: &Value) -> bool {
 }
 
 /// Evaluates and serializes to the wire JSON a host compares against
-/// `expected.json`.
+/// `expected.json`, without the arithmetic profile. Write the result with
+/// `json::stringify`, which keeps an integer and a float apart.
 pub fn run_program(
     mode: Mode,
     libs: &LibraryTable,
     ctx: &Json,
     program: &Program,
 ) -> EResult<Json> {
-    let (output, emissions) = eval_program_with_emissions(mode, libs, ctx, program)?;
-    match mode {
+    run_program_with(&Options { mode, ..Options::default() }, libs, ctx, program)
+}
+
+/// As `run_program`, with every per-evaluation option given (`Options`).
+pub fn run_program_with(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> EResult<Json> {
+    let (output, emissions) = eval_program_with_emissions(options, libs, ctx, program)?;
+    match options.mode {
         Mode::Concrete => Ok(match output {
             Output::ONode(n) => node::node_to_json(&n),
             Output::OValue(v) => v,
@@ -312,32 +418,29 @@ pub fn run_program(
                 Output::OValue(v) => ("expression", v),
             };
             let (types_table, type_constraints_list) = build_types_info(libs, program).map_err(EvalError::TypeErr)?;
-            let mut m = JsonMap::new();
-            m.insert(
-                "format".to_string(),
-                Json::String("tramaj/symbolic/1".to_string()),
-            );
-            m.insert("kind".to_string(), Json::String(kind.to_string()));
-            m.insert("root".to_string(), root);
-            m.insert(
-                "symbols".to_string(),
-                Json::Array(emissions.symbols.iter().map(symbol_entry_to_json).collect()),
-            );
-            m.insert(
-                "constraints".to_string(),
-                Json::Array(emissions.constraints.iter().map(constraint_to_json).collect()),
-            );
             let mut sorted_types: Vec<(&String, &crate::types::ResolvedType)> = types_table.iter().collect();
             sorted_types.sort_by(|a, b| a.0.cmp(b.0));
-            m.insert(
-                "types".to_string(),
-                Json::Array(sorted_types.into_iter().map(type_entry_to_json).collect()),
-            );
-            m.insert(
-                "type-constraints".to_string(),
-                Json::Array(type_constraints_list.iter().map(type_constraint_to_json).collect()),
-            );
-            Ok(Json::Object(m))
+            Ok(Json::object([
+                ("format", Json::string("tramaj/symbolic/1")),
+                ("kind", Json::string(kind)),
+                ("root", root),
+                (
+                    "symbols",
+                    Json::Array(emissions.symbols.iter().map(symbol_entry_to_json).collect()),
+                ),
+                (
+                    "constraints",
+                    Json::Array(emissions.constraints.iter().map(constraint_to_json).collect()),
+                ),
+                (
+                    "types",
+                    Json::Array(sorted_types.into_iter().map(type_entry_to_json).collect()),
+                ),
+                (
+                    "type-constraints",
+                    Json::Array(type_constraints_list.iter().map(type_constraint_to_json).collect()),
+                ),
+            ]))
         }
     }
 }
@@ -364,10 +467,14 @@ fn build_types_info(libs: &LibraryTable, prog: &Program) -> Result<TypesInfo, cr
 /// One `"types"` table entry (`v4-types.md` §8): the id, and the definition
 /// behind it, rendered by `resolved_type_to_json`.
 fn type_entry_to_json((tid, rt): (&String, &crate::types::ResolvedType)) -> Json {
-    let mut m = JsonMap::new();
-    m.insert("id".to_string(), Json::String(tid.clone()));
-    m.insert("definition".to_string(), resolved_type_to_json(rt));
-    Json::Object(m)
+    Json::object([
+        ("id", Json::string(tid.clone())),
+        ("definition", resolved_type_to_json(rt)),
+    ])
+}
+
+fn strings_to_json(xs: &[String]) -> Json {
+    Json::Array(xs.iter().map(|s| Json::String(s.clone())).collect())
 }
 
 /// A `ResolvedType`'s `"definition"` shape (`v4-types.md` §8's example): a
@@ -378,46 +485,39 @@ fn type_entry_to_json((tid, rt): (&String, &crate::types::ResolvedType)) -> Json
 fn resolved_type_to_json(rt: &crate::types::ResolvedType) -> Json {
     use crate::types::ResolvedType;
     match rt {
-        ResolvedType::Prim(name) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("prim".to_string()));
-            m.insert("name".to_string(), Json::String(name.clone()));
-            Json::Object(m)
-        }
-        ResolvedType::Array(t) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("array".to_string()));
-            m.insert("element".to_string(), resolved_type_to_json(t));
-            Json::Object(m)
-        }
-        ResolvedType::Record(fields) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("record".to_string()));
-            m.insert(
-                "fields".to_string(),
+        ResolvedType::Prim(name) => Json::object([
+            ("kind", Json::string("prim")),
+            ("name", Json::string(name.clone())),
+        ]),
+        ResolvedType::Array(t) => Json::object([
+            ("kind", Json::string("array")),
+            ("element", resolved_type_to_json(t)),
+        ]),
+        ResolvedType::Record(fields) => Json::object([
+            ("kind", Json::string("record")),
+            (
+                "fields",
                 Json::Array(
                     fields
                         .iter()
                         .map(|(n, t)| {
-                            let mut fm = JsonMap::new();
-                            fm.insert("name".to_string(), Json::String(n.clone()));
-                            fm.insert("type".to_string(), resolved_type_to_json(t));
-                            Json::Object(fm)
+                            Json::object([
+                                ("name", Json::string(n.clone())),
+                                ("type", resolved_type_to_json(t)),
+                            ])
                         })
                         .collect(),
                 ),
-            );
-            Json::Object(m)
-        }
-        ResolvedType::Union(arms) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("union".to_string()));
-            m.insert(
-                "arms".to_string(),
+            ),
+        ]),
+        ResolvedType::Union(arms) => Json::object([
+            ("kind", Json::string("union")),
+            (
+                "arms",
                 Json::Array(
                     arms.iter()
                         .map(|(n, mt)| {
-                            let mut am = JsonMap::new();
+                            let mut am = BTreeMap::new();
                             am.insert("name".to_string(), Json::String(n.clone()));
                             if let Some(t) = mt {
                                 am.insert("payload".to_string(), resolved_type_to_json(t));
@@ -426,24 +526,16 @@ fn resolved_type_to_json(rt: &crate::types::ResolvedType) -> Json {
                         })
                         .collect(),
                 ),
-            );
-            Json::Object(m)
-        }
-        ResolvedType::Ref(_, _, _) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("ref".to_string()));
-            m.insert("id".to_string(), Json::String(crate::types::canonical_id(rt)));
-            Json::Object(m)
-        }
-        ResolvedType::Var(path) => {
-            let mut m = JsonMap::new();
-            m.insert("kind".to_string(), Json::String("var".to_string()));
-            m.insert(
-                "path".to_string(),
-                Json::Array(path.iter().map(|s| Json::String(s.clone())).collect()),
-            );
-            Json::Object(m)
-        }
+            ),
+        ]),
+        ResolvedType::Ref(_, _, _) => Json::object([
+            ("kind", Json::string("ref")),
+            ("id", Json::string(crate::types::canonical_id(rt))),
+        ]),
+        ResolvedType::Var(path) => Json::object([
+            ("kind", Json::string("var")),
+            ("path", strings_to_json(path)),
+        ]),
     }
 }
 
@@ -453,43 +545,40 @@ fn resolved_type_to_json(rt: &crate::types::ResolvedType) -> Json {
 /// argument as the plain JSON it already is.
 fn type_constraint_to_json((name, args): &(String, Vec<crate::types::ResolvedConstraintArg>)) -> Json {
     use crate::types::ResolvedConstraintArg;
-    let mut m = JsonMap::new();
-    m.insert("name".to_string(), Json::String(name.clone()));
-    m.insert(
-        "arguments".to_string(),
-        Json::Array(
-            args.iter()
-                .map(|a| match a {
-                    ResolvedConstraintArg::Type(rt) => {
-                        let mut am = JsonMap::new();
-                        am.insert("$type".to_string(), Json::String(crate::types::canonical_id(rt)));
-                        Json::Object(am)
-                    }
-                    ResolvedConstraintArg::ScalarStr(s) => Json::String(s.clone()),
-                    ResolvedConstraintArg::ScalarNum(n) => number_to_json(*n),
-                    ResolvedConstraintArg::ScalarBool(b) => Json::Bool(*b),
-                    ResolvedConstraintArg::ScalarNull => Json::Null,
-                })
-                .collect(),
+    Json::object([
+        ("name", Json::string(name.clone())),
+        (
+            "arguments",
+            Json::Array(
+                args.iter()
+                    .map(|a| match a {
+                        ResolvedConstraintArg::Type(rt) => {
+                            Json::object([("$type", Json::string(crate::types::canonical_id(rt)))])
+                        }
+                        ResolvedConstraintArg::ScalarStr(s) => Json::String(s.clone()),
+                        ResolvedConstraintArg::ScalarInt(n) => Json::Int(*n),
+                        ResolvedConstraintArg::ScalarFloat(n) => Json::Float(*n),
+                        ResolvedConstraintArg::ScalarBool(b) => Json::Bool(*b),
+                        ResolvedConstraintArg::ScalarNull => Json::Null,
+                    })
+                    .collect(),
+            ),
         ),
-    );
-    Json::Object(m)
+    ])
 }
 
 /// A constraint's envelope rendering (v3-symbols §5.2): its name and its
 /// arguments, each already-evaluated to plain JSON, an argument that is
-/// itself a symbol rendering as §5.3's tagged shape via `to_json`.
+/// itself a symbol or a term rendering as §5.3's tagged shape via `to_json`.
 fn constraint_to_json(v: &Value) -> Json {
     match v {
-        Value::Constraint(name, args) => {
-            let mut m = JsonMap::new();
-            m.insert("name".to_string(), Json::String(name.clone()));
-            m.insert(
-                "arguments".to_string(),
+        Value::Constraint(name, args) => Json::object([
+            ("name", Json::string(name.clone())),
+            (
+                "arguments",
                 Json::Array(args.iter().map(|a| to_json(a).unwrap_or(Json::Null)).collect()),
-            );
-            Json::Object(m)
-        }
+            ),
+        ]),
         other => to_json(other).unwrap_or(Json::Null),
     }
 }
@@ -498,44 +587,44 @@ fn constraint_to_json(v: &Value) -> Json {
 /// (the structured form of the id, so a host never has to parse it) and
 /// binding.
 fn symbol_entry_to_json(e: &SymbolEntry) -> Json {
-    let mut m = JsonMap::new();
-    m.insert("id".to_string(), Json::String(e.id.clone()));
     let origin = match &e.origin {
-        SymbolOrigin::Alloc(site, key) => {
-            let mut om = JsonMap::new();
-            om.insert("kind".to_string(), Json::String("alloc".to_string()));
-            om.insert("site".to_string(), Json::Number(JsonNumber::from(*site as u64)));
-            om.insert("key".to_string(), key.clone());
-            Json::Object(om)
-        }
-        SymbolOrigin::Demand(path) => {
-            let mut om = JsonMap::new();
-            om.insert("kind".to_string(), Json::String("demand".to_string()));
-            om.insert(
-                "path".to_string(),
-                Json::Array(path.iter().map(|s| Json::String(s.clone())).collect()),
-            );
-            Json::Object(om)
-        }
+        SymbolOrigin::Alloc(site, key) => Json::object([
+            ("kind", Json::string("alloc")),
+            ("site", Json::Int(*site as i64)),
+            ("key", key.clone()),
+        ]),
+        SymbolOrigin::Demand(path) => Json::object([
+            ("kind", Json::string("demand")),
+            ("path", strings_to_json(path)),
+        ]),
     };
-    m.insert("origin".to_string(), origin);
-    m.insert(
-        "binding".to_string(),
-        e.binding.clone().map(Json::String).unwrap_or(Json::Null),
-    );
-    Json::Object(m)
+    Json::object([
+        ("id", Json::string(e.id.clone())),
+        ("origin", origin),
+        (
+            "binding",
+            e.binding.clone().map(Json::String).unwrap_or(Json::Null),
+        ),
+    ])
 }
 
-fn initial_env(ctx_val: Value) -> Env {
+/// `$ctx` and the builtins. The arithmetic names are bound only with the
+/// arithmetic profile on (`reference.md` §11); without it they are ordinary
+/// unbound names.
+fn initial_env(arithmetic: bool, ctx_val: Value) -> Env {
+    let arithmetic_names: &[&str] = if arithmetic { ARITHMETIC_NAMES } else { &[] };
     let mut env: Env = builtin_names()
         .iter()
+        .chain(arithmetic_names)
         .map(|n| (n.to_string(), Value::Builtin(n.to_string())))
         .collect();
     env.insert("ctx".to_string(), ctx_val);
     env
 }
 
-fn builtin_names() -> &'static [&'static str] {
+/// The fixed builtin vocabulary of every profile; the arithmetic profile
+/// adds `analysis::ARITHMETIC_NAMES` to it.
+pub fn builtin_names() -> &'static [&'static str] {
     &[
         "cardinality",
         "count",
@@ -552,6 +641,7 @@ fn builtin_names() -> &'static [&'static str] {
         "lookup",
         "concat",
         "append",
+        "format-number",
     ]
 }
 
@@ -593,7 +683,8 @@ fn eval_expr(ctx: &EvalCtx, env: &Env, e: &Expr) -> EResult<Value> {
             eval_expr(ctx, &env2, body)
         }
         Expr::StringLit(s) => Ok(Value::Str(s.clone())),
-        Expr::NumberLit(n) => Ok(Value::Number(*n)),
+        Expr::IntLit(n) => Ok(Value::Int(*n)),
+        Expr::FloatLit(n) => Ok(Value::Float(*n)),
         Expr::BoolLit(b) => Ok(Value::Bool(*b)),
         Expr::NullLit => Ok(Value::Null),
         Expr::ArrayLit(elems) => Ok(Value::Array(
@@ -673,6 +764,27 @@ fn eval_expr(ctx: &EvalCtx, env: &Env, e: &Expr) -> EResult<Value> {
                 acc = apply(ctx, "fold", fn_val.clone(), vec![acc, item])?;
             }
             Ok(acc)
+        }
+        // reference.md §11, *Sorting*. The checks come in the order the
+        // reference gives them: the collection, the function, then, element
+        // by element in index order, the application and the key it gave.
+        // Only then is anything reordered, so the key function runs exactly
+        // once per element.
+        Expr::SortBy(descending, coll_expr, fn_expr) => {
+            let who = if *descending { "sort-by-descending" } else { "sort-by" };
+            let items = eval_collection(ctx, env, who, coll_expr)?;
+            let fn_val = eval_expr(ctx, env, fn_expr)?;
+            let mut keyed = sort_keys(ctx, who, fn_val, items)?;
+            // `sort_by` is stable, and so is the one with the comparison
+            // turned round: elements whose keys are equal keep their input
+            // order under both names, which makes the descending sort
+            // something other than the reversal of the ascending one.
+            if *descending {
+                keyed.sort_by(|(a, _), (b, _)| b.order(a));
+            } else {
+                keyed.sort_by(|(a, _), (b, _)| a.order(b));
+            }
+            Ok(Value::Array(keyed.into_iter().map(|(_, item)| item).collect()))
         }
         Expr::Concat(l, r) => {
             let lv = eval_expr(ctx, env, l)?;
@@ -871,7 +983,7 @@ fn collect_constraints(v: Value) -> EResult<Vec<Value>> {
 /// `str` renders raw and this quotes — the difference that makes it
 /// injective.
 fn canon(v: &Json) -> String {
-    compact_json(v)
+    json::stringify(v)
 }
 
 fn describe_callee(e: &Expr) -> String {
@@ -972,7 +1084,7 @@ fn apply(ctx: &EvalCtx, who: &str, f: Value, args: Vec<Value>) -> EResult<Value>
 fn eval_collection(ctx: &EvalCtx, env: &Env, who: &str, e: &Expr) -> EResult<Vec<Value>> {
     match eval_expr(ctx, env, e)? {
         Value::Array(xs) => Ok(xs),
-        Value::Symbol(_, _) => Err(EvalError::NotConcrete(who.to_string())),
+        Value::Symbol(_, _) | Value::Term(_, _) => Err(EvalError::NotConcrete(who.to_string())),
         other => Err(EvalError::TypeMismatch(format!(
             "{who} expects an array as its first argument, got {}",
             describe_value(&other)
@@ -980,14 +1092,83 @@ fn eval_collection(ctx: &EvalCtx, env: &Env, who: &str, e: &Expr) -> EResult<Vec
     }
 }
 
+// Sorting (reference.md §11) ------------------------------------------------
+
+/// What a sort orders by. The keys of one call are all of one variant, which
+/// `sort_keys` checks, so `order` only ever compares two integers, two
+/// floats or two strings.
+enum SortKey {
+    Int(i64),
+    Float(f64),
+    Str(String),
+}
+
+impl SortKey {
+    fn of(who: &str, v: Value) -> EResult<SortKey> {
+        match v {
+            Value::Int(n) => Ok(SortKey::Int(n)),
+            Value::Float(d) => Ok(SortKey::Float(d)),
+            Value::Str(s) => Ok(SortKey::Str(s)),
+            other if is_symbolic(&other) => Err(EvalError::NotConcrete(who.to_string())),
+            other => Err(EvalError::TypeMismatch(format!(
+                "{who} expects a key that is an integer, a float or a string, got {}",
+                describe_value(&other)
+            ))),
+        }
+    }
+
+    fn describe(&self) -> &'static str {
+        match self {
+            SortKey::Int(_) => "an integer",
+            SortKey::Float(_) => "a float",
+            SortKey::Str(_) => "a string",
+        }
+    }
+
+    /// A float key is never a NaN and never a negative zero (§3), so two
+    /// floats always have an order. A `String` is UTF-8 and compares by
+    /// byte, which is the order of the code points, not of UTF-16 units.
+    fn order(&self, other: &SortKey) -> std::cmp::Ordering {
+        match (self, other) {
+            (SortKey::Int(a), SortKey::Int(b)) => a.cmp(b),
+            (SortKey::Float(a), SortKey::Float(b)) => a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal),
+            (SortKey::Str(a), SortKey::Str(b)) => a.as_bytes().cmp(b.as_bytes()),
+            _ => std::cmp::Ordering::Equal,
+        }
+    }
+}
+
+/// Each element with its key: the key function is applied once per element,
+/// in index order, and each key is checked as soon as it is known, so the
+/// first element whose application or key fails decides the error. A symbol
+/// or a term as a key is `NotConcrete`; a value of a kind that is never a
+/// key, or of another type than the first key, is a `TypeMismatch`.
+fn sort_keys(ctx: &EvalCtx, who: &str, fn_val: Value, items: Vec<Value>) -> EResult<Vec<(SortKey, Value)>> {
+    let mut keyed: Vec<(SortKey, Value)> = Vec::with_capacity(items.len());
+    for item in items {
+        let key = SortKey::of(who, apply(ctx, who, fn_val.clone(), vec![item.clone()])?)?;
+        if let Some((first, _)) = keyed.first() {
+            if std::mem::discriminant(first) != std::mem::discriminant(&key) {
+                return Err(EvalError::TypeMismatch(format!(
+                    "{who} expects keys of one type, got {} and then {}",
+                    first.describe(),
+                    key.describe()
+                )));
+            }
+        }
+        keyed.push((key, item));
+    }
+    Ok(keyed)
+}
+
 // Concat -----------------------------------------------------------------
 
 /// The monoid operation over the three types that have one. Either side
-/// being a symbol is `NotConcrete` (v3-symbols §1.5), ahead of the generic
-/// mismatch: the spine of a concatenation must be known, unlike an element
-/// it might merely carry.
+/// being a symbol or a term is `NotConcrete` (v3-symbols §1.5, §1.9), ahead
+/// of the generic mismatch: the spine of a concatenation must be known,
+/// unlike an element it might merely carry.
 fn concat_values(l: Value, r: Value) -> EResult<Value> {
-    if matches!(l, Value::Symbol(_, _)) || matches!(r, Value::Symbol(_, _)) {
+    if is_symbolic(&l) || is_symbolic(&r) {
         return Err(EvalError::NotConcrete("<>".to_string()));
     }
     match (l, r) {
@@ -1039,7 +1220,7 @@ fn run_library(ctx: &EvalCtx, name: &str, ctx_val: Value) -> EResult<Value> {
     let ctx2 = enter_library(name, ctx);
     let run = || -> EResult<Value> {
         let (statements, root) = crate::ast::unlets(prog.root());
-        let mut lib_env = initial_env(ctx_val.clone());
+        let mut lib_env = initial_env(ctx.arithmetic, ctx_val.clone());
         let mut binding_names = Vec::new();
         for stmt in &statements {
             match stmt {
@@ -1216,6 +1397,9 @@ fn walk_fields(ctx: &EvalCtx, context: &[String], v: Value, fields: &[String]) -
             p2.extend(fields.iter().cloned());
             Ok(Value::Symbol(sid, p2))
         }
+        // A term has no projection (v3-symbols §1.9): it stands for a
+        // number, and a number has no fields, so it gets the `TypeMismatch`
+        // a number gets.
         other => Err(EvalError::TypeMismatch(format!(
             "cannot read field {field:?} of {} in path {:?}",
             describe_value(&other),
@@ -1231,13 +1415,14 @@ fn to_json(v: &Value) -> EResult<Json> {
     match v {
         Value::Null => Ok(Json::Null),
         Value::Bool(b) => Ok(Json::Bool(*b)),
-        Value::Number(n) => Ok(number_to_json(*n)),
+        Value::Int(n) => Ok(Json::Int(*n)),
+        Value::Float(n) => Ok(Json::Float(*n)),
         Value::Str(s) => Ok(Json::String(s.clone())),
         Value::Array(xs) => Ok(Json::Array(
             xs.iter().map(to_json).collect::<EResult<Vec<_>>>()?,
         )),
         Value::Object(o) => {
-            let mut m = JsonMap::new();
+            let mut m = BTreeMap::new();
             for (k, v) in o {
                 m.insert(k.clone(), to_json(v)?);
             }
@@ -1264,39 +1449,54 @@ fn to_json(v: &Value) -> EResult<Json> {
         // text child (v3-symbols §1.5), so this always succeeds — it is
         // `require_concrete` that refuses one, for the handful of forms
         // that need to. §5.3's tagged shape: both fields required.
-        Value::Symbol(sid, path) => {
-            let mut m = JsonMap::new();
-            m.insert("$sym".to_string(), Json::String(sid.clone()));
-            m.insert(
-                "path".to_string(),
-                Json::Array(path.iter().map(|s| Json::String(s.clone())).collect()),
-            );
-            Ok(Json::Object(m))
-        }
+        Value::Symbol(sid, path) => Ok(Json::object([
+            ("$sym", Json::String(sid.clone())),
+            ("path", strings_to_json(path)),
+        ])),
+        // A term crosses wherever a symbol does, as §5.3's other tagged
+        // shape. Its operands are numbers, symbols and terms, so they
+        // always cross, and each number keeps its type (`1` and `1.0` stay
+        // distinct), which the residual law depends on.
+        Value::Term(op, operands) => Ok(Json::object([
+            ("$term", Json::String(op.clone())),
+            (
+                "arguments",
+                Json::Array(operands.iter().map(to_json).collect::<EResult<Vec<_>>>()?),
+            ),
+        ])),
         Value::Constraint(name, _) => Err(EvalError::TypeMismatch(format!(
             "a constraint ({name:?}) cannot cross a JSON boundary -- only \"!\" may consume it"
         ))),
     }
 }
 
-/// Whether a value is, or contains, a symbol — what makes a value
+/// Whether a value is itself a symbol or a term (v3-symbols §1.9), which is
+/// the depth at which a container, a collection, a condition or an operand
+/// is refused: a concrete structure that merely holds one is not special
+/// (§1.7). `contains_symbol` is the other depth.
+fn is_symbolic(v: &Value) -> bool {
+    matches!(v, Value::Symbol(_, _) | Value::Term(_, _))
+}
+
+/// Whether a value is, or contains, a symbol or a term — what makes a value
 /// concrete's negation (v3-symbols §1.5, §1.7): a structure built of
-/// concrete pieces is itself concrete; only a symbol itself, wherever it
-/// sits, makes the whole not concrete.
+/// concrete pieces is itself concrete; only a symbol or a term itself,
+/// wherever it sits, makes the whole not concrete.
 fn contains_symbol(v: &Value) -> bool {
     match v {
-        Value::Symbol(_, _) => true,
+        Value::Symbol(_, _) | Value::Term(_, _) => true,
         Value::Array(xs) => xs.iter().any(contains_symbol),
         Value::Object(o) => o.values().any(contains_symbol),
         _ => false,
     }
 }
 
-/// Requires a value with no symbol anywhere in it, for the handful of
-/// operations §1.5 lists as needing to *know* something about their
-/// argument rather than merely carry it: `str`, `eq`, and an allocation
-/// key. Everything else about crossing a JSON boundary is `to_json`'s
-/// ordinary business, which this defers to once a symbol is ruled out.
+/// Requires a value with no symbol and no term anywhere in it, for the
+/// handful of operations §1.5 lists as needing to *know* something about
+/// their argument rather than merely carry it: `str`, `eq`, and an
+/// allocation key. Everything else about crossing a JSON boundary is
+/// `to_json`'s ordinary business, which this defers to once a symbol is
+/// ruled out.
 fn require_concrete(who: &str, v: &Value) -> EResult<Json> {
     if contains_symbol(v) {
         Err(EvalError::NotConcrete(who.to_string()))
@@ -1305,30 +1505,16 @@ fn require_concrete(who: &str, v: &Value) -> EResult<Json> {
     }
 }
 
-/// serde_json's `Number` carries its integer-vs-float representation
-/// through equality (`Number::from(2u64) != Number::from_f64(2.0)`), and
-/// `expected.json`'s literal `2` parses as the integer variant — so a whole
-/// double must round-trip to the same variant `serde_json` itself would
-/// have parsed, not always the float one.
-fn number_to_json(n: f64) -> Json {
-    if n.is_finite() && n.fract() == 0.0 && n.abs() < 9e18 {
-        if n >= 0.0 {
-            Json::Number(JsonNumber::from(n as u64))
-        } else {
-            Json::Number(JsonNumber::from(n as i64))
-        }
-    } else {
-        JsonNumber::from_f64(n)
-            .map(Json::Number)
-            .unwrap_or(Json::Null)
-    }
-}
-
+/// A JSON value this evaluator produced, back as a `Value`, so its numbers
+/// are already values: nothing is checked. The context goes through
+/// `checked_from_json` instead. An `Unrepresentable` cannot occur in what
+/// the evaluator produced; it reads as `null`.
 fn from_json(v: &Json) -> Value {
     match v {
-        Json::Null => Value::Null,
+        Json::Null | Json::Unrepresentable(_) => Value::Null,
         Json::Bool(b) => Value::Bool(*b),
-        Json::Number(n) => Value::Number(n.as_f64().unwrap_or(0.0)),
+        Json::Int(n) => Value::Int(*n),
+        Json::Float(n) => Value::Float(*n),
         Json::String(s) => Value::Str(s.clone()),
         Json::Array(a) => Value::Array(a.iter().map(from_json).collect()),
         Json::Object(o) => {
@@ -1337,21 +1523,34 @@ fn from_json(v: &Json) -> Value {
     }
 }
 
-/// The input context's boundary: as `from_json`, but recursively refusing
-/// `"$sym"` and `"$type"` as ordinary object keys (v3-symbols §5.3). In
-/// concrete mode either key is refused unconditionally. In symbolic mode,
-/// seeding (§5.4) accepts a well-formed `{"$sym": ..., "path": [...]}` back
-/// as an actual symbol — anything else carrying `"$sym"`, or `"$type"` at
-/// all, is still refused.
-fn checked_from_json(mode: Mode, v: &Json) -> EResult<Value> {
+/// The input context's boundary. It is decoded whole, before evaluation
+/// starts, so what it refuses does not depend on what the program reads, and
+/// every refusal is a `TypeMismatch`.
+///
+/// Numbers first (`reference.md` §3): a JSON number is read as the literal
+/// of the same text, so `3` is an integer and `3.0` a float, and one the
+/// value domain does not hold is refused or normalized by
+/// `json::normalize_numbers`, which lists the cases.
+///
+/// Then the reserved keys: `"$sym"`, `"$type"` and `"$term"` are recursively
+/// refused as ordinary object keys (v3-symbols §5.3), in every profile. In
+/// concrete mode each is refused unconditionally. In symbolic mode, seeding
+/// (§5.4) accepts a well-formed `{"$sym": ..., "path": [...]}` back as an
+/// actual symbol and, with the arithmetic profile on, a well-formed term
+/// back as an actual term — anything else carrying `"$sym"` or `"$term"`, or
+/// `"$type"` at all, is still refused.
+fn checked_from_json(options: &Options, v: &Json) -> EResult<Value> {
+    let normalized = json::normalize_numbers(v).map_err(|why| {
+        EvalError::TypeMismatch(format!("the context holds a number that is not a value: {why}"))
+    })?;
+    decode_context(options, &normalized)
+}
+
+fn decode_context(options: &Options, v: &Json) -> EResult<Value> {
     match v {
-        Json::Null => Ok(Value::Null),
-        Json::Bool(b) => Ok(Value::Bool(*b)),
-        Json::Number(n) => Ok(Value::Number(n.as_f64().unwrap_or(0.0))),
-        Json::String(s) => Ok(Value::Str(s.clone())),
         Json::Array(a) => Ok(Value::Array(
             a.iter()
-                .map(|x| checked_from_json(mode, x))
+                .map(|x| decode_context(options, x))
                 .collect::<EResult<Vec<_>>>()?,
         )),
         Json::Object(o) => {
@@ -1362,7 +1561,7 @@ fn checked_from_json(mode: Mode, v: &Json) -> EResult<Value> {
                 ));
             }
             if let Some(sym_val) = o.get("$sym") {
-                return match mode {
+                return match options.mode {
                     Mode::Concrete => Err(EvalError::TypeMismatch(
                         "the context carries the reserved key \"$sym\", which only a symbolic envelope may use"
                             .to_string(),
@@ -1370,19 +1569,29 @@ fn checked_from_json(mode: Mode, v: &Json) -> EResult<Value> {
                     Mode::Symbolic => decode_symbol_ref(sym_val, o),
                 };
             }
+            if let Some(op_val) = o.get("$term") {
+                return match options.mode {
+                    Mode::Concrete => Err(EvalError::TypeMismatch(
+                        "the context carries the reserved key \"$term\", which only a symbolic envelope may use"
+                            .to_string(),
+                    )),
+                    Mode::Symbolic => decode_term(options, op_val, o),
+                };
+            }
             let mut m = HashMap::new();
             for (k, v) in o {
-                m.insert(k.clone(), checked_from_json(mode, v)?);
+                m.insert(k.clone(), decode_context(options, v)?);
             }
             Ok(Value::Object(m))
         }
+        scalar => Ok(from_json(scalar)),
     }
 }
 
 /// Decodes a `{"$sym": <id>, "path": [<segment>, ...]}` object back into a
 /// `Value::Symbol` (v3-symbols §5.4). Both fields are required, and no
 /// other key may be present.
-fn decode_symbol_ref(sym_val: &Json, obj: &JsonMap<String, Json>) -> EResult<Value> {
+fn decode_symbol_ref(sym_val: &Json, obj: &BTreeMap<String, Json>) -> EResult<Value> {
     let bad_shape = || {
         EvalError::TypeMismatch(
             "a \"$sym\" object must be exactly {\"$sym\": <id>, \"path\": [<segment>, ...]}".to_string(),
@@ -1411,11 +1620,61 @@ fn decode_symbol_ref(sym_val: &Json, obj: &JsonMap<String, Json>) -> EResult<Val
     Ok(Value::Symbol(sid, path))
 }
 
+/// Decodes a `{"$term": <op>, "arguments": [<argument>, ...]}` object back
+/// into a `Value::Term` (v3-symbols §5.3, §5.4).
+///
+/// A well-formed term is one a call could have built, so this is the call's
+/// own check, `arithmetic_operands`, on arguments already decoded, which
+/// holds a nested term to the same rule. Two things a call accepts are
+/// refused first: an array, since a term holds its operands already
+/// flattened, and operands that are all numbers, since the call would have
+/// computed. Without the arithmetic profile no `op` is known, so every term
+/// is refused.
+fn decode_term(options: &Options, op_val: &Json, obj: &BTreeMap<String, Json>) -> EResult<Value> {
+    let (op, arg_jsons) = match (op_val, obj.get("arguments")) {
+        (Json::String(op), Some(Json::Array(args))) if obj.len() == 2 => (op, args),
+        _ => {
+            return Err(EvalError::TypeMismatch(
+                "a \"$term\" object must be exactly {\"$term\": <op>, \"arguments\": [<argument>, ...]}"
+                    .to_string(),
+            ))
+        }
+    };
+    let args = arg_jsons
+        .iter()
+        .map(|a| decode_context(options, a))
+        .collect::<EResult<Vec<_>>>()?;
+    if !options.arithmetic {
+        return Err(EvalError::TypeMismatch(format!(
+            "the context carries a term ({op:?}), which needs the arithmetic profile"
+        )));
+    }
+    if !ARITHMETIC_NAMES.contains(&op.as_str()) {
+        return Err(EvalError::TypeMismatch(format!(
+            "a term names an unknown operation: {op:?}"
+        )));
+    }
+    if args.iter().any(|a| matches!(a, Value::Array(_))) {
+        return Err(EvalError::TypeMismatch(format!(
+            "a term ({op:?}) holds its operands flattened, not in an array"
+        )));
+    }
+    let operands = arithmetic_operands(op, args)?;
+    if operands.iter().any(is_symbolic) {
+        Ok(Value::Term(op.clone(), operands))
+    } else {
+        Err(EvalError::TypeMismatch(format!(
+            "a term ({op:?}) must hold a symbol or a term among its arguments"
+        )))
+    }
+}
+
 fn describe_value(v: &Value) -> String {
     match v {
         Value::Null => "null".to_string(),
         Value::Bool(_) => "a boolean".to_string(),
-        Value::Number(_) => "a number".to_string(),
+        Value::Int(_) => "an integer".to_string(),
+        Value::Float(_) => "a float".to_string(),
         Value::Str(_) => "a string".to_string(),
         Value::Array(_) => "an array".to_string(),
         Value::Object(_) => "an object".to_string(),
@@ -1426,6 +1685,7 @@ fn describe_value(v: &Value) -> String {
         Value::Import(pending) => format!("the not-yet-run import of {:?}", pending.name),
         Value::Symbol(_, _) => "a symbol".to_string(),
         Value::Constraint(name, _) => format!("a constraint ({name:?})"),
+        Value::Term(op, _) => format!("a term ({op:?})"),
     }
 }
 
@@ -1434,7 +1694,7 @@ fn describe_value(v: &Value) -> String {
 fn require_bool(who: &str, v: Value) -> EResult<bool> {
     match v {
         Value::Bool(b) => Ok(b),
-        Value::Symbol(_, _) => Err(EvalError::NotConcrete(who.to_string())),
+        Value::Symbol(_, _) | Value::Term(_, _) => Err(EvalError::NotConcrete(who.to_string())),
         other => Err(EvalError::TypeMismatch(format!(
             "{who} must be a boolean, got {}",
             describe_value(&other)
@@ -1457,9 +1717,9 @@ fn eval_builtin(name: &str, args: Vec<Value>) -> EResult<Value> {
                 return Err(arity_err(1));
             }
             match &args[0] {
-                Value::Array(xs) => Ok(Value::Number(xs.len() as f64)),
-                Value::Object(o) => Ok(Value::Number(o.len() as f64)),
-                Value::Symbol(_, _) => Err(EvalError::NotConcrete(name.to_string())),
+                Value::Array(xs) => Ok(Value::Int(xs.len() as i64)),
+                Value::Object(o) => Ok(Value::Int(o.len() as i64)),
+                Value::Symbol(_, _) | Value::Term(_, _) => Err(EvalError::NotConcrete(name.to_string())),
                 other => Err(EvalError::TypeMismatch(format!(
                     "{name} expects an array or object, got {}",
                     describe_value(other)
@@ -1493,6 +1753,9 @@ fn eval_builtin(name: &str, args: Vec<Value>) -> EResult<Value> {
             }
             Ok(Value::Bool(acc))
         }
+        // No coercion across types: `Json` equality never equates an
+        // integer with a float, so `eq(1, 1.0)` is `false`, like
+        // `eq(1, "1")`.
         "eq" => {
             if args.len() != 2 {
                 return Err(arity_err(2));
@@ -1505,13 +1768,12 @@ fn eval_builtin(name: &str, args: Vec<Value>) -> EResult<Value> {
             if args.len() != 2 {
                 return Err(arity_err(2));
             }
-            let a = as_number(name, &args[0])?;
-            let b = as_number(name, &args[1])?;
+            let ord = compare_numbers(name, &args[0], &args[1])?;
             let r = match name {
-                "lt" => a < b,
-                "lte" => a <= b,
-                "gt" => a > b,
-                _ => a >= b,
+                "lt" => ord.is_lt(),
+                "lte" => ord.is_le(),
+                "gt" => ord.is_gt(),
+                _ => ord.is_ge(),
             };
             Ok(Value::Bool(r))
         }
@@ -1542,6 +1804,13 @@ fn eval_builtin(name: &str, args: Vec<Value>) -> EResult<Value> {
             xs.push(args[1].clone());
             Ok(Value::Array(xs))
         }
+        "format-number" => {
+            if args.len() != 3 {
+                return Err(arity_err(3));
+            }
+            format_number_impl(name, &args[0], &args[1], &args[2])
+        }
+        _ if ARITHMETIC_NAMES.contains(&name) => arithmetic(name, args),
         _ => Err(EvalError::UnboundName(name.to_string())),
     }
 }
@@ -1556,13 +1825,34 @@ fn as_bool(name: &str, v: &Value) -> EResult<bool> {
     }
 }
 
-fn as_number(name: &str, v: &Value) -> EResult<f64> {
+/// A number operand of a comparison, returned as it is so that its type is
+/// still there to check. A symbol or a term is `NotConcrete` (v3-symbols
+/// §1.5).
+fn as_number<'a>(name: &str, v: &'a Value) -> EResult<&'a Value> {
     match v {
-        Value::Number(n) => Ok(*n),
-        Value::Symbol(_, _) => Err(EvalError::NotConcrete(name.to_string())),
+        Value::Int(_) | Value::Float(_) => Ok(v),
+        Value::Symbol(_, _) | Value::Term(_, _) => Err(EvalError::NotConcrete(name.to_string())),
         other => Err(EvalError::TypeMismatch(format!(
             "{name} expects a number argument, got {}",
             describe_value(other)
+        ))),
+    }
+}
+
+/// Two integers or two floats (`reference.md` §11). A mixed pair is a
+/// `TypeMismatch` like any other pair of two types: nothing is promoted, so
+/// `gt(1.5, 0)` is written `gt(1.5, 0.0)`. Each pair is compared in its own
+/// domain; a float is never a NaN (§3), so two floats always have an order.
+fn compare_numbers(name: &str, a: &Value, b: &Value) -> EResult<std::cmp::Ordering> {
+    let na = as_number(name, a)?;
+    let nb = as_number(name, b)?;
+    match (na, nb) {
+        (Value::Int(x), Value::Int(y)) => Ok(x.cmp(y)),
+        (Value::Float(x), Value::Float(y)) => Ok(x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)),
+        _ => Err(EvalError::TypeMismatch(format!(
+            "{name} expects two integers or two floats, got {} and {}",
+            describe_value(na),
+            describe_value(nb)
         ))),
     }
 }
@@ -1577,11 +1867,13 @@ fn as_array(name: &str, v: &Value) -> EResult<Vec<Value>> {
     }
 }
 
-fn as_index(n: f64) -> Option<usize> {
-    if n.is_finite() && n >= 0.0 && n.fract() == 0.0 {
-        Some(n as usize)
-    } else {
-        None
+/// An index must be a non-negative integer: `-1` is not an index, and
+/// neither is a float, `1.0` included, since nothing converts a float into
+/// an integer here.
+fn as_index(v: &Value) -> Option<usize> {
+    match v {
+        Value::Int(n) => usize::try_from(*n).ok(),
+        _ => None,
     }
 }
 
@@ -1591,12 +1883,12 @@ fn as_index(n: f64) -> Option<usize> {
 /// (v3-symbols §1.5): the tolerant `false` would claim to know something
 /// about a container the language cannot see into.
 fn has_impl(name: &str, container: &Value, key: &Value) -> EResult<bool> {
-    if let Value::Symbol(_, _) = container {
+    if is_symbolic(container) {
         return Err(EvalError::NotConcrete(name.to_string()));
     }
     Ok(match (container, key) {
         (Value::Object(o), Value::Str(k)) => o.contains_key(k),
-        (Value::Array(xs), Value::Number(n)) => as_index(*n).is_some_and(|i| i < xs.len()),
+        (Value::Array(xs), key) => as_index(key).is_some_and(|i| i < xs.len()),
         _ => false,
     })
 }
@@ -1605,115 +1897,443 @@ fn has_impl(name: &str, container: &Value, key: &Value) -> EResult<bool> {
 /// fallback value, which would silently discard the symbol (v3-symbols
 /// §1.5).
 fn lookup_impl(name: &str, container: &Value, key: &Value, fallback: Value) -> EResult<Value> {
-    if let Value::Symbol(_, _) = container {
+    if is_symbolic(container) {
         return Err(EvalError::NotConcrete(name.to_string()));
     }
     Ok(match (container, key) {
         (Value::Object(o), Value::Str(k)) => o.get(k).cloned().unwrap_or(fallback),
-        (Value::Array(xs), Value::Number(n)) => as_index(*n)
+        (Value::Array(xs), key) => as_index(key)
             .and_then(|i| xs.get(i).cloned())
             .unwrap_or(fallback),
         _ => fallback,
     })
 }
 
+// Arithmetic (reference.md §11) -------------------------------------------------
+
+/// One of the arithmetic builtins, applied. Operands that are all numbers
+/// compute; if one is a symbol or a term the result is a term holding the
+/// flattened operands exactly as written (v3-symbols §1.9). Every operand is
+/// checked before either happens, so a `TypeMismatch` takes precedence over
+/// a `NotRepresentable`.
+fn arithmetic(name: &str, args: Vec<Value>) -> EResult<Value> {
+    let operands = arithmetic_operands(name, args)?;
+    if operands.iter().any(is_symbolic) {
+        Ok(Value::Term(name.to_string(), operands))
+    } else {
+        compute(name, &operands)
+    }
+}
+
+/// An array contributes each of its elements, recursively, in order: the
+/// rule children use (`reference.md` §6).
+fn flatten_operands(args: Vec<Value>, out: &mut Vec<Value>) {
+    for a in args {
+        match a {
+            Value::Array(xs) => flatten_operands(xs, out),
+            other => out.push(other),
+        }
+    }
+}
+
+/// The operands of a call, checked as far as they can be without knowing
+/// what a symbol stands for; every refusal is a `TypeMismatch`.
+///
+/// * `sum` and `product` flatten their arguments. They need at least one
+///   operand afterwards. The eight others take a fixed count and do not
+///   flatten, so an array given to one is refused whatever it holds.
+/// * Each operand is a number, a symbol or a term. A symbol or a term stands
+///   for one number of either type and is not looked into.
+/// * The operands that are numbers agree with each other in type and with
+///   what the builtin accepts. Nothing is converted or promoted.
+fn arithmetic_operands(name: &str, args: Vec<Value>) -> EResult<Vec<Value>> {
+    let operands = if matches!(name, "sum" | "product") {
+        let mut flat = Vec::new();
+        flatten_operands(args, &mut flat);
+        if flat.is_empty() {
+            return Err(EvalError::TypeMismatch(format!(
+                "{name} expects at least one operand: seed it with the zero or the one of the intended type"
+            )));
+        }
+        flat
+    } else {
+        let arity = if matches!(name, "quotient" | "floor-quotient" | "modulo") { 2 } else { 1 };
+        if args.len() != arity {
+            return Err(EvalError::TypeMismatch(format!(
+                "{name} expects exactly {arity} argument(s), got {}",
+                args.len()
+            )));
+        }
+        args
+    };
+    for v in &operands {
+        if !matches!(v, Value::Int(_) | Value::Float(_)) && !is_symbolic(v) {
+            return Err(EvalError::TypeMismatch(format!(
+                "{name} expects number operands, got {}",
+                describe_value(v)
+            )));
+        }
+    }
+    let numbers: Vec<&Value> = operands.iter().filter(|v| !is_symbolic(v)).collect();
+    let all_int = numbers.iter().all(|v| matches!(v, Value::Int(_)));
+    let all_float = numbers.iter().all(|v| matches!(v, Value::Float(_)));
+    let (accepted, wanted) = match name {
+        "quotient" => (all_float, "two floats"),
+        "inverse" => (all_float, "a float"),
+        "floor-quotient" | "modulo" => (all_int, "two integers"),
+        "sum" | "product" => (all_int || all_float, "all integers or all floats"),
+        // `negate`, `floor`, `real` and `round` take a number of either type.
+        _ => (true, "a number"),
+    };
+    if accepted {
+        Ok(operands)
+    } else {
+        let got: Vec<String> = numbers.iter().map(|v| describe_value(v)).collect();
+        Err(EvalError::TypeMismatch(format!(
+            "{name} expects {wanted}, got {}",
+            got.join(", ")
+        )))
+    }
+}
+
+/// An integer result, or `NotRepresentable` outside the integer range.
+/// `None` is what a checked `i64` operation answers when the mathematical
+/// result is out of range, so nothing ever wraps.
+fn integer_result(name: &str, n: Option<i64>) -> EResult<Value> {
+    n.map(Value::Int).ok_or_else(|| {
+        EvalError::NotRepresentable(format!(
+            "{name}: the result is outside the integer range, -2^63 to 2^63 - 1"
+        ))
+    })
+}
+
+/// A float result, or `NotRepresentable` when it is not finite, which
+/// covers overflow and a zero divisor alike. There is no negative zero.
+fn float_result(name: &str, d: f64) -> EResult<Value> {
+    if !d.is_finite() {
+        Err(EvalError::NotRepresentable(format!(
+            "{name}: the result is not a finite float"
+        )))
+    } else if d == 0.0 {
+        Ok(Value::Float(0.0))
+    } else {
+        Ok(Value::Float(d))
+    }
+}
+
+/// The largest integer not above `a / b`, for a `b` that is not zero.
+/// `None` for the one pair whose quotient is out of range, `-2^63` by `-1`.
+fn floor_quotient(a: i64, b: i64) -> Option<i64> {
+    let q = a.checked_div(b)?;
+    let r = a % b;
+    Some(if r != 0 && ((r < 0) != (b < 0)) { q - 1 } else { q })
+}
+
+/// `a - b * floor_quotient(a, b)` over the mathematical integers, for a `b`
+/// that is not zero: zero, or of the sign of the divisor. Always in range,
+/// including for `-2^63` by `-1`, whose quotient is not.
+fn floor_modulo(a: i64, b: i64) -> i64 {
+    let r = a.wrapping_rem(b);
+    if r != 0 && ((r < 0) != (b < 0)) {
+        r + b
+    } else {
+        r
+    }
+}
+
+/// A whole-valued float as an integer, when it is in the 64-bit range. Both
+/// bounds are exact doubles: `-2^63` is in range and `2^63` is not.
+fn whole_float_to_integer(f: f64) -> Option<i64> {
+    if (-9223372036854775808.0..9223372036854775808.0).contains(&f) {
+        Some(f as i64)
+    } else {
+        None
+    }
+}
+
+/// The concrete rules (`reference.md` §11, *Semantics*), over operands
+/// `arithmetic_operands` accepted and that are all numbers.
+///
+/// An integer result comes from a checked `i64` operation, at every step of
+/// a fold: one whose mathematical result is outside the signed 64-bit range
+/// is an error, and nothing wraps.
+///
+/// A float result is one `f64` operation at a time, which is the one IEEE
+/// 754 binary64 operation, correctly rounded to nearest, ties to even. Rust
+/// never contracts a product and a sum into a fused multiply-add.
+fn compute(name: &str, operands: &[Value]) -> EResult<Value> {
+    let zero_divisor = || EvalError::NotRepresentable(format!("{name}: the divisor is zero"));
+    match (name, operands) {
+        ("sum", _) => left_fold(name, operands, i64::checked_add, |a, b| a + b),
+        ("product", _) => left_fold(name, operands, i64::checked_mul, |a, b| a * b),
+        ("negate", [Value::Int(x)]) => integer_result(name, x.checked_neg()),
+        ("negate", [Value::Float(x)]) => float_result(name, -x),
+        ("quotient", [Value::Float(a), Value::Float(b)]) => float_result(name, a / b),
+        ("inverse", [Value::Float(x)]) => float_result(name, 1.0 / x),
+        ("floor-quotient", [Value::Int(_), Value::Int(0)]) => Err(zero_divisor()),
+        ("floor-quotient", [Value::Int(a), Value::Int(b)]) => integer_result(name, floor_quotient(*a, *b)),
+        ("modulo", [Value::Int(_), Value::Int(0)]) => Err(zero_divisor()),
+        ("modulo", [Value::Int(a), Value::Int(b)]) => Ok(Value::Int(floor_modulo(*a, *b))),
+        ("floor", [Value::Int(x)]) => Ok(Value::Int(*x)),
+        ("floor", [Value::Float(x)]) => integer_result(name, whole_float_to_integer(x.floor())),
+        // The double nearest to the integer, ties to even: exact up to
+        // 2^53, rounded beyond. This is what an `as` cast does.
+        ("real", [Value::Int(x)]) => Ok(Value::Float(*x as f64)),
+        ("real", [Value::Float(x)]) => Ok(Value::Float(*x)),
+        // The integer nearest to the exact value of the float, a tie going
+        // away from zero: the rule `format-number` applies to no decimals.
+        // `f64::round` is that rule and is exact, a float being either
+        // whole already or below 2^52, where the halves are representable.
+        ("round", [Value::Int(x)]) => Ok(Value::Int(*x)),
+        ("round", [Value::Float(x)]) => integer_result(name, whole_float_to_integer(x.round())),
+        _ => Err(compute_mismatch(name, operands)),
+    }
+}
+
+fn compute_mismatch(name: &str, operands: &[Value]) -> EvalError {
+    let got: Vec<String> = operands.iter().map(describe_value).collect();
+    EvalError::TypeMismatch(format!("{name} cannot be applied to {}", got.join(", ")))
+}
+
+/// A left fold from the first operand, each step checked: an integer step
+/// out of range is an error although the total would be in range.
+fn left_fold(
+    name: &str,
+    operands: &[Value],
+    op_int: fn(i64, i64) -> Option<i64>,
+    op_float: fn(f64, f64) -> f64,
+) -> EResult<Value> {
+    let (first, rest) = operands
+        .split_first()
+        .ok_or_else(|| compute_mismatch(name, operands))?;
+    let mut acc = first.clone();
+    for operand in rest {
+        acc = match (&acc, operand) {
+            (Value::Int(a), Value::Int(b)) => integer_result(name, op_int(*a, *b))?,
+            (Value::Float(a), Value::Float(b)) => float_result(name, op_float(*a, *b))?,
+            _ => return Err(compute_mismatch(name, operands)),
+        };
+    }
+    match acc {
+        Value::Int(_) | Value::Float(_) => Ok(acc),
+        _ => Err(compute_mismatch(name, operands)),
+    }
+}
+
+// Number formatting (reference.md §11) ------------------------------------------
+
+/// `format-number(x, decimals, group)`. The arguments are examined left to
+/// right and the first that is not acceptable decides the error: a symbol or
+/// a term is `NotConcrete`, anything else of the wrong type a
+/// `TypeMismatch`, as is a number of decimals outside 0 to 20.
+fn format_number_impl(name: &str, x: &Value, decimals: &Value, group: &Value) -> EResult<Value> {
+    let refuse = |wanted: &str, other: &Value| {
+        if is_symbolic(other) {
+            EvalError::NotConcrete(name.to_string())
+        } else {
+            EvalError::TypeMismatch(format!("{name} expects {wanted}, got {}", describe_value(other)))
+        }
+    };
+    // The exact value as a sign and `mantissa * 2^exponent`.
+    let (negative, mantissa, exponent) = match x {
+        Value::Int(n) => (*n < 0, n.unsigned_abs(), 0),
+        Value::Float(d) => {
+            let (mantissa, exponent) = float_parts(*d);
+            (*d < 0.0, mantissa, exponent)
+        }
+        other => return Err(refuse("a number as its first argument", other)),
+    };
+    let places = match decimals {
+        Value::Int(n) if (0..=20).contains(n) => *n as usize,
+        Value::Int(n) => {
+            return Err(EvalError::TypeMismatch(format!(
+                "{name} expects a number of decimals from 0 to 20, got {n}"
+            )))
+        }
+        other => return Err(refuse("an integer number of decimals", other)),
+    };
+    let separator = match group {
+        Value::Str(s) => s,
+        other => return Err(refuse("a string as its separator", other)),
+    };
+    Ok(Value::Str(format_number(negative, mantissa, exponent, places, separator)))
+}
+
+/// A finite double as `mantissa * 2^exponent`, sign apart, which is its
+/// exact value: a double is a binary fraction.
+fn float_parts(d: f64) -> (u64, i32) {
+    let bits = d.to_bits();
+    let biased = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1u64 << 52) - 1);
+    if biased == 0 {
+        (fraction, -1074)
+    } else {
+        (fraction | (1u64 << 52), biased - 1075)
+    }
+}
+
+/// A natural number of any size, least significant 32-bit limb first, with
+/// the few operations `format_number` needs. The largest one it builds is a
+/// double's mantissa times `10^20` times `2^971`, some forty limbs.
+struct Natural(Vec<u32>);
+
+impl Natural {
+    fn from_u64(n: u64) -> Natural {
+        Natural(vec![n as u32, (n >> 32) as u32])
+    }
+
+    fn mul_small(&mut self, factor: u32) {
+        let mut carry = 0u64;
+        for limb in &mut self.0 {
+            let v = u64::from(*limb) * u64::from(factor) + carry;
+            *limb = v as u32;
+            carry = v >> 32;
+        }
+        if carry != 0 {
+            self.0.push(carry as u32);
+        }
+    }
+
+    fn shift_left(&mut self, bits: usize) {
+        let (limbs, rest) = (bits / 32, bits % 32);
+        if rest != 0 {
+            let mut carry = 0u32;
+            for limb in &mut self.0 {
+                let v = (*limb << rest) | carry;
+                carry = *limb >> (32 - rest);
+                *limb = v;
+            }
+            if carry != 0 {
+                self.0.push(carry);
+            }
+        }
+        self.0.splice(0..0, std::iter::repeat_n(0, limbs));
+    }
+
+    fn shift_right(&mut self, bits: usize) {
+        let (limbs, rest) = (bits / 32, bits % 32);
+        self.0.drain(0..limbs.min(self.0.len()));
+        if rest != 0 {
+            let mut carry = 0u32;
+            for limb in self.0.iter_mut().rev() {
+                let v = (*limb >> rest) | carry;
+                carry = *limb << (32 - rest);
+                *limb = v;
+            }
+        }
+    }
+
+    /// Adds `2^bit`.
+    fn add_power_of_two(&mut self, bit: usize) {
+        let mut i = bit / 32;
+        let mut carry = 1u32 << (bit % 32);
+        while carry != 0 {
+            if i >= self.0.len() {
+                self.0.resize(i + 1, 0);
+            }
+            let (v, overflowed) = self.0[i].overflowing_add(carry);
+            self.0[i] = v;
+            carry = u32::from(overflowed);
+            i += 1;
+        }
+    }
+
+    /// The decimal digits, without a leading zero; `"0"` for zero.
+    fn into_decimal(mut self) -> String {
+        let mut chunks: Vec<u32> = Vec::new();
+        loop {
+            while self.0.last() == Some(&0) {
+                self.0.pop();
+            }
+            if self.0.is_empty() {
+                break;
+            }
+            let mut remainder = 0u64;
+            for limb in self.0.iter_mut().rev() {
+                let v = (remainder << 32) | u64::from(*limb);
+                *limb = (v / 1_000_000_000) as u32;
+                remainder = v % 1_000_000_000;
+            }
+            chunks.push(remainder as u32);
+        }
+        match chunks.split_last() {
+            None => "0".to_string(),
+            Some((most, rest)) => {
+                let mut out = most.to_string();
+                for chunk in rest.iter().rev() {
+                    out.push_str(&format!("{chunk:09}"));
+                }
+                out
+            }
+        }
+    }
+}
+
+/// The exact value `mantissa * 2^exponent`, negated when `negative`, in
+/// positional decimal notation: an optional `-`, the integer part with the
+/// separator between its groups of three digits counted from the point
+/// leftward, and, when there are decimals, a `.` and exactly that many
+/// digits. Never an exponent, and no sign on a result whose digits are all
+/// zero.
+///
+/// The value is first put in units of the last digit asked for and rounded
+/// to the nearest integer, a tie going away from zero. No native formatter
+/// follows that rule in every case, so it is written out over `Natural`:
+/// nothing here is a floating-point operation.
+fn format_number(negative: bool, mantissa: u64, exponent: i32, places: usize, separator: &str) -> String {
+    let mut scaled = Natural::from_u64(mantissa);
+    for _ in 0..places {
+        scaled.mul_small(10);
+    }
+    if exponent >= 0 {
+        scaled.shift_left(exponent as usize);
+    } else {
+        // Half a unit, then the floor: on a magnitude, that is the nearest
+        // integer with a tie going up, so away from zero once signed.
+        let k = exponent.unsigned_abs() as usize;
+        scaled.add_power_of_two(k - 1);
+        scaled.shift_right(k);
+    }
+    let mut digits = scaled.into_decimal();
+    let is_zero = digits == "0";
+    // At least one digit before the point: `0.50`, never `.50`.
+    if digits.len() < places + 1 {
+        digits = "0".repeat(places + 1 - digits.len()) + &digits;
+    }
+    let (integer_part, fraction_part) = digits.split_at(digits.len() - places);
+
+    let mut out = String::new();
+    if negative && !is_zero {
+        out.push('-');
+    }
+    if separator.is_empty() {
+        out.push_str(integer_part);
+    } else {
+        let lead = integer_part.len() % 3;
+        for (i, c) in integer_part.chars().enumerate() {
+            if i != 0 && i % 3 == lead {
+                out.push_str(separator);
+            }
+            out.push(c);
+        }
+    }
+    if places != 0 {
+        out.push('.');
+        out.push_str(fraction_part);
+    }
+    out
+}
+
 // str rendering ---------------------------------------------------------------
 
+/// How a value reads when it is rendered into a string by `str` (and so by
+/// string interpolation): a string is itself, `null` is empty, and anything
+/// else is `json::stringify`, which writes a number by its type: `3` for an
+/// integer and `3.0` for a float (`reference.md` §6, §11).
 fn display_string(v: &Json) -> String {
     match v {
         Json::Null => String::new(),
-        Json::Bool(b) => if *b { "true" } else { "false" }.to_string(),
-        Json::Number(n) => format_number(n.as_f64().unwrap_or(0.0)),
         Json::String(s) => s.clone(),
-        v => compact_json(v),
+        other => json::stringify(other),
     }
-}
-
-fn compact_json(v: &Json) -> String {
-    match v {
-        Json::Null => "null".to_string(),
-        Json::Bool(b) => if *b { "true" } else { "false" }.to_string(),
-        Json::Number(n) => format_number(n.as_f64().unwrap_or(0.0)),
-        Json::String(s) => quote_string(s),
-        Json::Array(xs) => {
-            let parts: Vec<String> = xs.iter().map(compact_json).collect();
-            format!("[{}]", parts.join(","))
-        }
-        Json::Object(o) => {
-            let mut keys: Vec<&String> = o.keys().collect();
-            keys.sort();
-            let parts: Vec<String> = keys
-                .into_iter()
-                .map(|k| format!("{}:{}", quote_string(k), compact_json(&o[k])))
-                .collect();
-            format!("{{{}}}", parts.join(","))
-        }
-    }
-}
-
-fn quote_string(s: &str) -> String {
-    serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_string())
-}
-
-fn format_number(d: f64) -> String {
-    if d.is_nan() {
-        return "NaN".to_string();
-    }
-    if d.is_infinite() {
-        return if d < 0.0 { "-Infinity" } else { "Infinity" }.to_string();
-    }
-    if d == 0.0 {
-        return "0".to_string();
-    }
-    if d < 0.0 {
-        return format!("-{}", format_positive(-d));
-    }
-    format_positive(d)
-}
-
-/// ECMAScript's `Number::toString` digit-placement rules, given the
-/// shortest round-tripping decimal digit sequence and exponent that Rust's
-/// own `{:e}` formatting (backed by the Grisu/Ryu-family shortest-repr
-/// algorithm `f64::to_string` uses) already computes for us — we only need
-/// to place the digits the way ECMA-262 does, not re-derive them.
-fn format_positive(d: f64) -> String {
-    let (digits, n) = shortest_digits(d);
-    let k = digits.len() as i32;
-    if n >= k && n <= 21 {
-        format!("{}{}", digits, "0".repeat((n - k) as usize))
-    } else if n > 0 && n <= 21 {
-        let n = n as usize;
-        format!("{}.{}", &digits[..n], &digits[n..])
-    } else if n > -6 && n <= 0 {
-        format!("0.{}{}", "0".repeat((-n) as usize), digits)
-    } else {
-        let e = n - 1;
-        let mantissa = if k == 1 {
-            digits
-        } else {
-            format!("{}.{}", &digits[..1], &digits[1..])
-        };
-        let sign = if e >= 0 { "+" } else { "-" };
-        format!("{mantissa}e{sign}{}", e.abs())
-    }
-}
-
-/// Returns (digit string with no leading/trailing zeros beyond what the
-/// shortest round-tripping representation needs, exponent `n`) such that
-/// the value equals `0.<digits> * 10^n` — exactly what Haskell's
-/// `floatToDigits 10` returns and what `format_positive` is written
-/// against.
-fn shortest_digits(d: f64) -> (String, i32) {
-    // Rust's `{:e}` gives the shortest round-tripping decimal mantissa and
-    // exponent for a positive finite f64: "d.dddde<exp>" meaning
-    // value == mantissa * 10^exp, mantissa in [1, 10).
-    let s = format!("{d:e}");
-    let (mantissa, exp) = s.split_once('e').expect("exponential form has an 'e'");
-    let exp: i32 = exp.parse().expect("exponent is an integer");
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let digits = digits.trim_end_matches('0');
-    let digits = if digits.is_empty() { "0" } else { digits };
-    // mantissa is d.ddd with exactly one digit before the point, so
-    // value == 0.<digits> * 10^(exp+1).
-    (digits.to_string(), exp + 1)
 }

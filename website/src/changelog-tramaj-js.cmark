@@ -34,6 +34,10 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #javascript #tramaj-js
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-js"})
 .div(class: "changelog",
@@ -49,6 +53,58 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "Object destructuring patterns in \`@\` bindings and lambda parameters (decisions section 17): a parser lowering to plain \`Let\`/\`Lambda\`, checked by shared corpus cases 100-118."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: numbers are two types, an integer and a float (decisions section 18). A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the guaranteed range, \`-(2^53 - 1)\` to \`2^53 - 1\`; one outside it is a parse error as a literal and a \`TypeMismatch\` in the context."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: a number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and every JSON boundary keeps a float a float."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`eq\` never equates an integer with a float, and \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: the \`Json\` type gains \`Float\` and \`bigint\`. A plain \`number\` that is a safe integer is an integer and any other is a float; the float \`3.0\` is \`new Float(3)\`, and a result holds a \`Float\` for a whole-valued float. \`isJsonObject\` is false for a \`Float\`."
+          },
+          {
+              "kind": "added",
+              "text": "\`parseJson\` and \`stringify\`, a JSON reader and writer that keep \`3\` and \`3.0\` apart, which \`JSON.parse\` and \`JSON.stringify\` do not; \`float\`, \`isInteger\`, \`isFloat\`, \`numberValue\`, \`classifyNumber\`, \`normalizeNumbers\`, \`formatInteger\` and \`formatFloat\`. \`formatNumber\` is removed."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`\"$term\"\` is a reserved object key, \`int\` and \`float\` replace \`number\` as v4 type primitives, and \`nodeFromJson\` rejects a number outside the value domain. In the AST, \`IntLit\` and \`FloatLit\` replace \`NumberLit\`, and \`ScalarInt\` and \`ScalarFloat\` replace \`ScalarNum\`; in \`Value\`, \`int\` and \`float\` replace \`number\`."
+          },
+          {
+              "kind": "added",
+              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\`, \`real\` and \`round\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`defaultOptions\`, \`evalProgramWith\` and \`runProgramWith\` turn it on. \`round(x)\` is the integer nearest to \`x\`, ties away from zero (decisions section 20)."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
+          },
+          {
+              "kind": "added",
+              "text": "\`arithmeticNames\`, \`arithmeticOps\` and \`deepArithmeticOps\`, the arithmetic names a program references."
+          },
+          {
+              "kind": "added",
+              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20) order a list by the key \`fn\` gives each element. Keys are all integers, all floats or all strings, compared by code point; anything else is a \`TypeMismatch\`, and a symbol or a term a \`NotConcrete\`. Both are stable, each on its own terms, and \`fn\` is applied once per element, in index order. They are core forms, in every profile."
+          },
+          {
+              "kind": "added",
+              "text": "\`format-number(x, decimals, group)\` writes an integer or a float in positional decimal notation, with \`decimals\` digits (0 to 20) after the point and \`group\` between the groups of three digits of the integer part. It rounds the exact value of the number, ties away from zero, and never writes an exponent or a negative zero. An ordinary builtin, in every profile."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking: \`Expr\` gains the constructor \`SortBy\` (\`descending\`, \`collection\`, \`fn\`), which \`subExprs\` and every analysis traverse. \`sort-by\` and \`sort-by-descending\` are special-form names, as \`map\` is: a program that bound one and called it now gets the form, or a parse error without exactly two arguments. \`format-number\` is a builtin name and \`round\` joins \`arithmeticNames\`; a program that binds either still shadows it."
+          },
+          {
+              "kind": "added",
+              "text": "\`emittedConstraintCount\`, the number of constraints an evaluation emitted before equal ones are made one. It is there for tests, which have no other way to count the applications of a function."
           }
       ]
   }).rendered)

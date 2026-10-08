@@ -1,8 +1,15 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Json, Node, NodeAttribute } from "@lucasdicioccio/tramaj-js";
+import { Float, type Json, type Node, type NodeAttribute } from "@lucasdicioccio/tramaj-js";
 
-import { foldToReact, isValidAttrName, renderScalar, symbolLabel, validateAttrNames } from "../src/fold.js";
+import {
+  foldToReact,
+  isValidAttrName,
+  renderScalar,
+  symbolLabel,
+  termLabel,
+  validateAttrNames,
+} from "../src/fold.js";
 
 import type { Dispatch } from "../src/fold.js";
 
@@ -94,6 +101,18 @@ describe("foldToReact", () => {
   it("renders a symbol in text position inside <code>", () => {
     expect(html(el("p", [], [text({ $sym: "#ctx.n", path: [] })]))).toBe(
       "<p><code>#ctx.n</code></p>",
+    );
+  });
+
+  it("renders a term in text position inside <code>, as the call that built it", () => {
+    const term: Json = { $term: "sum", arguments: [{ $sym: "#ctx.n", path: [] }, new Float(1)] };
+    expect(html(el("p", [], [text(term)]))).toBe("<p><code>sum(#ctx.n, 1.0)</code></p>");
+  });
+
+  it("renders an integer and a float child as two different texts", () => {
+    expect(html(el("p", [], [text(3), text(" "), text(new Float(3))]))).toBe("<p>3 3.0</p>");
+    expect(html(el("p", [{ t: "attribute", name: "data-x", value: new Float(2) }]))).toBe(
+      '<p data-x="2.0"></p>',
     );
   });
 
@@ -207,7 +226,22 @@ describe("renderScalar", () => {
     ["hello", "hello"],
     ["", ""],
     [3, "3"],
+    // A plain number that is a safe integer is an integer, however it was
+    // written in JavaScript; the float 3.0 is a `Float`.
     [3.0, "3"],
+    [new Float(3), "3.0"],
+    [new Float(100000000000), "100000000000.0"],
+    [1e21, "1e+21"],
+    [[1, new Float(2), 0.5], "[1,2.0,0.5]"],
+    [{ $term: "sum", arguments: [1, { $sym: "#0:1", path: ["a"] }, 2] }, "sum(1, #0:1.a, 2)"],
+    [
+      { $term: "product", arguments: [{ $term: "real", arguments: [{ $sym: "#ctx.n", path: [] }] }, new Float(9)] },
+      "product(real(#ctx.n), 9.0)",
+    ],
+    // `round` is the tenth arithmetic name; a term names its builtin whatever it is.
+    [{ $term: "round", arguments: [{ $sym: "#ctx.n", path: ["spend"] }] }, "round(#ctx.n.spend)"],
+    // Not a term: an argument that is neither a number, a symbol nor a term.
+    [{ $term: "sum", arguments: ["a"] }, '{"$term":"sum","arguments":["a"]}'],
     [1.5, "1.5"],
     [0, "0"],
     [100000000000, "100000000000"],
@@ -236,6 +270,14 @@ describe("renderScalar", () => {
     expect(symbolLabel("#0")).toBeNull();
     expect(symbolLabel(null)).toBeNull();
     expect(symbolLabel([{ $sym: "#0", path: [] }])).toBeNull();
+  });
+
+  it("termLabel returns null for anything that is not a term", () => {
+    expect(termLabel({ $term: "negate", arguments: [{ $sym: "#0", path: [] }] })).toBe("negate(#0)");
+    expect(termLabel({ $term: "negate" })).toBeNull();
+    expect(termLabel({ $term: 1, arguments: [] })).toBeNull();
+    expect(termLabel({ $term: "sum", arguments: [[1]] })).toBeNull();
+    expect(termLabel("sum(1)")).toBeNull();
   });
 });
 

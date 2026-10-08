@@ -84,13 +84,13 @@ corpus fixtures are written. Where each implementation stands:
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic</th></tr>
 <tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
 <tr><td><code>tramaj-hs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-js</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td></tr>
-<tr><td><code>tramaj-py</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-go</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-js</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td></tr>
 </table>
 
 The corpus cases for these carry a `"requires"` field, and an implementation
 skips the cases whose requirement it does not declare. So every
-implementation still passes every case it runs, while the four in the last
+implementation still passes every case it runs, while the three in the last
 row run fewer of them. The split changes existing output:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 lists how.

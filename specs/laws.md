@@ -21,7 +21,7 @@
 # arithmetic
 
 - residual law: a term the host evaluates, with numbers substituted for its symbols, must give byte for byte what the template would have produced with those numbers in the context, errors included
-- (specified in reference §11 and v3-symbols §1.9; implemented in the PureScript and Haskell implementations, not yet in the others)
+- (specified in reference §11 and v3-symbols §1.9; implemented in the PureScript, Haskell and Rust implementations, not yet in the others)
 
 # sorting and number formatting
 

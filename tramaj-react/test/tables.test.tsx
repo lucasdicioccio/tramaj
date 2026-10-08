@@ -85,10 +85,10 @@ describe("TypesTable", () => {
   });
 
   it("renders a declaration's canonical id alongside its definition", () => {
-    const e = envelope("type Point = {x: number, y: number}\n@p : Point = $ctx.p\n$p", { p: 1 });
+    const e = envelope("type Point = {x: int, y: float}\n@p : Point = $ctx.p\n$p", { p: 1 });
     const text = textOf(<TypesTable entries={arrayField(e, "types")} />);
     expect(text).toContain("root:Point");
-    expect(text).toContain("{x: number, y: number}");
+    expect(text).toContain("{x: int, y: float}");
   });
 
   it("renders each ResolvedType shape terse enough for a table cell", () => {
@@ -99,9 +99,9 @@ describe("TypesTable", () => {
     expect(
       resolvedTypeText({
         kind: "union",
-        arms: [{ name: "None" }, { name: "Some", payload: { kind: "prim", name: "number" } }],
+        arms: [{ name: "None" }, { name: "Some", payload: { kind: "prim", name: "float" } }],
       }),
-    ).toBe("None | Some(number)");
+    ).toBe("None | Some(float)");
     expect(resolvedTypeText("not a type")).toBe("?");
   });
 });
@@ -112,7 +112,7 @@ describe("TypeConstraintTable", () => {
   });
 
   it("renders a type argument as the id behind its $type tag", () => {
-    const e = envelope('type Point = {x: number}\n!type-constraint("shaped", %Point, "note")\n1');
+    const e = envelope('type Point = {x: int}\n!type-constraint("shaped", %Point, "note")\n1');
     const text = textOf(<TypeConstraintTable entries={arrayField(e, "type-constraints")} />);
     expect(text).toContain("shaped");
     expect(text).toContain("root:Point, note");

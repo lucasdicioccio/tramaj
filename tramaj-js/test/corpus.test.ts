@@ -14,15 +14,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   contextHoles,
+  arithmeticOps,
   contextReads,
   deepActionKeys,
+  deepArithmeticOps,
   deepContextHoles,
   staticActionKeys,
   staticImportNames,
   transitiveImportNames,
 } from "../src/analysis.js";
-import { EvalError, runProgram, type LibraryTable, type Mode } from "../src/eval.js";
-import { jsonEqual, type Json } from "../src/json.js";
+import { EvalError, runProgramWith, type LibraryTable, type Mode, type Options } from "../src/eval.js";
+import { jsonEqual, parseJson, stringify, type Json } from "../src/json.js";
 import { ParseError, parseProgram } from "../src/parser.js";
 import type { Program } from "../src/ast.js";
 
@@ -40,10 +42,23 @@ interface CaseMeta {
 /**
  * The profiles (`profiles` in `meta.json`, see corpus/README.md) this port can
  * provide. A case naming any other one is skipped. `base` is the language
- * without any profile; this port has no other yet, and no integer range to
- * name until it has the two number types (`int-float`).
+ * without any profile. `int-float` says integers and floats are two types,
+ * and `int53` that the integer range is the guaranteed one, `-(2^53 - 1)` to
+ * `2^53 - 1` (reference.md §13), so a case that needs `int64` is skipped.
+ * `arithmetic` is the arithmetic profile: it is an option of each evaluation,
+ * and `runCase` turns it on only for a case that lists it. `sort`,
+ * `format-number` and `round` are transition tags for the two sort forms, the
+ * `format-number` builtin and the tenth arithmetic name (decisions §20).
  */
-const providedProfiles: ReadonlySet<string> = new Set(["base"]);
+const providedProfiles: ReadonlySet<string> = new Set([
+  "base",
+  "int-float",
+  "arithmetic",
+  "int53",
+  "sort",
+  "format-number",
+  "round",
+]);
 
 /**
  * The static analyses (reference.md §9) this port provides to an
@@ -61,6 +76,8 @@ const providedAnalyses: ReadonlyMap<string, (libs: LibraryTable, prog: Program) 
   ["contextHoles", (_libs, prog) => contextHoles(prog)],
   ["deepContextHoles", (libs, prog) => deepContextHoles(libs, prog)],
   ["contextReads", (_libs, prog) => contextReads(prog)],
+  ["arithmeticOps", (_libs, prog) => arithmeticOps(prog)],
+  ["deepArithmeticOps", (libs, prog) => deepArithmeticOps(libs, prog)],
 ]);
 
 /**
@@ -145,8 +162,12 @@ function findCorpusRoot(): string {
   }
 }
 
+/**
+ * `ctx.json` and `expected.json`, read with the parser that types a number by
+ * its text, so that `3` and `3.0` stay two values (corpus/README.md).
+ */
 function readJsonFile(path: string): Json {
-  return JSON.parse(readFileSync(path, "utf8")) as Json;
+  return parseJson(readFileSync(path, "utf8"));
 }
 
 function readLibs(dir: string): LibraryTable {
@@ -177,7 +198,12 @@ function parseOrThrow(src: string): Program {
 }
 
 function runCase(dir: string, meta: CaseMeta): void {
-  const mode = modeFromMeta(meta.mode);
+  // The arithmetic profile is on only for a case that lists it: every other
+  // case runs with the arithmetic names unbound.
+  const options: Options = {
+    mode: modeFromMeta(meta.mode),
+    arithmetic: (meta.profiles ?? []).includes("arithmetic"),
+  };
   const src = readFileSync(join(dir, "template.tramaj"), "utf8");
   const expectKind = meta.expect ?? "success";
 
@@ -202,7 +228,7 @@ function runCase(dir: string, meta: CaseMeta): void {
     if (errorKind === undefined) throw new Error("eval-error case needs errorKind");
     let succeeded = false;
     try {
-      runProgram(mode, libs, ctx, prog);
+      runProgramWith(options, libs, ctx, prog);
       succeeded = true;
     } catch (e) {
       if (!(e instanceof EvalError)) throw e;
@@ -219,9 +245,9 @@ function runCase(dir: string, meta: CaseMeta): void {
   if (expectKind !== "success") throw new Error(`unknown expect ${expectKind}`);
 
   const expected = readJsonFile(join(dir, "expected.json"));
-  const actual = runProgram(mode, libs, ctx, prog);
+  const actual = runProgramWith(options, libs, ctx, prog);
   if (!jsonEqual(actual, expected)) {
-    expect(actual).toEqual(expected);
+    expect(stringify(actual, 2)).toEqual(stringify(expected, 2));
     throw new Error("output mismatch");
   }
 }

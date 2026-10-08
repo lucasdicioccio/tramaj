@@ -404,7 +404,8 @@ function eraseExpr(libs: LibraryTable, prog: Program, e: Expr): Expr {
   switch (e.t) {
     case "Path":
     case "StringLit":
-    case "NumberLit":
+    case "IntLit":
+    case "FloatLit":
     case "BoolLit":
     case "NullLit":
     case "Demand":
@@ -437,6 +438,8 @@ function eraseExpr(libs: LibraryTable, prog: Program, e: Expr): Expr {
       return { t: "Map", collection: go(e.collection), fn: go(e.fn) };
     case "Filter":
       return { t: "Filter", collection: go(e.collection), fn: go(e.fn) };
+    case "SortBy":
+      return { t: "SortBy", descending: e.descending, collection: go(e.collection), fn: go(e.fn) };
     case "Scan":
       return { t: "Scan", collection: go(e.collection), initial: go(e.initial), fn: go(e.fn) };
     case "Fold":
@@ -497,7 +500,8 @@ function eraseAttr(libs: LibraryTable, prog: Program, a: Attribute): Attribute {
 export type ResolvedConstraintArg =
   | { t: "Type"; type: ResolvedType }
   | { t: "ScalarStr"; value: string }
-  | { t: "ScalarNum"; value: number }
+  | { t: "ScalarInt"; value: number }
+  | { t: "ScalarFloat"; value: number }
   | { t: "ScalarBool"; value: boolean }
   | { t: "ScalarNull" };
 
