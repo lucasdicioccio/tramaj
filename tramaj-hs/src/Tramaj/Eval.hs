@@ -28,6 +28,7 @@ module Tramaj.Eval
   , runProgram
   , runProgramWith
   , evalExprWith
+  , emittedConstraintCount
   , builtinNames
   ) where
 
@@ -35,9 +36,11 @@ import Control.Monad (foldM)
 import Data.Bifunctor (first)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
+import Data.List (sortBy)
 #if __GLASGOW_HASKELL__ < 910
 import Data.List (foldl')
 #endif
+import Data.Ord (Down (..), comparing)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes)
@@ -116,7 +119,7 @@ data Mode = Concrete | Symbolic
 -- host parameter and not a property of the program.
 --
 -- 'optArithmetic' is reference.md \S11's arithmetic profile, per
--- evaluation: with it on, the nine names of
+-- evaluation: with it on, the ten names of
 -- 'Tramaj.Analysis.arithmeticNames' are in the initial environment of the
 -- program and of every library it runs, and a seeded term is accepted in
 -- symbolic mode (v3-symbols \S5.4). With it off they are unbound, so a
@@ -346,14 +349,28 @@ evalProgramWith options libs input prog = fst <$> evalProgramWithEmissions optio
 -- concrete mode discards them (\S5.1) and cannot produce a symbol at all.
 evalProgramWithEmissions :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Output, Emissions)
 evalProgramWithEmissions options libs input prog = do
-  erased <- first TypeErr (eraseTypes libs prog)
-  (v, emitted) <- runEval $ do
-    ctx <- liftEither (checkedFromJson options input)
-    evalExpr (rootCtx options libs) (initialEnv (optArithmetic options) ctx) (programRoot erased)
+  (v, emitted) <- evalProgramRaw options libs input prog
   output <- case v of
     VNode' n -> Right (ONode n)
     other -> OValue <$> toJson other
   pure (output, dedupe emitted)
+
+-- | The value of a program and everything it emitted, in evaluation order
+-- and before 'dedupe'.
+evalProgramRaw :: Options -> LibraryTable -> Json -> Program -> Either EvalError (Value', Emissions)
+evalProgramRaw options libs input prog = do
+  erased <- first TypeErr (eraseTypes libs prog)
+  runEval $ do
+    ctx <- liftEither (checkedFromJson options input)
+    evalExpr (rootCtx options libs) (initialEnv (optArithmetic options) ctx) (programRoot erased)
+
+-- | How many constraints an evaluation emitted, counted before 'dedupe'
+-- makes equal ones one. No program and no output can tell this number: it
+-- is here for tests, as the one way to count how many times a function was
+-- applied, which reference.md \S11 fixes for the key function of a sort.
+emittedConstraintCount :: Options -> LibraryTable -> Json -> Program -> Either EvalError Int
+emittedConstraintCount options libs input prog =
+  length . emConstraints . snd <$> evalProgramRaw options libs input prog
 
 -- | Two constraints with the same name and equal arguments are one
 -- constraint, and two symbol-table entries with the same id are one entry --
@@ -530,7 +547,7 @@ rootCtx options libs =
     , ecArithmetic = optArithmetic options
     }
 
--- | @$ctx@ and the builtins. The nine arithmetic names are bound only with
+-- | @$ctx@ and the builtins. The ten arithmetic names are bound only with
 -- the arithmetic profile on (reference.md \S11); without it they are
 -- ordinary unbound names.
 initialEnv :: Bool -> Value' -> Env
@@ -557,6 +574,7 @@ builtinNames =
   , "gte"
   , "has"
   , "lookup"
+  , "format-number"
   , "concat"
   , "append"
   ]
@@ -623,6 +641,25 @@ evalExpr ctx env (Fold collExpr initExpr fnExpr) = do
   acc0 <- evalExpr ctx env initExpr
   fnVal <- evalExpr ctx env fnExpr
   foldSteps ctx fnVal acc0 items
+-- | reference.md \S11, /Sorting/. The checks come in the order the
+-- reference gives them: the collection, then, element by element in index
+-- order, the key function's application and the key it gave. Only then is
+-- anything reordered, so the key function runs exactly once per element.
+--
+-- 'sortBy' is a stable merge sort, and so is the one over 'Down': elements
+-- whose keys are equal keep their input order under both names, which makes
+-- the descending sort something other than the reversal of the ascending
+-- one.
+evalExpr ctx env (SortBy descending collExpr fnExpr) = do
+  items <- evalCollection ctx env who collExpr
+  fnVal <- evalExpr ctx env fnExpr
+  keyed <- sortKeys ctx who fnVal items
+  pure (VArray (map snd (ordered keyed)))
+  where
+    who = if descending then "sort-by-descending" else "sort-by"
+    ordered
+      | descending = sortBy (comparing (Down . fst))
+      | otherwise = sortBy (comparing fst)
 evalExpr ctx env (Concat leftExpr rightExpr) = do
   l <- evalExpr ctx env leftExpr
   r <- evalExpr ctx env rightExpr
@@ -819,6 +856,50 @@ foldSteps _ _ acc [] = pure acc
 foldSteps ctx fnVal acc (item : rest) = do
   next <- apply ctx "fold" fnVal [acc, item]
   foldSteps ctx fnVal next rest
+
+-- | What a sort orders by (reference.md \S11, /Sorting/). The keys of one
+-- call all have the same constructor, which 'sortKeys' checks, so the
+-- derived order only ever compares two integers, two floats or two strings.
+-- A float key is never a NaN and never a negative zero (\S3), so its order
+-- is total; 'Text' compares by code point.
+data SortKey
+  = KeyInt Int64
+  | KeyFloat Double
+  | KeyString Text
+  deriving stock (Eq, Ord)
+
+-- | Each element with its key: the key function is applied once per
+-- element, in index order, and each key is checked as soon as it is known,
+-- so the first element whose application or key fails decides the error. A
+-- symbol or a term as a key is 'NotConcrete'; a value of a kind that is
+-- never a key, or of another type than the first key, is a 'TypeMismatch'.
+sortKeys :: EvalCtx -> Text -> Value' -> [Value'] -> Eval [(SortKey, Value')]
+sortKeys ctx who fnVal = go Nothing
+  where
+    go _ [] = pure []
+    go firstKey (item : rest) = do
+      key <- apply ctx who fnVal [item] >>= liftEither . asKey
+      case firstKey of
+        Just k0 | not (sameType k0 key) ->
+          evalError (TypeMismatch (who <> " expects keys of one type, got " <> describeKey k0 <> " and then " <> describeKey key))
+        _ -> ((key, item) :) <$> go (Just (maybe key id firstKey)) rest
+
+    asKey (VInt n) = Right (KeyInt n)
+    asKey (VFloat d) = Right (KeyFloat d)
+    asKey (VString s) = Right (KeyString s)
+    asKey v
+      | isSymbolic v = Left (NotConcrete who)
+      | otherwise = Left (TypeMismatch (who <> " expects a key that is an integer, a float or a string, got " <> describeValue v))
+
+    sameType (KeyInt _) (KeyInt _) = True
+    sameType (KeyFloat _) (KeyFloat _) = True
+    sameType (KeyString _) (KeyString _) = True
+    sameType _ _ = False
+
+    describeKey :: SortKey -> Text
+    describeKey (KeyInt _) = "an integer"
+    describeKey (KeyFloat _) = "a float"
+    describeKey (KeyString _) = "a string"
 
 evalCollection :: EvalCtx -> Env -> Text -> Expr -> Eval [Value']
 evalCollection ctx env who e =
@@ -1197,6 +1278,7 @@ evalBuiltin name args = case name of
   "gte" -> comparison (>=) (>=)
   "has" -> binary hasImpl
   "lookup" -> ternary lookupImpl
+  "format-number" -> ternary formatNumberImpl
   "concat" -> concatImpl
   "append" -> binary appendImpl
   _
@@ -1287,6 +1369,31 @@ evalBuiltin name args = case name of
       (VArray xs, VInt n) -> maybe fallback id (asIndex n >>= atIndex xs)
       _ -> fallback
 
+    -- | @format-number(x, decimals, group)@ (reference.md \S11, /Number
+    -- formatting/). The arguments are examined left to right and the first
+    -- that is not acceptable decides the error: a symbol or a term is
+    -- 'NotConcrete', anything else of the wrong type a 'TypeMismatch'.
+    formatNumberImpl :: Value' -> Value' -> Value' -> Either EvalError Value'
+    formatNumberImpl x decimals group = do
+      v <- case x of
+        VInt n -> Right (toRational n)
+        -- Exact: a double is a binary fraction, and this is its value.
+        VFloat d -> Right (toRational d)
+        other -> refuse "a number as its first argument" other
+      places <- case decimals of
+        VInt n | n >= 0 && n <= 20 -> Right (fromIntegral n :: Int)
+        VInt n -> Left (TypeMismatch (name <> " expects a number of decimals from 0 to 20, got " <> tshow n))
+        other -> refuse "an integer number of decimals" other
+      separator <- case group of
+        VString s -> Right s
+        other -> refuse "a string as its separator" other
+      Right (VString (formatNumber v places separator))
+      where
+        refuse :: Text -> Value' -> Either EvalError a
+        refuse wanted other
+          | isSymbolic other = Left (NotConcrete name)
+          | otherwise = Left (TypeMismatch (name <> " expects " <> wanted <> ", got " <> describeValue other))
+
     atIndex :: [Value'] -> Int -> Maybe Value'
     atIndex xs i
       | i >= 0 && i < length xs = Just (xs !! i)
@@ -1312,7 +1419,7 @@ evalBuiltin name args = case name of
 
 -- Arithmetic (reference.md \S11) ----------------------------------------------------------------
 
--- | One of the nine arithmetic builtins, applied. Operands that are all
+-- | One of the ten arithmetic builtins, applied. Operands that are all
 -- numbers compute; if one is a symbol or a term the result is a term holding
 -- the flattened operands exactly as written (v3-symbols \S1.9). Every
 -- operand is checked before either happens, so a 'TypeMismatch' takes
@@ -1327,7 +1434,7 @@ arithmetic name args = do
 --
 -- * @sum@ and @product@ flatten their arguments by the rule children use:
 --   an array contributes each of its elements, recursively, in order. They
---   need at least one operand afterwards. The seven others take a fixed
+--   need at least one operand afterwards. The eight others take a fixed
 --   count and do not flatten, so an array given to one is refused whatever
 --   it holds.
 -- * Each operand is a number, a symbol or a term. A symbol or a term stands
@@ -1376,7 +1483,7 @@ arithmeticOperands name args = do
       "modulo" -> all isInt numbers
       "sum" -> all isInt numbers || all isFloat numbers
       "product" -> all isInt numbers || all isFloat numbers
-      -- @negate@, @floor@ and @real@ take a number of either type.
+      -- @negate@, @floor@, @real@ and @round@ take a number of either type.
       _ -> True
 
     wanted :: Text
@@ -1418,6 +1525,10 @@ compute name operands = case (name, operands) of
   -- rounded beyond. This is the machine's own conversion.
   ("real", [VInt x]) -> Right (VFloat (fromIntegral x))
   ("real", [VFloat x]) -> Right (VFloat x)
+  -- The integer nearest to the exact value of the float, a tie going away
+  -- from zero: the rule 'formatNumber' applies to no decimals.
+  ("round", [VInt x]) -> Right (VInt x)
+  ("round", [VFloat x]) -> VInt <$> integer (roundHalfAway (toRational x))
   _ -> mismatch
   where
     mismatch :: Either EvalError a
@@ -1453,6 +1564,41 @@ compute name operands = case (name, operands) of
     nonZero :: Int64 -> Either EvalError ()
     nonZero 0 = Left (NotRepresentable (name <> ": the divisor is zero"))
     nonZero _ = Right ()
+
+-- Number formatting (reference.md \S11) ---------------------------------------------------------
+
+-- | The integer nearest to an exact value; when two are equally near, the
+-- one farther from zero. This is the one rounding rule of @round@ and
+-- @format-number@, written out over 'Rational' because no native formatter
+-- or 'round' (which takes a tie to even) follows it.
+roundHalfAway :: Rational -> Integer
+roundHalfAway v
+  | v < 0 = negate (roundHalfAway (negate v))
+  | otherwise = floor (v + 1 / 2)
+
+-- | An exact value in positional decimal notation: an optional @-@, the
+-- integer part with the separator between its groups of three digits
+-- counted from the point leftward, and, when there are decimals, a @.@ and
+-- exactly that many digits. Never an exponent, and no sign on a result
+-- whose digits are all zero.
+formatNumber :: Rational -> Int -> Text -> Text
+formatNumber v places separator =
+  (if scaled < 0 then "-" else "") <> grouped <> (if places == 0 then "" else "." <> fractionPart)
+  where
+    -- The value in units of the last digit asked for, rounded.
+    scaled :: Integer
+    scaled = roundHalfAway (v * 10 ^ places)
+
+    -- At least one digit before the point: @0.50@, never @.50@.
+    digits :: Text
+    digits = T.justifyRight (places + 1) '0' (T.pack (show (abs scaled)))
+
+    (integerPart, fractionPart) = T.splitAt (T.length digits - places) digits
+
+    grouped :: Text
+    grouped
+      | T.null separator = integerPart
+      | otherwise = T.intercalate separator (reverse (map T.reverse (T.chunksOf 3 (T.reverse integerPart))))
 
 -- | How a value reads when it is rendered into a string by @str@ (and so by
 -- string interpolation): a string is itself, @null@ is empty, and anything

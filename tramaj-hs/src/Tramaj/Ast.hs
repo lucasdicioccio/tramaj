@@ -113,6 +113,12 @@ data Expr
   | Filter Expr Expr
   | Scan Expr Expr Expr
   | Fold Expr Expr Expr
+  | -- | @sort-by(collection, function)@ and, with the flag set,
+    -- @sort-by-descending(collection, function)@ (reference.md \S11,
+    -- /Sorting/): the elements of the collection ordered by the key the
+    -- function gives each of them. A core constructor for the reason 'Map'
+    -- is one: the key function needs a fresh binding per element.
+    SortBy Bool Expr Expr
   | -- | The monoid operation @a \<\> b@, over @String@, @Array@ or @Object@ --
     -- same type on both sides, right-biased on object key collisions.
     Concat Expr Expr
@@ -305,6 +311,7 @@ subExprs (Map coll fn) = [coll, fn]
 subExprs (Filter coll fn) = [coll, fn]
 subExprs (Scan coll initial fn) = [coll, initial, fn]
 subExprs (Fold coll initial fn) = [coll, initial, fn]
+subExprs (SortBy _ coll fn) = [coll, fn]
 subExprs (Concat l r) = [l, r]
 subExprs (Import _ params) = [e | (_, PExpr e) <- params]
 subExprs (AdaptActions target _ fn) = target : maybe [] pure fn
@@ -453,6 +460,10 @@ numberAllocs e = snd (go 0 e)
           (n2, initial') = go n1 initial
           (n3, fn') = go n2 fn
        in (n3, Fold coll' initial' fn')
+    go n (SortBy descending coll fn) =
+      let (n1, coll') = go n coll
+          (n2, fn') = go n1 fn
+       in (n2, SortBy descending coll' fn')
     go n (Concat l r) =
       let (n1, l') = go n l
           (n2, r') = go n1 r

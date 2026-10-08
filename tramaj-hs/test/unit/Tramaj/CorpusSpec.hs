@@ -67,9 +67,11 @@ instance FromJSON CaseMeta where
 -- language without any profile. @int-float@: integers and floats are two
 -- types (a transition tag, not a profile). @int64@: an integer covers the
 -- signed 64-bit range, so not @int53@. @arithmetic@: the arithmetic profile,
--- which is an option of each evaluation here ('optionsFromMeta').
+-- which is an option of each evaluation here ('optionsFromMeta'). @sort@,
+-- @format-number@ and @round@: transition tags for the two sort forms, the
+-- @format-number@ builtin and the tenth arithmetic name (decisions \S20).
 providedProfiles :: [Text]
-providedProfiles = ["base", "int-float", "int64", "arithmetic"]
+providedProfiles = ["base", "int-float", "int64", "arithmetic", "sort", "format-number", "round"]
 
 -- | The profiles a case names that this port does not provide.
 missingProfiles :: CaseMeta -> [Text]
@@ -192,7 +194,7 @@ modeFromMeta dir m = case m of
 
 -- | The options a case runs with: its mode, and the arithmetic profile only
 -- if it lists @arithmetic@ in @profiles@. Every other case runs with the
--- profile off, as a host that never asked for it does, so the nine
+-- profile off, as a host that never asked for it does, so the ten
 -- arithmetic names are unbound there.
 optionsFromMeta :: FilePath -> CaseMeta -> IO Options
 optionsFromMeta dir meta = do

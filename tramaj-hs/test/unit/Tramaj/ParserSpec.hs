@@ -80,6 +80,16 @@ rejectionSpec = describe "rejects" $ do
   -- meaningless Call that only fails much later.
   rejects "a malformed import" "import(\"lib\")"
   rejects "a malformed map" "map($xs)"
+  -- reference.md \S5: a sort takes exactly two arguments, under both names
+  -- and both spellings.
+  rejects "a sort with one argument" "sort-by($xs)"
+  rejects "a sort with three arguments" "sort-by($xs, (x) => $x, true)"
+  rejects "a sort with no argument" "sort-by()"
+  rejects "a descending sort with one argument" "sort-by-descending($xs)"
+  rejects "a descending sort with three arguments" "sort-by-descending($xs, (x) => $x, true)"
+  rejects "a dollar-spelled sort with one argument" "$sort-by($xs)"
+  -- Being recognized by the parser, the name cannot be passed by reference.
+  rejects "a sort passed by reference" "map($xs, $sort-by)"
   rejects "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
 
   rejects "an unknown escape sequence" "\"a\\qb\""
@@ -168,6 +178,22 @@ desugaringSpec = describe "desugars" $ do
     (Concat (Concat (StringLit "n: ") (Call (Path "str" []) [Path "x" []])) (StringLit "!"))
 
   parsesTo "an empty string" "\"\"" (StringLit "")
+
+  -- reference.md \S2, \S5: the two sort names lower to the one constructor.
+  parsesTo
+    "sort-by into SortBy, ascending"
+    "sort-by($xs, (x) => $x.k)"
+    (SortBy False (Path "xs" []) (Lambda ["x"] (Path "x" ["k"])))
+
+  parsesTo
+    "sort-by-descending into the same constructor, descending"
+    "sort-by-descending($xs, $key-of)"
+    (SortBy True (Path "xs" []) (Path "key-of" []))
+
+  parsesTo
+    "the dollar spelling of a sort into the same form"
+    "$sort-by($xs, $str)"
+    (SortBy False (Path "xs" []) (Path "str" []))
 
   parsesTo
     "object shorthand into an explicit field reading the same name"

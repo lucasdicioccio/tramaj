@@ -409,6 +409,7 @@ eraseExpr libs prog = go
     go (Filter coll fn) = Filter <$> go coll <*> go fn
     go (Scan coll initial fn) = Scan <$> go coll <*> go initial <*> go fn
     go (Fold coll initial fn) = Fold <$> go coll <*> go initial <*> go fn
+    go (SortBy descending coll fn) = SortBy descending <$> go coll <*> go fn
     go (Concat l r) = Concat <$> go l <*> go r
     go (Import name params) = Import name <$> traverse goParam params
     go (AdaptActions target adaptation fn) = AdaptActions <$> go target <*> pure adaptation <*> traverse go fn
