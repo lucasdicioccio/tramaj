@@ -224,9 +224,8 @@ export function deepSymbolDemands(libs: LibraryTable, prog: Program): string[][]
 // Arithmetic --------------------------------------------------------------------
 
 /**
- * The names of the arithmetic profile (`specs/reference.md` §11) this port
- * has: the nine of `specs/decisions.md` §18, without `round`. They are names
- * and not syntax: an evaluation with the profile on binds them in the initial
+ * The ten names of the arithmetic profile (`specs/reference.md` §11), `round`
+ * being the tenth (`specs/decisions.md` §20). They are names and not syntax: an evaluation with the profile on binds them in the initial
  * environment, and a program may bind any of them itself.
  */
 export const arithmeticNames: readonly string[] = [
@@ -239,6 +238,7 @@ export const arithmeticNames: readonly string[] = [
   "modulo",
   "floor",
   "real",
+  "round",
 ];
 
 /**

@@ -20,7 +20,7 @@ Everything is re-exported from `src/index.ts`.
 |---|---|
 | `ast` | `Program`, `Expr`, `TypeExpr`, `Attribute`, `ParamValue`, `Stmt`; `subExprs`, `unlets`, `letBindings`, `typeDecls`, `numberAllocs`, `adaptKey` |
 | `parser` | `parseProgram`, `tryParseProgram`, `ParseError` |
-| `eval` | `runProgram`, `evalProgram`, `runProgramWith`, `evalProgramWith`, `defaultOptions`, `toJson`; `Mode`, `Options`, `LibraryTable`, `Value`, `Output`, `EvalError` |
+| `eval` | `runProgram`, `evalProgram`, `runProgramWith`, `evalProgramWith`, `defaultOptions`, `emittedConstraintCount`, `toJson`; `Mode`, `Options`, `LibraryTable`, `Value`, `Output`, `EvalError` |
 | `json` | `Json`, `Float`; `parseJson`, `stringify`, `float`, `isInteger`, `isFloat`, `numberValue`, `classifyNumber`, `normalizeNumbers`, `inIntegerRange`, `formatInteger`, `formatFloat`, `jsonEqual`, `compactJson`, `displayString`, `isJsonObject`, `JsonParseError`, `JsonNumberError` |
 | `node` | `Node`, `NodeAttribute`, `Annotations`; `nodeToJson`/`nodeFromJson`, `nodeAttributeToJson`/`nodeAttributeFromJson`, `mapActions`, `NodeDecodeError` |
 | `analysis` | `staticImportNames`, `transitiveImportNames`, `staticActionKeys`, `deepActionKeys`, `contextHoles`, `deepContextHoles`, `contextReads`, `unsuppliedParams`, `arithmeticNames`, `arithmeticOps`, `deepArithmeticOps`, `constraintKinds`, `deepConstraintKinds`, `symbolSites`, `symbolDemands`, `deepSymbolDemands`, `typeDeclarations`, `typeParams`, `unsuppliedTypeParams`, `typeParamCollisions`, `programCard`, `programKind` |
@@ -80,7 +80,8 @@ stringify(runProgram("concrete", new Map(), ctx, parseProgram("[$ctx.qty, $ctx.p
 The arithmetic profile (`../specs/reference.md` §11) is an option of each
 evaluation, off by default. `runProgram` and `evalProgram` run without it:
 there `sum`, `product`, `negate`, `quotient`, `inverse`, `floor-quotient`,
-`modulo`, `floor` and `real` are unbound, so `sum(1, 2)` is an `UnboundName`.
+`modulo`, `floor`, `real` and `round` are unbound, so `sum(1, 2)` is an
+`UnboundName`.
 `runProgramWith` and `evalProgramWith` take an `Options` object:
 
 ```ts
@@ -89,7 +90,9 @@ runProgramWith({ mode: "concrete", arithmetic: true }, new Map(), null, parsePro
 
 Both fields are optional (`defaultOptions` is concrete mode, arithmetic
 off), and the option applies to the root program and to every library it
-runs. `round`, the tenth name of the profile, is not implemented.
+runs. `round`, the tenth name of the profile, gives the integer nearest to the
+exact value of its operand, ties away from zero, and is held to the integer
+range like `floor`.
 
 In symbolic mode with the profile on, a builtin applied to a symbol gives a
 term, `{"$term": "sum", "arguments": [...]}` (`../specs/v3-symbols.md` §1.9),
@@ -97,10 +100,31 @@ which a host that left the profile off never receives. `arithmeticOps` and
 `deepArithmeticOps` report which of the names a program references free, so
 such a host can refuse a program before running it.
 
+## Sorting and number formatting
+
+`sort-by(list, fn)`, `sort-by-descending(list, fn)` and
+`format-number(x, decimals, group)` (`../specs/reference.md` §11,
+`../specs/decisions.md` §20) belong to the core language: they need no
+option.
+
+- **The two sorts are one AST constructor**, `SortBy`, with a `descending`
+  flag. The key function is applied once per element, in index order, before
+  anything is reordered. String keys are compared by Unicode code point,
+  which is not the order of `<` on JavaScript strings (UTF-16 code units).
+  The comparison ends on the element's index, so both sorts are stable
+  without relying on the engine's sort.
+- **`format-number` does not use `toFixed`**, whose range stops at `1e21` and
+  which writes a negative zero. It rounds the exact value of the double with
+  `BigInt` arithmetic, ties away from zero, so `format-number(1e23, 0, "")`
+  is `99999999999999991611392`. `round` uses the same rounding.
+- `emittedConstraintCount(options, libs, ctx, program)` returns how many
+  constraints an evaluation emitted before equal ones are made one. It exists
+  for tests: it is the only way to count how many times a function ran.
+
 ## Scripts
 
 ```
 npm run build      # tsc -> dist/
 npm run typecheck
-npm test           # vitest: corpus parity + node-json + analysis + numbers
+npm test           # vitest: corpus parity + node-json + analysis + numbers + sort-format
 ```

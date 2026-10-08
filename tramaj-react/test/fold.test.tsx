@@ -238,6 +238,8 @@ describe("renderScalar", () => {
       { $term: "product", arguments: [{ $term: "real", arguments: [{ $sym: "#ctx.n", path: [] }] }, new Float(9)] },
       "product(real(#ctx.n), 9.0)",
     ],
+    // `round` is the tenth arithmetic name; a term names its builtin whatever it is.
+    [{ $term: "round", arguments: [{ $sym: "#ctx.n", path: ["spend"] }] }, "round(#ctx.n.spend)"],
     // Not a term: an argument that is neither a number, a symbol nor a term.
     [{ $term: "sum", arguments: ["a"] }, '{"$term":"sum","arguments":["a"]}'],
     [1.5, "1.5"],

@@ -438,6 +438,8 @@ function eraseExpr(libs: LibraryTable, prog: Program, e: Expr): Expr {
       return { t: "Map", collection: go(e.collection), fn: go(e.fn) };
     case "Filter":
       return { t: "Filter", collection: go(e.collection), fn: go(e.fn) };
+    case "SortBy":
+      return { t: "SortBy", descending: e.descending, collection: go(e.collection), fn: go(e.fn) };
     case "Scan":
       return { t: "Scan", collection: go(e.collection), initial: go(e.initial), fn: go(e.fn) };
     case "Fold":

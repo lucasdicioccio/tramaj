@@ -41,6 +41,12 @@ export type Expr =
   | { t: "Filter"; collection: Expr; fn: Expr }
   | { t: "Scan"; collection: Expr; initial: Expr; fn: Expr }
   | { t: "Fold"; collection: Expr; initial: Expr; fn: Expr }
+  /**
+   * `sort-by(list, fn)` and, with `descending`, `sort-by-descending(list, fn)`
+   * (`reference.md` §11, *Sorting*): the list ordered by the key `fn` gives
+   * each element.
+   */
+  | { t: "SortBy"; descending: boolean; collection: Expr; fn: Expr }
   | { t: "Concat"; left: Expr; right: Expr }
   | { t: "Import"; name: string; params: Array<[string, ParamValue]> }
   | { t: "AdaptActions"; target: Expr; adaptation: ActionAdaptation; fn: Expr | null }
@@ -132,6 +138,7 @@ export function subExprs(e: Expr): Expr[] {
       return [e.condition, e.then, e.else];
     case "Map":
     case "Filter":
+    case "SortBy":
       return [e.collection, e.fn];
     case "Scan":
     case "Fold":
