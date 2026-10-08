@@ -148,7 +148,7 @@ func reqChildren(what string, obj *Object) ([]*Node, error) {
 	}
 	out := make([]*Node, len(raw))
 	for i, c := range raw {
-		if out[i], err = NodeFromJSON(c); err != nil {
+		if out[i], err = nodeFromJSON(c); err != nil {
 			return nil, err
 		}
 	}
@@ -156,8 +156,19 @@ func reqChildren(what string, obj *Object) ([]*Node, error) {
 }
 
 // NodeFromJSON decodes specs/node-json.md form, rejecting anything the spec
-// says a decoder must reject.
+// says a decoder must reject. A number is typed as the JSON value has it (an
+// int64 is an integer, a float64 a float; ParseJSON types each by its text),
+// and NormalizeNumbers says which numbers are refused: an integer outside the
+// integer range and a float too large for a double.
 func NodeFromJSON(v JSON) (*Node, error) {
+	normalized, err := NormalizeNumbers(v)
+	if err != nil {
+		return nil, decodeErr("%v", err)
+	}
+	return nodeFromJSON(normalized)
+}
+
+func nodeFromJSON(v JSON) (*Node, error) {
 	obj, ok := v.(*Object)
 	if !ok {
 		return nil, decodeErr("expected a JSON object for a node")
@@ -182,7 +193,7 @@ func NodeFromJSON(v JSON) (*Node, error) {
 		}
 		n.Attributes = make([]NodeAttribute, len(attrs))
 		for i, a := range attrs {
-			if n.Attributes[i], err = NodeAttributeFromJSON(a); err != nil {
+			if n.Attributes[i], err = nodeAttributeFromJSON(a); err != nil {
 				return nil, err
 			}
 		}
@@ -206,6 +217,14 @@ func NodeFromJSON(v JSON) (*Node, error) {
 }
 
 func NodeAttributeFromJSON(v JSON) (NodeAttribute, error) {
+	normalized, err := NormalizeNumbers(v)
+	if err != nil {
+		return NodeAttribute{}, decodeErr("%v", err)
+	}
+	return nodeAttributeFromJSON(normalized)
+}
+
+func nodeAttributeFromJSON(v JSON) (NodeAttribute, error) {
 	var a NodeAttribute
 	obj, ok := v.(*Object)
 	if !ok {

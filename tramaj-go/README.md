@@ -18,11 +18,11 @@ One package, `tramaj`. The files mirror `tramaj-py/tramaj/*.py` one-to-one.
 |---|---|
 | `ast.go` | `Program`, the `Expr`/`TypeExpr`/`Attribute`/`ParamValue` node types, `Stmt`; `SubExprs`, `Unlets` |
 | `parser.go` | `ParseProgram`, `ParseError` |
-| `eval.go` | `RunProgram`, `EvalProgram`, `Output`, `Mode` (`Concrete`, `Symbolic`), `EvalError` |
+| `eval.go` | `RunProgram`, `EvalProgram`, `RunProgramWith`, `EvalProgramWith`, `Options`, `DefaultOptions`, `Output`, `Mode` (`Concrete`, `Symbolic`), `EvalError` |
 | `node.go` | `Node`, `NodeAttribute`; `NodeToJSON`/`NodeFromJSON`, `NodeAttributeToJSON`/`NodeAttributeFromJSON`, `NodeDecodeError` |
-| `analysis.go` | `StaticImportNames`, `TransitiveImportNames`, `StaticActionKeys`, `DeepActionKeys`, `ContextHoles`, `DeepContextHoles`, `ContextReads`, `UnsuppliedParams`, `ConstraintKinds`, `DeepConstraintKinds`, `SymbolSites`, `SymbolDemands`, `DeepSymbolDemands`, `TypeDeclarations`, `TypeParams`, `UnsuppliedTypeParams`, `TypeParamCollisions`, `ProgramCard` |
+| `analysis.go` | `StaticImportNames`, `TransitiveImportNames`, `StaticActionKeys`, `DeepActionKeys`, `ContextHoles`, `DeepContextHoles`, `ContextReads`, `UnsuppliedParams`, `ArithmeticNames`, `ArithmeticOps`, `DeepArithmeticOps`, `ConstraintKinds`, `DeepConstraintKinds`, `SymbolSites`, `SymbolDemands`, `DeepSymbolDemands`, `TypeDeclarations`, `TypeParams`, `UnsuppliedTypeParams`, `TypeParamCollisions`, `ProgramCard` |
 | `types.go` | `ResolveTypeExpr`, `CanonicalID`, `TypeConstraints`, `DeepTypeConstraints`, `TypeReferences`, `DeepTypeReferences`, `CheckTypeParamCollisions`, `TypeError` |
-| `jsonval.go` | `JSON`, `Object`, `ParseJSON`, `JSONEqual`, `CompactJSON`, `DisplayString`, `FormatNumber`, `PrettyJSON` |
+| `jsonval.go` | `JSON`, `Object`, `ParseJSON`, `NormalizeNumbers`, `JSONEqual`, `CompactJSON`, `DisplayString`, `FormatInteger`, `FormatFloat`, `FormatNumber`, `PrettyJSON` |
 
 ```go
 import tramaj "github.com/lucasdicioccio/tramaj/tramaj-go"
@@ -40,12 +40,99 @@ program. Errors are returned, never panicked: `*ParseError` from parsing,
 `*TypeError` from the type analyses. Every set-valued analysis returns a sorted
 slice, so two runs over the same program agree on order as well as membership.
 
-A `tramaj.JSON` value is `nil`, `bool`, `float64`, `string`, `[]tramaj.JSON` or
-`*tramaj.Object`. `Object` keeps its keys in insertion order, which is why the
-package has its own `ParseJSON` rather than decoding into `map[string]any`.
-Every number is a `float64`, as the language specifies, and
-`str`/`FormatNumber` render exactly as ECMAScript's `Number::toString` does
-(`1e21` → `1e+21`, `-2.0` → `-2`).
+A `tramaj.JSON` value is `nil`, `bool`, `int64`, `float64`, `string`,
+`[]tramaj.JSON` or `*tramaj.Object`. `Object` keeps its keys in insertion
+order, which is why the package has its own `ParseJSON` rather than decoding
+into `map[string]any`.
+
+## Numbers
+
+Integers and floats are two types (`../specs/reference.md` §3), and nothing
+converts one into the other except the `real`, `floor` and `round` builtins.
+
+- **In Go, the type of the value says which.** An `int64` is an integer and a
+  `float64` is a float: `int64(3)` and `float64(3)` are two values, and
+  `JSONEqual` never equates them. No other Go numeric type is a JSON value, so
+  a host that builds a context by hand converts an `int` to `int64` itself; a
+  context holding anything else is a `TypeMismatch`.
+- **Integer range: signed 64-bit**, `-2^63` to `2^63 - 1` (reference §13). An
+  integer literal outside it is a parse error, an integer-form number outside
+  it in the context is a `TypeMismatch`, and an arithmetic result outside it
+  is a `NotRepresentable`. Nothing wraps or rounds.
+- **`ParseJSON` types a number by its text**: `3` is an integer, `3.0` and
+  `3e0` are floats, and an integer keeps its digits beyond 2^53. Do not read a
+  context with `encoding/json` into `any`: it makes every number a `float64`,
+  so every number becomes a float.
+- **`ParseJSON` refuses no number.** An integer-form number outside the range
+  is read as a `*big.Int` and a float too large for a double as an infinity.
+  `NormalizeNumbers` is what refuses both, and the context decoder and
+  `NodeFromJSON` go through it, so a context holding `1e400` is a
+  `TypeMismatch` from evaluation and not an error from the JSON reader.
+- **Written, a number keeps its type.** An integer is its digits; a float is
+  the shortest round-trip text of ECMAScript's `Number::toString` with `.0`
+  appended when that text has neither a fraction nor an exponent (`1.0`,
+  `100000000000.0`, `1e+21`). `str`, `CompactJSON` and `PrettyJSON` all write
+  this way; `FormatInteger` and `FormatFloat` are the two rules, and
+  `FormatNumber` is `Number::toString` alone.
+- `eq(1, 1.0)` is `false`, and `lt`/`lte`/`gt`/`gte` take two integers or two
+  floats. `int` and `float` are the v4 type primitives; `number` is not one.
+
+## Arithmetic
+
+The arithmetic profile (reference §11) is an option of each evaluation, off
+by default. This port has its ten names: `sum`, `product`, `negate`,
+`quotient`, `inverse`, `floor-quotient`, `modulo`, `floor`, `real` and
+`round` (`tramaj.ArithmeticNames`). `round(x)` is the integer nearest to the
+exact value of `x`, ties away from zero.
+
+```go
+opts := tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}
+out, err := tramaj.RunProgramWith(opts, nil, ctx, program)
+```
+
+`RunProgram` and `EvalProgram` run with the profile off, where those names
+are unbound and `sum(1, 2)` is an `UnboundName`. The option applies to the
+root program and to every library the evaluation runs. A host that leaves it
+off can refuse a program beforehand: `DeepArithmeticOps(libs, program)` lists
+the arithmetic names the program and its libraries reference free.
+
+An operation with no result in the type of its operands (integer overflow, a
+zero divisor, a float result that is not finite) is an `*EvalError` of kind
+`NotRepresentable`. Integer results are checked at every step of a fold;
+float results are one `float64` operation at a time, with no fused
+multiply-add and no negative zero.
+
+In symbolic mode, a builtin given a symbol builds a term instead of
+computing, written `{"$term": <op>, "arguments": [...]}` with its operands as
+written (`../specs/v3-symbols.md` §1.9). `"$term"` is a reserved object key
+in every profile, and a context may seed a well-formed term only in symbolic
+mode with the profile on.
+
+## Sorting and number formatting
+
+Both belong to the core language (reference §11, *Sorting* and *Number
+formatting*) and need no option.
+
+- **`sort-by(list, fn)` and `sort-by-descending(list, fn)`** are special
+  forms, like `map`: the parser lowers both to the one constructor
+  `*tramaj.SortBy`, whose `Descending` field tells them apart. A use with
+  other than two arguments is a parse error, and neither name can be bound
+  and called, or passed by reference.
+- `fn` gives each element its key, once per element and in index order. The
+  keys of one call are all integers, all floats or all strings; anything else
+  is a `TypeMismatch`, and a symbol or a term a `NotConcrete`. Both sorts are
+  stable, each on its own terms: `sort-by-descending` is not the reversal of
+  `sort-by`.
+- String keys compare by Unicode code point, which is Go's own string
+  comparison. It is not the UTF-16 order this package uses to write object
+  keys.
+- **`format-number(x, decimals, group)`** is an ordinary builtin: positional
+  decimal text with exactly `decimals` digits (0 to 20) after the point and
+  `group` between groups of three digits of the integer part. It rounds the
+  exact value of the number, ties away from zero, on `math/big` integers,
+  since `strconv` rounds ties to even: `format-number(2.5, 0, "")` is `3`
+  and `format-number(1.005, 2, "")` is `1.00`. It never writes an exponent
+  or a negative zero.
 
 ## Command line
 
@@ -53,9 +140,14 @@ The same shape as `tramaj-cli-rs` and `python -m tramaj`:
 
 ```
 go build ./cmd/tramaj-go
-./tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>
-./tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]
+./tramaj-go [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>
+./tramaj-go analyze <imports|actions|holes|unsupplied|constraints|symbols|types|arithmetic|card|all> <template-file> [--lib name=path ...]
 ```
+
+`--arithmetic` turns the arithmetic profile on for the run. When an evaluation
+fails without it and the program references an arithmetic name, the error
+lists those names and names the flag. `analyze arithmetic` prints
+`DeepArithmeticOps`, and `analyze all` carries it under `"arithmetic"`.
 
 Evaluation prints the result JSON on stdout: the node-json document, the plain
 value, or the symbolic envelope. A parse error exits 2 and an evaluation error
@@ -68,6 +160,16 @@ go test ./...
 ```
 
 `corpus_test.go` runs every case under `../corpus/cases` in the mode its
-`meta.json` names; `node_test.go` covers the decoder's rejection list and the
-round-trip law; `analysis_test.go` covers the analyses and the number
-rendering.
+`meta.json` names, with the arithmetic profile on only for a case that lists
+`arithmetic`. It provides the profiles `base`, `int-float`, `arithmetic` and
+`int64`, and the three names `sort`, `format-number` and `round`, and skips
+a case that lists any other (`go test -v` shows each as `--- SKIP` with what
+was not provided). `node_test.go` covers the decoder's
+rejection list and the round-trip law; `analysis_test.go` covers the analyses
+and `Number::toString`; `arithmetic_test.go` covers how JSON text becomes the
+two number types and back, the arithmetic option and its default, the two
+arithmetic analyses, and integer arithmetic at the ends of the 64-bit range;
+`sort_format_test.go` covers what no corpus case can state about the sorts,
+`format-number` and `round`: the key function applied once per element, the
+analyses seeing inside it, the parser's lowering, and the rounding against
+`strconv` away from ties.
