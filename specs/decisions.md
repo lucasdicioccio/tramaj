@@ -1125,12 +1125,12 @@ arguments, `?(a, b)`).
 *Status: proposed, for owner review. Nothing here is implemented in any port,
 and no normative file is changed: `reference.md` §11 does not list these
 names. The questions at the end are the choices to push back on. The owner has
-settled five of them: the sort takes a key function, as `map` takes its
+settled six of them: the sort takes a key function, as `map` takes its
 function (question 1); a key that is not an integer, a float or a string is
 refused, `null` included (question 3); rounding is of the exact value, ties
 away from zero (question 5); `format-number` takes three positional
-arguments (question 6); and `round` is a tenth arithmetic builtin (question
-12).*
+arguments (question 6); the decimal mark is always `.` (question 7); and
+`round` is a tenth arithmetic builtin (question 12).*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.
@@ -1413,8 +1413,7 @@ which is few numbers, and exactly the ones a user types.
    `" "`, `"'"`, `"_"`, U+202F. Nothing validates it, because nothing about it
    needs agreeing on. Groups are always of three; the 3-2-2 grouping of Indian
    numbering is out of scope.
-6. *The decimal mark is always `.`*, so `1.234,56` cannot be produced
-   (question 7).
+6. *The decimal mark is always `.`*, so `1.234,56` cannot be produced.
 7. *Symbols.* `format-number($s, 2, ",")` is `NotConcrete`, like `str($s)`. It
    builds no term: a term stands for a number and this is text, and symbolic
    strings were declined (v3-symbols §9).
@@ -1570,8 +1569,7 @@ computation and cross-checked against Node below `1e21`:
    follows it.
 6. *Settled.* `format-number(x, decimals, group)` is positional, with all
    three arguments required.
-7. **The decimal mark is always `.`**, so `1.234,56` cannot be written. Add a
-   fourth argument for it now, or leave it out?
+7. *Settled.* The decimal mark is always `.`, with no argument for it.
 8. **`decimals` runs from `0` to `20`**, and a value outside is a
    `TypeMismatch`. Accept the bound and the error kind?
 9. **Every float formats, however large, and never with an exponent**: `1e21`
