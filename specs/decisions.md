@@ -898,7 +898,7 @@ specs win.
 
 ## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
-*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled eight points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; and an object literal takes a marker as a shorthand field.*
+*Status: proposed, for owner review. Nothing here is implemented; `specs/v3-symbols.md` is unchanged until this is approved. The owner has settled nine points: a symbol in a shape is declared by an explicit marker; the marker is named; the form is spelled `?shape`; a duplicate marker name is a parse error; so is a shape with no marker; a marker may be written anywhere in the shape; under a lambda it carries its own key; an object literal takes a marker as a shorthand field; and `"binding"` is `null` for every entry. No question is open; what remains is the owner's approval of the section as a whole.*
 
 "Traverse" in the functional sense: walk a structure, run an effect at each
 position, get the same structure back. The effect here is allocation.
@@ -1097,6 +1097,10 @@ other than two arguments.
   added to a language that has none.
 - *A core `AllocIn` constructor, or a new origin kind.* Neither is needed once
   the form is a lowering.
+- *`"binding"` reporting the structure's name.* `"binding": "d"` would stop
+  meaning "`$d` is this symbol", and the lowering would have to tag its
+  allocations, which is a change in every port. `origin.key` already carries
+  the form's key.
 - *Symbols from a count.* Belongs with a `range`.
 
 **Follow-up once approved:** normative text in `specs/v3-symbols.md` (§1.2,
@@ -1115,6 +1119,3 @@ annotated binding emitting a single `has-type`; and the parse errors (a marker
 outside a shape and in a form's key, a bare marker under a lambda, a
 marker-free shape, a duplicate name, `?shape` with one and with three
 arguments, `?(a, b)`).
-
-**Question for the owner.** `"binding"` as `null` for every entry, which is
-what the lowering gives, rather than the structure's name.
