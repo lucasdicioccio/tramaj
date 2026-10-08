@@ -16,16 +16,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 from tramaj.analysis import (  # noqa: E402
+    arithmetic_ops,
     context_holes,
     context_reads,
     deep_action_keys,
+    deep_arithmetic_ops,
     deep_context_holes,
     static_action_keys,
     static_import_names,
     transitive_import_names,
 )
 from tramaj.evaluator import EvalError, run_program  # noqa: E402
-from tramaj.jsonval import compact_json, json_equal  # noqa: E402
+from tramaj.jsonval import compact_json, json_equal, parse_json  # noqa: E402
 from tramaj.parser import ParseError, parse_program  # noqa: E402
 
 
@@ -42,14 +44,18 @@ def find_corpus_root() -> str:
         d = parent
 
 
-def read_json(path: str):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
-
-
 def read_text(path: str) -> str:
     with open(path, encoding="utf-8") as f:
         return f.read()
+
+
+def read_json(path: str):
+    """Reads a JSON file with the port's own reader, which keeps the type the
+    text gives each number: ``3`` is an integer, with all of its digits, and
+    ``3.0`` a float (corpus/README.md). Nothing is refused for its size here:
+    ``1e400`` in a ``ctx.json`` comes back as an infinity, and it is the
+    evaluator that refuses it, with the ``TypeMismatch`` the case expects."""
+    return parse_json(read_text(path))
 
 
 def read_libs(case_dir: str) -> dict:
@@ -65,9 +71,19 @@ def read_libs(case_dir: str) -> dict:
 
 # The profiles (``profiles`` in ``meta.json``, see corpus/README.md) this port
 # can provide. A case naming any other one is skipped. ``base`` is the language
-# without any profile; this port has no other yet, and no integer range to name
-# until it has the two number types (``int-float``).
-PROVIDED_PROFILES: frozenset = frozenset({"base"})
+# without any profile. ``int-float`` is the two number types, and ``int64`` the
+# integer range this port has (the signed 64-bit range, so not ``int53``).
+# ``arithmetic`` is the arithmetic profile, with nine names: ``round`` is a
+# name of its own, not provided here, and neither are ``sort`` and
+# ``format-number``.
+PROVIDED_PROFILES: frozenset = frozenset({"base", "int-float", "arithmetic", "int64"})
+
+
+def arithmetic_on(meta: dict) -> bool:
+    """The arithmetic profile is an option of each evaluation: on for a case
+    that lists ``arithmetic``, off for every other one, where the nine names
+    are unbound."""
+    return "arithmetic" in meta.get("profiles", [])
 
 # The static analyses (reference.md §9) this port provides to an
 # ``"expect": "analysis"`` case, by the name ``analysis.json`` gives them. A
@@ -80,6 +96,8 @@ PROVIDED_ANALYSES: dict = {
     "contextHoles": lambda libs, prog: context_holes(prog),
     "deepContextHoles": deep_context_holes,
     "contextReads": lambda libs, prog: context_reads(prog),
+    "arithmeticOps": lambda libs, prog: arithmetic_ops(prog),
+    "deepArithmeticOps": deep_arithmetic_ops,
 }
 
 
@@ -149,7 +167,7 @@ def run_case(case_dir: str, meta: dict) -> None:
         if error_kind is None:
             raise AssertionError("eval-error case needs errorKind")
         try:
-            run_program(mode, libs, ctx, prog)
+            run_program(mode, libs, ctx, prog, arithmetic=arithmetic_on(meta))
         except EvalError as e:
             if e.kind != error_kind:
                 raise AssertionError(f"expected eval error {error_kind}, got {e.kind} ({e})") from e
@@ -160,7 +178,9 @@ def run_case(case_dir: str, meta: dict) -> None:
         raise AssertionError(f"unknown expect {expect}")
 
     expected = read_json(os.path.join(case_dir, "expected.json"))
-    actual = run_program(mode, libs, ctx, prog)
+    actual = run_program(mode, libs, ctx, prog, arithmetic=arithmetic_on(meta))
+    # json_equal never equates an integer with a float, so an expected ``3``
+    # is not met by ``3.0``.
     if not json_equal(actual, expected):
         raise AssertionError(
             f"output mismatch\n  expected: {compact_json(expected)}\n  actual:   {compact_json(actual)}"

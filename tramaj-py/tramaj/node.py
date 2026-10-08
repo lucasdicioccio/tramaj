@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Union
 
-from .jsonval import Json
+from .jsonval import Json, normalize_numbers
 
 Annotations = dict
 
@@ -114,6 +114,17 @@ def _req(what: str, fieldname: str, obj: dict) -> Json:
     return obj[fieldname]
 
 
+def _req_value(what: str, fieldname: str, obj: dict) -> Json:
+    """A field holding a ``Value``, with its numbers checked (node-json.md,
+    *Numbers* and *Decoding*): an integer outside the integer range and a
+    float too large for a double are rejected, never rounded, and a negative
+    zero float is ``0.0``."""
+    try:
+        return normalize_numbers(_req(what, fieldname, obj))
+    except ValueError as e:
+        raise NodeDecodeError(f'{what}: field "{fieldname}": {e}') from None
+
+
 def _req_string(what: str, fieldname: str, obj: dict) -> str:
     v = _req(what, fieldname, obj)
     if not isinstance(v, str):
@@ -140,12 +151,12 @@ def node_from_json(v: Json) -> Node:
         raise NodeDecodeError("expected a JSON object for a node")
     typ = _req_string("node", "type", v)
     if typ == "text":
-        return TextNode(_req("text node", "value", v), _req_annotations(v))
+        return TextNode(_req_value("text node", "value", v), _req_annotations(v))
     if typ == "element":
         return ElementNode(
             _req_string("element node", "tag", v),
             [node_attribute_from_json(a) for a in _req_array("element node", "attributes", v)],
-            _req("element node", "value", v),
+            _req_value("element node", "value", v),
             [node_from_json(c) for c in _req_array("element node", "children", v)],
             _req_annotations(v),
         )
@@ -162,12 +173,12 @@ def node_attribute_from_json(v: Json) -> NodeAttribute:
         raise NodeDecodeError("expected a JSON object for a node attribute")
     kind = _req_string("node attribute", "kind", v)
     if kind == "attribute":
-        return AttributeAttr(_req_string("attribute", "name", v), _req("attribute", "value", v))
+        return AttributeAttr(_req_string("attribute", "name", v), _req_value("attribute", "value", v))
     if kind == "action":
         return ActionAttr(
             _req_string("action", "event", v),
             _req_string("action", "key", v),
-            _req("action", "payload", v),
+            _req_value("action", "payload", v),
         )
     raise NodeDecodeError(f'unknown node attribute kind: "{kind}"')
 

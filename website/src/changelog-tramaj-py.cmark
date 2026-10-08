@@ -49,6 +49,38 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "Object destructuring patterns in \`@\` bindings and lambda parameters (decisions section 17): a parser lowering to plain \`Let\`/\`Lambda\`, checked by shared corpus cases 100-118."
+          },
+          {
+              "kind": "changed",
+              "text": "Numbers are two types, an integer and a float (decisions section 18), and they are the two Python types: an \`int\` is an integer and a \`float\` a float, in the context and in the result. A literal and a JSON number are typed by their text: \`3\` is an integer, \`3.0\` and \`3e0\` are floats. Integers cover the signed 64-bit range; Python's own are unbounded, so one outside the range is refused and never rounded: a parse error as a literal, a \`TypeMismatch\` in the context, a \`NotRepresentable\` as a result."
+          },
+          {
+              "kind": "changed",
+              "text": "A number keeps its type when written. \`str(1.0)\` is \`1.0\` where it was \`1\`, and \`compact_json\`, \`pretty_json\` and the CLI write a float with a fraction or an exponent. \`node_from_json\` rejects an integer outside the range and a float too large for a double."
+          },
+          {
+              "kind": "changed",
+              "text": "\`eq\` never equates an integer with a float, and so neither does \`json_equal\`. \`lt\`/\`lte\`/\`gt\`/\`gte\` take two integers or two floats; a mixed pair is a \`TypeMismatch\`. An array index is an integer: \`has\` and \`lookup\` no longer take \`1.0\` for \`1\`."
+          },
+          {
+              "kind": "changed",
+              "text": "\`int\` and \`float\` are type primitives and \`number\` is no longer one (v4-types section 1). \`\"$term\"\` is a reserved object key, next to \`\"$sym\"\` and \`\"$type\"\`. \`normalize_number\` and \`MAX_SAFE_INTEGER\` are gone from \`jsonval\`; \`VNumber\` is replaced by \`VInt\` and \`VFloat\`."
+          },
+          {
+              "kind": "added",
+              "text": "The arithmetic profile (reference section 11), nine builtins: \`sum\`, \`product\`, \`negate\`, \`inverse\`, \`quotient\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`. It is an option of each evaluation, off by default: \`run_program(..., arithmetic=True)\`, and \`--arithmetic\` on the command line. Without it the nine names are unbound. \`round\` is not implemented yet."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin builds \`{\"$term\": op, \"arguments\": [...]}\` with its operands as written (v3-symbols section 1.9), and a well-formed term can be seeded back in symbolic mode."
+          },
+          {
+              "kind": "added",
+              "text": "\`arithmetic_ops\` and \`deep_arithmetic_ops\`, the scope-aware analysis of which arithmetic names a program references free; \`python -m tramaj analyze arithmetic\` prints the deep one. \`parse_json\` reads JSON text with each number typed by its text. The \`NotRepresentable\` error kind."
+          },
+          {
+              "kind": "added",
+              "text": "The corpus runner declares \`int-float\`, \`arithmetic\` and \`int64\`, and turns arithmetic on only for the cases that list it."
           }
       ]
   }).rendered)

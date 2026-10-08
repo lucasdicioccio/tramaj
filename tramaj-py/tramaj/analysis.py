@@ -210,6 +210,60 @@ def deep_symbol_demands(libs: LibraryTable, prog: A.Program) -> list[list[str]]:
     return _sorted_paths(out)
 
 
+# Arithmetic ---------------------------------------------------------------------
+
+# The nine names of the arithmetic profile (reference.md section 11). They are
+# names and not syntax: an evaluation with the profile on binds them in the
+# initial environment (``run_program(..., arithmetic=True)``), and a program
+# may bind any of them itself. ``round``, the tenth name of the profile
+# (decisions section 20), is not implemented in this port yet.
+ARITHMETIC_NAMES = (
+    "sum", "product", "negate", "inverse", "quotient", "floor-quotient", "modulo",
+    "floor", "real",
+)
+
+
+def arithmetic_ops(prog: A.Program) -> list[str]:
+    """Which of ``ARITHMETIC_NAMES`` this program references free (reference.md
+    section 9), called (``sum(1, 2)``) or passed by reference
+    (``fold($xs, 0, $sum)``) alike, since both are a ``Path`` rooted at the name.
+
+    Scope-aware: a name bound by a binding, a lambda parameter or a pattern
+    name is not reported where that binding is in scope. A pattern is lowered
+    to plain bindings by the parser, so it needs no case here. A binding's own
+    right-hand side is outside its scope, so ``@sum = sum(1, 2)`` reports
+    ``sum``. Over-approximates like every analysis here."""
+
+    def go(bound: frozenset, e: A.Expr) -> list[str]:
+        if e.t == "Path":
+            return [e.root] if e.root in ARITHMETIC_NAMES and e.root not in bound else []
+        if e.t in ("Let", "TypeAnnotate"):
+            return go(bound, e.value) + go(bound | {e.name}, e.body)
+        if e.t == "Lambda":
+            return go(bound | set(e.params), e.body)
+        out: list[str] = []
+        for sub in A.sub_exprs(e):
+            out.extend(go(bound, sub))
+        return out
+
+    return sorted_strings(go(frozenset(), prog.root))
+
+
+def deep_arithmetic_ops(libs: LibraryTable, prog: A.Program) -> list[str]:
+    """``arithmetic_ops`` of this program and of every library it imports,
+    directly or not. A library has its own scope, so a binding in the
+    importing program shadows nothing there. This is what a host that leaves
+    the arithmetic profile off checks before running a program: non-empty
+    means the program would fail with ``UnboundName``, and with the profile on
+    it names the operations a term can carry (``v3-symbols.md`` section 7)."""
+    out = list(arithmetic_ops(prog))
+    for name in transitive_import_names(libs, prog):
+        p = libs.get(name)
+        if p is not None:
+            out.extend(arithmetic_ops(p))
+    return sorted_strings(out)
+
+
 # Types -------------------------------------------------------------------------
 
 

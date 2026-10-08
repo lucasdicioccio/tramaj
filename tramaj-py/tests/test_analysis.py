@@ -1,6 +1,8 @@
 """``specs/reference.md`` section 9's analyses, which the corpus never reaches:
-it drives ``run_program`` only. Plus the ``str`` number rendering the language
-pins to ECMAScript's ``Number::toString``."""
+it reaches only the ones an ``"expect": "analysis"`` case names. Plus the
+number rendering of ``str`` and of JSON output, which keeps the type: an
+integer as its digits, a float by ECMAScript's ``Number::toString`` with a
+fraction or an exponent always present."""
 
 from __future__ import annotations
 
@@ -11,10 +13,13 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tramaj.analysis import (  # noqa: E402
+    ARITHMETIC_NAMES,
+    arithmetic_ops,
     constraint_kinds,
     context_holes,
     context_reads,
     deep_action_keys,
+    deep_arithmetic_ops,
     program_card,
     static_action_keys,
     static_import_names,
@@ -81,12 +86,41 @@ class AnalysisTest(unittest.TestCase):
         )
 
 
+class ArithmeticOpsTest(unittest.TestCase):
+    def test_the_profile_has_nine_names_and_round_is_not_one(self):
+        self.assertEqual(len(ARITHMETIC_NAMES), 9)
+        self.assertNotIn("round", ARITHMETIC_NAMES)
+
+    def test_called_and_passed_by_reference(self):
+        prog = parse_program("[sum(1, 2), fold($ctx.xs, 1, $product), floor-quotient(7, 2)]")
+        self.assertEqual(arithmetic_ops(prog), ["floor-quotient", "product", "sum"])
+
+    def test_a_shadowed_name_is_not_reported(self):
+        self.assertEqual(arithmetic_ops(parse_program("@sum=(a, b) => $a\nsum(1, 2)")), [])
+        self.assertEqual(arithmetic_ops(parse_program("map($ctx.xs, (negate) => $negate)")), [])
+        self.assertEqual(arithmetic_ops(parse_program("@{floor}=$ctx\n$floor")), [])
+
+    def test_a_binding_is_out_of_scope_in_its_own_value(self):
+        self.assertEqual(arithmetic_ops(parse_program("@sum=sum(1, 2)\n$sum")), ["sum"])
+
+    def test_a_name_outside_the_profile_is_not_reported(self):
+        self.assertEqual(arithmetic_ops(parse_program("[round(1.5), eq(1, 2), gt(2, 1)]")), [])
+
+    def test_deep_follows_imports_and_a_library_has_its_own_scope(self):
+        libs = {"lib": parse_program("real($ctx.n)"), "other": parse_program("modulo(1, 2)")}
+        prog = parse_program('@real=1\n[negate(1), import("lib", {n: 1}).rendered]')
+        self.assertEqual(arithmetic_ops(prog), ["negate"])
+        self.assertEqual(deep_arithmetic_ops(libs, prog), ["negate", "real"])
+
+
 class NumberFormatTest(unittest.TestCase):
-    def test_renders_like_ecmascript(self):
+    def test_an_integer_is_its_digits_and_a_float_keeps_a_fraction_or_an_exponent(self):
         cases = [
-            (0, "0"), (1, "1"), (-2.0, "-2"), (1.5, "1.5"), (0.1 + 0.2, "0.30000000000000004"),
-            (1e21, "1e+21"), (1e20, "100000000000000000000"), (1e-7, "1e-7"), (0.000001, "0.000001"),
-            (123456789012345680000, "123456789012345680000"), (2**53, "9007199254740992"),
+            (0, "0"), (1, "1"), (-7, "-7"), (100000000000, "100000000000"),
+            (2**53, "9007199254740992"), (2**63 - 1, "9223372036854775807"), (-(2**63), "-9223372036854775808"),
+            (0.0, "0.0"), (1.0, "1.0"), (-2.0, "-2.0"), (1.5, "1.5"), (0.1 + 0.2, "0.30000000000000004"),
+            (100000000000.0, "100000000000.0"), (1e21, "1e+21"), (1e20, "100000000000000000000.0"),
+            (1e-7, "1e-7"), (0.000001, "0.000001"), (0.05, "0.05"),
             (1.7976931348623157e308, "1.7976931348623157e+308"), (5e-324, "5e-324"), (-1.5e-9, "-1.5e-9"),
         ]
         for n, s in cases:

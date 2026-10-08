@@ -366,7 +366,7 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types; the two number
-types and arithmetic are not in this port yet). It needs
+types and the nine arithmetic builtins are in this port, on `main`). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It's a normal package — `tramaj` with
