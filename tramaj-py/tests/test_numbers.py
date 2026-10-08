@@ -175,8 +175,10 @@ class ArithmeticProfileTest(unittest.TestCase):
         with self.assertRaises(EvalError):
             run_program("concrete", {}, None, prog)
 
-    def test_round_is_not_bound_by_the_profile(self):
-        self.assertEqual(error_kind("round(1.5)", arithmetic=True), "UnboundName")
+    def test_round_is_bound_by_the_profile_and_only_by_it(self):
+        self.assertEqual(run("round(1.5)", arithmetic=True), 2)
+        self.assertEqual(error_kind("round(1.5)"), "UnboundName")
+        self.assertEqual(error_kind("ceiling(1.5)", arithmetic=True), "UnboundName")
 
     def test_a_library_follows_the_option_of_the_evaluation(self):
         libs = {"lib": parse_program("sum($ctx.n, 1)")}
@@ -217,8 +219,8 @@ class ArithmeticProfileTest(unittest.TestCase):
         self.assertTrue(json_equal(run("$ctx.t", term, "symbolic", True)["root"], term["t"]))
         self.assertEqual(error_kind("1", term, "symbolic", False), "TypeMismatch")
         self.assertEqual(error_kind("1", term, "concrete", True), "TypeMismatch")
-        rounded = {"$term": "round", "arguments": [{"$sym": "#ctx.s", "path": []}]}
-        self.assertEqual(error_kind("1", rounded, "symbolic", True), "TypeMismatch")
+        unknown = {"$term": "ceiling", "arguments": [{"$sym": "#ctx.s", "path": []}]}
+        self.assertEqual(error_kind("1", unknown, "symbolic", True), "TypeMismatch")
 
     def test_the_residual_law_on_one_program(self):
         src = "floor-quotient(product(100, ?ctx.used), 7)"

@@ -8,7 +8,7 @@ the symbolic envelope) on stdout. A parse error exits 2, an evaluation error 1,
 each with the error on stderr, leading with its kind.
 
 ``--arithmetic`` turns on the arithmetic profile (reference.md section 11) for
-this run; without it the nine arithmetic names are unbound. Numbers keep the
+this run; without it the ten arithmetic names are unbound. Numbers keep the
 type their text gives them, in the context file and in the output: ``3`` is an
 integer and ``3.0`` a float.
 """
@@ -216,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
         out = run_program(mode, libs, ctx, prog, arithmetic=arithmetic)
     except EvalError as e:
         print(f"eval error: {e}", file=sys.stderr)
-        # Without --arithmetic the nine names are unbound and a seeded term is
+        # Without --arithmetic the ten names are unbound and a seeded term is
         # refused, and the error alone does not say that a flag is what is
         # missing. A hint, not a refusal: the analysis over-approximates.
         ops = [] if arithmetic else AN.deep_arithmetic_ops(libs, prog)

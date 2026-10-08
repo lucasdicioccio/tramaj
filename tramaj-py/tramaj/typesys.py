@@ -372,6 +372,8 @@ def _erase_expr(libs: LibraryTable, prog: A.Program, e: A.Expr) -> A.Expr:
         return A.Map(go(e.collection), go(e.fn))
     if t == "Filter":
         return A.Filter(go(e.collection), go(e.fn))
+    if t == "SortBy":
+        return A.SortBy(e.descending, go(e.collection), go(e.fn))
     if t == "Scan":
         return A.Scan(go(e.collection), go(e.initial), go(e.fn))
     if t == "Fold":

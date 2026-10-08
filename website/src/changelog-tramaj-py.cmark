@@ -68,7 +68,7 @@ tagged so the site builds one Atom feed per implementation:
           },
           {
               "kind": "added",
-              "text": "The arithmetic profile (reference section 11), nine builtins: \`sum\`, \`product\`, \`negate\`, \`inverse\`, \`quotient\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`. It is an option of each evaluation, off by default: \`run_program(..., arithmetic=True)\`, and \`--arithmetic\` on the command line. Without it the nine names are unbound. \`round\` is not implemented yet."
+              "text": "The arithmetic profile (reference section 11), ten builtins: \`sum\`, \`product\`, \`negate\`, \`inverse\`, \`quotient\`, \`floor-quotient\`, \`modulo\`, \`floor\`, \`real\` and \`round\`. It is an option of each evaluation, off by default: \`run_program(..., arithmetic=True)\`, and \`--arithmetic\` on the command line. Without it the ten names are unbound. \`round\` (decisions section 20) gives the nearest integer, ties away from zero, unlike Python's own."
           },
           {
               "kind": "added",
@@ -80,7 +80,15 @@ tagged so the site builds one Atom feed per implementation:
           },
           {
               "kind": "added",
-              "text": "The corpus runner declares \`int-float\`, \`arithmetic\` and \`int64\`, and turns arithmetic on only for the cases that list it."
+              "text": "The corpus runner declares \`int-float\`, \`arithmetic\`, \`int64\`, \`sort\`, \`format-number\` and \`round\`, and turns arithmetic on only for the cases that list it."
+          },
+          {
+              "kind": "added",
+              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20): a stable sort by key, in every profile. The key function runs once per element, in index order; the keys of one call are all integers, all floats or all strings, and strings compare by code point. Both names are special forms lowering to one new AST constructor, \`ast.SortBy\`, so they can no longer be bound and called as ordinary names, and a wrong argument count is a parse error."
+          },
+          {
+              "kind": "added",
+              "text": "\`format-number(x, decimals, group)\` (decisions section 20), an ordinary builtin of every profile: positional decimal text with 0 to 20 decimals and an optional group separator. It rounds the exact value of the number, ties away from zero, on \`fractions.Fraction\`, and never writes an exponent or a negative zero."
           }
       ]
   }).rendered)

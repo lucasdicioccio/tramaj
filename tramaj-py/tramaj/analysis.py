@@ -212,14 +212,13 @@ def deep_symbol_demands(libs: LibraryTable, prog: A.Program) -> list[list[str]]:
 
 # Arithmetic ---------------------------------------------------------------------
 
-# The nine names of the arithmetic profile (reference.md section 11). They are
+# The ten names of the arithmetic profile (reference.md section 11). They are
 # names and not syntax: an evaluation with the profile on binds them in the
 # initial environment (``run_program(..., arithmetic=True)``), and a program
-# may bind any of them itself. ``round``, the tenth name of the profile
-# (decisions section 20), is not implemented in this port yet.
+# may bind any of them itself. ``round`` is the tenth (decisions section 20).
 ARITHMETIC_NAMES = (
     "sum", "product", "negate", "inverse", "quotient", "floor-quotient", "modulo",
-    "floor", "real",
+    "floor", "real", "round",
 )
 
 

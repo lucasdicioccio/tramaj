@@ -87,9 +87,9 @@ class AnalysisTest(unittest.TestCase):
 
 
 class ArithmeticOpsTest(unittest.TestCase):
-    def test_the_profile_has_nine_names_and_round_is_not_one(self):
-        self.assertEqual(len(ARITHMETIC_NAMES), 9)
-        self.assertNotIn("round", ARITHMETIC_NAMES)
+    def test_the_profile_has_ten_names_and_round_is_one(self):
+        self.assertEqual(len(ARITHMETIC_NAMES), 10)
+        self.assertIn("round", ARITHMETIC_NAMES)
 
     def test_called_and_passed_by_reference(self):
         prog = parse_program("[sum(1, 2), fold($ctx.xs, 1, $product), floor-quotient(7, 2)]")
@@ -104,7 +104,7 @@ class ArithmeticOpsTest(unittest.TestCase):
         self.assertEqual(arithmetic_ops(parse_program("@sum=sum(1, 2)\n$sum")), ["sum"])
 
     def test_a_name_outside_the_profile_is_not_reported(self):
-        self.assertEqual(arithmetic_ops(parse_program("[round(1.5), eq(1, 2), gt(2, 1)]")), [])
+        self.assertEqual(arithmetic_ops(parse_program('[ceiling(1.5), eq(1, 2), format-number(1, 0, "")]')), [])
 
     def test_deep_follows_imports_and_a_library_has_its_own_scope(self):
         libs = {"lib": parse_program("real($ctx.n)"), "other": parse_program("modulo(1, 2)")}

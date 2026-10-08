@@ -20,6 +20,7 @@ class ParseError(Exception):
 
 SPECIAL_FORM_NAMES = {
     "map", "filter", "scan", "fold", "branch", "import", "adapt-actions", "constraint",
+    "sort-by", "sort-by-descending",
 }
 
 # The five value-domain shapes ``v4-types.md`` section 1 reserves as type primitives.
@@ -507,6 +508,11 @@ class _Parser:
         elif name == "filter":
             c, f = self.binary_shape()
             base = A.Filter(c, f)
+        elif name in ("sort-by", "sort-by-descending"):
+            # Exactly two arguments, like map: any other count is a parse
+            # error, and so is the bare name, passed by reference.
+            c, f = self.binary_shape()
+            base = A.SortBy(name == "sort-by-descending", c, f)
         elif name == "scan":
             c, i, f = self.ternary_shape()
             base = A.Scan(c, i, f)

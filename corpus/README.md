@@ -185,11 +185,10 @@ the language's own spelling), and the table of analyses beside it
 | Go | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 | TypeScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
-| Python | `base`, `int-float`, `arithmetic`, `int64` |
+| Python | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
 
-The Python list does not hold `"sort"`, `"format-number"` or `"round"` yet,
-so the cases that list one are skipped by that suite. The Python arithmetic
-profile has the nine names other than `round`.
+All six lists hold `"sort"`, `"format-number"` and `"round"`, so the cases
+that list one run in every suite.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
@@ -197,15 +196,11 @@ that list it start running in that suite; no case needs editing.
 In all six implementations the arithmetic profile is an option of each
 evaluation, off by default. Their runners turn it on for a case that lists
 `"arithmetic"` and leave it off for every other case.
-`round` is the tenth name under the same option, in the five
-implementations that have the profile.
+`round` is the tenth name under the same option, in all six.
 
-The Python implementation has the profile too, with the nine names other
-than `round`, as the same per-evaluation option
-(`run_program(..., arithmetic=True)`, off by default). Its runner turns it on
-for a case that lists `"arithmetic"` and leaves it off for every other case,
-and reads `ctx.json` and `expected.json` with `tramaj.jsonval.parse_json`,
-which keeps `3` and `3.0` apart and every digit of an integer.
+In the Python implementation the option is
+`run_program(..., arithmetic=True)`. Its runner reads `ctx.json` and
+`expected.json` with `tramaj.jsonval.parse_json`, which keeps `3` and `3.0` apart and every digit of an integer.
 
 The expected texts of the `format-number` and `round` cases come from one
 reference computation (exact rational arithmetic over the value of each
