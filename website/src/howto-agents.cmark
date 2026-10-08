@@ -151,7 +151,7 @@ number in the context. Nothing converts between them implicitly.
 Do not emit `round`, `sort-by`, `sort-by-descending` or `format-number`:
 they are specified in the reference, marked **[§20]**, and no implementation
 has them yet. The number split and the nine builtins above are in the
-PureScript and Haskell implementations, and not yet in the Rust, JavaScript,
+PureScript, Haskell and Rust implementations, and not yet in the JavaScript,
 Python and Go ones, where every number is still a double. Templates written
 before the split:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).

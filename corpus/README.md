@@ -156,13 +156,13 @@ The analyses a case may name:
 | `staticImportNames`, `transitiveImportNames` | names | all six |
 | `staticActionKeys`, `deepActionKeys` | names | all six |
 | `contextHoles`, `deepContextHoles`, `contextReads` | paths | all six |
-| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell |
+| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell, Rust |
 
 A runner runs the case when its implementation provides every analysis
 named in `analysis.json` (and every profile in `profiles`, as for any case),
 and skips it otherwise. A case should therefore name analyses that the same
 implementations provide: one that adds `arithmeticOps` to a case about
-imports takes that case away from four runners.
+imports takes that case away from three runners.
 
 The arithmetic analyses do not need the arithmetic profile, and their cases
 do not list it: nothing is evaluated, and `deepArithmeticOps` is what a host
@@ -182,18 +182,20 @@ the language's own spelling), and the table of analyses beside it
 |---|---|
 | PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
 | Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| Rust, TypeScript, Go, Python | `base` |
+| Rust | `base`, `int-float`, `arithmetic`, `int64` |
+| TypeScript, Go, Python | `base` |
 
 The other four lists do not hold `"sort"`, `"format-number"` or `"round"`
-yet, so the cases that list one are skipped by those four suites.
+yet, so the cases that list one are skipped by those four suites. The Rust
+arithmetic profile has the nine names other than `round`.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
 
-In the Haskell and PureScript implementations the arithmetic profile is an
+In the Haskell, PureScript and Rust implementations the arithmetic profile is an
 option of each evaluation, off by default. Their runners turn it on for a
 case that lists `"arithmetic"` and leave it off for every other case. The
-other four do not implement arithmetic yet, so the ten names are unbound
+other three do not implement arithmetic yet, so the ten names are unbound
 there whatever a runner does: they run the cases that do not list
 `"arithmetic"` and skip the ones that do. When one of them gains the
 profile it must come as a per-evaluation option, since its runner has to

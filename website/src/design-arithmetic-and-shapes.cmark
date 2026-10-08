@@ -110,10 +110,10 @@ those numbers been in the context. Tramaj still solves nothing.
 The normative text is in the
 [language reference](/reference-language.html) and the
 [symbols reference](/reference-v3-symbols.html), and the conformance corpus
-has the fixtures. The PureScript and Haskell implementations have the number
+has the fixtures. The PureScript, Haskell and Rust implementations have the number
 split and the nine builtins on `main`, and so do the command-line tool
 (`tramaj-cli --arithmetic`), the Halogen fold and the
-[playground](/playground.html). They are not in a release. The Rust,
+[playground](/playground.html). They are not in a release. The
 JavaScript, Python and Go implementations follow.
 
 The split changes what some existing templates produce, beyond the `str`

@@ -13,8 +13,8 @@ where they are permitted to differ; everything else they must not.
 **One part is not in every implementation yet.** The split of numbers into
 integers and floats, and the arithmetic builtins, are accepted design
 (decisions §18) and are normative here. `tramaj/` (PureScript, with the
-guaranteed integer range) and `tramaj-hs/` (Haskell, with the 64-bit range)
-implement both, the nine arithmetic names without `round`. The Rust,
+guaranteed integer range), `tramaj-hs/` (Haskell, with the 64-bit range) and `tramaj-rs/` (Rust, with the 64-bit range)
+implement both, the nine arithmetic names without `round`. The
 JavaScript, Python and Go ports do not yet: there every number is a double,
 `str(1.0)` is `1`, and the nine names of §11's *Arithmetic* are unbound. Each
 passage this applies to is marked **[§18]**.
@@ -803,8 +803,8 @@ format-number(product(100.0, $ratio), 1, "") <> "%"
 
 ### Arithmetic
 
-**[§18]** Implemented in `tramaj/` (PureScript) and `tramaj-hs/` (Haskell),
-with the nine names other than `round`; not yet in the Rust, JavaScript,
+**[§18]** Implemented in `tramaj/` (PureScript), `tramaj-hs/` (Haskell) and `tramaj-rs/` (Rust),
+with the nine names other than `round`; not yet in the JavaScript,
 Python and Go ports. **[§20]** `round` is the tenth name, added to the
 profile after the other nine, and no implementation has it yet.
 

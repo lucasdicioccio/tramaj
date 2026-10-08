@@ -48,7 +48,35 @@ tagged so the site builds one Atom feed per implementation:
           },
           {
               "kind": "added",
-              "text": "Serde-based Node JSON codec."
+              "text": "Node JSON codec."
+          },
+          {
+              "kind": "changed",
+              "text": "Numbers are two types, an integer and a float (decisions section 18): \`Value::Int\` and \`Value::Float\`, \`Expr::IntLit\` and \`Expr::FloatLit\`. A literal or a JSON number with neither a fraction nor an exponent is an integer. Nothing converts between the two: \`eq(1, 1.0)\` is false, \`lt\` and its siblings refuse a mixed pair, an index is an integer, and \`str(1.0)\` is \`1.0\`."
+          },
+          {
+              "kind": "changed",
+              "text": "The integer range is the signed 64-bit one. A literal outside it is a parse error and a context number outside it a \`TypeMismatch\`; neither is rounded. A float too large for a double is refused the same way."
+          },
+          {
+              "kind": "changed",
+              "text": "JSON goes in and out as \`tramaj_rs::json::Json\`, not \`serde_json::Value\`: \`run_program\`, \`eval_program\` and \`Node\` take and return it. \`json::parse\` types a number by its text and \`json::stringify\` writes an integer as digits and a float with a fraction or an exponent. \`json::from_serde\` and \`json::to_serde\` bridge to \`serde_json\`."
+          },
+          {
+              "kind": "changed",
+              "text": "The type primitives \`int\` and \`float\` replace \`number\`, and \`\"$term\"\` is a reserved key: a parse error as an object key, a \`TypeMismatch\` in a context."
+          },
+          {
+              "kind": "added",
+              "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`eval_program_with\` and \`run_program_with\` turn it on. \`round\` is not provided yet."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
+          },
+          {
+              "kind": "added",
+              "text": "\`arithmetic_ops\` and \`deep_arithmetic_ops\`, the arithmetic names a program references."
           },
           {
               "kind": "added",

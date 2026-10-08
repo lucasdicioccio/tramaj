@@ -33,10 +33,12 @@ const SPECIAL_FORM_NAMES: &[&str] = &[
     "constraint",
 ];
 
-/// The five value-domain shapes `v4-types.md` §1 reserves as type
+/// The six value-domain shapes `v4-types.md` §1 reserves as type
 /// primitives. Fixed and closed, so recognized at parse time rather than
-/// left for a later resolution pass to classify.
-const PRIM_NAMES: &[&str] = &["string", "number", "bool", "null", "document"];
+/// left for a later resolution pass to classify. `int` and `float` are the
+/// value domain's two number types (`reference.md` §3); `number` is no
+/// longer a primitive, so it reads as an ordinary type name.
+const PRIM_NAMES: &[&str] = &["string", "int", "float", "bool", "null", "document"];
 
 struct P {
     chars: Vec<char>,
@@ -344,8 +346,14 @@ impl P {
     /// `["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]`, where a `_`
     /// may sit between two digits (reference.md §5, *Number literals*). The
     /// fraction and exponent are taken only when complete, so a stray `.`,
-    /// `e` or `_` is left for the caller to reject. An overflow to infinity
-    /// is refused and a zero is normalized so `-0` never escapes.
+    /// `e` or `_` is left for the caller to reject.
+    ///
+    /// The form decides the type (§5, decisions §18). With neither a
+    /// fraction nor an exponent the literal is an integer, denoting exactly
+    /// its value, and one outside the signed 64-bit range is refused; the
+    /// sign is part of the literal, so `-9223372036854775808` is in range.
+    /// With either it is a float: an overflow to infinity is refused and a
+    /// zero is normalized so `-0.0` never escapes.
     fn number_lit(&mut self) -> PResult<Expr> {
         self.lexeme(|p| {
             let start = p.pos;
@@ -382,11 +390,14 @@ impl P {
                     p.pos = save;
                 }
             }
-            match full.parse::<f64>() {
-                Ok(n) if n.is_infinite() => Err(p.err("number literal out of range")),
-                Ok(n) if n == 0.0 => Ok(Expr::NumberLit(0.0)),
-                Ok(n) => Ok(Expr::NumberLit(n)),
-                Err(_) => Err(p.err("invalid number literal")),
+            let is_float = full.contains(['.', 'e']);
+            match crate::json::number_from_text(&full) {
+                crate::json::Json::Int(n) => Ok(Expr::IntLit(n)),
+                crate::json::Json::Float(d) => Ok(Expr::FloatLit(d)),
+                _ if is_float => Err(p.err(&format!("number literal out of range: {full}"))),
+                _ => Err(p.err(&format!(
+                    "integer literal outside the signed 64-bit range: {full}"
+                ))),
             }
         })
     }
@@ -1425,7 +1436,8 @@ fn lower_lambda(params: Vec<Pattern>, body: Expr) -> Expr {
 
 fn as_scalar_arg(e: Expr) -> TypeConstraintArg {
     match e {
-        Expr::NumberLit(n) => TypeConstraintArg::ScalarNum(n),
+        Expr::IntLit(n) => TypeConstraintArg::ScalarInt(n),
+        Expr::FloatLit(n) => TypeConstraintArg::ScalarFloat(n),
         Expr::BoolLit(b) => TypeConstraintArg::ScalarBool(b),
         Expr::NullLit => TypeConstraintArg::ScalarNull,
         Expr::StringLit(s) => TypeConstraintArg::ScalarStr(s),
@@ -1433,8 +1445,10 @@ fn as_scalar_arg(e: Expr) -> TypeConstraintArg {
     }
 }
 
+/// `"$sym"`, `"$type"` and `"$term"` are reserved across the value domain
+/// (v3-symbols §5.3), in every profile, so none can be an object key.
 fn reserved_key_refused(p: &P, k: &str) -> PResult<()> {
-    if k == "$sym" || k == "$type" {
+    if k == "$sym" || k == "$type" || k == "$term" {
         Err(p.err(&format!(
             "\"{k}\" is a reserved key and cannot be used as an object key"
         )))

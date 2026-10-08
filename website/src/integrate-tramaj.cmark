@@ -74,6 +74,9 @@ in three places.
   `JSON.parse` and Haskell's `aeson` `Value` do neither, which is why
   `tramaj-purs` and `tramaj-hs` each ship a `Tramaj.Json` module with a
   reader (`jsonParser`) and a writer (`stringify`).
+  `tramaj-rs` has the same in `tramaj_rs::json` (`parse`, `stringify`).
+  `serde_json` keeps `3` and `3.0` apart, but rounds an integer beyond 64
+  bits and reads `-0` as a float.
 - **Reading the result.** The output keeps the type: an integer is written
   as digits and a float always with a fraction or an exponent
   ([`node-json.md`](/reference-node-json.html), *Numbers*). A fold that
@@ -90,12 +93,13 @@ in three places.
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
 </table>
 
-The first two rows are on the `main` branch and in no release yet. Until the
+The first three rows are on the `main` branch and in no release yet. Until the
 other implementations follow, the same template can give different output on
-two of them: `str(1.0)` is `1.0` on the first two rows and `1` on the third.
+two of them: `str(1.0)` is `1.0` on the first three rows and `1` on the last.
 The corpus cases that depend on the split or on arithmetic are marked with
 `"requires"`, and an implementation that does not declare the name skips
 them. An existing host moving to the split should read
@@ -205,9 +209,9 @@ and evaluation semantics as the PureScript `tramaj-purs` and Haskell `tramaj-hs`
 held to the same shared conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints
 and [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
-core language; the two number types and arithmetic are not in this port yet,
+core language, with the two number types and the arithmetic profile,
 see *Numbers at the boundary*). It's a normal Cargo library crate — `tramaj_rs::{ast, parser,
-eval, node, analysis, types}` — depended on as a path or git dependency (not
+eval, json, node, analysis, types}` — depended on as a path or git dependency (not
 published to crates.io yet), the same way a PureScript host depends on
 `tramaj-purs` or a Haskell host depends on `tramaj-hs`:
 
@@ -215,14 +219,40 @@ published to crates.io yet), the same way a PureScript host depends on
 // tramaj_rs::parser
 pub fn parse_program(src: &str) -> Result<Program, ParseError>;
 
+// tramaj_rs::json
+pub fn parse(src: &str) -> Result<Json, String>;
+pub fn stringify(v: &Json) -> String;
+
 // tramaj_rs::eval
+pub struct Options { pub mode: Mode, pub arithmetic: bool }
+
 pub fn run_program(
     mode: Mode,
     libs: &LibraryTable,
-    ctx: &serde_json::Value,
+    ctx: &Json,
     program: &Program,
-) -> Result<serde_json::Value, EvalError>;
+) -> Result<Json, EvalError>;
+
+pub fn run_program_with(
+    options: &Options,
+    libs: &LibraryTable,
+    ctx: &Json,
+    program: &Program,
+) -> Result<Json, EvalError>;
 ```
+
+`tramaj_rs::json::Json` is the JSON type of this port: like
+`serde_json::Value`, with an integer (`Json::Int`, an `i64`) and a float
+(`Json::Float`) as two variants. Read the context with `json::parse` and
+write the result with `json::stringify`, so that `3` and `3.0` stay two
+values both ways. `json::from_serde` and `json::to_serde` bridge to a
+`serde_json::Value` a host already holds; their documentation says what each
+direction loses. Integers cover the signed 64-bit range, as in the Haskell
+implementation: a literal, a context number or a result outside it is
+refused, never rounded. Arithmetic is off in `run_program` and on with
+`run_program_with(&Options { mode, arithmetic: true }, ...)`;
+`analysis::deep_arithmetic_ops` lists the arithmetic names a program and its
+libraries reference, for a host that leaves the profile off.
 
 `run_program` gives you the evaluated result as JSON directly, already
 encoded per [`node-json.md`](/reference-node-json.html) when the program
@@ -237,13 +267,12 @@ host).
 
 Unlike the Haskell port, Rust also has a `tramaj-cli` equivalent —
 `tramaj-cli-rs` — mirroring `tramaj-cli`'s command surface field-for-field:
-the same `evaluate`/`analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all>`
-subcommands, the same `--lib name=path`/`--mode concrete|symbolic` flags,
+the same `evaluate`/`analyze <imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all>`
+subcommands, the same `--lib name=path`/`--mode concrete|symbolic`/`--arithmetic` flags,
 and the same JSON output shapes. If you'd rather shell out than link a Rust
 library into your host — including from a non-Rust host — `tramaj-cli-rs` is
-an alternative to `tramaj-cli` with no Node.js runtime required. It does not
-have `tramaj-cli`'s `--arithmetic` flag or `analyze arithmetic` yet, and it
-writes a whole-valued float without a fraction.
+an alternative to `tramaj-cli` with no Node.js runtime required. Its integer
+range is the signed 64-bit one, where `tramaj-cli` has the guaranteed 53 bits.
 
 ## JavaScript / TypeScript — import as a library, fold with `tramaj-react`
 
@@ -340,8 +369,8 @@ import name to parsed program; the mode is `"concrete"` or `"symbolic"`.
 `eval_program` is the lower-level entry point if you want the `Node` value
 itself rather than its JSON encoding. Every number is still a double
 in this port: an exact integer comes back as an `int`, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
-Go ports byte-for-byte, and differs from the PureScript and Haskell
+ECMAScript's `Number::toString` does. That matches the JavaScript and
+Go ports byte-for-byte, and differs from the PureScript, Haskell and Rust
 implementations for a whole-valued float (`1` here, `1.0` there).
 
 As with Haskell and Rust, no fold is shipped: a Python host writes its own
@@ -385,8 +414,8 @@ document, or the concrete/symbolic envelope from
 `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry
 point if you want the `*tramaj.Node` itself rather than its JSON encoding.
 Every number is still a `float64` in this port, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
-Python ports byte-for-byte, and differs from the PureScript and Haskell
+ECMAScript's `Number::toString` does. That matches the JavaScript and
+Python ports byte-for-byte, and differs from the PureScript, Haskell and Rust
 implementations for a whole-valued float (`1` here, `1.0` there).
 
 As with Haskell, Rust and Python, no fold is shipped: a Go host writes its

@@ -45,6 +45,18 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "Template + JSON context evaluation and the \`analyze\` subcommands, as a single static binary."
+          },
+          {
+              "kind": "changed",
+              "text": "Numbers keep their type through the context and the output: \`3\` is an integer and \`3.0\` a float, and a whole-valued float is written with its fraction. An integer outside the signed 64-bit range is refused."
+          },
+          {
+              "kind": "added",
+              "text": "\`evaluate --arithmetic\` turns the arithmetic profile on for the run. Without it, an error names the flag when the program references an arithmetic builtin."
+          },
+          {
+              "kind": "added",
+              "text": "\`analyze arithmetic\` lists the arithmetic builtins a program and its libraries reference; \`analyze all\` carries the list under \`arithmetic\`."
           }
       ]
   }).rendered)
