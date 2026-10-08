@@ -1,30 +1,36 @@
 """Command line over the port, mirroring ``tramaj-cli-rs``::
 
-    python -m tramaj [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>
-    python -m tramaj analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]
+    python -m tramaj [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>
+    python -m tramaj analyze <imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all> <template-file> [--lib name=path ...]
 
 Evaluation prints the result JSON (the node-json document, the plain value, or
 the symbolic envelope) on stdout. A parse error exits 2, an evaluation error 1,
 each with the error on stderr, leading with its kind.
+
+``--arithmetic`` turns on the arithmetic profile (reference.md section 11) for
+this run; without it the nine arithmetic names are unbound. Numbers keep the
+type their text gives them, in the context file and in the output: ``3`` is an
+integer and ``3.0`` a float.
 """
 
 from __future__ import annotations
 
-import json
 import sys
 
 from . import analysis as AN
 from . import typesys as TY
 from .evaluator import EvalError, run_program
-from .jsonval import pretty_json
+from .jsonval import parse_json, pretty_json
 from .parser import ParseError, parse_program
 
 USAGE = (
-    "usage: python -m tramaj [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>\n"
-    "       python -m tramaj analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]"
+    "usage: python -m tramaj [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>\n"
+    "       python -m tramaj analyze <imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all> <template-file> [--lib name=path ...]"
 )
 
-ANALYSES = ("imports", "actions", "holes", "unsupplied", "constraints", "symbols", "types", "card", "all")
+ANALYSES = (
+    "imports", "actions", "holes", "unsupplied", "constraints", "symbols", "arithmetic", "types", "card", "all",
+)
 
 
 def _read(path: str) -> str:
@@ -35,6 +41,7 @@ def _read(path: str) -> str:
 def _split_args(argv: list[str]):
     libs: list[tuple[str, str]] = []
     mode = "concrete"
+    arithmetic = False
     positional: list[str] = []
     i = 0
     while i < len(argv):
@@ -57,6 +64,9 @@ def _split_args(argv: list[str]):
         elif a.startswith("--mode="):
             mode = a[len("--mode="):]
             i += 1
+        elif a == "--arithmetic":
+            arithmetic = True
+            i += 1
         elif a in ("-h", "--help"):
             print(USAGE)
             raise SystemExit(0)
@@ -65,7 +75,7 @@ def _split_args(argv: list[str]):
             i += 1
     if mode not in ("concrete", "symbolic"):
         raise SystemExit(f"unknown mode {mode!r}: expected concrete or symbolic\n" + USAGE)
-    return libs, mode, positional
+    return libs, mode, arithmetic, positional
 
 
 def _load_libs(pairs: list[tuple[str, str]]) -> dict:
@@ -113,6 +123,9 @@ def _analyze(what: str, libs: dict, prog) -> dict:
     def symbols():
         return {"sites": AN.symbol_sites(prog), "demands": AN.deep_symbol_demands(libs, prog)}
 
+    def arithmetic():
+        return AN.deep_arithmetic_ops(libs, prog)
+
     def types():
         return {
             "declarations": AN.type_declarations(prog),
@@ -136,6 +149,7 @@ def _analyze(what: str, libs: dict, prog) -> dict:
         "unsupplied": unsupplied,
         "constraints": constraints,
         "symbols": symbols,
+        "arithmetic": arithmetic,
         "types": types,
         "card": card,
     }
@@ -159,7 +173,10 @@ def _constraint_args(args) -> list:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "analyze":
-        libs_pairs, _, positional = _split_args(argv[1:])
+        libs_pairs, _, arithmetic, positional = _split_args(argv[1:])
+        if arithmetic:
+            print("--arithmetic is not valid for the analyze command\n" + USAGE, file=sys.stderr)
+            return 2
         if len(positional) != 2 or positional[0] not in ANALYSES:
             print(USAGE, file=sys.stderr)
             return 2
@@ -179,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if argv and argv[0] == "evaluate":
         argv = argv[1:]
-    libs_pairs, mode, positional = _split_args(argv)
+    libs_pairs, mode, arithmetic, positional = _split_args(argv)
     if len(positional) != 2:
         print(USAGE, file=sys.stderr)
         return 2
@@ -191,15 +208,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"parse error: {e}", file=sys.stderr)
         return 2
     try:
-        with open(context, encoding="utf-8") as f:
-            ctx = json.load(f)
+        ctx = parse_json(_read(context))
     except (OSError, ValueError) as e:
         print(f"context {context}: {e}", file=sys.stderr)
         return 2
     try:
-        out = run_program(mode, libs, ctx, prog)
+        out = run_program(mode, libs, ctx, prog, arithmetic=arithmetic)
     except EvalError as e:
         print(f"eval error: {e}", file=sys.stderr)
+        # Without --arithmetic the nine names are unbound and a seeded term is
+        # refused, and the error alone does not say that a flag is what is
+        # missing. A hint, not a refusal: the analysis over-approximates.
+        ops = [] if arithmetic else AN.deep_arithmetic_ops(libs, prog)
+        if ops:
+            print(
+                f"note: this program references the arithmetic builtins {', '.join(ops)}, "
+                "which are unbound unless --arithmetic is given",
+                file=sys.stderr,
+            )
         return 1
     print(pretty_json(out))
     return 0

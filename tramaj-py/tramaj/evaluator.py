@@ -1,21 +1,32 @@
 """``Value``, the environment, and the evaluator: concrete and symbolic modes
-(``specs/reference.md`` sections 6, 7, 10; ``specs/v3-symbols.md`` sections 4-6;
-``specs/v4-types.md`` sections 7-8). Mirrors ``tramaj-js/src/eval.ts``."""
+(``specs/reference.md`` sections 3, 6, 7, 10, 11; ``specs/v3-symbols.md``
+sections 1.9, 4-6; ``specs/v4-types.md`` sections 7-8).
+
+Numbers are two types (reference.md section 3): ``VInt`` holds a Python
+``int`` inside the signed 64-bit range and ``VFloat`` a finite Python
+``float`` that is never a negative zero. Nothing converts between the two
+unless the program says so, with ``real`` or ``floor``.
+
+The arithmetic profile (section 11) is an option of each evaluation, off by
+default: ``run_program(..., arithmetic=True)`` puts its nine names in the
+initial environment, of the program and of every library it imports."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
 from . import ast as A
-from .analysis import symbol_sites
+from .analysis import ARITHMETIC_NAMES, symbol_sites
 from .jsonval import (
     Json,
     compact_json,
     display_string,
-    is_number,
+    in_integer_range,
     json_equal,
-    normalize_number,
+    normalize_float,
+    normalize_integer,
     utf16_key,
 )
 from .node import (
@@ -45,7 +56,7 @@ LibraryTable = dict  # import name -> Program
 EVAL_ERROR_KINDS = (
     "UnboundName", "PathNotFound", "TypeMismatch", "ConcatMismatch", "UnknownLibrary",
     "ImportCycle", "InLibrary", "SymbolsUnavailable", "NotConcrete",
-    "AllocationInLibrary", "TypeErr",
+    "AllocationInLibrary", "TypeErr", "NotRepresentable",
 )
 
 
@@ -101,6 +112,13 @@ class EvalError(Exception):
         return EvalError("AllocationInLibrary", name)
 
     @staticmethod
+    def not_representable(m: str) -> "EvalError":
+        """An arithmetic operation has no result in the type of its operands
+        (reference.md section 12): integer overflow, a zero divisor, a
+        non-finite float."""
+        return EvalError("NotRepresentable", m)
+
+    @staticmethod
     def type_err(e: TramajTypeError) -> "EvalError":
         return EvalError("TypeErr", str(e))
 
@@ -120,9 +138,19 @@ class VBool:
 
 
 @dataclass
-class VNumber:
-    value: Union[int, float]
-    t: str = field(default="number", init=False)
+class VInt:
+    """An integer: exact, inside the signed 64-bit range."""
+
+    value: int
+    t: str = field(default="int", init=False)
+
+
+@dataclass
+class VFloat:
+    """A float: a finite double, never a negative zero."""
+
+    value: float
+    t: str = field(default="float", init=False)
 
 
 @dataclass
@@ -198,9 +226,21 @@ class VConstraint:
     t: str = field(default="constraint", init=False)
 
 
+@dataclass
+class VTerm:
+    """A term (``v3-symbols.md`` section 1.9): an arithmetic operation left
+    unevaluated because one of its operands is a symbol or a term. ``args``
+    are the flattened operands exactly as written, each a ``VInt``, a
+    ``VFloat``, a ``VSymbol`` or a ``VTerm``, nothing folded or simplified."""
+
+    op: str
+    args: list["Value"]
+    t: str = field(default="term", init=False)
+
+
 Value = Union[
-    VNull, VBool, VNumber, VStr, VArray, VObject, VNode, VClosure, VBuiltin,
-    VImportResult, VImport, VSymbol, VConstraint,
+    VNull, VBool, VInt, VFloat, VStr, VArray, VObject, VNode, VClosure, VBuiltin,
+    VImportResult, VImport, VSymbol, VConstraint, VTerm,
 ]
 
 Env = dict
@@ -230,10 +270,13 @@ class EvalCtx:
     mode: str
     is_root: bool
     emissions: Emissions
+    # Whether the arithmetic profile is on for this evaluation: a library's
+    # initial environment follows the root's.
+    arithmetic: bool = False
 
 
 def _enter_library(name: str, ctx: EvalCtx) -> EvalCtx:
-    return EvalCtx(ctx.libs, ctx.in_progress | {name}, ctx.mode, False, ctx.emissions)
+    return EvalCtx(ctx.libs, ctx.in_progress | {name}, ctx.mode, False, ctx.emissions, ctx.arithmetic)
 
 
 # Entry points ---------------------------------------------------------------
@@ -246,8 +289,12 @@ class Output:
     value: Json = None
 
 
-def eval_program(mode: str, libs: LibraryTable, ctx: Json, program: A.Program) -> Output:
-    return _eval_program_with_emissions(mode, libs, ctx, program)[0]
+def eval_program(
+    mode: str, libs: LibraryTable, ctx: Json, program: A.Program, *, arithmetic: bool = False
+) -> Output:
+    """Evaluates to a node or a JSON value. ``arithmetic`` turns the
+    arithmetic profile on for this evaluation (see ``run_program``)."""
+    return _eval_program_with_emissions(mode, libs, ctx, program, arithmetic)[0]
 
 
 def _with_type_errors(f):
@@ -257,14 +304,16 @@ def _with_type_errors(f):
         raise EvalError.type_err(e) from e
 
 
-def _eval_program_with_emissions(mode: str, libs: LibraryTable, ctx: Json, program: A.Program):
+def _eval_program_with_emissions(
+    mode: str, libs: LibraryTable, ctx: Json, program: A.Program, arithmetic: bool = False
+):
     if mode not in ("concrete", "symbolic"):
         raise ValueError(f"unknown mode {mode!r}")
     erased = _with_type_errors(lambda: erase_types(libs, program))
-    ctx_val = _checked_from_json(mode, ctx)
+    ctx_val = _checked_from_json(mode, arithmetic, ctx)
     emissions = Emissions()
-    eval_ctx = EvalCtx(libs, frozenset(), mode, True, emissions)
-    env = _initial_env(ctx_val)
+    eval_ctx = EvalCtx(libs, frozenset(), mode, True, emissions, arithmetic)
+    env = _initial_env(ctx_val, arithmetic)
     v = _eval_expr(eval_ctx, env, erased.root)
     if v.t == "node":
         output = Output("node", node=v.node)
@@ -304,9 +353,25 @@ def _constraint_eq(a: Value, b: Value) -> bool:
     return True
 
 
-def run_program(mode: str, libs: LibraryTable, ctx: Json, program: A.Program) -> Json:
-    """Evaluates and serializes to the wire JSON a host compares against ``expected.json``."""
-    output, emissions = _eval_program_with_emissions(mode, libs, ctx, program)
+def run_program(
+    mode: str, libs: LibraryTable, ctx: Json, program: A.Program, *, arithmetic: bool = False
+) -> Json:
+    """Evaluates and serializes to the wire JSON a host compares against ``expected.json``.
+
+    ``arithmetic`` is reference.md section 11's arithmetic profile, per
+    evaluation and off by default. With it on, the nine names of
+    ``analysis.ARITHMETIC_NAMES`` are in the initial environment of the
+    program and of every library it imports, and a seeded term is accepted in
+    symbolic mode. With it off they are unbound, so a program that uses one
+    fails with ``UnboundName``; ``analysis.deep_arithmetic_ops`` says so
+    beforehand.
+
+    The context is a ``Json`` value whose numbers are typed by their Python
+    type: an ``int`` is an integer and a ``float`` a float. Read JSON text
+    with ``jsonval.parse_json`` (or the standard ``json`` module), which keep
+    ``3`` and ``3.0`` apart. An ``int`` outside the signed 64-bit range and a
+    non-finite ``float`` are refused with a ``TypeMismatch``."""
+    output, emissions = _eval_program_with_emissions(mode, libs, ctx, program, arithmetic)
     root = node_to_json(output.node) if output.t == "node" else output.value
     if mode == "concrete":
         return root
@@ -388,8 +453,14 @@ BUILTIN_NAMES = (
 )
 
 
-def _initial_env(ctx_val: Value) -> Env:
+def _initial_env(ctx_val: Value, arithmetic: bool) -> Env:
+    """``$ctx`` and the builtins. The arithmetic names are bound only with the
+    arithmetic profile on (reference.md section 11); without it they are
+    unbound, like any other name the program did not bind."""
     env: Env = {n: VBuiltin(n) for n in BUILTIN_NAMES}
+    if arithmetic:
+        for n in ARITHMETIC_NAMES:
+            env[n] = VBuiltin(n)
     env["ctx"] = ctx_val
     return env
 
@@ -420,7 +491,7 @@ def _eval_expr(ctx: EvalCtx, env: Env, e: A.Expr) -> Value:
     if t == "StringLit":
         return VStr(e.value)
     if t == "NumberLit":
-        return VNumber(e.value)
+        return VFloat(e.value) if isinstance(e.value, float) else VInt(e.value)
     if t == "BoolLit":
         return VBool(e.value)
     if t == "NullLit":
@@ -626,7 +697,7 @@ def _eval_collection(ctx: EvalCtx, env: Env, who: str, e: A.Expr) -> list[Value]
     v = _eval_expr(ctx, env, e)
     if v.t == "array":
         return v.items
-    if v.t == "symbol":
+    if _is_symbolic(v):
         raise EvalError.not_concrete(who)
     raise EvalError.type_mismatch(f"{who} expects an array as its first argument, got {_describe_value(v)}")
 
@@ -635,7 +706,7 @@ def _eval_collection(ctx: EvalCtx, env: Env, who: str, e: A.Expr) -> list[Value]
 
 
 def _concat_values(l: Value, r: Value) -> Value:
-    if l.t == "symbol" or r.t == "symbol":
+    if _is_symbolic(l) or _is_symbolic(r):
         raise EvalError.not_concrete("<>")
     if l.t == "str" and r.t == "str":
         return VStr(l.value + r.value)
@@ -670,7 +741,7 @@ def _run_library(ctx: EvalCtx, name: str, ctx_val: Value) -> Value:
     ctx2 = _enter_library(name, ctx)
     try:
         statements, root = A.unlets(prog.root)
-        lib_env = _initial_env(ctx_val)
+        lib_env = _initial_env(ctx_val, ctx.arithmetic)
         binding_names: list[str] = []
         for stmt in statements:
             if stmt.t in ("Let", "Annotate"):
@@ -774,7 +845,7 @@ def to_json(v: Value) -> Json:
     t = v.t
     if t == "null":
         return None
-    if t in ("bool", "number", "str"):
+    if t in ("bool", "int", "float", "str"):
         return v.value
     if t == "array":
         return [to_json(x) for x in v.items]
@@ -798,6 +869,11 @@ def to_json(v: Value) -> Json:
         )
     if t == "symbol":
         return {"$sym": v.id, "path": list(v.path)}
+    if t == "term":
+        # A term crosses wherever a symbol does, as section 5.3's other tagged
+        # shape. Its operands are numbers, symbols and terms, and each number
+        # keeps its type, which the residual law depends on.
+        return {"$term": v.op, "arguments": [to_json(a) for a in v.args]}
     if t == "constraint":
         raise EvalError.type_mismatch(
             f'a constraint ("{v.name}") cannot cross a JSON boundary -- only "!" may consume it'
@@ -805,8 +881,17 @@ def to_json(v: Value) -> Json:
     raise AssertionError(f"unknown value {t}")
 
 
+def _is_symbolic(v: Value) -> bool:
+    """Whether a value is itself a symbol or a term (``v3-symbols.md`` section
+    1.9): the depth at which a container, a collection, a condition or an
+    operand is refused. A concrete structure that merely holds one is not
+    special (section 1.7); ``_contains_symbol`` is the other depth."""
+    return v.t in ("symbol", "term")
+
+
 def _contains_symbol(v: Value) -> bool:
-    if v.t == "symbol":
+    """Whether a value is, or contains, a symbol or a term."""
+    if _is_symbolic(v):
         return True
     if v.t == "array":
         return any(_contains_symbol(x) for x in v.items)
@@ -822,12 +907,17 @@ def _require_concrete(who: str, v: Value) -> Json:
 
 
 def _from_json(v: Json) -> Value:
+    """A JSON value this evaluator produced, back as a ``Value``: its numbers
+    are already values, so nothing is checked. The context goes through
+    ``_checked_from_json`` instead."""
     if v is None:
         return VNull()
     if isinstance(v, bool):
         return VBool(v)
-    if is_number(v):
-        return VNumber(normalize_number(v))
+    if isinstance(v, int):
+        return VInt(v)
+    if isinstance(v, float):
+        return VFloat(v)
     if isinstance(v, str):
         return VStr(v)
     if isinstance(v, list):
@@ -835,20 +925,39 @@ def _from_json(v: Json) -> Value:
     return VObject({k: _from_json(x) for k, x in v.items()})
 
 
-def _checked_from_json(mode: str, v: Json) -> Value:
-    """The input context's boundary: as ``_from_json``, but recursively refusing
-    ``"$sym"`` and ``"$type"`` as ordinary object keys. In symbolic mode,
-    seeding accepts a well-formed ``{"$sym": ..., "path": [...]}`` back as a symbol."""
+def _checked_from_json(mode: str, arithmetic: bool, v: Json) -> Value:
+    """The input context's boundary. It is decoded whole, before evaluation
+    starts, so what it refuses does not depend on what the program reads, and
+    every refusal is a ``TypeMismatch``.
+
+    Numbers (reference.md section 3): an ``int`` is an integer and a ``float``
+    a float, as the JSON text had them. An integer outside the signed 64-bit
+    range is refused, never rounded, and so is a float that is not finite
+    (what ``1e400`` reads as); a negative zero is ``0.0``.
+
+    Reserved keys (``v3-symbols.md`` section 5.3): ``"$sym"``, ``"$type"`` and
+    ``"$term"`` are refused as ordinary object keys, at any depth and in every
+    profile. In symbolic mode, seeding accepts a well-formed
+    ``{"$sym": ..., "path": [...]}`` back as a symbol and, with the arithmetic
+    profile on, a well-formed term back as a term."""
     if v is None:
         return VNull()
     if isinstance(v, bool):
         return VBool(v)
-    if is_number(v):
-        return VNumber(normalize_number(v))
+    if isinstance(v, int):
+        try:
+            return VInt(normalize_integer(v))
+        except ValueError as e:
+            raise EvalError.type_mismatch(f"the context holds a number that is not a value: {e}") from None
+    if isinstance(v, float):
+        try:
+            return VFloat(normalize_float(v))
+        except ValueError as e:
+            raise EvalError.type_mismatch(f"the context holds a number that is not a value: {e}") from None
     if isinstance(v, str):
         return VStr(v)
     if isinstance(v, list):
-        return VArray([_checked_from_json(mode, x) for x in v])
+        return VArray([_checked_from_json(mode, arithmetic, x) for x in v])
     if not isinstance(v, dict):
         raise EvalError.type_mismatch(f"the context holds a value JSON cannot represent: {v!r}")
     if "$type" in v:
@@ -861,7 +970,43 @@ def _checked_from_json(mode: str, v: Json) -> Value:
                 'the context carries the reserved key "$sym", which only a symbolic envelope may use'
             )
         return _decode_symbol_ref(v["$sym"], v)
-    return VObject({k: _checked_from_json(mode, x) for k, x in v.items()})
+    if "$term" in v:
+        if mode == "concrete":
+            raise EvalError.type_mismatch(
+                'the context carries the reserved key "$term", which only a symbolic envelope may use'
+            )
+        op = v["$term"]
+        args = v.get("arguments")
+        if not isinstance(op, str) or len(v) != 2 or not isinstance(args, list):
+            raise EvalError.type_mismatch(
+                'a "$term" object must be exactly {"$term": <op>, "arguments": [<argument>, ...]}'
+            )
+        return _seeded_term(arithmetic, op, [_checked_from_json(mode, arithmetic, x) for x in args])
+    return VObject({k: _checked_from_json(mode, arithmetic, x) for k, x in v.items()})
+
+
+def _seeded_term(arithmetic: bool, op: str, args: list[Value]) -> Value:
+    """A well-formed term is one a call could have built (``v3-symbols.md``
+    section 5.3), so this is the call's own check, ``_arithmetic_operands``, on
+    arguments already decoded, which holds a nested term to the same rule. Two
+    things a call accepts are refused first: an array, since a term holds its
+    operands already flattened, and operands that are all numbers, since the
+    call would have computed. Without the arithmetic profile no ``op`` is
+    known, so every term is refused."""
+    if not arithmetic:
+        raise EvalError.type_mismatch(
+            f'the context carries a term ("{op}"), which needs the arithmetic profile'
+        )
+    if op not in ARITHMETIC_NAMES:
+        raise EvalError.type_mismatch(f'a term names an unknown operation: "{op}"')
+    if any(a.t == "array" for a in args):
+        raise EvalError.type_mismatch(f'a term ("{op}") holds its operands flattened, not in an array')
+    operands = _arithmetic_operands(op, args)
+    if not any(_is_symbolic(o) for o in operands):
+        raise EvalError.type_mismatch(
+            f'a term ("{op}") must hold a symbol or a term among its arguments'
+        )
+    return VTerm(op, operands)
 
 
 def _decode_symbol_ref(sym_val: Json, obj: dict) -> Value:
@@ -889,7 +1034,8 @@ def _describe_value(v: Value) -> str:
     return {
         "null": "null",
         "bool": "a boolean",
-        "number": "a number",
+        "int": "an integer",
+        "float": "a float",
         "str": "a string",
         "array": "an array",
         "object": "an object",
@@ -898,6 +1044,9 @@ def _describe_value(v: Value) -> str:
         "importResult": "an import result",
         "symbol": "a symbol",
     }.get(v.t) or (
+        f'a term ("{v.op}")'
+        if v.t == "term"
+        else
         f'the builtin "{v.name}"'
         if v.t == "builtin"
         else f'the not-yet-run import of "{v.pending.name}"'
@@ -909,7 +1058,7 @@ def _describe_value(v: Value) -> str:
 def _require_bool(who: str, v: Value) -> bool:
     if v.t == "bool":
         return v.value
-    if v.t == "symbol":
+    if _is_symbolic(v):
         raise EvalError.not_concrete(who)
     raise EvalError.type_mismatch(f"{who} must be a boolean, got {_describe_value(v)}")
 
@@ -926,10 +1075,10 @@ def _eval_builtin(name: str, args: list[Value]) -> Value:
             raise arity_err(1)
         a = args[0]
         if a.t == "array":
-            return VNumber(len(a.items))
+            return VInt(len(a.items))
         if a.t == "object":
-            return VNumber(len(a.fields))
-        if a.t == "symbol":
+            return VInt(len(a.fields))
+        if _is_symbolic(a):
             raise EvalError.not_concrete(name)
         raise EvalError.type_mismatch(f"{name} expects an array or object, got {_describe_value(a)}")
     if name == "str":
@@ -959,8 +1108,16 @@ def _eval_builtin(name: str, args: list[Value]) -> Value:
     if name in ("lt", "lte", "gt", "gte"):
         if len(args) != 2:
             raise arity_err(2)
-        a = _as_number(name, args[0])
-        b = _as_number(name, args[1])
+        # Two integers or two floats (reference.md section 11). A mixed pair
+        # is a TypeMismatch like any other pair of two types: nothing is
+        # promoted, so gt(1.5, 0) is written gt(1.5, 0.0).
+        na = _as_number(name, args[0])
+        nb = _as_number(name, args[1])
+        if na.t != nb.t:
+            raise EvalError.type_mismatch(
+                f"{name} expects two integers or two floats, got {_describe_value(na)} and {_describe_value(nb)}"
+            )
+        a, b = na.value, nb.value
         r = a < b if name == "lt" else a <= b if name == "lte" else a > b if name == "gt" else a >= b
         return VBool(r)
     if name == "has":
@@ -980,6 +1137,8 @@ def _eval_builtin(name: str, args: list[Value]) -> Value:
         if len(args) != 2:
             raise arity_err(2)
         return VArray([*_as_array(name, args[0]), args[1]])
+    if name in ARITHMETIC_NAMES:
+        return _arithmetic(name, args)
     raise EvalError.unbound_name(name)
 
 
@@ -989,10 +1148,12 @@ def _as_bool(name: str, v: Value) -> bool:
     raise EvalError.type_mismatch(f"{name} expects a boolean argument, got {_describe_value(v)}")
 
 
-def _as_number(name: str, v: Value):
-    if v.t == "number":
-        return v.value
-    if v.t == "symbol":
+def _as_number(name: str, v: Value) -> Value:
+    """A number operand, returned as it is so that its type is still there to
+    check. A symbol or a term is ``NotConcrete`` (``v3-symbols.md`` section 1.5)."""
+    if v.t in ("int", "float"):
+        return v
+    if _is_symbolic(v):
         raise EvalError.not_concrete(name)
     raise EvalError.type_mismatch(f"{name} expects a number argument, got {_describe_value(v)}")
 
@@ -1003,36 +1164,185 @@ def _as_array(name: str, v: Value) -> list[Value]:
     raise EvalError.type_mismatch(f"{name} expects an array argument, got {_describe_value(v)}")
 
 
-def _as_index(n) -> Optional[int]:
-    if isinstance(n, float):
-        if n != n or n in (float("inf"), float("-inf")) or not n.is_integer():
-            return None
-        n = int(n)
-    return n if n >= 0 else None
+def _as_index(key: Value) -> Optional[int]:
+    """An index is a non-negative integer: ``-1`` is not one, and neither is a
+    float, ``1.0`` included, since nothing converts a float into an integer here."""
+    if key.t == "int" and key.value >= 0:
+        return key.value
+    return None
 
 
 def _has_impl(name: str, container: Value, key: Value) -> bool:
     """Deliberately tolerant: a missing key, an out-of-range index, or a
     container of the wrong shape all answer false, except a symbolic
     container, which is NotConcrete rather than a lie."""
-    if container.t == "symbol":
+    if _is_symbolic(container):
         raise EvalError.not_concrete(name)
     if container.t == "object" and key.t == "str":
         return key.value in container.fields
-    if container.t == "array" and key.t == "number":
-        i = _as_index(key.value)
+    if container.t == "array":
+        i = _as_index(key)
         return i is not None and i < len(container.items)
     return False
 
 
 def _lookup_impl(name: str, container: Value, key: Value, fallback: Value) -> Value:
-    if container.t == "symbol":
+    if _is_symbolic(container):
         raise EvalError.not_concrete(name)
     if container.t == "object" and key.t == "str":
         return container.fields.get(key.value, fallback)
-    if container.t == "array" and key.t == "number":
-        i = _as_index(key.value)
+    if container.t == "array":
+        i = _as_index(key)
         if i is None or i >= len(container.items):
             return fallback
         return container.items[i]
     return fallback
+
+
+# Arithmetic (reference.md section 11) ------------------------------------------
+
+_VARIADIC = ("sum", "product")
+_BINARY = ("quotient", "floor-quotient", "modulo")
+_FLOATS_ONLY = ("quotient", "inverse")
+_INTEGERS_ONLY = ("floor-quotient", "modulo")
+
+
+def _arithmetic(name: str, args: list[Value]) -> Value:
+    """One of the arithmetic builtins, applied. Operands that are all numbers
+    compute; if one is a symbol or a term the result is a term holding the
+    flattened operands exactly as written (``v3-symbols.md`` section 1.9).
+    Every operand is checked before either happens, so a ``TypeMismatch``
+    takes precedence over a ``NotRepresentable``."""
+    operands = _arithmetic_operands(name, args)
+    if any(_is_symbolic(o) for o in operands):
+        return VTerm(name, operands)
+    return _compute(name, operands)
+
+
+def _flatten_operands(args: list[Value]) -> list[Value]:
+    out: list[Value] = []
+    for a in args:
+        if a.t == "array":
+            out.extend(_flatten_operands(a.items))
+        else:
+            out.append(a)
+    return out
+
+
+def _arithmetic_operands(name: str, args: list[Value]) -> list[Value]:
+    """The operands of a call, checked as far as they can be without knowing
+    what a symbol stands for; every refusal is a ``TypeMismatch``.
+
+    * ``sum`` and ``product`` flatten their arguments by the rule children
+      use: an array contributes each of its elements, recursively, in order.
+      They need at least one operand afterwards. The others take a fixed
+      count and do not flatten, so an array given to one is refused whatever
+      it holds.
+    * Each operand is a number, a symbol or a term. A symbol or a term stands
+      for one number of either type and is not looked into.
+    * The operands that are numbers agree with each other in type and with
+      what the builtin accepts. Nothing is converted or promoted."""
+    if name in _VARIADIC:
+        operands = _flatten_operands(args)
+        if not operands:
+            raise EvalError.type_mismatch(
+                f"{name} expects at least one operand: seed it with the zero or the one of the intended type"
+            )
+    else:
+        arity = 2 if name in _BINARY else 1
+        if len(args) != arity:
+            raise EvalError.type_mismatch(f"{name} expects exactly {arity} argument(s), got {len(args)}")
+        operands = list(args)
+    for o in operands:
+        if o.t not in ("int", "float") and not _is_symbolic(o):
+            raise EvalError.type_mismatch(f"{name} expects number operands, got {_describe_value(o)}")
+    numbers = [o for o in operands if not _is_symbolic(o)]
+    all_ints = all(n.t == "int" for n in numbers)
+    all_floats = all(n.t == "float" for n in numbers)
+    if name in _FLOATS_ONLY:
+        accepted, wanted = all_floats, "a float" if name == "inverse" else "two floats"
+    elif name in _INTEGERS_ONLY:
+        accepted, wanted = all_ints, "two integers"
+    elif name in _VARIADIC:
+        accepted, wanted = all_ints or all_floats, "all integers or all floats"
+    else:
+        # negate, floor and real take a number of either type.
+        accepted, wanted = True, ""
+    if not accepted:
+        got = ", ".join(_describe_value(n) for n in numbers)
+        raise EvalError.type_mismatch(f"{name} expects {wanted}, got {got}")
+    return operands
+
+
+def _integer_result(name: str, n: int) -> Value:
+    """An integer result, or ``NotRepresentable`` outside the integer range.
+    Python integers are unbounded, so the mathematical result is always in
+    hand and nothing wraps: this check is the range."""
+    if not in_integer_range(n):
+        raise EvalError.not_representable(
+            f"{name}: the result is outside the integer range, -2^63 to 2^63 - 1"
+        )
+    return VInt(n)
+
+
+def _float_result(name: str, x: float) -> Value:
+    """A float result, or ``NotRepresentable`` when it is not finite, which
+    covers overflow. There is no negative zero."""
+    if x != x or x in (float("inf"), float("-inf")):
+        raise EvalError.not_representable(f"{name}: the result is not a finite float")
+    return VFloat(0.0 if x == 0 else x)
+
+
+def _float_division(name: str, a: float, b: float) -> Value:
+    # Python raises on a zero divisor where IEEE 754 gives an infinity or a
+    # NaN; both are the same refusal.
+    if b == 0:
+        raise EvalError.not_representable(f"{name}: the result is not a finite float")
+    return _float_result(name, a / b)
+
+
+def _compute(name: str, operands: list[Value]) -> Value:
+    """The concrete rules (reference.md section 11, *Semantics*), over
+    operands ``_arithmetic_operands`` accepted and that are all numbers.
+
+    An integer step is computed over Python's unbounded integers and then
+    held to the range, at every step of a fold. A float step is one Python
+    ``float`` operation, which is the one IEEE 754 binary64 operation,
+    rounded to nearest, ties to even; nothing is reordered or fused."""
+    first = operands[0]
+    if name in _VARIADIC:
+        add = name == "sum"
+        acc = first
+        for o in operands[1:]:
+            raw = acc.value + o.value if add else acc.value * o.value
+            acc = _integer_result(name, raw) if first.t == "int" else _float_result(name, raw)
+        return acc
+    if name == "negate":
+        if first.t == "int":
+            return _integer_result(name, -first.value)
+        return _float_result(name, -first.value)
+    if name == "quotient":
+        return _float_division(name, first.value, operands[1].value)
+    if name == "inverse":
+        return _float_division(name, 1.0, first.value)
+    if name in _INTEGERS_ONLY:
+        a, b = first.value, operands[1].value
+        if b == 0:
+            raise EvalError.not_representable(f"{name}: the divisor is zero")
+        # Python's // rounds toward negative infinity and % is its remainder,
+        # zero or of the sign of the divisor, which is what section 11 asks.
+        # Each is checked on its own: the remainder of -2^63 by -1 is 0,
+        # although the quotient is out of range.
+        return _integer_result(name, a // b if name == "floor-quotient" else a % b)
+    if name == "floor":
+        if first.t == "int":
+            return first
+        # math.floor of a finite float is the exact integer.
+        return _integer_result(name, math.floor(first.value))
+    if name == "real":
+        if first.t == "float":
+            return first
+        # int -> float is correctly rounded: exact up to 2^53, the nearest
+        # double, ties to even, beyond.
+        return VFloat(float(first.value))
+    raise AssertionError(f"unknown arithmetic builtin {name}")

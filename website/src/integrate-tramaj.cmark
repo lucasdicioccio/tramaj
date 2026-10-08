@@ -90,7 +90,8 @@ in three places.
 <tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
 <tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
 <tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 </table>
 
 The first two rows are on the `main` branch and in no release yet. Until the
@@ -315,7 +316,7 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types; the two number
-types and arithmetic are not in this port yet). It needs
+types and the nine arithmetic builtins are in this port, on `main`). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It's a normal package — `tramaj` with
@@ -338,11 +339,21 @@ document, or the concrete/symbolic envelope from
 `runProgram` returns on every other side. A library table is a `dict` from
 import name to parsed program; the mode is `"concrete"` or `"symbolic"`.
 `eval_program` is the lower-level entry point if you want the `Node` value
-itself rather than its JSON encoding. Every number is still a double
-in this port: an exact integer comes back as an `int`, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
-Go ports byte-for-byte, and differs from the PureScript and Haskell
-implementations for a whole-valued float (`1` here, `1.0` there).
+itself rather than its JSON encoding.
+
+The two number types are the two Python types: an `int` is an integer and a
+`float` is a float, in the context you pass and in the result you get back,
+and a `bool` is neither. Integers cover the signed 64-bit range; Python's own
+are unbounded, so one outside it is refused (a parse error as a literal, a
+`TypeMismatch` in the context, a `NotRepresentable` as a result) and never
+rounded. Read JSON text with `tramaj.parse_json`, or the standard `json`
+module, both of which keep `3` and `3.0` apart, and write it with
+`tramaj.compact_json` or `tramaj.pretty_json`, which write a float with a
+fraction or an exponent as the other implementations do (`1.0`, `1e+21`).
+The arithmetic profile is a keyword argument, off by default:
+`run_program(mode, libs, ctx, program, arithmetic=True)`; `python -m tramaj`
+takes `--arithmetic`. `deep_arithmetic_ops(libs, program)` says beforehand
+which of the nine names a program references.
 
 As with Haskell and Rust, no fold is shipped: a Python host writes its own
 following the same shape (case on `text`/`element`/`fragment`, recurse into
@@ -385,8 +396,8 @@ document, or the concrete/symbolic envelope from
 `tramaj.Concrete` or `tramaj.Symbolic`. `EvalProgram` is the lower-level entry
 point if you want the `*tramaj.Node` itself rather than its JSON encoding.
 Every number is still a `float64` in this port, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the Rust, JavaScript and
-Python ports byte-for-byte, and differs from the PureScript and Haskell
+ECMAScript's `Number::toString` does. That matches the Rust and JavaScript
+ports byte-for-byte, and differs from the PureScript, Haskell and Python
 implementations for a whole-valued float (`1` here, `1.0` there).
 
 As with Haskell, Rust and Python, no fold is shipped: a Go host writes its

@@ -156,7 +156,7 @@ The analyses a case may name:
 | `staticImportNames`, `transitiveImportNames` | names | all six |
 | `staticActionKeys`, `deepActionKeys` | names | all six |
 | `contextHoles`, `deepContextHoles`, `contextReads` | paths | all six |
-| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell |
+| `arithmeticOps`, `deepArithmeticOps` | names | PureScript, Haskell, Python |
 
 A runner runs the case when its implementation provides every analysis
 named in `analysis.json` (and every profile in `profiles`, as for any case),
@@ -182,7 +182,8 @@ the language's own spelling), and the table of analyses beside it
 |---|---|
 | PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
 | Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| Rust, TypeScript, Go, Python | `base` |
+| Rust, TypeScript, Go | `base` |
+| Python | `base`, `int-float`, `arithmetic`, `int64` |
 
 The other four lists do not hold `"sort"`, `"format-number"` or `"round"`
 yet, so the cases that list one are skipped by those four suites.
@@ -200,6 +201,13 @@ profile it must come as a per-evaluation option, since its runner has to
 keep it off for the cases that do not list it.
 `round` is the tenth name under the same option, in the two
 implementations that have it.
+
+The Python implementation has the profile too, with the nine names other
+than `round`, as the same per-evaluation option
+(`run_program(..., arithmetic=True)`, off by default). Its runner turns it on
+for a case that lists `"arithmetic"` and leaves it off for every other case,
+and reads `ctx.json` and `expected.json` with `tramaj.jsonval.parse_json`,
+which keeps `3` and `3.0` apart and every digit of an integer.
 
 The expected texts of the `format-number` and `round` cases come from one
 reference computation (exact rational arithmetic over the value of each

@@ -121,8 +121,9 @@ decides what a repeated name means for its target.
 ### Numbers
 
 *Status: implemented in `tramaj/` (PureScript) and `tramaj-hs/` (Haskell), not
-yet in the Rust, JavaScript, Python and Go ports (`decisions.md` §18). Their
-encoders write every number by ECMAScript's `Number::toString`, so a
+yet in the Rust, JavaScript and Go ports (`decisions.md` §18).
+Implemented in `tramaj-py/` (Python) too.
+The encoders of the ports without it write every number by ECMAScript's `Number::toString`, so a
 whole-valued float is written without a fraction.*
 
 A `Value` number is an integer or a float (`reference.md` §3), and the

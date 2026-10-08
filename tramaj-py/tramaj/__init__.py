@@ -11,10 +11,13 @@ Module layout mirrors ``tramaj-js/src/*.ts`` one-to-one: ``ast``, ``jsonval``
 
 from . import analysis, ast, evaluator, jsonval, node, parser, typesys
 from .analysis import (
+    ARITHMETIC_NAMES,
+    arithmetic_ops,
     constraint_kinds,
     context_holes,
     context_reads,
     deep_action_keys,
+    deep_arithmetic_ops,
     deep_constraint_kinds,
     deep_context_holes,
     deep_symbol_demands,
@@ -44,7 +47,17 @@ from .ast import (
     unlets,
 )
 from .evaluator import EvalError, eval_program, run_program, to_json
-from .jsonval import compact_json, display_string, format_number, json_equal, pretty_json
+from .jsonval import (
+    MAX_INTEGER,
+    MIN_INTEGER,
+    compact_json,
+    display_string,
+    format_number,
+    json_equal,
+    normalize_numbers,
+    parse_json,
+    pretty_json,
+)
 from .node import (
     NodeDecodeError,
     element_node,

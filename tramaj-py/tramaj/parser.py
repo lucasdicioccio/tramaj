@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Callable, Optional, TypeVar
 
 from . import ast as A
-from .jsonval import MAX_SAFE_INTEGER
+from .jsonval import in_integer_range
 
 T = TypeVar("T")
 
@@ -23,7 +23,10 @@ SPECIAL_FORM_NAMES = {
 }
 
 # The five value-domain shapes ``v4-types.md`` section 1 reserves as type primitives.
-PRIM_NAMES = {"string", "number", "bool", "null", "document"}
+# The six value-domain shapes v4-types section 1 reserves as type primitives.
+# ``int`` and ``float`` are the two number types; ``number`` is no longer a
+# primitive, so it parses as an ordinary type name.
+PRIM_NAMES = {"string", "int", "float", "bool", "null", "document"}
 
 
 def _is_alpha(c: str) -> bool:
@@ -259,8 +262,13 @@ class _Parser:
     def number_lit(self) -> A.Expr:
         """``["-"] digits ["." digits] [("e"|"E") ["+"|"-"] digits]``, where a
         ``_`` may sit between two digits. The fraction and exponent are taken
-        only when complete; an overflow to infinity is refused and a zero is
-        normalized so ``-0`` never escapes."""
+        only when complete.
+
+        The form decides the type (reference.md section 5): a literal with
+        neither a fraction nor an exponent is an integer, held exactly, and
+        one outside the signed 64-bit range is a parse error. One with either
+        is a float: the nearest double, a parse error when that is an
+        infinity, and ``0.0`` whatever the sign of a zero."""
 
         def go() -> A.Expr:
             full = ""
@@ -299,18 +307,11 @@ class _Parser:
             if is_float:
                 n = float(full)
                 if n != n or n in (float("inf"), float("-inf")):
-                    raise self.err("number literal out of range")
-                if n == 0:
-                    return A.NumberLit(0)
-                if n.is_integer() and abs(n) <= MAX_SAFE_INTEGER:
-                    return A.NumberLit(int(n))
-                return A.NumberLit(n)
+                    raise self.err("float literal too large for a double")
+                return A.NumberLit(0.0 if n == 0 else n)
             i = int(full)
-            if abs(i) > MAX_SAFE_INTEGER:
-                f = float(i)
-                if f in (float("inf"), float("-inf")):
-                    raise self.err("number literal out of range")
-                return A.NumberLit(f)
+            if not in_integer_range(i):
+                raise self.err("integer literal outside the signed 64-bit range")
             return A.NumberLit(i)
 
         return self.lexeme(go)
@@ -369,7 +370,7 @@ class _Parser:
         return k, self.expr()
 
     def refuse_reserved_key(self, k: str) -> None:
-        if k in ("$sym", "$type"):
+        if k in ("$sym", "$type", "$term"):
             raise self.err(f'"{k}" is a reserved key and cannot be used as an object key')
 
     def object_key(self) -> str:

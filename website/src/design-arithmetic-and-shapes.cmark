@@ -113,8 +113,9 @@ The normative text is in the
 has the fixtures. The PureScript and Haskell implementations have the number
 split and the nine builtins on `main`, and so do the command-line tool
 (`tramaj-cli --arithmetic`), the Halogen fold and the
-[playground](/playground.html). They are not in a release. The Rust,
-JavaScript, Python and Go implementations follow.
+[playground](/playground.html). They are not in a release. The Python
+implementation has both on `main` as well. The Rust,
+JavaScript and Go implementations follow.
 
 The split changes what some existing templates produce, beyond the `str`
 case above: see

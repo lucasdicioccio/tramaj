@@ -436,6 +436,9 @@ def _constraint_arg_equal(a: ResolvedConstraintArg, b: ResolvedConstraintArg) ->
         return True
     if a.t == "ScalarBool":
         return a.value is b.value
+    if a.t == "ScalarNum":
+        # An integer and a float are two values: ``1`` is not ``1.0``.
+        return isinstance(a.value, float) == isinstance(b.value, float) and a.value == b.value
     return a.value == b.value
 
 
