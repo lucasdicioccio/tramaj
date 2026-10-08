@@ -1,0 +1,8 @@
+{
+  "name": "a product past the guaranteed range is NotRepresentable with the 53-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "NotRepresentable",
+  "profiles": ["int-float", "arithmetic", "int53"]
+}

@@ -2,5 +2,5 @@
   "name": "a literal with neither a fraction nor an exponent is an integer",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

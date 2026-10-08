@@ -1,0 +1,2 @@
+@f=(product) => $product
+.p(floor($ctx.x), import("adds", {a: 1}).rendered)

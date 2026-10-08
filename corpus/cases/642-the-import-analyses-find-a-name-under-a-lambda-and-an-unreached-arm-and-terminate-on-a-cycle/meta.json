@@ -1,0 +1,5 @@
+{
+  "name": "the import analyses find a name under a lambda and an unreached arm and terminate on a cycle",
+  "kind": "document",
+  "expect": "analysis"
+}

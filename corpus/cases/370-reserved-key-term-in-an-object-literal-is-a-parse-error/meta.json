@@ -3,5 +3,5 @@
   "kind": "expression",
   "mode": "concrete",
   "expect": "parse-error",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

@@ -1,0 +1,4 @@
+{
+  "arithmeticOps": ["negate", "sum"],
+  "deepArithmeticOps": ["negate", "sum"]
+}

@@ -754,10 +754,10 @@ for `number`). The PureScript reference and the TypeScript port can stay on
 doubles with the 53-bit range, and still need to tell `3` from `3.0` in JSON
 text, which `JSON.parse` alone does not; Python needs range checks on its
 unbounded integers; Haskell, Rust and Go need the two cases kept apart where
-they are one today, and take the 64-bit range. The corpus marks a case that
-needs the wider range (`"requires": ["int64"]` in `meta.json`); every other
-case stays inside the guaranteed one or outside 64 bits, where all ports
-agree. Fixtures:
+they are one today, and take the 64-bit range. The corpus marks a case whose
+result depends on the range by naming that range (`"int64"` or `"int53"` in
+the `"profiles"` of its `meta.json`); every other case stays inside the
+guaranteed one or outside 64 bits, where all ports agree. Fixtures:
 
 - literals: each form to its type, both ends of the guaranteed range, one
   past each end of the 64-bit range, and both 64-bit ends under `int64`;
@@ -775,7 +775,7 @@ agree. Fixtures:
 (`NotRepresentable`); v3-symbols §1.1, §1.5, §5.2 to §5.5, §7, §8 and §9's
 third "declined" entry; `laws.md` for the residual law. Then the six ports.
 The corpus needs a way to mark a case as needing a profile (an optional
-`"requires": ["arithmetic"]` in `meta.json`), and these families:
+`"profiles": ["arithmetic"]` in `meta.json`), and these families:
 
 - the empty case: `sum()`, `product()`, `sum([])` and a nested empty array
   refused, one operand of each type, and the seeds `sum(0, [])` and
@@ -868,9 +868,10 @@ specs win.
    key and a malformed symbol or term alike (v3-symbols §5.3, §6). Cases 360
    to 369 are confirmed. Reason: it is what `"$sym"` and `"$type"` already
    raise in every port.
-5. *Not decided.* How the corpus expresses behaviour of a 53-bit-only port
-   or of one without the arithmetic profile, and a case shape for
-   `arithmeticOps`, are corpus mechanisms the rule does not settle.
+5. *Not decided here; decided the same day, see the end of this list.* How
+   the corpus expresses behaviour of a 53-bit-only port or of one without
+   the arithmetic profile, and a case shape for `arithmeticOps`, are corpus
+   mechanisms the rule does not settle.
 6. A demand needs no binding to be an operand: `sum(?ctx.s, 1)` is legal and
    its symbol table entry has `"binding": null` (v3-symbols §1.3, §5.2).
    Reason: a demand is an expression, and refusing it inline would change
@@ -895,6 +896,22 @@ specs win.
 11. A library parameter is a value the importer built, not JSON text; it
     keeps the type it has and nothing is typed again at the import (ref §3).
     Reason: "typed by its text" has no text to apply to there.
+12. Point 5, decided by the owner on 2026-10-07 (`corpus/README.md` is the
+    reference for both mechanisms):
+    - A case lists the profiles to activate, in a positive `"profiles"` list
+      that replaces `"requires"`. Arithmetic is on for a case only if it
+      lists `arithmetic`, on every port, so a case that does not list it is
+      how "a port without the profile" is tested: `sum(1, 2)` is an
+      `UnboundName` there. The integer range has two names, `int53` and
+      `int64`, of which a port provides exactly one; a case names one only
+      when its result depends on the range. A runner runs a case when it can
+      provide every profile listed and skips it otherwise, reporting the
+      skip. `mode` is unchanged. `int-float` stays as a transition tag until
+      all six ports have the number split.
+    - A static analysis has a case shape: `"expect": "analysis"`, with an
+      `analysis.json` that gives the expected result of each named analysis
+      as a sorted array, no `ctx.json`, and `libs/` for the deep variants.
+      A port skips a case that names an analysis it does not have.
 
 ## 19. A traverse form for allocation: `?shape(key, shape)` with `~name` markers
 
@@ -1305,8 +1322,8 @@ for a list of symbolic length.
 **No profile.** These two names are not arithmetic and nothing new reaches a
 host through them, so they belong to the core language, as `map` does. A port
 that does not have them yet reads the name as an ordinary call and fails with
-`UnboundName`, and the corpus marks the cases with
-`"requires": ["sort"]`.
+`UnboundName`, and the corpus lists `"sort"` in the `"profiles"` of those
+cases, as a transition tag (`corpus/README.md`).
 
 ### Number formatting
 
@@ -1436,8 +1453,9 @@ which is few numbers, and exactly the ones a user types.
 
 **No profile** for `format-number` either, for the same reasons as the sort.
 It formats both number types and does not depend on the arithmetic builtins.
-The corpus marks its cases `"requires": ["format-number"]`, with `"int-float"`
-wherever the type of a number matters, which is nearly everywhere.
+The corpus lists `"format-number"` in the `"profiles"` of its cases, as a
+transition tag, with `"int-float"` wherever the type of a number matters,
+which is nearly everywhere.
 
 ### `round`
 

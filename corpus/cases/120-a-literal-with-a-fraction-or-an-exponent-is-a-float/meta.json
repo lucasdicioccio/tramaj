@@ -2,5 +2,5 @@
   "name": "a literal with a fraction or an exponent is a float",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

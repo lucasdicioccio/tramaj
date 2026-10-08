@@ -2,5 +2,5 @@
   "name": "a term as a constraint argument",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

@@ -2,5 +2,5 @@
   "name": "a context number with an exponent past the 64-bit range is a float and is accepted",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

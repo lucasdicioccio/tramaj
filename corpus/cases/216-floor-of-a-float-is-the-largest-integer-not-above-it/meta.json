@@ -2,5 +2,5 @@
   "name": "floor of a float is the largest integer not above it",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

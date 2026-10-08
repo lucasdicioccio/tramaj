@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports none in a program that uses none whatever other builtin it calls",
+  "kind": "expression",
+  "expect": "analysis"
+}

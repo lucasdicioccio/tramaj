@@ -1,0 +1,3 @@
+-- reference.md §11: the names are not reserved, with or without the profile
+@sum=(a, b) => $a
+$sum(1, 2)

@@ -2,5 +2,5 @@
   "name": "modulo of the bottom of the 64-bit range by -1 is zero",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic", "int64"]
+  "profiles": ["int-float", "arithmetic", "int64"]
 }

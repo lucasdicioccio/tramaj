@@ -13,7 +13,9 @@ import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
+import Data.Set (Set)
+import Data.Set as Set
 import Data.String (Pattern(..))
 import Data.String as String
 import Data.Traversable (traverse)
@@ -25,6 +27,7 @@ import Foreign.Object as Object
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Stats (isDirectory)
 import Node.FS.Sync (exists, readTextFile, readdir, stat)
+import Tramaj.Analysis (arithmeticOps, contextHoles, contextReads, deepActionKeys, deepArithmeticOps, deepContextHoles, staticActionKeys, staticImportNames, transitiveImportNames)
 import Tramaj.Ast (Program)
 import Tramaj.Eval (EvalError, LibraryTable, Mode(..), Options, runProgramWith)
 import Tramaj.Json (Json, jsonParser, stringify, toArray, toObject, toString)
@@ -33,27 +36,52 @@ import Tramaj.Parser (parseProgram)
 corpusRoot :: String
 corpusRoot = "corpus/cases"
 
--- | The requirement names (`requires` in `meta.json`, see `corpus/README.md`)
--- this port declares. A case naming any other one is skipped.
+-- | The profiles (`profiles` in `meta.json`, see `corpus/README.md`) this
+-- port can provide. A case naming any other one is skipped.
 --
--- `int-float`: integers and floats are two types. `arithmetic`: the
--- arithmetic profile, which is a per-evaluation option here (see
--- `optionsFor`). Not `int64`: integers have the guaranteed 53-bit range only
--- (`Tramaj.Json`).
-supportedRequirements :: Array String
-supportedRequirements = [ "int-float", "arithmetic" ]
+-- `base`: the language without any profile, which every port provides.
+-- `int-float`: integers and floats are two types (a transition tag, not a
+-- profile). `arithmetic`: the arithmetic profile, which is a per-evaluation
+-- option here (see `optionsFor`). `int53`: integers have the guaranteed
+-- 53-bit range only (`Tramaj.Json`), so not `int64`.
+providedProfiles :: Array String
+providedProfiles = [ "base", "int-float", "arithmetic", "int53" ]
 
--- | The options a case runs with. A requirement that names a profile turns
--- that profile on, so a case that does not name `arithmetic` runs without
--- it, and `sum(1, 2)` is an `UnboundName` there.
+-- | The options a case runs with. A profile is on for a case only if the
+-- case lists it, so a case that does not list `arithmetic` runs without it,
+-- and `sum(1, 2)` is an `UnboundName` there.
 optionsFor :: Mode -> Json -> Options
-optionsFor mode meta = { mode, arithmetic: Array.elem "arithmetic" (requirements meta) }
+optionsFor mode meta = { mode, arithmetic: Array.elem "arithmetic" (profiles meta) }
+
+-- | The result of a static analysis, in the two shapes `analysis.json` holds:
+-- a set of names, or a set of paths.
+data AnalysisResult
+  = Names (Set String)
+  | Paths (Set (Array String))
+
+derive instance eqAnalysisResult :: Eq AnalysisResult
+
+-- | The static analyses (reference.md §9) this port provides to an
+-- `"expect": "analysis"` case, by the name `analysis.json` gives them. A
+-- case naming any other one is skipped.
+providedAnalyses :: Map.Map String (LibraryTable -> Program -> AnalysisResult)
+providedAnalyses = Map.fromFoldable
+  [ Tuple "staticImportNames" (\_ p -> Names (staticImportNames p))
+  , Tuple "transitiveImportNames" (\libs p -> Names (transitiveImportNames libs p))
+  , Tuple "staticActionKeys" (\_ p -> Names (staticActionKeys p))
+  , Tuple "deepActionKeys" (\libs p -> Names (deepActionKeys libs p))
+  , Tuple "contextHoles" (\_ p -> Paths (contextHoles p))
+  , Tuple "deepContextHoles" (\libs p -> Paths (deepContextHoles libs p))
+  , Tuple "contextReads" (\_ p -> Paths (contextReads p))
+  , Tuple "arithmeticOps" (\_ p -> Names (arithmeticOps p))
+  , Tuple "deepArithmeticOps" (\libs p -> Names (deepArithmeticOps libs p))
+  ]
 
 -- | What `runCase` did with a case. A failing case throws instead.
 data Outcome
   = Passed
-  -- | Not run: the case names these requirements, which this port does not
-  -- declare.
+  -- | Not run: the case names these profiles (or, written `analysis <name>`,
+  -- these analyses), which this port does not provide.
   | Skipped (Array String)
 
 runCorpus :: Effect Unit
@@ -68,22 +96,22 @@ runCorpus = do
           Skipped missing -> Just (Tuple n missing)
       )
       outcomes
-  traverse_ (\(Tuple n missing) -> log ("skip - " <> n <> " (requires " <> String.joinWith ", " missing <> ")")) skipped
+  traverse_ (\(Tuple n missing) -> log ("skip - " <> n <> " (not provided: " <> String.joinWith ", " missing <> ")")) skipped
   log
     ( "ok - " <> show (Array.length dirs - Array.length skipped) <> " shared corpus cases"
         <> if Array.null skipped then "" else ", " <> show (Array.length skipped) <> " skipped"
     )
-  checkUndeclaredRequirementIsSkipped
+  checkUnprovidedProfileIsSkipped
 
--- | `corpus/runner-checks/unsupported-requirement` would fail if it ran: its
+-- | `corpus/runner-checks/unsupported-profile` would fail if it ran: its
 -- `expected.json` does not match what the template evaluates to.
-checkUndeclaredRequirementIsSkipped :: Effect Unit
-checkUndeclaredRequirementIsSkipped = do
-  let name = "unsupported-requirement"
+checkUnprovidedProfileIsSkipped :: Effect Unit
+checkUnprovidedProfileIsSkipped = do
+  let name = "unsupported-profile"
   outcome <- runCase ("corpus/runner-checks/" <> name) name
   case outcome of
-    Skipped [ "never-declared" ] -> log "ok - a case naming an undeclared requirement is skipped"
-    Skipped other -> throw (name <> ": skipped for the wrong requirements: " <> show other)
+    Skipped [ "never-declared" ] -> log "ok - a case naming a profile this port does not provide is skipped"
+    Skipped other -> throw (name <> ": skipped for the wrong profiles: " <> show other)
     Passed -> throw (name <> ": expected the case to be skipped, but it ran")
 
 modeFromField :: String -> String -> Effect Mode
@@ -99,9 +127,65 @@ modeFromField name m = case m of
 runCase :: String -> String -> Effect Outcome
 runCase dir name = do
   meta <- mustParseJsonFile (name <> "/meta.json") (dir <> "/meta.json")
-  case Array.filter (\r -> not (Array.elem r supportedRequirements)) (requirements meta) of
+  when (isJust (toObject meta >>= Object.lookup "requires"))
+    (throw (name <> ": \"requires\" was replaced by \"profiles\" (corpus/README.md)"))
+  expect <- fromMaybe "success" <$> optionalField meta "expect"
+  let missingProfiles = Array.filter (\r -> not (Array.elem r providedProfiles)) (profiles meta)
+  if expect == "analysis" then do
+    -- The names are the keys of `analysis.json`, which holds no number, so
+    -- reading it before deciding to skip is safe on every port.
+    expected <- mustParseJsonFile (name <> "/analysis.json") (dir <> "/analysis.json")
+    entries <- case toObject expected of
+      Just o -> pure (Object.toUnfoldable o :: Array (Tuple String Json))
+      Nothing -> throw (name <> ": analysis.json is not an object")
+    let
+      missingAnalyses = Array.filter (\(Tuple k _) -> not (Map.member k providedAnalyses)) entries
+      missing = missingProfiles <> map (\(Tuple k _) -> "analysis " <> k) missingAnalyses
+    if Array.null missing then Passed <$ runAnalysisCase dir name entries
+    else pure (Skipped missing)
+  else case missingProfiles of
     [] -> Passed <$ runSupportedCase dir name meta
     missing -> pure (Skipped missing)
+
+-- | An `"expect": "analysis"` case: no context and no evaluation. Each named
+-- analysis runs over the parsed template (and `libs/`, for a deep variant)
+-- and its result is compared, as a set, with the array `analysis.json` gives.
+runAnalysisCase :: String -> String -> Array (Tuple String Json) -> Effect Unit
+runAnalysisCase dir name entries = do
+  templateSrc <- readTextFile UTF8 (dir <> "/template.tramaj")
+  libs <- readLibs dir
+  program <- mustParse name templateSrc
+  traverse_ (checkAnalysis libs program) entries
+  where
+  checkAnalysis libs program (Tuple key expectedJson) = case Map.lookup key providedAnalyses of
+    Nothing -> throw (name <> ": unknown analysis " <> key)
+    Just analysis -> do
+      let actual = analysis libs program
+      expected <- case decodeExpected actual expectedJson of
+        Just e -> pure e
+        Nothing -> throw (name <> ": analysis.json: " <> key <> " is not an array of distinct " <> shapeName actual)
+      if actual == expected then pure unit
+      else throw (name <> ": " <> key <> " mismatch\n  expected: " <> stringify expectedJson <> "\n  actual:   " <> showResult actual)
+
+  -- Decoded in the shape of the actual result, since `[]` alone does not say
+  -- which of the two it is. A repeated element is refused: the file is a set.
+  decodeExpected actual j = do
+    xs <- toArray j
+    case actual of
+      Names _ -> do
+        names <- traverse toString xs
+        let set = Set.fromFoldable names
+        if Set.size set == Array.length names then Just (Names set) else Nothing
+      Paths _ -> do
+        paths <- traverse (\x -> toArray x >>= traverse toString) xs
+        let set = Set.fromFoldable paths
+        if Set.size set == Array.length paths then Just (Paths set) else Nothing
+
+  shapeName (Names _) = "strings"
+  shapeName (Paths _) = "arrays of strings"
+
+  showResult (Names s) = show (Set.toUnfoldable s :: Array String)
+  showResult (Paths s) = show (Set.toUnfoldable s :: Array (Array String))
 
 runSupportedCase :: String -> String -> Json -> Effect Unit
 runSupportedCase dir name meta = do
@@ -176,9 +260,9 @@ field j key = case toObject j >>= Object.lookup key >>= toString of
   Just s -> pure s
   Nothing -> throw ("meta.json: missing or non-string field " <> key)
 
--- | The optional `requires` list; absent means no requirement.
-requirements :: Json -> Array String
-requirements j = fromMaybe [] (toObject j >>= Object.lookup "requires" >>= toArray >>= traverse toString)
+-- | The optional `profiles` list; absent means the base language alone.
+profiles :: Json -> Array String
+profiles j = fromMaybe [] (toObject j >>= Object.lookup "profiles" >>= toArray >>= traverse toString)
 
 optionalField :: Json -> String -> Effect (Maybe String)
 optionalField j key = pure (toObject j >>= Object.lookup key >>= toString)

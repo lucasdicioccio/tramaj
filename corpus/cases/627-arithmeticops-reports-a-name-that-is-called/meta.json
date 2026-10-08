@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps reports a name that is called",
+  "kind": "expression",
+  "expect": "analysis"
+}

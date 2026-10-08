@@ -2,5 +2,5 @@
   "name": "str renders the integer literals at both ends of the guaranteed range digit for digit",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

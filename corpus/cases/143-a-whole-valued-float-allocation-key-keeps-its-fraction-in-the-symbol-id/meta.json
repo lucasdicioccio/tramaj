@@ -2,5 +2,5 @@
   "name": "a whole-valued float allocation key keeps its fraction in the symbol id",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

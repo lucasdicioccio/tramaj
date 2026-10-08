@@ -1,0 +1,3 @@
+-- reference.md §9
+@p=import("needs", {replicas: ctx(spec.replicas)})
+.div($ctx.name, $p({}).rendered)

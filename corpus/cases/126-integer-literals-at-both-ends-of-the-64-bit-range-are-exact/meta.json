@@ -2,5 +2,5 @@
   "name": "integer literals at both ends of the 64-bit range are exact",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "int64"]
+  "profiles": ["int-float", "int64"]
 }

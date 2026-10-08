@@ -2,5 +2,5 @@
   "name": "modulo stripes rows including a negative index",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

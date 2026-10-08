@@ -1,0 +1,4 @@
+{
+  "staticImportNames": ["deep", "loopy"],
+  "transitiveImportNames": ["deep", "loopy"]
+}

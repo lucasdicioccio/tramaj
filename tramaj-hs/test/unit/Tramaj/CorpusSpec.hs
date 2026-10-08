@@ -5,18 +5,35 @@
 -- itself" -- see @roadmap-to-v4@ Phase 0.
 module Tramaj.CorpusSpec (spec) where
 
-import Control.Monad (filterM, forM)
+import Control.Monad (filterM, forM, forM_, when)
 import Data.Aeson (FromJSON (..), eitherDecodeStrict, withObject, (.:), (.:?))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson (Parser)
+import Data.Aeson.Types (parseEither)
 import qualified Data.ByteString as BS
 import Data.List (isSuffixOf, sort)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import System.Directory (canonicalizePath, doesDirectoryExist, listDirectory)
 import System.FilePath (dropExtension, takeFileName, (</>))
 import Test.Hspec
+import Tramaj.Analysis
+  ( arithmeticOps
+  , contextHoles
+  , contextReads
+  , deepActionKeys
+  , deepArithmeticOps
+  , deepContextHoles
+  , staticActionKeys
+  , staticImportNames
+  , transitiveImportNames
+  )
+import Tramaj.Ast (Program)
 import Tramaj.Eval (EvalError, LibraryTable, Mode (..), Options (..), defaultOptions, runProgramWith)
 import Tramaj.Json (Json, jsonParser, stringify)
 import Tramaj.Parser (parseProgram)
@@ -27,36 +44,66 @@ import Tramaj.Parser (parseProgram)
 -- lands) the kind in what it produces.
 data CaseMeta = CaseMeta
   { metaName :: Text
-  , metaMode :: Text
+  , metaMode :: Maybe Text
+  -- ^ Absent in an @"expect": "analysis"@ case, which evaluates nothing.
   , metaExpect :: Text
   , metaErrorKind :: Maybe Text
-  , metaRequires :: [Text]
+  , metaProfiles :: [Text]
+  , metaHasRequires :: Bool
+  -- ^ The key @profiles@ replaced. A case that still has it is refused
+  -- rather than run without its gate.
   }
 
 instance FromJSON CaseMeta where
   parseJSON = withObject "meta.json" $ \o ->
-    CaseMeta <$> o .: "name" <*> o .: "mode"
+    CaseMeta <$> o .: "name" <*> o .:? "mode"
       <*> (fromMaybe "success" <$> o .:? "expect")
       <*> o .:? "errorKind"
-      <*> (fromMaybe [] <$> o .:? "requires")
+      <*> (fromMaybe [] <$> o .:? "profiles")
+      <*> (isJust <$> (o .:? "requires" :: Aeson.Parser (Maybe Aeson.Value)))
 
--- | The requirement names (@requires@ in @meta.json@, see
--- @corpus/README.md@) this port declares. A case naming any other one is
--- skipped. @int-float@: integers and floats are two types. @int64@: an
--- integer covers the signed 64-bit range. @arithmetic@: the arithmetic
--- profile, which is an option of each evaluation here ('optionsFromMeta').
-supportedRequirements :: [Text]
-supportedRequirements = ["int-float", "int64", "arithmetic"]
+-- | The profiles (@profiles@ in @meta.json@, see @corpus/README.md@) this
+-- port can provide. A case naming any other one is skipped. @base@: the
+-- language without any profile. @int-float@: integers and floats are two
+-- types (a transition tag, not a profile). @int64@: an integer covers the
+-- signed 64-bit range, so not @int53@. @arithmetic@: the arithmetic profile,
+-- which is an option of each evaluation here ('optionsFromMeta').
+providedProfiles :: [Text]
+providedProfiles = ["base", "int-float", "int64", "arithmetic"]
 
--- | The requirements a case names that this port does not declare.
-missingRequirements :: CaseMeta -> [Text]
-missingRequirements = filter (`notElem` supportedRequirements) . metaRequires
+-- | The profiles a case names that this port does not provide.
+missingProfiles :: CaseMeta -> [Text]
+missingProfiles = filter (`notElem` providedProfiles) . metaProfiles
+
+-- | The result of a static analysis, in the two shapes @analysis.json@
+-- holds: a set of names, or a set of paths.
+data AnalysisResult
+  = Names (Set Text)
+  | Paths (Set [Text])
+  deriving (Eq, Show)
+
+-- | The static analyses (reference.md \S9) this port provides to an
+-- @"expect": "analysis"@ case, by the name @analysis.json@ gives them. A case
+-- naming any other one is skipped.
+providedAnalyses :: Map.Map Text (LibraryTable -> Program -> AnalysisResult)
+providedAnalyses =
+  Map.fromList
+    [ ("staticImportNames", \_ p -> Names (staticImportNames p))
+    , ("transitiveImportNames", \libs p -> Names (transitiveImportNames libs p))
+    , ("staticActionKeys", \_ p -> Names (staticActionKeys p))
+    , ("deepActionKeys", \libs p -> Names (deepActionKeys libs p))
+    , ("contextHoles", \_ p -> Paths (contextHoles p))
+    , ("deepContextHoles", \libs p -> Paths (deepContextHoles libs p))
+    , ("contextReads", \_ p -> Paths (contextReads p))
+    , ("arithmeticOps", \_ p -> Names (arithmeticOps p))
+    , ("deepArithmeticOps", \libs p -> Names (deepArithmeticOps libs p))
+    ]
 
 -- | What 'checkCase' did with a case. A failing case throws instead.
 data Outcome
   = Passed
-  | -- | Not run: the case names these requirements, which this port does
-    -- not declare.
+  | -- | Not run: the case names these profiles (or, written
+    -- @analysis \<name\>@, these analyses), which this port does not provide.
     Skipped [Text]
   deriving (Eq, Show)
 
@@ -66,11 +113,11 @@ spec = do
   cases <- runIO (loadCaseDirs root)
   describe "shared corpus" $
     mapM_ (\dir -> it (takeFileName dir) (runCase dir)) cases
-  describe "a case naming an undeclared requirement" $
-    -- corpus/runner-checks/unsupported-requirement would fail if it ran: its
+  describe "a case naming a profile this port does not provide" $
+    -- corpus/runner-checks/unsupported-profile would fail if it ran: its
     -- expected.json does not match what the template evaluates to.
     it "is skipped" $
-      checkCase (root </> ".." </> "runner-checks" </> "unsupported-requirement")
+      checkCase (root </> ".." </> "runner-checks" </> "unsupported-profile")
         `shouldReturn` Skipped ["never-declared"]
 
 -- | The corpus lives at @corpus/cases@ relative to the repo root, but
@@ -136,20 +183,21 @@ readLibs dir = do
           Right prog -> pure (name, prog)
       pure (Map.fromList entries)
 
-modeFromMeta :: FilePath -> Text -> IO Mode
+modeFromMeta :: FilePath -> Maybe Text -> IO Mode
 modeFromMeta dir m = case m of
-  "concrete" -> pure Concrete
-  "symbolic" -> pure Symbolic
-  other -> error (dir <> ": unknown mode " <> T.unpack other)
+  Just "concrete" -> pure Concrete
+  Just "symbolic" -> pure Symbolic
+  Just other -> error (dir <> ": unknown mode " <> T.unpack other)
+  Nothing -> error (dir <> ": meta.json has no mode")
 
 -- | The options a case runs with: its mode, and the arithmetic profile only
--- if it names @arithmetic@ in @requires@. Every other case runs with the
+-- if it lists @arithmetic@ in @profiles@. Every other case runs with the
 -- profile off, as a host that never asked for it does, so the nine
 -- arithmetic names are unbound there.
 optionsFromMeta :: FilePath -> CaseMeta -> IO Options
 optionsFromMeta dir meta = do
   mode <- modeFromMeta dir (metaMode meta)
-  pure defaultOptions {optMode = mode, optArithmetic = "arithmetic" `elem` metaRequires meta}
+  pure defaultOptions {optMode = mode, optArithmetic = "arithmetic" `elem` metaProfiles meta}
 
 -- | A skipped case is reported as pending, which hspec counts and prints
 -- apart from the passed ones.
@@ -158,14 +206,56 @@ runCase dir = do
   outcome <- checkCase dir
   case outcome of
     Passed -> pure ()
-    Skipped missing -> pendingWith ("requires " <> T.unpack (T.intercalate ", " missing))
+    Skipped missing -> pendingWith ("not provided: " <> T.unpack (T.intercalate ", " missing))
 
 checkCase :: FilePath -> IO Outcome
 checkCase dir = do
   meta <- (readJsonFile (dir </> "meta.json") :: IO CaseMeta)
-  case missingRequirements meta of
-    [] -> Passed <$ checkSupportedCase dir meta
-    missing -> pure (Skipped missing)
+  when (metaHasRequires meta) $
+    error (dir <> ": \"requires\" was replaced by \"profiles\" (corpus/README.md)")
+  if metaExpect meta == "analysis"
+    then do
+      -- The names are the keys of @analysis.json@, which holds no number, so
+      -- reading it before deciding to skip is safe on every port.
+      expected <- (readJsonFile (dir </> "analysis.json") :: IO (Map.Map Text Aeson.Value))
+      let missingAnalyses = filter (`Map.notMember` providedAnalyses) (Map.keys expected)
+      case missingProfiles meta <> map ("analysis " <>) missingAnalyses of
+        [] -> Passed <$ checkAnalysisCase dir meta expected
+        missing -> pure (Skipped missing)
+    else case missingProfiles meta of
+      [] -> Passed <$ checkSupportedCase dir meta
+      missing -> pure (Skipped missing)
+
+-- | An @"expect": "analysis"@ case: no context and no evaluation. Each named
+-- analysis runs over the parsed template (and @libs/@, for a deep variant)
+-- and its result is compared, as a set, with the array @analysis.json@ gives.
+checkAnalysisCase :: FilePath -> CaseMeta -> Map.Map Text Aeson.Value -> Expectation
+checkAnalysisCase dir meta expected = do
+  src <- TE.decodeUtf8 <$> BS.readFile (dir </> "template.tramaj")
+  libs <- readLibs dir
+  let label = T.unpack (metaName meta)
+  case parseProgram src of
+    Left e -> expectationFailure (label <> ": parse error: " <> show e)
+    Right prog -> forM_ (Map.toList expected) $ \(key, value) ->
+      case Map.lookup key providedAnalyses of
+        Nothing -> expectationFailure (label <> ": unknown analysis " <> T.unpack key)
+        Just analysis ->
+          let actual = analysis libs prog
+           in case decodeExpected actual value of
+                Left e -> expectationFailure (label <> ": analysis.json: " <> T.unpack key <> ": " <> e)
+                Right want -> (key, actual) `shouldBe` (key, want)
+  where
+    -- Decoded in the shape of the actual result, since @[]@ alone does not
+    -- say which of the two it is. A repeated element is refused: the file is
+    -- a set.
+    decodeExpected :: AnalysisResult -> Aeson.Value -> Either String AnalysisResult
+    decodeExpected (Names _) v = Names <$> (distinct =<< parseEither parseJSON v)
+    decodeExpected (Paths _) v = Paths <$> (distinct =<< parseEither parseJSON v)
+
+    distinct :: (Ord a) => [a] -> Either String (Set a)
+    distinct xs =
+      let set = Set.fromList xs
+       in if Set.size set == length xs then Right set else Left "an element is repeated"
 
 checkSupportedCase :: FilePath -> CaseMeta -> Expectation
 checkSupportedCase dir meta = do

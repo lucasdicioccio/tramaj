@@ -2,5 +2,5 @@
   "name": "residual law: a floor-quotient by an unsupplied demand is a term",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

@@ -1,0 +1,5 @@
+{
+  "name": "arithmeticOps does not report a name shadowed by a pattern parameter of a lambda",
+  "kind": "expression",
+  "expect": "analysis"
+}

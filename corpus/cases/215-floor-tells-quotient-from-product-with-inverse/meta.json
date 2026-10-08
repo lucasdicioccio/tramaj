@@ -2,5 +2,5 @@
   "name": "floor tells quotient from product with inverse",
   "kind": "expression",
   "mode": "concrete",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

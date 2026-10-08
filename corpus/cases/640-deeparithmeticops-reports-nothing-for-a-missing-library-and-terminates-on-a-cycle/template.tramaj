@@ -1,0 +1,2 @@
+-- reference.md §9
+[import("absent", {}).rendered, import("loopy", {}).rendered]

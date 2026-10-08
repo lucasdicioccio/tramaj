@@ -1,0 +1,4 @@
+{
+  "staticActionKeys": ["never"],
+  "deepActionKeys": ["deploy", "never", "select"]
+}

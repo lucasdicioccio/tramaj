@@ -1,0 +1,7 @@
+{
+  "name": "an arithmetic name passed by reference without the profile is an UnboundName",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "eval-error",
+  "errorKind": "UnboundName"
+}

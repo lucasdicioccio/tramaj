@@ -1,0 +1,6 @@
+{
+  "name": "a sum one past the top of the guaranteed range is exact with the 64-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["int-float", "arithmetic", "int64"]
+}

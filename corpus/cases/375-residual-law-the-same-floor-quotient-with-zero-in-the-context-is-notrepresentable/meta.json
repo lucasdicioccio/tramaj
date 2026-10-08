@@ -4,5 +4,5 @@
   "mode": "concrete",
   "expect": "eval-error",
   "errorKind": "NotRepresentable",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

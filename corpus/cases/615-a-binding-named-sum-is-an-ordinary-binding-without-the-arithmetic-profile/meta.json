@@ -1,0 +1,5 @@
+{
+  "name": "a binding named sum is an ordinary binding without the arithmetic profile",
+  "kind": "expression",
+  "mode": "concrete"
+}

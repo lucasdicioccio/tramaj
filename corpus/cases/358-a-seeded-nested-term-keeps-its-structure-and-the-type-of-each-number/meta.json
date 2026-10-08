@@ -2,5 +2,5 @@
   "name": "a seeded nested term keeps its structure and the type of each number",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

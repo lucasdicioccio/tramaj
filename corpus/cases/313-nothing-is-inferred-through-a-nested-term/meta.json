@@ -2,5 +2,5 @@
   "name": "nothing is inferred through a nested term",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

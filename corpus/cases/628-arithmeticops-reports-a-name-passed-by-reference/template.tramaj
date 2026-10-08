@@ -1,0 +1,2 @@
+-- reference.md §9
+fold($ctx.xs, 0, $sum)

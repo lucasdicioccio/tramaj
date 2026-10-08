@@ -2,5 +2,5 @@
   "name": "a seeded term round-trips",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

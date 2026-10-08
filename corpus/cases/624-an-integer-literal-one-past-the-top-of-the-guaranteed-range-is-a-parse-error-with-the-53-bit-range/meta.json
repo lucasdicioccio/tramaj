@@ -1,0 +1,7 @@
+{
+  "name": "an integer literal one past the top of the guaranteed range is a parse error with the 53-bit range",
+  "kind": "expression",
+  "mode": "concrete",
+  "expect": "parse-error",
+  "profiles": ["int-float", "int53"]
+}

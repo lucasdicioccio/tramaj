@@ -1,0 +1,3 @@
+-- reference.md §9
+@f=(z) => import("deep", {}).rendered
+.div(branch(.p("a"), false, import("loopy", {}).rendered))

@@ -229,8 +229,9 @@ typeParamSpec = describe "type declarations and parameters" $ do
           `shouldBe` [("message", Set.empty)]
 
 -- | reference.md \S9: which of the nine arithmetic names a program
--- references free. The corpus has no case shape for an analysis, so the
--- cases are here.
+-- references free. The shared corpus holds the same cases as
+-- @"expect": "analysis"@ ones (@corpus/README.md@), which the PureScript
+-- port runs too.
 arithmeticSpec :: Spec
 arithmeticSpec = describe "arithmetic operations" $ do
   it "names the nine builtins of the profile" $

@@ -1,0 +1,2 @@
+-- reference.md §11: the profile is off in every library the program runs too
+import("adds", {a: 1}).rendered

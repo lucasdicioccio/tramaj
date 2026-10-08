@@ -1,0 +1,5 @@
+{
+  "contextHoles": [["spec", "replicas"]],
+  "deepContextHoles": [["inner", "name"], ["spec", "replicas"]],
+  "contextReads": [["name"], ["spec", "replicas"]]
+}

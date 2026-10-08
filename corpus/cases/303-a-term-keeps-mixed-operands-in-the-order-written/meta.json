@@ -2,5 +2,5 @@
   "name": "a term keeps mixed operands in the order written",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float", "arithmetic"]
+  "profiles": ["int-float", "arithmetic"]
 }

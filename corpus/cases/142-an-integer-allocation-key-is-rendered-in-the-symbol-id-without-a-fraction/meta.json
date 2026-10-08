@@ -2,5 +2,5 @@
   "name": "an integer allocation key is rendered in the symbol id without a fraction",
   "kind": "expression",
   "mode": "symbolic",
-  "requires": ["int-float"]
+  "profiles": ["int-float"]
 }

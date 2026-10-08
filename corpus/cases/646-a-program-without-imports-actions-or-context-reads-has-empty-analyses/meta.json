@@ -1,0 +1,5 @@
+{
+  "name": "a program without imports actions or context reads has empty analyses",
+  "kind": "document",
+  "expect": "analysis"
+}
