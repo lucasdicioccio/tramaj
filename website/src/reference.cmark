@@ -53,7 +53,7 @@ format encodes what it evaluates to, and v3 and v4 each extend it.
 
 Not every implementation has everything in these pages yet. Passages
 marked **[§18]** (integers and floats as two types, and the arithmetic
-builtins) are implemented in PureScript and Haskell only, and those marked
+builtins) are implemented in PureScript, Haskell and Rust only, and those marked
 **[§20]** (`round`, sorting, `format-number`) in none. The marks are section
 numbers of `decisions.md`. For what the number split changes in existing
 templates, see

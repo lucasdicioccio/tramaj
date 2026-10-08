@@ -25,7 +25,12 @@ pub enum Expr {
     Lambda(Vec<String>, Box<Expr>),
     Let(String, Box<Expr>, Box<Expr>),
     StringLit(String),
-    NumberLit(f64),
+    /// A number literal with neither a fraction nor an exponent
+    /// (`reference.md` §5): an integer, in the signed 64-bit range.
+    IntLit(i64),
+    /// A number literal with a fraction or an exponent: a finite double,
+    /// never a negative zero.
+    FloatLit(f64),
     BoolLit(bool),
     NullLit,
     ArrayLit(Vec<Expr>),
@@ -37,6 +42,12 @@ pub enum Expr {
     Filter(Box<Expr>, Box<Expr>),
     Scan(Box<Expr>, Box<Expr>, Box<Expr>),
     Fold(Box<Expr>, Box<Expr>, Box<Expr>),
+    /// `sort-by(collection, function)` and, with the flag set,
+    /// `sort-by-descending(collection, function)` (`reference.md` §11,
+    /// *Sorting*): the elements of the collection ordered by the key the
+    /// function gives each of them. A core constructor for the reason `Map`
+    /// is one: the key function needs a fresh binding per element.
+    SortBy(bool, Box<Expr>, Box<Expr>),
     Concat(Box<Expr>, Box<Expr>),
     Import(String, Vec<(String, ParamValue)>),
     AdaptActions(Box<Expr>, ActionAdaptation, Option<Box<Expr>>),
@@ -84,7 +95,7 @@ pub enum Expr {
 /// alone cannot tell a declaration name from a typo.
 ///
 /// `Prim` is recognized at parse time, rather than left for resolution to
-/// classify: the five primitive names are a closed, reserved lexical set
+/// classify: the six primitive names are a closed, reserved lexical set
 /// (§1), not ordinary identifiers that happen to resolve to a primitive.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeExpr {
@@ -109,7 +120,8 @@ pub enum TypeExpr {
 pub enum TypeConstraintArg {
     Type(TypeExpr),
     ScalarStr(String),
-    ScalarNum(f64),
+    ScalarInt(i64),
+    ScalarFloat(f64),
     ScalarBool(bool),
     ScalarNull,
 }
@@ -157,7 +169,8 @@ pub fn sub_exprs(e: &Expr) -> Vec<&Expr> {
         Expr::Lambda(_, body) => vec![body],
         Expr::Let(_, value, body) => vec![value, body],
         Expr::StringLit(_) => vec![],
-        Expr::NumberLit(_) => vec![],
+        Expr::IntLit(_) => vec![],
+        Expr::FloatLit(_) => vec![],
         Expr::BoolLit(_) => vec![],
         Expr::NullLit => vec![],
         Expr::ArrayLit(elems) => elems.iter().collect(),
@@ -174,6 +187,7 @@ pub fn sub_exprs(e: &Expr) -> Vec<&Expr> {
         Expr::Filter(coll, f) => vec![coll, f],
         Expr::Scan(coll, init, f) => vec![coll, init, f],
         Expr::Fold(coll, init, f) => vec![coll, init, f],
+        Expr::SortBy(_, coll, f) => vec![coll, f],
         Expr::Concat(l, r) => vec![l, r],
         Expr::Import(_, params) => params
             .iter()
@@ -215,7 +229,8 @@ fn sub_exprs_mut(e: &mut Expr) -> Vec<&mut Expr> {
         Expr::Lambda(_, body) => vec![body],
         Expr::Let(_, value, body) => vec![value, body],
         Expr::StringLit(_) => vec![],
-        Expr::NumberLit(_) => vec![],
+        Expr::IntLit(_) => vec![],
+        Expr::FloatLit(_) => vec![],
         Expr::BoolLit(_) => vec![],
         Expr::NullLit => vec![],
         Expr::ArrayLit(elems) => elems.iter_mut().collect(),
@@ -238,6 +253,7 @@ fn sub_exprs_mut(e: &mut Expr) -> Vec<&mut Expr> {
         Expr::Filter(coll, f) => vec![coll, f],
         Expr::Scan(coll, init, f) => vec![coll, init, f],
         Expr::Fold(coll, init, f) => vec![coll, init, f],
+        Expr::SortBy(_, coll, f) => vec![coll, f],
         Expr::Concat(l, r) => vec![l, r],
         Expr::Import(_, params) => params
             .iter_mut()

@@ -129,9 +129,8 @@ The [playground](/playground.html) runs with arithmetic on and has an
 *arithmetic-demo* tab. Numbers used to be a single type: if you have
 templates written before the split, read
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).
-The split and arithmetic are in the PureScript and Haskell implementations;
-the TypeScript one has them too, with the nine builtins;
-the Rust, Python and Go ones do not have them yet.
+The split and arithmetic are in the PureScript, Haskell and Go implementations;
+the Rust, JavaScript and Python ones do not have them yet.
 
 ## Splitting a template into libraries
 

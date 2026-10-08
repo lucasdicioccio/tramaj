@@ -40,6 +40,20 @@ impl Fixtures {
             "@n=cardinality($ctx.items)\n.p(\"there are `$n` item(s)\")",
         );
         write("ctx.json", r#"{"items":["a","b","c"]}"#);
+        write("numbers.tmpl", "[$ctx.i, $ctx.f, 2, 2.0, 1e21, cardinality($ctx.xs)]");
+        write("numbers.json", r#"{"i": 3, "f": 3.0, "xs": [1, 2]}"#);
+        write("too-big.json", r#"{"i": 9223372036854775808, "f": 3.0, "xs": []}"#);
+        write("sum.tmpl", "@total=sum($ctx.i, 1)\n.p(\"total `$total`, half `quotient($ctx.f, 2.0)`\")");
+        write(
+            "table.tmpl",
+            "@top=sort-by-descending($ctx.rows, (r) => $r.spend)\n.ul(map($top, (r) => .li($r.name, \" \", format-number($r.spend, 2, \",\"))))",
+        );
+        write(
+            "rows.json",
+            r#"{"rows": [{"name": "a", "spend": 1234.5}, {"name": "b", "spend": 1234567.891}, {"name": "c", "spend": 1234.5}]}"#,
+        );
+        write("round.tmpl", "sort-by($ctx.rows, (r) => round($r.spend))");
+        write("sum-lib.tmpl", "@l=import(\"sum\", {i: 1, f: 1.0})\n$l.rendered");
 
         Fixtures { dir }
     }
@@ -254,4 +268,145 @@ fn analyze_unknown_subcommand_errors() {
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("unknown analyze subcommand"), "stderr was: {stderr}");
+}
+
+#[test]
+fn evaluate_keeps_the_two_number_types() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("numbers.tmpl"), fx.path("numbers.json")])
+        .output()
+        .unwrap();
+    assert_eq!(stdout_of(&out).trim(), "[3,3.0,2,2.0,1e+21,2]");
+}
+
+#[test]
+fn evaluate_refuses_an_integer_outside_the_range() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("numbers.tmpl"), fx.path("too-big.json")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("eval error: TypeMismatch"), "stderr was: {stderr}");
+    assert!(stderr.contains("9223372036854775808"), "stderr was: {stderr}");
+}
+
+#[test]
+fn evaluate_with_arithmetic() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args(["evaluate", "--arithmetic", &fx.path("sum.tmpl"), &fx.path("numbers.json")])
+        .output()
+        .unwrap();
+    let s = stdout_of(&out);
+    assert!(s.contains("total 4, half 1.5"), "stdout was: {s}");
+}
+
+#[test]
+fn evaluate_without_arithmetic_names_the_flag() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("sum.tmpl"), fx.path("numbers.json")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("eval error: UnboundName sum"), "stderr was: {stderr}");
+    assert!(
+        stderr.contains("references the arithmetic builtins quotient, sum, which are unbound unless --arithmetic is given"),
+        "stderr was: {stderr}"
+    );
+}
+
+#[test]
+fn evaluate_error_without_arithmetic_names_has_no_note() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("eval.tmpl"), fx.path("numbers.json")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("PathNotFound"), "stderr was: {stderr}");
+    assert!(!stderr.contains("--arithmetic"), "stderr was: {stderr}");
+}
+
+#[test]
+fn analyze_arithmetic_follows_imports() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([
+            "analyze",
+            "arithmetic",
+            &fx.path("sum-lib.tmpl"),
+            "--lib",
+            &format!("sum={}", fx.path("sum.tmpl")),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(stdout_of(&out).trim(), r#"["quotient","sum"]"#);
+
+    let out = bin()
+        .args(["analyze", "all", &fx.path("sum.tmpl")])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&out)).unwrap();
+    assert_eq!(v["arithmetic"], serde_json::json!(["quotient", "sum"]));
+}
+
+#[test]
+fn analyze_rejects_the_arithmetic_flag() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args(["analyze", "arithmetic", "--arithmetic", &fx.path("sum.tmpl")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--arithmetic is not valid for the analyze command"), "stderr was: {stderr}");
+}
+
+#[test]
+fn evaluate_sorts_and_formats_without_a_flag() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args([fx.path("table.tmpl"), fx.path("rows.json")])
+        .output()
+        .unwrap();
+    let s = stdout_of(&out);
+    let at = |needle: &str| s.find(needle).unwrap_or_else(|| panic!("no {needle} in: {s}"));
+    // Highest spend first, and the two equal spends in input order.
+    assert!(at("1,234,567.89") < at("\"a\""), "stdout was: {s}");
+    assert!(at("\"a\"") < at("\"c\""), "stdout was: {s}");
+    assert!(s.contains("1,234.50"), "stdout was: {s}");
+}
+
+#[test]
+fn round_belongs_to_the_arithmetic_profile() {
+    let fx = Fixtures::new();
+    let out = bin()
+        .args(["analyze", "arithmetic", &fx.path("round.tmpl")])
+        .output()
+        .unwrap();
+    assert_eq!(stdout_of(&out).trim(), r#"["round"]"#);
+
+    let out = bin()
+        .args([fx.path("round.tmpl"), fx.path("rows.json")])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("eval error: UnboundName round"), "stderr was: {stderr}");
+    assert!(stderr.contains("unbound unless --arithmetic is given"), "stderr was: {stderr}");
+
+    let out = bin()
+        .args(["evaluate", "--arithmetic", &fx.path("round.tmpl"), &fx.path("rows.json")])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&out)).unwrap();
+    let names: Vec<&str> = v.as_array().unwrap().iter().map(|r| r["name"].as_str().unwrap()).collect();
+    // 1234.5 rounds to 1235 twice, and the tie keeps the input order.
+    assert_eq!(names, ["a", "c", "b"]);
 }

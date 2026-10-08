@@ -450,7 +450,7 @@ fn erase_expr(libs: &HashMap<String, Program>, prog: &Program, e: &Expr) -> TRes
             boxed(erase_expr(libs, prog, v))?,
             boxed(erase_expr(libs, prog, body))?,
         )),
-        Expr::StringLit(_) | Expr::NumberLit(_) | Expr::BoolLit(_) | Expr::NullLit => Ok(e.clone()),
+        Expr::StringLit(_) | Expr::IntLit(_) | Expr::FloatLit(_) | Expr::BoolLit(_) | Expr::NullLit => Ok(e.clone()),
         Expr::ArrayLit(es) => Ok(Expr::ArrayLit(
             es.iter().map(|x| erase_expr(libs, prog, x)).collect::<TResult<_>>()?,
         )),
@@ -482,6 +482,11 @@ fn erase_expr(libs: &HashMap<String, Program>, prog: &Program, e: &Expr) -> TRes
         )),
         Expr::Map(c, f) => Ok(Expr::Map(boxed(erase_expr(libs, prog, c))?, boxed(erase_expr(libs, prog, f))?)),
         Expr::Filter(c, f) => Ok(Expr::Filter(boxed(erase_expr(libs, prog, c))?, boxed(erase_expr(libs, prog, f))?)),
+        Expr::SortBy(descending, c, f) => Ok(Expr::SortBy(
+            *descending,
+            boxed(erase_expr(libs, prog, c))?,
+            boxed(erase_expr(libs, prog, f))?,
+        )),
         Expr::Scan(c, i, f) => Ok(Expr::Scan(
             boxed(erase_expr(libs, prog, c))?,
             boxed(erase_expr(libs, prog, i))?,
@@ -556,14 +561,15 @@ fn erase_attr(libs: &HashMap<String, Program>, prog: &Program, a: &crate::ast::A
 
 // Type constraints (v4-types §5) -------------------------------------------
 
-/// A resolved `!type-constraint` argument: a type, or one of the four
+/// A resolved `!type-constraint` argument: a type, or one of the five
 /// scalar shapes §5 allows — the type-realm counterpart of the
 /// already-evaluated `Value` a v3 constraint's argument becomes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedConstraintArg {
     Type(ResolvedType),
     ScalarStr(String),
-    ScalarNum(f64),
+    ScalarInt(i64),
+    ScalarFloat(f64),
     ScalarBool(bool),
     ScalarNull,
 }
@@ -576,7 +582,8 @@ fn resolve_constraint_arg(
     match a {
         TypeConstraintArg::Type(t) => Ok(ResolvedConstraintArg::Type(resolve_type_expr(libs, prog, t)?)),
         TypeConstraintArg::ScalarStr(s) => Ok(ResolvedConstraintArg::ScalarStr(s.clone())),
-        TypeConstraintArg::ScalarNum(n) => Ok(ResolvedConstraintArg::ScalarNum(*n)),
+        TypeConstraintArg::ScalarInt(n) => Ok(ResolvedConstraintArg::ScalarInt(*n)),
+        TypeConstraintArg::ScalarFloat(n) => Ok(ResolvedConstraintArg::ScalarFloat(*n)),
         TypeConstraintArg::ScalarBool(b) => Ok(ResolvedConstraintArg::ScalarBool(*b)),
         TypeConstraintArg::ScalarNull => Ok(ResolvedConstraintArg::ScalarNull),
     }

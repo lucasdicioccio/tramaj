@@ -80,14 +80,14 @@ func TestCard(t *testing.T) {
 
 func TestTypeAnalyses(t *testing.T) {
 	libs := Libraries{"shapes": mustParse(t, "type Box = {item: %ctx.t}\nnull")}
-	prog := mustParse(t, "@s = import(\"shapes\", {t: %number})\ntype Id = string\n@b : $s.types.Box = {item: 1}\n!type-constraint(\"sized\", %Id, 3)\n$b")
+	prog := mustParse(t, "@s = import(\"shapes\", {t: %int})\ntype Id = string\n@b : $s.types.Box = {item: 1}\n!type-constraint(\"sized\", %Id, 3)\n$b")
 	expect(t, "declarations", TypeDeclarations(prog), []string{"Id"})
 	expect(t, "library params", TypeParams(libs["shapes"]), [][]string{{"t"}})
 	expect(t, "unsupplied type params", UnsuppliedTypeParams(libs, prog), []Unsupplied{{"shapes", [][]string{}}})
 
 	refs, err := TypeReferences(libs, prog)
 	expect(t, "references error", err, nil)
-	expect(t, "references", refs, []string{`"shapes":Box[t=number]`, "number", "root:Id", "string"})
+	expect(t, "references", refs, []string{`"shapes":Box[t=int]`, "int", "root:Id", "string"})
 
 	tcs, err := TypeConstraints(libs, prog)
 	expect(t, "constraints error", err, nil)

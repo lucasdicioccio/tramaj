@@ -3,27 +3,37 @@
 //! grammar and JSON shapes this mirrors. Two commands are supported:
 //!
 //! * `tramaj-cli-rs [evaluate] [--lib name=path ...] [--mode concrete|symbolic]
-//!   <template-file> <context-json-file>`
+//!   [--arithmetic] <template-file> <context-json-file>`
+//!
+//!   `--arithmetic` turns on the arithmetic profile (reference.md §11) for
+//!   this run; without it the ten arithmetic names are unbound, as the
+//!   profile is a host's choice and is off by default.
+//!   The two sorts and `format-number` are part of every run and need no
+//!   flag; `round` is one of the ten names.
 //!
 //! * `tramaj-cli-rs analyze <subcommand> <template-file> [--lib name=path ...]`
 //!
 //! Any number of `--lib name=path` flags register a host-supplied
 //! `LibraryTable`, letting the template use `import(name, ...)` against files
 //! on disk.
+//!
+//! JSON goes in and out through `tramaj_rs::json`, so a number keeps its
+//! type both ways: `3` is an integer and `3.0` a float in the context, and
+//! the output writes each back the same way (reference.md §3, node-json.md
+//! *Numbers*).
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::process::ExitCode;
 
-use serde_json::{json, Value};
-
 use tramaj_rs::analysis::{
-    deep_action_keys, deep_constraint_kinds, deep_context_holes, deep_symbol_demands,
-    program_card, symbol_sites, transitive_import_names, type_declarations, type_params,
-    unsupplied_params, unsupplied_type_params, Card, ProgramKind,
+    deep_action_keys, deep_arithmetic_ops, deep_constraint_kinds, deep_context_holes,
+    deep_symbol_demands, program_card, symbol_sites, transitive_import_names, type_declarations,
+    type_params, unsupplied_params, unsupplied_type_params, Card, ProgramKind,
 };
 use tramaj_rs::ast::Program;
-use tramaj_rs::eval::{run_program, LibraryTable, Mode};
+use tramaj_rs::eval::{run_program_with, EvalError, LibraryTable, Mode, Options};
+use tramaj_rs::json::{self, Json as Value};
 use tramaj_rs::parser::parse_program;
 use tramaj_rs::types::{
     canonical_id, check_type_param_collisions, deep_type_constraints, deep_type_references,
@@ -34,7 +44,7 @@ use tramaj_rs::types::{
 enum Command {
     Evaluate {
         lib_specs: Vec<(String, String)>,
-        mode: Mode,
+        options: Options,
         template_path: String,
         context_path: String,
     },
@@ -53,12 +63,13 @@ enum AnalyzeSubcommand {
     Unsupplied,
     Constraints,
     Symbols,
+    Arithmetic,
     Types,
     Card,
     All,
 }
 
-const USAGE: &str = "usage: tramaj-cli-rs [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>\n       tramaj-cli-rs analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]";
+const USAGE: &str = "usage: tramaj-cli-rs [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>\n       tramaj-cli-rs analyze <imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all> <template-file> [--lib name=path ...]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -66,10 +77,10 @@ fn main() -> ExitCode {
         Err(err) => die(&format!("{err}\n{USAGE}")),
         Ok(Command::Evaluate {
             lib_specs,
-            mode,
+            options,
             template_path,
             context_path,
-        }) => run_evaluate(&lib_specs, mode, &template_path, &context_path),
+        }) => run_evaluate(&lib_specs, &options, &template_path, &context_path),
         Ok(Command::Analyze {
             lib_specs,
             subcommand,
@@ -79,8 +90,8 @@ fn main() -> ExitCode {
 }
 
 /// Splits `argv` into an optional command (`evaluate` or `analyze`), any
-/// number of `--lib name=path` pairs, an optional `--mode`, and the
-/// remaining positional arguments. The bare legacy form (no command word) is
+/// number of `--lib name=path` pairs, an optional `--mode`, an optional
+/// `--arithmetic`, and the remaining positional arguments. The bare legacy form (no command word) is
 /// still accepted and means `evaluate`.
 fn parse_args(args: &[String]) -> Result<Command, String> {
     match args.first().map(String::as_str) {
@@ -95,7 +106,7 @@ fn parse_evaluate(args: &[String]) -> Result<Command, String> {
     match g.positional.as_slice() {
         [template_path, context_path] => Ok(Command::Evaluate {
             lib_specs: g.lib_specs,
-            mode: g.mode,
+            options: g.options,
             template_path: template_path.clone(),
             context_path: context_path.clone(),
         }),
@@ -132,6 +143,7 @@ fn parse_subcommand(s: &str) -> Result<AnalyzeSubcommand, String> {
         "unsupplied" => Ok(AnalyzeSubcommand::Unsupplied),
         "constraints" => Ok(AnalyzeSubcommand::Constraints),
         "symbols" => Ok(AnalyzeSubcommand::Symbols),
+        "arithmetic" => Ok(AnalyzeSubcommand::Arithmetic),
         "types" => Ok(AnalyzeSubcommand::Types),
         "card" => Ok(AnalyzeSubcommand::Card),
         "all" => Ok(AnalyzeSubcommand::All),
@@ -141,15 +153,18 @@ fn parse_subcommand(s: &str) -> Result<AnalyzeSubcommand, String> {
 
 struct GlobalParseResult {
     lib_specs: Vec<(String, String)>,
-    mode: Mode,
+    options: Options,
     positional: Vec<String>,
 }
 
-/// Parses `--lib name=path` pairs, an optional `--mode` (only when
-/// `mode_allowed` is true), and collects every other token as positional.
-fn parse_global_options(mode_allowed: bool, args: &[String]) -> Result<GlobalParseResult, String> {
+/// Parses `--lib name=path` pairs, an optional `--mode` and an optional
+/// `--arithmetic` (both only when `evaluating` is true: they choose how a
+/// program is evaluated, and `analyze` evaluates nothing), and collects
+/// every other token as positional.
+fn parse_global_options(evaluating: bool, args: &[String]) -> Result<GlobalParseResult, String> {
     let mut lib_specs = Vec::new();
     let mut mode = Mode::Concrete;
+    let mut arithmetic = false;
     let mut positional = Vec::new();
 
     let mut i = 0;
@@ -167,8 +182,15 @@ fn parse_global_options(mode_allowed: bool, args: &[String]) -> Result<GlobalPar
                     }
                 }
             }
-            "--mode" if !mode_allowed => {
+            "--mode" if !evaluating => {
                 return Err("--mode is not valid for the analyze command".to_string());
+            }
+            "--arithmetic" if !evaluating => {
+                return Err("--arithmetic is not valid for the analyze command".to_string());
+            }
+            "--arithmetic" => {
+                arithmetic = true;
+                i += 1;
             }
             "--mode" => {
                 let val = args
@@ -195,7 +217,7 @@ fn parse_global_options(mode_allowed: bool, args: &[String]) -> Result<GlobalPar
 
     Ok(GlobalParseResult {
         lib_specs,
-        mode,
+        options: Options { mode, arithmetic },
         positional,
     })
 }
@@ -206,7 +228,7 @@ fn split_on_first(s: &str, sep: char) -> Option<(String, String)> {
     Some((a.to_string(), b[sep.len_utf8()..].to_string()))
 }
 
-fn run_evaluate(lib_specs: &[(String, String)], mode: Mode, template_path: &str, context_path: &str) -> ExitCode {
+fn run_evaluate(lib_specs: &[(String, String)], options: &Options, template_path: &str, context_path: &str) -> ExitCode {
     let libs = match load_libraries(lib_specs) {
         Err(err) => return die(&err),
         Ok(libs) => libs,
@@ -221,7 +243,9 @@ fn run_evaluate(lib_specs: &[(String, String)], mode: Mode, template_path: &str,
         Err(err) => return die(&format!("{err}")),
     };
 
-    let ctx_json: Value = match serde_json::from_str(&ctx_src) {
+    // The port's own reader: it types each number by its text, and leaves
+    // refusing one the value domain does not hold to the evaluator.
+    let ctx_json: Value = match json::parse(&ctx_src) {
         Ok(v) => v,
         Err(err) => return die(&format!("invalid JSON context ({context_path}): {err}")),
     };
@@ -231,12 +255,31 @@ fn run_evaluate(lib_specs: &[(String, String)], mode: Mode, template_path: &str,
         Err(err) => return die(&format!("parse error ({template_path}): {err}")),
     };
 
-    match run_program(mode, &libs, &ctx_json, &program) {
+    match run_program_with(options, &libs, &ctx_json, &program) {
         Ok(result) => {
-            println!("{}", serde_json::to_string(&result).expect("serializing evaluate output"));
+            println!("{}", json::stringify(&result));
             ExitCode::SUCCESS
         }
-        Err(err) => die(&format!("eval error: {err}")),
+        Err(err) => die(&describe_eval_error(options, &libs, &program, &err)),
+    }
+}
+
+/// An evaluation error as this CLI reports it. Without `--arithmetic` the
+/// ten arithmetic names are unbound and a seeded term is refused, and the
+/// error alone does not say that a flag would have changed it, so a note
+/// names the flag when the program (or a library it imports) references one
+/// of them. `deep_arithmetic_ops` over-approximates, and a program that
+/// never references one gets no note.
+fn describe_eval_error(options: &Options, libs: &LibraryTable, program: &Program, err: &EvalError) -> String {
+    let mut ops: Vec<String> = deep_arithmetic_ops(libs, program).into_iter().collect();
+    ops.sort();
+    if options.arithmetic || ops.is_empty() {
+        format!("eval error: {err}")
+    } else {
+        format!(
+            "eval error: {err}\nnote: this program references the arithmetic builtins {}, which are unbound unless --arithmetic is given",
+            ops.join(", ")
+        )
     }
 }
 
@@ -262,7 +305,7 @@ fn run_analyze(lib_specs: &[(String, String)], subcommand: AnalyzeSubcommand, te
 
     match analyze_to_json(&libs, &program, subcommand) {
         Ok(result) => {
-            println!("{}", serde_json::to_string(&result).expect("serializing analyze output"));
+            println!("{}", json::stringify(&result));
             ExitCode::SUCCESS
         }
         Err(type_err) => die(&format!("type error: {type_err}")),
@@ -280,23 +323,32 @@ fn analyze_to_json(libs: &LibraryTable, prog: &Program, sub: AnalyzeSubcommand) 
         )),
         AnalyzeSubcommand::Constraints => constraints_block(libs, prog),
         AnalyzeSubcommand::Symbols => Ok(symbols_block(libs, prog)),
+        // Which of the ten arithmetic names (reference.md §11) the program,
+        // or a library it imports, references free: what a host without the
+        // arithmetic profile checks before running it. Static, so the same
+        // with or without `--arithmetic`.
+        AnalyzeSubcommand::Arithmetic => Ok(string_set_to_json(&deep_arithmetic_ops(libs, prog))),
         AnalyzeSubcommand::Types => types_block(libs, prog),
         AnalyzeSubcommand::Card => Ok(card_to_json(&program_card(libs, prog))),
         AnalyzeSubcommand::All => {
             let constraints = constraints_block(libs, prog)?;
             let types = types_block(libs, prog)?;
-            Ok(json!({
-                "imports": string_set_to_json(&transitive_import_names(libs, prog)),
-                "actions": string_set_to_json(&deep_action_keys(libs, prog)),
-                "holes": path_set_to_json(&deep_context_holes(libs, prog)),
-                "unsupplied": unsupplied_to_json(
-                    &unsupplied_params(libs, prog),
-                    &unsupplied_type_params(libs, prog),
+            Ok(Value::object([
+                ("imports", string_set_to_json(&transitive_import_names(libs, prog))),
+                ("actions", string_set_to_json(&deep_action_keys(libs, prog))),
+                ("holes", path_set_to_json(&deep_context_holes(libs, prog))),
+                (
+                    "unsupplied",
+                    unsupplied_to_json(
+                        &unsupplied_params(libs, prog),
+                        &unsupplied_type_params(libs, prog),
+                    ),
                 ),
-                "constraints": constraints,
-                "symbols": symbols_block(libs, prog),
-                "types": types,
-            }))
+                ("constraints", constraints),
+                ("symbols", symbols_block(libs, prog)),
+                ("arithmetic", string_set_to_json(&deep_arithmetic_ops(libs, prog))),
+                ("types", types),
+            ]))
         }
     }
 }
@@ -304,25 +356,25 @@ fn analyze_to_json(libs: &LibraryTable, prog: &Program, sub: AnalyzeSubcommand) 
 fn constraints_block(libs: &LibraryTable, prog: &Program) -> Result<Value, TypeError> {
     let kinds = string_set_to_json(&deep_constraint_kinds(libs, prog));
     let constraints = type_constraints_to_json(&deep_type_constraints(libs, prog)?);
-    Ok(json!({ "kinds": kinds, "typeConstraints": constraints }))
+    Ok(Value::object([("kinds", kinds), ("typeConstraints", constraints)]))
 }
 
 fn symbols_block(libs: &LibraryTable, prog: &Program) -> Value {
-    json!({
-        "sites": int_set_to_json(&symbol_sites(prog)),
-        "demands": path_set_to_json(&deep_symbol_demands(libs, prog)),
-    })
+    Value::object([
+        ("sites", int_set_to_json(&symbol_sites(prog))),
+        ("demands", path_set_to_json(&deep_symbol_demands(libs, prog))),
+    ])
 }
 
 fn types_block(libs: &LibraryTable, prog: &Program) -> Result<Value, TypeError> {
     let references = string_set_to_json(&deep_type_references(libs, prog)?);
     let constraints = type_constraints_to_json(&deep_type_constraints(libs, prog)?);
-    Ok(json!({
-        "declarations": string_set_to_json(&type_declarations(prog)),
-        "params": path_set_to_json(&type_params(prog)),
-        "references": references,
-        "constraints": constraints,
-    }))
+    Ok(Value::object([
+        ("declarations", string_set_to_json(&type_declarations(prog))),
+        ("params", path_set_to_json(&type_params(prog))),
+        ("references", references),
+        ("constraints", constraints),
+    ]))
 }
 
 /// Reads and parses each `--lib name=path` file into a `LibraryTable`.
@@ -361,7 +413,7 @@ fn path_set_to_json(set: &HashSet<Vec<String>>) -> Value {
 fn int_set_to_json(set: &HashSet<usize>) -> Value {
     let mut xs: Vec<&usize> = set.iter().collect();
     xs.sort();
-    Value::Array(xs.into_iter().map(|n| Value::Number((*n).into())).collect())
+    Value::Array(xs.into_iter().map(|n| Value::Int(*n as i64)).collect())
 }
 
 fn unsupplied_to_json(
@@ -373,11 +425,11 @@ fn unsupplied_to_json(
             .iter()
             .zip(type_params.iter())
             .map(|((name, v_missing), (_, t_missing))| {
-                json!({
-                    "name": name,
-                    "valueParams": path_set_to_json(v_missing),
-                    "typeParams": path_set_to_json(t_missing),
-                })
+                Value::object([
+                    ("name", Value::string(name.clone())),
+                    ("valueParams", path_set_to_json(v_missing)),
+                    ("typeParams", path_set_to_json(t_missing)),
+                ])
             })
             .collect(),
     )
@@ -388,10 +440,13 @@ fn type_constraints_to_json(constraints: &[(String, Vec<ResolvedConstraintArg>)]
         constraints
             .iter()
             .map(|(name, args)| {
-                json!({
-                    "name": name,
-                    "arguments": args.iter().map(resolved_constraint_arg_to_json).collect::<Vec<_>>(),
-                })
+                Value::object([
+                    ("name", Value::string(name.clone())),
+                    (
+                        "arguments",
+                        Value::Array(args.iter().map(resolved_constraint_arg_to_json).collect()),
+                    ),
+                ])
             })
             .collect(),
     )
@@ -399,11 +454,10 @@ fn type_constraints_to_json(constraints: &[(String, Vec<ResolvedConstraintArg>)]
 
 fn resolved_constraint_arg_to_json(arg: &ResolvedConstraintArg) -> Value {
     match arg {
-        ResolvedConstraintArg::Type(rt) => json!({ "$type": canonical_id(rt) }),
+        ResolvedConstraintArg::Type(rt) => Value::object([("$type", Value::string(canonical_id(rt)))]),
         ResolvedConstraintArg::ScalarStr(s) => Value::String(s.clone()),
-        ResolvedConstraintArg::ScalarNum(n) => {
-            serde_json::Number::from_f64(*n).map(Value::Number).unwrap_or(Value::Null)
-        }
+        ResolvedConstraintArg::ScalarInt(n) => Value::Int(*n),
+        ResolvedConstraintArg::ScalarFloat(n) => Value::Float(*n),
         ResolvedConstraintArg::ScalarBool(b) => Value::Bool(*b),
         ResolvedConstraintArg::ScalarNull => Value::Null,
     }
@@ -417,16 +471,21 @@ fn card_to_json(card: &Card) -> Value {
     let unsupplied = Value::Array(
         card.unsupplied
             .iter()
-            .map(|(name, missing)| json!({ "name": name, "params": path_set_to_json(missing) }))
+            .map(|(name, missing)| {
+                Value::object([
+                    ("name", Value::string(name.clone())),
+                    ("params", path_set_to_json(missing)),
+                ])
+            })
             .collect(),
     );
-    json!({
-        "produces": produces,
-        "requires": path_set_to_json(&card.requires),
-        "imports": string_set_to_json(&card.imports),
-        "emits": string_set_to_json(&card.emits),
-        "unsupplied": unsupplied,
-    })
+    Value::object([
+        ("produces", Value::string(produces)),
+        ("requires", path_set_to_json(&card.requires)),
+        ("imports", string_set_to_json(&card.imports)),
+        ("emits", string_set_to_json(&card.emits)),
+        ("unsupplied", unsupplied),
+    ])
 }
 
 fn die(msg: &str) -> ExitCode {

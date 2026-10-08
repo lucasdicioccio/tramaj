@@ -16,8 +16,8 @@ Status: frozen as a design. Not implemented in either `tramaj/` or
 **Terms are not in every implementation yet.** §1.9, and what the rest of
 this document says about terms and about `"$term"`, is accepted design
 (decisions §18). It depends on ref §11's arithmetic profile. `tramaj/`
-(PureScript) and `tramaj-hs/` (Haskell) implement both, for the nine names
-other than `round`; the Rust, JavaScript, Python and Go ports have neither
+(PureScript), `tramaj-hs/` (Haskell) and `tramaj-go/` (Go) implement both, for the nine names
+other than `round`; the Rust, JavaScript and Python ports have neither
 yet. The same holds for the two number types (ref §3) wherever this document
 writes a number: in canon (§1.4) and in the envelope (§5.2).
 
@@ -285,7 +285,7 @@ with them, which the language does not.
 
 ### 1.9 Terms
 
-*Implemented in `tramaj/` and `tramaj-hs/`, for the nine names other than
+*Implemented in `tramaj/`, `tramaj-hs/` and `tramaj-rs/`, for the nine names other than
 `round`; not yet in the other ports (decisions §18).* This section applies to an
 implementation with the arithmetic profile (ref §11, §5.5).
 
