@@ -9,7 +9,9 @@
 -- | than at most one. And attribute values, text values and the element
 -- | value slot are arbitrary JSON rather than pre-stringified text —
 -- | evaluation deliberately stops short of deciding how a number renders,
--- | which makes it this module's decision (`renderScalar`).
+-- | which makes it this module's decision (`renderScalar`). The two number
+-- | types stay apart there: an integer renders as its digits and a float
+-- | always with a fraction or an exponent, as `str` writes them.
 -- |
 -- | v3-symbols support: a value anywhere in the tree may be the §5.3 wire
 -- | tag `{"$sym": <id>, "path": [...]}` rather than an ordinary scalar, and
@@ -20,7 +22,10 @@
 -- | `renderConstraintTable` render the envelope's `"symbols"`/
 -- | `"constraints"` arrays the same way; `renderTypesTable` and
 -- | `renderTypeConstraintTable` do the same for v4-types \S8's `"types"`/
--- | `"type-constraints"` arrays. This module is an example host,
+-- | `"type-constraints"` arrays. A term, the arithmetic profile's
+-- | `{"$term": <op>, "arguments": [...]}` (v3-symbols §1.9), is recognized
+-- | the same way and renders as the call that built it. This module is an
+-- | example host,
 -- | not a normative one, so treat the table layout and origin formatting
 -- | below as a starting point, not a contract.
 module Tramaj.Halogen
@@ -52,7 +57,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Tramaj.Analysis.Card (Card, ProgramKind(..))
-import Tramaj.Json (Json, isNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
+import Tramaj.Json (Json(..), formatFloat, formatInteger, isNull, stringify, toArray, toNumber, toObject, toString)
 import Tramaj.Node (Node(..), NodeAttribute(..))
 import Web.HTML.Common (AttrName(..))
 
@@ -140,36 +145,48 @@ svgNamespace :: Namespace
 svgNamespace = Namespace "http://www.w3.org/2000/svg"
 
 -- | A text-position value (a text child, or an element's value slot
--- | rendered as text): a symbol renders in `<code>`, set apart from
--- | ordinary text, so a reader can tell a hole from a string that happens
--- | to look like one; anything else is `renderScalar`, unchanged.
+-- | rendered as text): a symbol or a term renders in `<code>`, set apart
+-- | from ordinary text, so a reader can tell a hole from a string that
+-- | happens to look like one; anything else is `renderScalar`, unchanged.
 renderTextValue :: forall action slots m. Json -> ComponentHTML action slots m
-renderTextValue j = case symbolLabel j of
+renderTextValue j = case placeholderLabel j of
   Just label -> HH.code_ [ HH.text label ]
   Nothing -> HH.text (renderScalar j)
 
 -- | How this host renders a JSON value as DOM text. A symbol (v3-symbols
 -- | §5.3's `{"$sym": ..., "path": [...]}` tag) renders as its id with its
--- | path dotted on, e.g. `#0:"d".replicas`. Otherwise: a string is itself,
--- | a whole number drops its trailing `.0`, `null` renders as nothing, and
--- | anything structured falls back to compact JSON.
+-- | path dotted on, e.g. `#0:"d".replicas`, and a term (v3-symbols §1.9)
+-- | as the call that built it, e.g. `sum(#0:"d".replicas, 1)`. Otherwise: a
+-- | string is itself, `null` renders as nothing, and anything structured
+-- | falls back to compact JSON.
+-- |
+-- | A number renders by its type, exactly as `str` writes it (reference.md
+-- | §6): an integer as its decimal digits (`3`, `-7`, `100000000000`) and a
+-- | float always with a fraction or an exponent (`3.0`, `1.5`, `1e+21`). So
+-- | the integer `3` and the float `3.0` stay two different texts on the
+-- | page, as they are two different values in the language.
 -- |
 -- | Deliberately this module's decision rather than the evaluator's: a
 -- | different host targeting YAML or a UI model would render the same
 -- | values differently, and v2's `Node` keeps them unconverted precisely so
 -- | that it can.
 renderScalar :: Json -> String
-renderScalar j = case symbolLabel j of
+renderScalar j = case placeholderLabel j of
   Just label -> label
-  Nothing -> case toString j of
-    Just s -> s
-    Nothing -> case toNumber j of
-      Just n -> case Int.fromNumber n of
-        Just i -> show i
-        Nothing -> show n
-      Nothing -> case toBoolean j of
-        Just b -> if b then "true" else "false"
-        Nothing -> if isNull j then "" else stringify j
+  Nothing -> case j of
+    JString s -> s
+    JInt n -> formatInteger n
+    JFloat n -> formatFloat n
+    JBool b -> if b then "true" else "false"
+    JNull -> ""
+    _ -> stringify j
+
+-- | The text of a value that stands for something not known yet: a symbol
+-- | (`symbolLabel`) or a term (`termLabel`).
+placeholderLabel :: Json -> Maybe String
+placeholderLabel j = case symbolLabel j of
+  Just label -> Just label
+  Nothing -> termLabel j
 
 -- | Recognizes the v3-symbols §5.3 wire tag `{"$sym": <id>, "path": [...]}`
 -- | and renders it as `<id>` with its path dotted on. This shape cannot
@@ -183,6 +200,27 @@ symbolLabel j = do
   pathArr <- Object.lookup "path" o >>= toArray
   path <- traverse toString pathArr
   pure (sid <> foldMap ("." <> _) path)
+
+-- | Recognizes a term, `{"$term": <op>, "arguments": [...]}` (v3-symbols
+-- | §1.9, §5.3): an arithmetic builtin left unevaluated because one of its
+-- | operands is a symbol. It renders as the call that built it, operands in
+-- | the order they are held and nothing folded: `sum(1, #0:"d".replicas, 2)`.
+-- | An operand is a number, a symbol or another term; an object with
+-- | `"$term"` whose arguments are anything else is not a term and is left
+-- | to the caller. Like `"$sym"`, `"$term"` is a reserved key, so the shape
+-- | needs no mode flag.
+termLabel :: Json -> Maybe String
+termLabel j = do
+  o <- toObject j
+  op <- Object.lookup "$term" o >>= toString
+  args <- Object.lookup "arguments" o >>= toArray
+  labels <- traverse operandLabel args
+  pure (op <> "(" <> joinWith ", " labels <> ")")
+  where
+  operandLabel = case _ of
+    JInt n -> Just (formatInteger n)
+    JFloat n -> Just (formatFloat n)
+    other -> placeholderLabel other
 
 -- | A DOM attribute name this module is willing to set: alphanumeric plus
 -- | `-`/`_` only (no spaces, colons, quotes) — deliberately stricter than

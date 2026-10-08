@@ -2,12 +2,23 @@
 -- | commands are supported:
 -- |
 -- | * `tramaj-cli [evaluate] [--lib name=path ...] [--mode concrete|symbolic]
--- |   <template-file> <context-json-file>` — the original behaviour, unchanged.
+-- |   [--arithmetic] <template-file> <context-json-file>` — evaluates the
+-- |   template against the context and prints the result as JSON.
+-- |   `--arithmetic` turns on the arithmetic profile (reference.md §11) for
+-- |   this run; without it the nine arithmetic names are unbound, as the
+-- |   profile is a host's choice and off by default.
 -- |
 -- | * `tramaj-cli analyze <subcommand> <template-file> [--lib name=path ...]`
 -- |   — static analysis of a template without evaluating it and without a
 -- |   context file. Each subcommand prints JSON to stdout; type-level
 -- |   analyses can fail with a type error on stderr and a non-zero exit.
+-- |
+-- | JSON goes in and out through `Tramaj.Json`, never `JSON.parse` or
+-- | `JSON.stringify`, so the two number types survive both ways: an integer
+-- | of the context is an integer in the program and a float a float, and
+-- | the output writes an integer as its digits and a float with a fraction
+-- | or an exponent (`3` and `3.0` are two values). A context number outside
+-- | the value domain is refused, not rounded.
 -- |
 -- | Any number of `--lib name=path` flags register a host-supplied
 -- | `LibraryTable`, letting the template use `import(name, ...)` against files
@@ -27,7 +38,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Set (Set)
 import Data.Set as Set
-import Data.String (Pattern(..), drop, indexOf, take) as Str
+import Data.String (Pattern(..), drop, indexOf, joinWith, take) as Str
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (log, error)
@@ -35,16 +46,16 @@ import Foreign.Object as Object
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Sync (readTextFile)
 import Node.Process (argv, exit')
-import Tramaj.Analysis (deepActionKeys, deepConstraintKinds, deepContextHoles, deepSymbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
+import Tramaj.Analysis (deepActionKeys, deepArithmeticOps, deepConstraintKinds, deepContextHoles, deepSymbolDemands, symbolSites, transitiveImportNames, typeDeclarations, typeParams, unsuppliedParams, unsuppliedTypeParams)
 import Tramaj.Analysis.Card (Card, ProgramKind(..), programCard)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (LibraryTable, Mode(..), runProgram)
+import Tramaj.Eval (EvalError, LibraryTable, Mode(..), Options, runProgramWith)
 import Tramaj.Json (Json(..), fromArray, fromBoolean, fromInt, fromObject, fromString, jsonNull, jsonParser, stringify)
 import Tramaj.Parser (parseProgram)
 import Tramaj.Types (ResolvedConstraintArg(..), TypeError, canonicalId, checkTypeParamCollisions, deepTypeConstraints, deepTypeReferences)
 
 data Command
-  = Evaluate { libSpecs :: Array (Tuple String String), mode :: Mode, templatePath :: String, contextPath :: String }
+  = Evaluate { libSpecs :: Array (Tuple String String), mode :: Mode, arithmetic :: Boolean, templatePath :: String, contextPath :: String }
   | Analyze { libSpecs :: Array (Tuple String String), subcommand :: AnalyzeSubcommand, templatePath :: String }
 
 data AnalyzeSubcommand
@@ -54,6 +65,7 @@ data AnalyzeSubcommand
   | AnalyzeUnsupplied
   | AnalyzeConstraints
   | AnalyzeSymbols
+  | AnalyzeArithmetic
   | AnalyzeTypes
   | AnalyzeCard
   | AnalyzeAll
@@ -61,19 +73,19 @@ data AnalyzeSubcommand
 derive instance eqAnalyzeSubcommand :: Eq AnalyzeSubcommand
 
 usage :: String
-usage = "usage: tramaj-cli [evaluate] [--lib name=path ...] [--mode concrete|symbolic] <template-file> <context-json-file>\n       tramaj-cli analyze <imports|actions|holes|unsupplied|constraints|symbols|types|card|all> <template-file> [--lib name=path ...]"
+usage = "usage: tramaj-cli [evaluate] [--lib name=path ...] [--mode concrete|symbolic] [--arithmetic] <template-file> <context-json-file>\n       tramaj-cli analyze <imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all> <template-file> [--lib name=path ...]"
 
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
   case parseArgs args of
     Left err -> die (err <> "\n" <> usage)
-    Right (Evaluate r) -> runEvaluate r.libSpecs r.mode r.templatePath r.contextPath
+    Right (Evaluate r) -> runEvaluate r.libSpecs { mode: r.mode, arithmetic: r.arithmetic } r.templatePath r.contextPath
     Right (Analyze r) -> runAnalyze r.libSpecs r.subcommand r.templatePath
 
 -- | Splits `argv` into an optional command (`evaluate` or `analyze`), any
--- | number of `--lib name=path` pairs, an optional `--mode`, and the remaining
--- | positional arguments. The bare legacy form (no command word) is still
+-- | number of `--lib name=path` pairs, an optional `--mode`, an optional
+-- | `--arithmetic`, and the remaining positional arguments. The bare legacy form (no command word) is still
 -- | accepted and means `evaluate`.
 parseArgs :: Array String -> Either String Command
 parseArgs args = case uncons args of
@@ -83,9 +95,9 @@ parseArgs args = case uncons args of
 
 parseEvaluate :: Array String -> Either String Command
 parseEvaluate args = do
-  { libSpecs, mode, positional } <- parseGlobalOptions true args
+  { libSpecs, mode, arithmetic, positional } <- parseGlobalOptions true args
   case positional of
-    [ templatePath, ctxPath ] -> Right (Evaluate { libSpecs, mode, templatePath, contextPath: ctxPath })
+    [ templatePath, ctxPath ] -> Right (Evaluate { libSpecs, mode, arithmetic, templatePath, contextPath: ctxPath })
     _ -> Left ("evaluate expects <template-file> <context-json-file>, got: " <> show (Array.length positional) <> " positional argument(s)")
 
 parseAnalyze :: Array String -> Either String Command
@@ -104,17 +116,20 @@ parseSubcommand "holes" = Right AnalyzeHoles
 parseSubcommand "unsupplied" = Right AnalyzeUnsupplied
 parseSubcommand "constraints" = Right AnalyzeConstraints
 parseSubcommand "symbols" = Right AnalyzeSymbols
+parseSubcommand "arithmetic" = Right AnalyzeArithmetic
 parseSubcommand "types" = Right AnalyzeTypes
 parseSubcommand "card" = Right AnalyzeCard
 parseSubcommand "all" = Right AnalyzeAll
 parseSubcommand other = Left ("unknown analyze subcommand: " <> other)
 
-type GlobalParseResult = { libSpecs :: Array (Tuple String String), mode :: Mode, positional :: Array String }
+type GlobalParseResult = { libSpecs :: Array (Tuple String String), mode :: Mode, arithmetic :: Boolean, positional :: Array String }
 
--- | Parses `--lib name=path` pairs, an optional `--mode` (only when
--- | `modeAllowed` is true), and collects every other token as positional.
+-- | Parses `--lib name=path` pairs, an optional `--mode` and an optional
+-- | `--arithmetic` (both only when `evaluating` is true: they choose how a
+-- | program runs, and an analysis runs nothing), and collects every other
+-- | token as positional.
 parseGlobalOptions :: Boolean -> Array String -> Either String GlobalParseResult
-parseGlobalOptions modeAllowed = go { libSpecs: [], mode: Concrete, positional: [] }
+parseGlobalOptions evaluating = go { libSpecs: [], mode: Concrete, arithmetic: false, positional: [] }
   where
   go :: GlobalParseResult -> Array String -> Either String GlobalParseResult
   go acc argsList = case uncons argsList of
@@ -125,12 +140,15 @@ parseGlobalOptions modeAllowed = go { libSpecs: [], mode: Concrete, positional: 
         Nothing -> Left ("--lib expects name=path, got: " <> spec)
         Just (Tuple name path) -> go (acc { libSpecs = Array.snoc acc.libSpecs (Tuple name path) }) rest'
     Just { head: "--mode", tail: rest }
-      | not modeAllowed -> Left "--mode is not valid for the analyze command"
+      | not evaluating -> Left "--mode is not valid for the analyze command"
       | otherwise -> case uncons rest of
           Nothing -> Left "--mode expects a following concrete|symbolic argument"
           Just { head: "concrete", tail: rest' } -> go (acc { mode = Concrete }) rest'
           Just { head: "symbolic", tail: rest' } -> go (acc { mode = Symbolic }) rest'
           Just { head: other, tail: _ } -> Left ("--mode expects concrete|symbolic, got: " <> other)
+    Just { head: "--arithmetic", tail: rest }
+      | not evaluating -> Left "--arithmetic is not valid for the analyze command"
+      | otherwise -> go (acc { arithmetic = true }) rest
     Just { head, tail: rest } -> go (acc { positional = Array.snoc acc.positional head }) rest
 
   splitOnFirst :: String -> String -> Maybe (Tuple String String)
@@ -138,8 +156,8 @@ parseGlobalOptions modeAllowed = go { libSpecs: [], mode: Concrete, positional: 
     Nothing -> Nothing
     Just i -> Just (Tuple (Str.take i s) (Str.drop (i + 1) s))
 
-runEvaluate :: Array (Tuple String String) -> Mode -> String -> String -> Effect Unit
-runEvaluate libSpecs mode templatePath ctxPath = do
+runEvaluate :: Array (Tuple String String) -> Options -> String -> String -> Effect Unit
+runEvaluate libSpecs options templatePath ctxPath = do
   libsResult <- loadLibraries libSpecs
   case libsResult of
     Left err -> die err
@@ -150,9 +168,25 @@ runEvaluate libSpecs mode templatePath ctxPath = do
         Left err -> die ("invalid JSON context (" <> ctxPath <> "): " <> err)
         Right ctxJson -> case parseProgram templateSrc of
           Left err -> die ("parse error (" <> templatePath <> "): " <> show err)
-          Right program -> case runProgram mode libs ctxJson program of
-            Left err -> die ("eval error: " <> show err)
+          Right program -> case runProgramWith options libs ctxJson program of
+            Left err -> die (evalErrorMessage options libs program err)
             Right result -> log (stringify result)
+
+-- | An evaluation error as this CLI reports it. Without `--arithmetic` the
+-- | nine arithmetic names are unbound and a seeded term is refused, and the
+-- | error alone (an `UnboundName`, a `TypeMismatch`) does not say that a
+-- | flag is what is missing. So when the profile is off and the program,
+-- | or a library it imports, references one of those names, the names are
+-- | listed with the flag that binds them. It is a hint and not a refusal:
+-- | `deepArithmeticOps` over-approximates, and a program that never
+-- | reaches the name it mentions still runs.
+evalErrorMessage :: Options -> LibraryTable -> Program -> EvalError -> String
+evalErrorMessage options libs program err = "eval error: " <> show err <> hint
+  where
+  ops = Set.toUnfoldable (deepArithmeticOps libs program) :: Array String
+  hint
+    | options.arithmetic || Array.null ops = ""
+    | otherwise = "\nnote: this program references the arithmetic builtins " <> Str.joinWith ", " ops <> ", which are unbound unless --arithmetic is given"
 
 runAnalyze :: Array (Tuple String String) -> AnalyzeSubcommand -> String -> Effect Unit
 runAnalyze libSpecs subcommand templatePath = do
@@ -186,6 +220,11 @@ analyzeToJson libs prog AnalyzeSymbols = Right
           ]
       )
   )
+-- Which of the nine arithmetic names (reference.md §11) the program, or a
+-- library it imports, references free: what a host without the arithmetic
+-- profile checks before running it. Empty means the program runs the same
+-- with or without `--arithmetic`.
+analyzeToJson libs prog AnalyzeArithmetic = Right (stringSetToJson (deepArithmeticOps libs prog))
 analyzeToJson libs prog AnalyzeTypes = do
   references <- stringSetToJson <$> deepTypeReferences libs prog
   constraints <- typeConstraintsToJson <$> deepTypeConstraints libs prog
@@ -219,6 +258,7 @@ analyzeToJson libs prog AnalyzeAll = do
                         ]
                     )
                 )
+            , Tuple "arithmetic" (stringSetToJson (deepArithmeticOps libs prog))
             , Tuple "types" typesBlock
             ]
         )

@@ -188,6 +188,15 @@ Repeat `--lib name=path` for as many libraries as a template's `import(...)`
 calls need. There is no mode to detect: a library is just a program, and what
 its root produces decides whether the CLI prints a document or a plain value.
 
+Integers and floats are two number types, and the CLI keeps them apart in
+the context it reads and in the JSON it prints: `3` stays `3` and `3.0` stays
+`3.0`. The arithmetic builtins (`sum`, `product`, …) are an optional profile,
+off unless `--arithmetic` is given:
+
+```bash
+node tramaj-cli/dist/tramaj-cli.js --arithmetic template.txt context.json
+```
+
 The CLI also has a static-analysis command that inspects a template without
 evaluating it and without a context file:
 
@@ -198,6 +207,7 @@ node tramaj-cli/dist/tramaj-cli.js analyze holes template.txt
 node tramaj-cli/dist/tramaj-cli.js analyze unsupplied template.txt --lib greeter=greeter.txt
 node tramaj-cli/dist/tramaj-cli.js analyze constraints template.txt --lib greeter=greeter.txt
 node tramaj-cli/dist/tramaj-cli.js analyze symbols template.txt
+node tramaj-cli/dist/tramaj-cli.js analyze arithmetic template.txt --lib greeter=greeter.txt
 node tramaj-cli/dist/tramaj-cli.js analyze types template.txt --lib greeter=greeter.txt
 node tramaj-cli/dist/tramaj-cli.js analyze all template.txt --lib greeter=greeter.txt
 ```

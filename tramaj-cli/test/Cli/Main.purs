@@ -26,6 +26,7 @@ main = do
   testAnalyzeConstraints
   testAnalyzeTypes
   testAnalyzeCard
+  testAnalyzeArithmetic
   log "All tramaj-cli analyze checks passed."
 
 parseProg :: String -> Program
@@ -147,3 +148,30 @@ testAnalyzeCard = do
             _ -> throw ("expected unsupplied entry for \"button\", got: " <> stringify name)
           unless (Str.contains (Str.Pattern "confirm") (stringify params)) (throw ("expected unsupplied params to mention \"confirm\", got: " <> stringify params))
         _ -> throw ("expected exactly one unsupplied entry, got: " <> stringify unsupplied)
+
+-- `analyze arithmetic` is `deepArithmeticOps`: the names referenced free,
+-- by the program or by a library it imports, and not one the program
+-- binds itself. `analyze all` carries the same list.
+testAnalyzeArithmetic :: Effect Unit
+testAnalyzeArithmetic = do
+  let
+    root = parseProg "@t=import(\"totals\", {})\n@floor=(x) => $x\n.p(sum(1, 2), floor(1.5), $t.rendered)"
+    totals = parseProg ".p(fold($ctx.xs, 0, $product))"
+    plain = parseProg ".p(cardinality($ctx.xs))"
+    libs = Map.fromFoldable [ Tuple "totals" totals ]
+  case analyzeToJson libs root AnalyzeArithmetic of
+    Left err -> throw ("analyze arithmetic failed: " <> show err)
+    Right json -> case stringify json of
+      "[\"product\",\"sum\"]" -> pure unit
+      other -> throw ("expected [\"product\",\"sum\"], got: " <> other)
+  case analyzeToJson libs plain AnalyzeArithmetic of
+    Left err -> throw ("analyze arithmetic failed: " <> show err)
+    Right json -> case stringify json of
+      "[]" -> pure unit
+      other -> throw ("expected no arithmetic name, got: " <> other)
+  case analyzeToJson libs root AnalyzeAll of
+    Left err -> throw ("analyze all failed: " <> show err)
+    Right json -> do
+      ops <- expectObjectField "arithmetic" json
+      expectArrayContainsString "sum" ops
+      expectArrayContainsString "product" ops
