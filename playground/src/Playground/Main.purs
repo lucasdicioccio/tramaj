@@ -17,6 +17,14 @@
 -- | unchanged, since `Tramaj.Halogen.renderScalar` already renders a
 -- | symbol placeholder wherever a concrete scalar used to be.
 -- |
+-- | The arithmetic profile (reference.md §11) is a host choice too, and
+-- | this host always makes it: every evaluation runs with it on (see
+-- | `playgroundOptions`), so the nine arithmetic builtins are bound in
+-- | every tab. There is no switch for it because nothing is learned from
+-- | turning it off: the names would be unbound. The program card says
+-- | which of them the active tab references, which is what a host without
+-- | the profile would check before running it.
+-- |
 -- | It exists to exercise the whole pipeline end to end in one place:
 -- | `Tramaj.Parser` -> `Tramaj.Eval` -> `Tramaj.Halogen`'s
 -- | `validateAttrNames`/`foldToHalogen`. Everything runs in the browser;
@@ -35,6 +43,7 @@ import Data.Array as Array
 import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Set as Set
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -46,9 +55,10 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
+import Tramaj.Analysis (deepArithmeticOps)
 import Tramaj.Analysis.Card (programCard)
 import Tramaj.Ast (Program)
-import Tramaj.Eval (LibraryTable, Mode(..), Output(..), evalProgram, runProgram)
+import Tramaj.Eval (LibraryTable, Mode(..), Options, Output(..), evalProgramWith, runProgramWith)
 import Tramaj.Halogen (foldToHalogen, renderCard, renderConstraintTable, renderSymbolTable, renderTypeConstraintTable, renderTypesTable, validateAttrNames)
 import Tramaj.Json (Json, jsonParser, stringify, stringifyWithIndent, toArray, toObject, toString)
 import Tramaj.Node (Node, nodeFromJson, nodeToJson)
@@ -152,9 +162,10 @@ initialState =
         , source:
             """-- An <svg> subtree is folded in the SVG namespace (createElementNS), so
 -- svg, g, rect, text and line paint like the HTML around them. Attributes
--- are plain attributes: viewBox, x, y, width, height, fill. The language
--- has no arithmetic, so the geometry of each bar comes from $ctx.bars;
--- edit the numbers in the JSON context on the left and watch it redraw.
+-- are plain attributes: viewBox, x, y, width, height, fill. The geometry
+-- of each bar is read as it is from $ctx.bars (the arithmetic-demo tab is
+-- the one that computes); edit the numbers in the JSON context on the
+-- left and watch it redraw.
 -- foreignObject is the way back into HTML inside an svg.
 @bar=(b) =>
   .g(
@@ -179,9 +190,9 @@ initialState =
             """-- A millipede per the getmillipede RFC (Vadot, 2015): an optional
 -- comment, a head ("╚⊙ ⊙╝") and a body of "╚═(███)═╝" segments, one per
 -- line. In reverse mode the body comes first, then the head with its
--- mandibles inverted ("╝⊙ ⊙╚"), then the comment. The language has no
--- arithmetic, so each segment's indentation (the wiggle) and its colour
--- (a hue gradient) come from $ctx.millipede.segments. Edit the JSON
+-- mandibles inverted ("╝⊙ ⊙╚"), then the comment. Each segment's
+-- indentation (the wiggle) and its colour (a hue gradient) are read as
+-- they are from $ctx.millipede.segments. Edit the JSON
 -- context: add segments, change "reverse" to true, rewrite the comment.
 @row="white-space: pre; font-family: monospace; line-height: 1.15; font-size: 1.2rem"
 @segment=(s) =>
@@ -235,6 +246,45 @@ initialState =
         , source:
             """@item-count=cardinality($ctx.items)
 {"count": $item-count, "titles": map($ctx.items, (item) => $item.title)}"""
+        }
+      , { name: "arithmetic-demo"
+        , source:
+            """-- Integers and floats are two number types: 3 is an integer and 3.0 a
+-- float, in a literal and in the JSON context alike, and nothing converts
+-- one into the other silently. eq(3, 3.0) is false, and sum(1, 1.5) is a
+-- TypeMismatch. real(x) and floor(x) are the two conversions.
+-- Arithmetic is nine named builtins and no operator: sum, product,
+-- negate, inverse, quotient, floor-quotient, modulo, floor, real. There
+-- is no subtraction: sum(a, negate(b)).
+@inv=$ctx.invoice
+-- qty is an integer and price a float, so qty is converted first
+@line-total=(l) => product(real($l.qty), $l.price)
+-- sum flattens an array argument; the 0.0 seeds it for an empty list
+@subtotal=sum(0.0, map($inv.lines, $line-total))
+@total=sum($subtotal, negate($inv.credit))
+-- integer division rounds toward negative infinity; modulo is its remainder
+@percent=floor-quotient(product(100, $inv.used), $inv.quota)
+@stripe=(n) => branch("odd", eq(modulo($n, 2), 0), "even")
+-- ?ctx.invoice.seats reads the context while "seats" is supplied. Delete
+-- "seats" from the JSON context and turn on "Symbolic mode": it becomes a
+-- symbol, and arithmetic over a symbol is not computed but kept as a
+-- term, operands as written, for whoever owns the symbol to evaluate.
+@seats=?ctx.invoice.seats
+@seat-cost=product(real($seats), $inv.seat-price)
+!constraint("lte", $seat-cost, $inv.budget)
+@row=(l) => .tr(
+  class: $stripe($l.qty),
+  .td($l.label), .td($l.qty), .td($l.price), .td($line-total($l))
+)
+.div(
+  .table(
+    .thead(.tr(.th("item"), .th("qty"), .th("price"), .th("total"))),
+    .tbody(map($inv.lines, $row))
+  ),
+  .p("subtotal `$subtotal`, credit `$inv.credit`, total `$total`"),
+  .p("`$inv.used` of `$inv.quota` used: `$percent`%"),
+  .p("seats: ", $seats, " costing ", $seat-cost)
+)"""
         }
       , { name: "constraints-demo"
         , source:
@@ -336,8 +386,10 @@ type Value = document
       -- selecting a library tab shows it rendering instead of a
       -- PathNotFound for the parameter its importer would have supplied.
       -- row-kind is the one the main tab actually reads, through ctx(...);
-      -- zone is the one constraints-demo reads, through ?ctx.zone.
-      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}], "millipede": {"comment": "Hello from tramaj!", "reverse": false, "headPad": "  ", "headColor": "hsl(150, 80%, 70%)", "segments": [{"pad": "", "color": "hsl(130, 80%, 55%)"}, {"pad": " ", "color": "hsl(120, 80%, 55%)"}, {"pad": "  ", "color": "hsl(110, 80%, 55%)"}, {"pad": "   ", "color": "hsl(100, 80%, 55%)"}, {"pad": "   ", "color": "hsl(90, 80%, 55%)"}, {"pad": "  ", "color": "hsl(80, 80%, 55%)"}, {"pad": " ", "color": "hsl(70, 80%, 55%)"}, {"pad": "", "color": "hsl(60, 80%, 55%)"}, {"pad": " ", "color": "hsl(50, 80%, 55%)"}, {"pad": "  ", "color": "hsl(40, 80%, 55%)"}, {"pad": "   ", "color": "hsl(30, 80%, 55%)"}, {"pad": "   ", "color": "hsl(20, 80%, 55%)"}, {"pad": "  ", "color": "hsl(10, 80%, 55%)"}, {"pad": " ", "color": "hsl(0, 80%, 55%)"}], "reversedHeadPad": "   "}}"""
+      -- zone is the one constraints-demo reads, through ?ctx.zone; invoice
+      -- is arithmetic-demo's, and its numbers are typed by how they are
+      -- written here: 3 is an integer, 12.5 and 30.0 are floats.
+      """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "invoice": {"lines": [{"label": "compute", "qty": 3, "price": 12.5}, {"label": "storage", "qty": 40, "price": 0.25}, {"label": "support", "qty": 1, "price": 30.0}], "credit": 7.5, "used": 42, "quota": 64, "seats": 4, "seat-price": 9.0, "budget": 50.0}, "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}], "millipede": {"comment": "Hello from tramaj!", "reverse": false, "headPad": "  ", "headColor": "hsl(150, 80%, 70%)", "segments": [{"pad": "", "color": "hsl(130, 80%, 55%)"}, {"pad": " ", "color": "hsl(120, 80%, 55%)"}, {"pad": "  ", "color": "hsl(110, 80%, 55%)"}, {"pad": "   ", "color": "hsl(100, 80%, 55%)"}, {"pad": "   ", "color": "hsl(90, 80%, 55%)"}, {"pad": "  ", "color": "hsl(80, 80%, 55%)"}, {"pad": " ", "color": "hsl(70, 80%, 55%)"}, {"pad": "", "color": "hsl(60, 80%, 55%)"}, {"pad": " ", "color": "hsl(50, 80%, 55%)"}, {"pad": "  ", "color": "hsl(40, 80%, 55%)"}, {"pad": "   ", "color": "hsl(30, 80%, 55%)"}, {"pad": "   ", "color": "hsl(20, 80%, 55%)"}, {"pad": "  ", "color": "hsl(10, 80%, 55%)"}, {"pad": " ", "color": "hsl(0, 80%, 55%)"}], "reversedHeadPad": "   "}}"""
   , actionLog: []
   , mode: Concrete
   }
@@ -441,7 +493,9 @@ render state =
         , HH.p [ HP.class_ (HH.ClassName "hint") ]
             [ HH.text "What the active tab needs, reaches, and can emit — computed statically from its AST and the other tabs offered as imports, without evaluating it or the JSON context on the left. The same five fields "
             , HH.code_ [ HH.text "tramaj-cli analyze card" ]
-            , HH.text " prints as JSON."
+            , HH.text " prints as JSON. Below them, the arithmetic builtins it references, as "
+            , HH.code_ [ HH.text "tramaj-cli analyze arithmetic" ]
+            , HH.text " lists them: a host without the arithmetic profile refuses a program when that list is not empty."
             ]
         , renderProgramCard state
         ]
@@ -593,6 +647,11 @@ type EnvelopeResult =
 -- | data instead of re-parsing the JSON it just produced — this module
 -- | would then only need to convert `SymbolEntry`/`Value` to `Json` for
 -- | display, not guess at the envelope's shape.
+-- | What this host chooses for every evaluation: the mode of the checkbox,
+-- | and the arithmetic profile always on (reference.md §11).
+playgroundOptions :: Mode -> Options
+playgroundOptions mode = { mode, arithmetic: true }
+
 computeResult :: State -> Either String EnvelopeResult
 computeResult state = case jsonParser state.jsonInput of
   Left err -> Left ("Invalid JSON: " <> err)
@@ -604,11 +663,11 @@ computeResult state = case jsonParser state.jsonInput of
       case parseProgram activeTab.source of
         Left err -> Left ("Template parse error: " <> show err)
         Right program -> case state.mode of
-          Concrete -> case evalProgram Concrete libs ctx program of
+          Concrete -> case evalProgramWith (playgroundOptions Concrete) libs ctx program of
             Left err -> Left ("Template eval error: " <> show err)
             Right (ONode node) -> Right { output: ResultNode node, symbols: [], constraints: [], types: [], typeConstraints: [] }
             Right (OValue value) -> Right { output: ResultValue value, symbols: [], constraints: [], types: [], typeConstraints: [] }
-          Symbolic -> case runProgram Symbolic libs ctx program of
+          Symbolic -> case runProgramWith (playgroundOptions Symbolic) libs ctx program of
             Left err -> Left ("Template eval error: " <> show err)
             Right envelope -> decodeEnvelope envelope
 
@@ -661,7 +720,19 @@ renderOutput state = case computeResult state of
 renderProgramCard :: State -> H.ComponentHTML Action () Aff
 renderProgramCard state = case parseProgram (activeTabOf state).source of
   Left err -> renderError ("Template parse error: " <> show err)
-  Right program -> renderCard (programCard (buildLibraryTable state.tabs) program)
+  Right program ->
+    let
+      libs = buildLibraryTable state.tabs
+      ops = Set.toUnfoldable (deepArithmeticOps libs program) :: Array String
+    in
+      HH.div_
+        [ renderCard (programCard libs program)
+        , HH.p [ HP.class_ (HH.ClassName "hint") ]
+            ( [ HH.text "Arithmetic: " ]
+                <> if null ops then [ HH.text "\x2014" ]
+                else Array.intersperse (HH.text ", ") (map (\op -> HH.code_ [ HH.text op ]) ops)
+            )
+        ]
 
 renderAst :: State -> H.ComponentHTML Action () Aff
 renderAst state = case computeResult state of
@@ -717,8 +788,8 @@ renderLogEntry entry =
 -- | enough to be useful without opening that file.
 -- | The in-app language reference. Kept in step with `specs/reference.md`,
 -- | condensed to what fits in a panel — same facts, same order, including
--- | the ones a reader is most likely to trip over (no arithmetic, no
--- | negative literals).
+-- | the ones a reader is most likely to trip over (two number types, no
+-- | arithmetic operators).
 referenceText :: String
 referenceText =
   """THREE LEADER CHARACTERS
@@ -742,9 +813,13 @@ PRIMITIVES
   "literal text"     a string. Escapes: \n \t \r \\ \" \` \0 \u{1F600}
                      Interpolate any expr with backticks:
                      "count: `$n`", "n: `$cardinality($xs)`"
-  123 / 123.45       a number. NO leading "-" and NO exponent: -1 and 1e5
-                     are parse errors, and with no arithmetic in the
-                     language such a value has to come from $ctx
+  123 / -7           an INTEGER: no fraction and no exponent
+  1.0 / -1.5 / 1e5   a FLOAT: a fraction or an exponent. The form decides
+                     the type, here and in the JSON context: 3 and 3.0 are
+                     two different values, and nothing converts one into
+                     the other except real(x) and floor(x). The "-" is part
+                     of the literal and must touch the first digit; "_"
+                     may separate digits (1_000_000)
   true / false       a boolean
   null               the null literal
   fn(arg, ...)       a call — $fn(...) means the same thing. The callee may
@@ -916,7 +991,8 @@ rendered output, in either mode)
                      a nominal declaration, one per line, above the root
                      alongside @/! statements. Legal wherever a statement
                      is. Six TypeExpr shapes, closed:
-                       string / number / bool / null / document   a primitive
+                       string / int / float / bool / null / document
+                                                                  a primitive
                        [T]                                        an array
                        { a : T, b : U }                           a record
                        | A T | B | C U                            a union --
@@ -994,8 +1070,9 @@ STRINGS AND str
     string   itself, raw
     null     ""
     boolean  true / false
-    number   as JavaScript renders it: 3, 1.5, 0.05, 100000000000,
-             1e+21, 1e-7
+    integer  its decimal digits: 3, -7, 100000000000
+    float    always with a fraction or an exponent: 1.0, 1.5, 0.05,
+             100000000000.0, 1e+21, 1e-7
     array /  compact JSON with SORTED keys — key order is not
     object   semantically significant, so it is not observable here either
 
@@ -1004,16 +1081,16 @@ CONCAT
     string <> string    array <> array    object <> object (right-biased)
   Mixed types are an error. Identities: "" [] {}
 
-FUNCTIONS (the fixed builtin set — NO arithmetic: a template compares and
-selects, it does not compute)
+FUNCTIONS (the fixed builtin set; ARITHMETIC below is a separate one)
   cardinality(x) / count(x)   number of elements in an array/object
   str(x)                      as above
   not(b)                      negation
   and(a, b, ...)              conjunction, any number of args (and() = true)
   or(a, b, ...)               disjunction, any number of args (or() = false)
-  eq(a, b)                    deep equality, no coercion: eq(1, "1") is false
-  lt(a, b) / lte(a, b)        numeric comparison — numbers only
-  gt(a, b) / gte(a, b)
+  eq(a, b)                    deep equality, no coercion: eq(1, "1") is
+                              false, and so is eq(1, 1.0)
+  lt(a, b) / lte(a, b)        numeric comparison — two integers or two
+  gt(a, b) / gte(a, b)        floats, never one of each
   has(container, key)         tolerant: a missing field, out-of-range index
                               or wrong-shaped container answers false
   lookup(container, key,      dynamic access by a computed key/index. The
@@ -1029,6 +1106,29 @@ selects, it does not compute)
   branch is not here: it must leave an arm unevaluated, which no builtin
   can do, so it is part of the language itself.
 
+ARITHMETIC (an optional profile of the language, which a host turns on —
+this playground always does. There are NO operators: no + - * /)
+  sum(a, b, ...)              one or more, all integers or all floats
+  product(a, b, ...)          the same. Both flatten array arguments:
+                              sum($xs), sum(0, $xs). Empty is an error, so
+                              seed a list that may be empty: sum(0.0, $xs)
+  negate(x)                   -x, of the same type. There is no
+                              subtraction: sum(a, negate(b))
+  quotient(a, b)              float division — two floats
+  inverse(x)                  quotient(1.0, x)
+  floor-quotient(a, b)        integer division — two integers, rounded
+                              toward negative infinity: (-7, 2) is -4
+  modulo(a, b)                its remainder, zero or with the sign of b
+  floor(x)                    float or integer -> integer
+  real(x)                     integer or float -> float
+  No coercion and no promotion: sum(1, 1.5) and quotient(1, 2) are
+  TypeMismatch. Integer arithmetic is exact or it is NotRepresentable
+  (overflow, a zero divisor), and so is a float result that is not finite.
+  They are names, not syntax: a program may bind one itself, or pass one by
+  reference — fold($xs, 0, $sum). Over a symbol (symbolic mode) nothing is
+  computed: the result is a TERM, the call kept with its operands as
+  written, shown as sum(#0, 1) and refused wherever a symbol is.
+
 ERRORS you may see
   UnboundName      a name that is not bound and not a builtin
   PathNotFound     a field the value does not have; shows the path as written
@@ -1036,6 +1136,8 @@ ERRORS you may see
                    that cannot cross a JSON boundary (a document used as an
                    attribute value, a closure used as a value)
   ConcatMismatch   <> over two different types
+  NotRepresentable an arithmetic result its type cannot hold: integer
+                   overflow, a zero divisor, a float that is not finite
   UnknownLibrary   an import name with no tab of that name
   ImportCycle      a tab importing itself, directly or through another
   NotConcrete      a symbol where the language needs to know something
