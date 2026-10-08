@@ -19,7 +19,7 @@
 -- |
 -- | The arithmetic profile (reference.md §11) is a host choice too, and
 -- | this host always makes it: every evaluation runs with it on (see
--- | `playgroundOptions`), so the nine arithmetic builtins are bound in
+-- | `playgroundOptions`), so the ten arithmetic builtins are bound in
 -- | every tab. There is no switch for it because nothing is learned from
 -- | turning it off: the names would be unbound. The program card says
 -- | which of them the active tab references, which is what a host without
@@ -253,9 +253,9 @@ initialState =
 -- float, in a literal and in the JSON context alike, and nothing converts
 -- one into the other silently. eq(3, 3.0) is false, and sum(1, 1.5) is a
 -- TypeMismatch. real(x) and floor(x) are the two conversions.
--- Arithmetic is nine named builtins and no operator: sum, product,
--- negate, inverse, quotient, floor-quotient, modulo, floor, real. There
--- is no subtraction: sum(a, negate(b)).
+-- Arithmetic is ten named builtins and no operator: sum, product,
+-- negate, inverse, quotient, floor-quotient, modulo, floor, round, real.
+-- There is no subtraction: sum(a, negate(b)).
 @inv=$ctx.invoice
 -- qty is an integer and price a float, so qty is converted first
 @line-total=(l) => product(real($l.qty), $l.price)
@@ -284,6 +284,38 @@ initialState =
   .p("subtotal `$subtotal`, credit `$inv.credit`, total `$total`"),
   .p("`$inv.used` of `$inv.quota` used: `$percent`%"),
   .p("seats: ", $seats, " costing ", $seat-cost)
+)"""
+        }
+      , { name: "sorting-demo"
+        , source:
+            """-- sort-by and sort-by-descending order a list by the key a function
+-- gives each element. The keys of one call are all integers, all floats
+-- or all strings. Both are stable: equal keys keep their order, in the
+-- descending sort too, which is not the ascending one reversed.
+@inv=$ctx.invoice
+@line-total=(l) => product(real($l.qty), $l.price)
+-- a sort on two columns is one sort per column, the least significant
+-- first: highest total first, equal totals in label order
+@by-label=sort-by($inv.lines, (l) => $l.label)
+@ranked=sort-by-descending($by-label, $line-total)
+-- format-number(x, decimals, group) gives text: exactly that many digits
+-- after the point, group between each three digits of the integer part,
+-- ties away from zero. Prefixes are plain concatenation.
+@money=(x) => "$" <> format-number($x, 2, ",")
+-- round(x) is the nearest integer, ties away from zero. It is part of the
+-- arithmetic profile; the two sorts and format-number need no profile.
+@row=(l) => .tr(
+  .td($l.label), .td($l.qty), .td($money($l.price)),
+  .td($money($line-total($l))), .td(round($line-total($l)))
+)
+.div(
+  .table(
+    .thead(.tr(.th("item"), .th("qty"), .th("price"), .th("total"), .th("rounded"))),
+    .tbody(map($ranked, $row))
+  ),
+  .p("by label: ", map($by-label, (l) => .span($l.label, " "))),
+  .p("grouped with a space: ", format-number(1234567.891, 2, " ")),
+  .p("no decimals, no grouping: ", format-number(1234.5, 0, ""))
 )"""
         }
       , { name: "constraints-demo"
@@ -387,7 +419,7 @@ type Value = document
       -- PathNotFound for the parameter its importer would have supplied.
       -- row-kind is the one the main tab actually reads, through ctx(...);
       -- zone is the one constraints-demo reads, through ?ctx.zone; invoice
-      -- is arithmetic-demo's, and its numbers are typed by how they are
+      -- is arithmetic-demo's and sorting-demo's, and its numbers are typed by how they are
       -- written here: 3 is an integer, 12.5 and 30.0 are floats.
       """{"items": [{"title": "Alpha"}, {"title": "Beta"}], "name": "World", "title": "Alpha", "kind": "item", "row-kind": "item", "zone": "eu", "invoice": {"lines": [{"label": "compute", "qty": 3, "price": 12.5}, {"label": "storage", "qty": 40, "price": 0.25}, {"label": "support", "qty": 1, "price": 30.0}], "credit": 7.5, "used": 42, "quota": 64, "seats": 4, "seat-price": 9.0, "budget": 50.0}, "bars": [{"x": 40, "y": 110, "width": 60, "height": 100, "fill": "#4c78a8", "labelX": 70, "label": "Alpha"}, {"x": 140, "y": 60, "width": 60, "height": 150, "fill": "#f58518", "labelX": 170, "label": "Beta"}, {"x": 240, "y": 140, "width": 60, "height": 70, "fill": "#54a24b", "labelX": 270, "label": "Gamma"}], "task": {"title": "Ship it", "kind": "chore", "meta": {"owner": "lucas"}}, "tasks": [{"name": "design", "done": true}, {"name": "ports", "done": false}], "millipede": {"comment": "Hello from tramaj!", "reverse": false, "headPad": "  ", "headColor": "hsl(150, 80%, 70%)", "segments": [{"pad": "", "color": "hsl(130, 80%, 55%)"}, {"pad": " ", "color": "hsl(120, 80%, 55%)"}, {"pad": "  ", "color": "hsl(110, 80%, 55%)"}, {"pad": "   ", "color": "hsl(100, 80%, 55%)"}, {"pad": "   ", "color": "hsl(90, 80%, 55%)"}, {"pad": "  ", "color": "hsl(80, 80%, 55%)"}, {"pad": " ", "color": "hsl(70, 80%, 55%)"}, {"pad": "", "color": "hsl(60, 80%, 55%)"}, {"pad": " ", "color": "hsl(50, 80%, 55%)"}, {"pad": "  ", "color": "hsl(40, 80%, 55%)"}, {"pad": "   ", "color": "hsl(30, 80%, 55%)"}, {"pad": "   ", "color": "hsl(20, 80%, 55%)"}, {"pad": "  ", "color": "hsl(10, 80%, 55%)"}, {"pad": " ", "color": "hsl(0, 80%, 55%)"}], "reversedHeadPad": "   "}}"""
   , actionLog: []
@@ -951,9 +983,10 @@ the JSON context)
   $s.field (which never fails — the field is a question for whoever owns
   the symbol's meaning, not the language). It may NOT be used anywhere the
   language would need to know something about it: a branch condition,
-  map/filter/scan/fold's collection, string interpolation, eq/lt/lte/
-  gt/gte, cardinality/has/lookup, <>, or another allocation's key. Each of
-  those is NotConcrete instead of an answer.
+  map/filter/scan/fold's collection, sort-by's list or one of its keys,
+  format-number's arguments, string interpolation, eq/lt/lte/gt/gte,
+  cardinality/has/lookup, <>, or another allocation's key. Each of those
+  is NotConcrete instead of an answer.
 
   constraint(name, arg, ...)
                      builds a fact: a static name plus any number of
@@ -1100,11 +1133,25 @@ FUNCTIONS (the fixed builtin set; ARITHMETIC below is a separate one)
   scan(arr, init, fn)         [init, f(init,x1), f(f(init,x1),x2), ...] —
                               always one longer than arr. fn is (acc, item)
   fold(arr, init, fn)         same step and order, only the final accumulator
+  sort-by(arr, fn)            a stable sort by the key fn gives each
+  sort-by-descending(arr, fn) element, ascending or descending. The keys
+                              of one call are all integers, all floats or
+                              all strings (ordered by code point). Equal
+                              keys keep their order in both. Several
+                              columns: one sort per column, the least
+                              significant first
+  format-number(x, decimals,  a number as decimal text, with exactly
+                group)        decimals digits (0 to 20) after the "." and
+                              group between each three digits of the
+                              integer part. Ties round away from zero;
+                              never an exponent, no locale:
+                              format-number(1234.5, 2, ",") is "1,234.50"
   concat(a, b, ...)           joins arrays; every argument must be an array
   append(arr, item)           adds one element at the end — an array item is
                               added whole, not spliced (use concat for that)
   branch is not here: it must leave an arm unevaluated, which no builtin
   can do, so it is part of the language itself.
+  The two sorts and format-number need no profile; round, below, does.
 
 ARITHMETIC (an optional profile of the language, which a host turns on —
 this playground always does. There are NO operators: no + - * /)
@@ -1120,6 +1167,9 @@ this playground always does. There are NO operators: no + - * /)
                               toward negative infinity: (-7, 2) is -4
   modulo(a, b)                its remainder, zero or with the sign of b
   floor(x)                    float or integer -> integer
+  round(x)                    float or integer -> the nearest integer,
+                              ties away from zero: round(2.5) is 3,
+                              round(-2.5) is -3, round(-0.4) is 0
   real(x)                     integer or float -> float
   No coercion and no promotion: sum(1, 1.5) and quotient(1, 2) are
   TypeMismatch. Integer arithmetic is exact or it is NotRepresentable
