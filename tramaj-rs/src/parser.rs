@@ -27,6 +27,8 @@ const SPECIAL_FORM_NAMES: &[&str] = &[
     "filter",
     "scan",
     "fold",
+    "sort-by",
+    "sort-by-descending",
     "branch",
     "import",
     "adapt-actions",
@@ -637,7 +639,7 @@ impl P {
 
     /// Soft recognition only, per the module header: returns `Some(name)`
     /// having consumed the name (and trailing whitespace) iff it is one of
-    /// the seven recognized special forms; otherwise fully restores.
+    /// the recognized special forms; otherwise fully restores.
     fn try_special_form_name(&mut self) -> Option<String> {
         let save = self.pos;
         let _ = self.attempt(|p| p.char_lit('$'));
@@ -670,6 +672,11 @@ impl P {
             "fold" => {
                 let (a, b, c) = self.ternary_shape()?;
                 Expr::Fold(Box::new(a), Box::new(b), Box::new(c))
+            }
+            // One constructor for the two names (reference.md §11, *Sorting*).
+            "sort-by" | "sort-by-descending" => {
+                let (a, b) = self.binary_shape()?;
+                Expr::SortBy(name == "sort-by-descending", Box::new(a), Box::new(b))
             }
             "branch" => self.branch_shape()?,
             "import" => self.import_shape()?,
