@@ -85,10 +85,9 @@ already fixes, so Tramaj can be said to know them without learning anything
 new. `int` and `float` are the value domain's two number types, and they
 replace the single primitive `number`, which is no longer one.
 
-*Implemented in `tramaj/`, `tramaj-hs/` and `tramaj-go/` (decisions §18).* The Rust,
-JavaScript and Python ports still have `number`, as this section used to
-define it, and have neither `int` nor `float`. They change with the number
-split (ref §3). An earlier draft left `Int` out
+*Implemented in all six implementations (decisions §18).* A release from
+before the number split (ref §3) still has `number`, as this section used to
+define it, and has neither `int` nor `float`. An earlier draft left `Int` out
 because the value domain had no integer boundary to agree on; ref §3 now
 gives it one.
 

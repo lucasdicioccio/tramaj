@@ -22,7 +22,7 @@
 }
 
 =base:summary.cmark
-Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. In progress: integers and floats as two types, and arithmetic. Wanted next: folds and registry releases.
+Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. All six have integers and floats as two types, arithmetic, sorting and number formatting on the main branch, in no release yet. Wanted next: folds and registry releases.
 
 =base:main-content.cmark
 
@@ -57,9 +57,10 @@ independently written implementations can run it identically.
 
 ![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png)
 
-None is published to a package registry yet (see the README's
-"Publishing" section) — all are used today as workspace, source or git
-dependencies. Each has its own [changelog](/topics/changelog.html) page and
+`tramaj-rs` and `tramaj-cli-rs` are on crates.io and `tramaj-py` is on PyPI
+(as `tramaj`), each at 0.1.0, which predates the number types described
+below. The others are in no package registry, and all six are used today as
+workspace, source or git dependencies to get what is on `main`. Each has its own [changelog](/topics/changelog.html) page and
 Atom feed. See [Integrating tramaj](/integrate-tramaj.html) for what's
 actually usable from each right now, including the fold each one does or
 doesn't ship.
@@ -74,30 +75,34 @@ All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each
 passes the full corpus in both modes, v3 and v4 extensions included. A Go
 port, `tramaj-go`, has since joined them on the same terms.
 
-## In progress: two number types and arithmetic
+## Implemented, not released: two number types, arithmetic, sorting and number formatting
 
 Numbers are now an integer and a float, two types, and a template can
-compute with nine named arithmetic builtins. The specification and the
-corpus fixtures are written. Where each implementation stands:
+compute with ten named arithmetic builtins, `round` among them. It can also
+sort a list with `sort-by` and `sort-by-descending`, and write a number with
+`format-number`. The specification and the corpus fixtures are written, and
+all six implementations have all of it:
 
 <table>
-<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic</th></tr>
-<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-hs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-go</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-js</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td></tr>
+<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic, with <code>round</code></th><th>Sorting and <code>format-number</code></th></tr>
+<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-go</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
+<tr><td><code>tramaj-py</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
 </table>
 
-The corpus cases for these carry a `"requires"` field, and an implementation
-skips the cases whose requirement it does not declare. So every
-implementation still passes every case it runs, while the three in the last
-row run fewer of them. The split changes existing output:
+The corpus cases for these carry a `"profiles"` field, and an implementation
+skips the cases that list a name it does not provide. All six provide every
+name but one: the integer range, 53 bits in PureScript and TypeScript and
+64 bits in the other four, so each skips the few cases written for the other
+range. The split changes existing output:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 lists how.
 
-Specified after that, and in no implementation yet: `round`, sorting
-(`sort-by`, `sort-by-descending`) and `format-number`. `?shape` is an
-accepted design without normative text. See
+`?shape` is an accepted design without normative text, and no implementation
+has it. See
 [Two designs accepted](/design-arithmetic-and-shapes.html).
 
 ## Desired next: folds, and releases
@@ -106,8 +111,9 @@ accepted design without normative text. See
   (`tramaj-react`) ship a fold to a rendering target. A DOM fold for JS, a
   fold to a common Python templating output, and a fold for at least one
   Haskell or Rust UI or markup library are the obvious next pieces.
-- **Registry releases.** The crates.io, npm and PyPI packages are ready to
-  publish but not published; the PureScript registry and Hackage are
+- **Registry releases.** crates.io and PyPI have a 0.1.0 from before the
+  number split, and npm has only a `0.0.0-stage` placeholder; a release of
+  what is on `main` is wanted in all three. The PureScript registry and Hackage are
   deliberately deferred until the API has settled. Releases happen when
   there are major changes, and each package's version tracks the language
   version it implements in its major digit.

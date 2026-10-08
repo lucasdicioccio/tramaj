@@ -51,10 +51,10 @@ format encodes what it evaluates to, and v3 and v4 each extend it.
 - [**v4 — Types**](/reference-v4-types.html) — the nominal type algebra,
   type parameters through imports, and typed annotations.
 
-Not every implementation has everything in these pages yet. Passages
-marked **[§18]** (integers and floats as two types, and the arithmetic
-builtins) are implemented in PureScript, Haskell and Rust only, and those marked
-**[§20]** (`round`, sorting, `format-number`) in none. The marks are section
+Some passages carry a mark. Those marked **[§18]** (integers and floats as
+two types, and the arithmetic builtins) and those marked **[§20]** (`round`,
+sorting, `format-number`) are implemented in all six implementations, on the
+`main` branch and in no release yet. The marks are section
 numbers of `decisions.md`. For what the number split changes in existing
 templates, see
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).

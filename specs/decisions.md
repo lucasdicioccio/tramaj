@@ -392,7 +392,7 @@ patterns rejected for now. (4) Reserve default and rest syntax as a parse error.
 
 ## 18. Arithmetic: integers and floats as two types, nine named builtins, no operators, and a term for what a symbol leaves unevaluated
 
-*Status: accepted by the owner on 2026-10-06, with the decisions listed at the end. The normative text is written: `reference.md` §3, §5, §6, §9, §11 (*Arithmetic*), §12 and §13; `node-json.md` (*Numbers*); `v3-symbols.md` §1.1, §1.4, §1.5, §1.9, §5.2 to §5.5 and §6 to §9; `v4-types.md` §1; `laws.md`. Nothing here is implemented in any port, and each of those passages says so.*
+*Status: accepted by the owner on 2026-10-06, with the decisions listed at the end. The normative text is written: `reference.md` §3, §5, §6, §9, §11 (*Arithmetic*), §12 and §13; `node-json.md` (*Numbers*); `v3-symbols.md` §1.1, §1.4, §1.5, §1.9, §5.2 to §5.5 and §6 to §9; `v4-types.md` §1; `laws.md`. All six implementations have it, with the 53-bit integer range in the PureScript and TypeScript ones and the 64-bit range in the Haskell, Rust, Go and Python ones; it is in no release yet.*
 
 `reference.md` §11 states that a template "compares and selects, it does not
 compute", and §5 and this file's §9 lean on it. This section proposes to
@@ -1142,8 +1142,8 @@ arguments, `?(a, b)`).
 *Status: accepted by the owner on 2026-10-08, with the decisions listed at the
 end. The normative text and the corpus fixtures are written (the first item
 of* Follow-up*, below): `reference.md` §2, §5, §9, §11 and §13,
-`v3-symbols.md` §1.5, §1.9 and §5.3, `laws.md` and `corpus/README.md`. Nothing
-here is implemented in any port, and every port skips the fixtures.*
+`v3-symbols.md` §1.5, §1.9 and §5.3, `laws.md` and `corpus/README.md`. All
+six implementations have it and run the fixtures; it is in no release yet.*
 
 A host that hands a template a list of records and their counters cannot have
 it show the rows ordered by a counter, or show `1234567.891` as `1,234,567.89`.

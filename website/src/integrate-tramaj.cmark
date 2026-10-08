@@ -49,7 +49,7 @@ The implementations and how they relate: one specification and corpus, six
 independently written ports, and the folds and CLIs layered on top of two of
 them.
 
-![The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go](/gen/images/implementations.dot.png)
+![The specification and corpus feed six ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go](/gen/images/implementations.dot.png)
 
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
@@ -82,7 +82,7 @@ in three places.
   ([`node-json.md`](/reference-node-json.html), *Numbers*). A fold that
   renders a scalar child should write it the same way, as `str` does:
   `tramaj-halogen` renders the float `1.0` as `1.0`.
-- **Choosing whether templates may compute.** The nine arithmetic builtins
+- **Choosing whether templates may compute.** The ten arithmetic builtins
   are an optional profile, chosen by the host for each evaluation and off by
   default. In symbolic mode with the profile on, a result may hold a *term*,
   `{"$term": "sum", "arguments": [...]}`: arithmetic over a symbol, left for
@@ -90,19 +90,24 @@ in three places.
   section 1.9). A host that has not turned the profile on never receives one.
 
 <table>
-<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
-<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
-<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-go</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile, with <code>round</code></th><th><code>sort-by</code>, <code>sort-by-descending</code>, <code>format-number</code></th><th>Integer range</th></tr>
+<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-go</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 </table>
 
-The first three rows are on the `main` branch and in no release yet. Until the
-other implementations follow, the same template can give different output on
-two of them: `str(1.0)` is `1.0` on the first three rows and `1` on the last.
-The corpus cases that depend on the split or on arithmetic are marked with
-`"requires"`, and an implementation that does not declare the name skips
-them. An existing host moving to the split should read
+Every row is on the `main` branch and in no release yet. The packages
+already published (`tramaj-rs` and `tramaj-cli-rs` 0.1.0 on crates.io,
+`tramaj` 0.1.0 on PyPI) predate all of it: there every number is a double,
+`str(1.0)` is `1`, and the arithmetic, sorting and formatting names are
+unbound. On `main` the six implementations give the same output for the
+same template, except where a result depends on the integer range: the
+corpus cases that do are marked `"int53"` or `"int64"` in their `"profiles"`,
+and an implementation skips the cases of the range it does not have. An
+existing host moving to the split should read
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).
 
 ## PureScript — import as a library, fold with `tramaj-halogen`
@@ -211,8 +216,9 @@ held to the same shared conformance corpus (`corpus/cases/`, including
 and [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
 core language, with the two number types and the arithmetic profile,
 see *Numbers at the boundary*). It's a normal Cargo library crate — `tramaj_rs::{ast, parser,
-eval, json, node, analysis, types}` — depended on as a path or git dependency (not
-published to crates.io yet), the same way a PureScript host depends on
+eval, json, node, analysis, types}` — depended on as a path or git dependency for
+what this section describes (`tramaj-rs` 0.1.0 is on crates.io, but predates the
+number split and takes `serde_json::Value`), the same way a PureScript host depends on
 `tramaj-purs` or a Haskell host depends on `tramaj-hs`:
 
 ```rust
@@ -282,7 +288,7 @@ grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell
 corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
-core language, and the two number types with the nine arithmetic builtins;
+core language, and the two number types with the ten arithmetic builtins;
 see *Numbers in `tramaj-js`* below). It's a normal npm package with no React
 or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
@@ -348,7 +354,7 @@ const out = runProgramWith({ mode: "concrete", arithmetic: true }, libs, ctx, pr
 stringify(out); // an integer as digits, a float with a fraction or an exponent
 ```
 
-`runProgram` and `evalProgram` run without it, where the nine names are
+`runProgram` and `evalProgram` run without it, where the ten names are
 unbound, and `deepArithmeticOps(libs, program)` tells a host beforehand
 whether a program uses them. `tramaj-react`'s `renderScalar` writes a number
 as `str` does and a term as the call that built it.
@@ -366,13 +372,14 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types; the two number
-types and the nine arithmetic builtins are in this port, on `main`). It needs
+types and the ten arithmetic builtins are in this port, on `main`). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It's a normal package — `tramaj` with
 `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval`
 modules, laid out one-to-one like `tramaj-js` — installed from the
-repository's `tramaj-py/` directory (not published to PyPI yet):
+repository's `tramaj-py/` directory for what this section describes
+(`tramaj` 0.1.0 is on PyPI, but predates the number split):
 
 ```python
 from tramaj import parse_program, run_program
@@ -389,11 +396,16 @@ document, or the concrete/symbolic envelope from
 `runProgram` returns on every other side. A library table is a `dict` from
 import name to parsed program; the mode is `"concrete"` or `"symbolic"`.
 `eval_program` is the lower-level entry point if you want the `Node` value
-itself rather than its JSON encoding. Every number is still a double
-in this port: an exact integer comes back as an `int`, and `str` renders as
-ECMAScript's `Number::toString` does. That matches the JavaScript and
-Go ports byte-for-byte, and differs from the PureScript, Haskell and Rust
-implementations for a whole-valued float (`1` here, `1.0` there).
+itself rather than its JSON encoding. The two number types are the two
+Python types: an `int` is an integer and a `float` a float, in the context
+and in the result, so `str(1.0)` is `1.0` here as in the other five
+implementations. Integers cover the signed 64-bit range; Python's own are
+unbounded, so one outside the range is refused, never rounded.
+`tramaj.parse_json` reads JSON text with each number typed by its text, and
+`compact_json` and `pretty_json` write a float with a fraction or an
+exponent. Arithmetic is off by default and on with
+`run_program(..., arithmetic=True)`; `deep_arithmetic_ops` lists the
+arithmetic names a program and its libraries reference.
 
 As with Haskell and Rust, no fold is shipped: a Python host writes its own
 following the same shape (case on `text`/`element`/`fragment`, recurse into

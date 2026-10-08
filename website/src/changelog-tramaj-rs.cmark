@@ -34,41 +34,45 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #rust #tramaj-rs
 
+The unreleased entry has breaking changes to numbers:
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html)
+says what to do about each.
+
 =base:main-content.tramaj-doc
 @version=import("changelog/version", {"package": "tramaj-rs"})
 .div(class: "changelog",
   $version({
-      "version": "0.1.0",
+      "version": "(none)",
       "date": "unreleased",
-      "summary": "Hand-written port kept in agreement with the other implementations through the shared conformance corpus.",
+      "summary": "On the main branch after 0.1.0, not released yet: two number types, arithmetic, sorting and number formatting.",
       "changes": [
           {
-              "kind": "added",
-              "text": "Parser, AST, evaluator and static analyses, plus a program-card analysis."
-          },
-          {
-              "kind": "added",
-              "text": "Node JSON codec."
+              "kind": "changed",
+              "text": "Breaking: numbers are two types, an integer and a float (decisions section 18): \`Value::Int\` and \`Value::Float\`, \`Expr::IntLit\` and \`Expr::FloatLit\`. A literal or a JSON number with neither a fraction nor an exponent is an integer. Nothing converts between the two: \`eq(1, 1.0)\` is false, \`lt\` and its siblings refuse a mixed pair, an index is an integer, and \`str(1.0)\` is \`1.0\`."
           },
           {
               "kind": "changed",
-              "text": "Numbers are two types, an integer and a float (decisions section 18): \`Value::Int\` and \`Value::Float\`, \`Expr::IntLit\` and \`Expr::FloatLit\`. A literal or a JSON number with neither a fraction nor an exponent is an integer. Nothing converts between the two: \`eq(1, 1.0)\` is false, \`lt\` and its siblings refuse a mixed pair, an index is an integer, and \`str(1.0)\` is \`1.0\`."
+              "text": "Breaking: the integer range is the signed 64-bit one. A literal outside it is a parse error and a context number outside it a \`TypeMismatch\`; neither is rounded. A float too large for a double is refused the same way."
           },
           {
               "kind": "changed",
-              "text": "The integer range is the signed 64-bit one. A literal outside it is a parse error and a context number outside it a \`TypeMismatch\`; neither is rounded. A float too large for a double is refused the same way."
+              "text": "Breaking: JSON goes in and out as \`tramaj_rs::json::Json\`, not \`serde_json::Value\`: \`run_program\`, \`eval_program\` and \`Node\` take and return it. \`json::parse\` types a number by its text and \`json::stringify\` writes an integer as digits and a float with a fraction or an exponent. \`json::from_serde\` and \`json::to_serde\` bridge to \`serde_json\`."
           },
           {
               "kind": "changed",
-              "text": "JSON goes in and out as \`tramaj_rs::json::Json\`, not \`serde_json::Value\`: \`run_program\`, \`eval_program\` and \`Node\` take and return it. \`json::parse\` types a number by its text and \`json::stringify\` writes an integer as digits and a float with a fraction or an exponent. \`json::from_serde\` and \`json::to_serde\` bridge to \`serde_json\`."
-          },
-          {
-              "kind": "changed",
-              "text": "The type primitives \`int\` and \`float\` replace \`number\`, and \`\"$term\"\` is a reserved key: a parse error as an object key, a \`TypeMismatch\` in a context."
+              "text": "Breaking: the type primitives \`int\` and \`float\` replace \`number\`, and \`\"$term\"\` is a reserved key: a parse error as an object key, a \`TypeMismatch\` in a context."
           },
           {
               "kind": "added",
               "text": "The arithmetic profile: \`sum\`, \`product\`, \`negate\`, \`quotient\`, \`inverse\`, \`floor-quotient\`, \`modulo\`, \`floor\` and \`real\`, and the \`NotRepresentable\` error. It is off by default: \`Options\`, \`eval_program_with\` and \`run_program_with\` turn it on."
+          },
+          {
+              "kind": "added",
+              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
+          },
+          {
+              "kind": "added",
+              "text": "\`arithmetic_ops\` and \`deep_arithmetic_ops\`, the arithmetic names a program references."
           },
           {
               "kind": "added",
@@ -84,19 +88,26 @@ tagged so the site builds one Atom feed per implementation:
           },
           {
               "kind": "changed",
-              "text": "\`sort-by\` and \`sort-by-descending\` are special-form names: a program can no longer bind one and call it, a wrong argument count is a parse error, and so is either name passed by reference. \`Expr\` has a new variant, and \`format-number\` is in \`builtin_names\`."
+              "text": "Breaking: \`sort-by\` and \`sort-by-descending\` are special-form names: a program can no longer bind one and call it, a wrong argument count is a parse error, and so is either name passed by reference. \`Expr\` has a new variant, and \`format-number\` is in \`builtin_names\`."
           },
           {
               "kind": "added",
               "text": "\`eval::emitted_constraint_count\`: how many constraints an evaluation emitted before equal ones are made one. It exists for the test that a sort applies its key function once per element, which no program can observe."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.1.0",
+      "date": "2026-10-01",
+      "summary": "Hand-written port kept in agreement with the other implementations through the shared conformance corpus.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Parser, AST, evaluator and static analyses, plus a program-card analysis."
           },
           {
               "kind": "added",
-              "text": "Terms: over a symbol an arithmetic builtin evaluates to \`{\"$term\": op, \"arguments\": [...]}\`, with its operands as written."
-          },
-          {
-              "kind": "added",
-              "text": "\`arithmetic_ops\` and \`deep_arithmetic_ops\`, the arithmetic names a program references."
+              "text": "Serde-based Node JSON codec."
           },
           {
               "kind": "added",

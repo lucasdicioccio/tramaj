@@ -120,11 +120,10 @@ decides what a repeated name means for its target.
 
 ### Numbers
 
-*Status: implemented in `tramaj/` (PureScript), `tramaj-hs/` (Haskell) and
-`tramaj-go/` (Go), not
-yet in the Rust, JavaScript and Python ports (`decisions.md` §18). Their
-encoders write every number by ECMAScript's `Number::toString`, so a
-whole-valued float is written without a fraction.*
+*Status: implemented in all six implementations (`decisions.md` §18), on
+the `main` branch and in no release yet. The encoder of a release from
+before the number split writes every number by ECMAScript's
+`Number::toString`, so a whole-valued float is written without a fraction.*
 
 A `Value` number is an integer or a float (`reference.md` §3), and the
 encoding keeps the type.
@@ -182,8 +181,7 @@ A decoder MUST reject:
 - a non-array `attributes` or `children`, or a non-object `annotations`;
 - in a `Value`, an integer-form number outside its integer range
   (`reference.md` §13), which it MUST NOT round, and a float too large for a
-  double, which it MUST NOT read as an infinity (see *Numbers*; not yet
-  implemented).
+  double, which it MUST NOT read as an infinity (see *Numbers*).
 
 The same two refusals apply to a number in the input context, where the
 evaluator reports them as a `TypeMismatch` (`reference.md` §3).
