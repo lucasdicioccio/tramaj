@@ -48,7 +48,7 @@ into `map[string]any`.
 ## Numbers
 
 Integers and floats are two types (`../specs/reference.md` §3), and nothing
-converts one into the other except the `real` and `floor` builtins.
+converts one into the other except the `real`, `floor` and `round` builtins.
 
 - **In Go, the type of the value says which.** An `int64` is an integer and a
   `float64` is a float: `int64(3)` and `float64(3)` are two values, and
@@ -80,9 +80,10 @@ converts one into the other except the `real` and `floor` builtins.
 ## Arithmetic
 
 The arithmetic profile (reference §11) is an option of each evaluation, off
-by default. This port has its nine names other than `round`: `sum`,
-`product`, `negate`, `quotient`, `inverse`, `floor-quotient`, `modulo`,
-`floor` and `real` (`tramaj.ArithmeticNames`).
+by default. This port has its ten names: `sum`, `product`, `negate`,
+`quotient`, `inverse`, `floor-quotient`, `modulo`, `floor`, `real` and
+`round` (`tramaj.ArithmeticNames`). `round(x)` is the integer nearest to the
+exact value of `x`, ties away from zero.
 
 ```go
 opts := tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}
@@ -106,6 +107,32 @@ computing, written `{"$term": <op>, "arguments": [...]}` with its operands as
 written (`../specs/v3-symbols.md` §1.9). `"$term"` is a reserved object key
 in every profile, and a context may seed a well-formed term only in symbolic
 mode with the profile on.
+
+## Sorting and number formatting
+
+Both belong to the core language (reference §11, *Sorting* and *Number
+formatting*) and need no option.
+
+- **`sort-by(list, fn)` and `sort-by-descending(list, fn)`** are special
+  forms, like `map`: the parser lowers both to the one constructor
+  `*tramaj.SortBy`, whose `Descending` field tells them apart. A use with
+  other than two arguments is a parse error, and neither name can be bound
+  and called, or passed by reference.
+- `fn` gives each element its key, once per element and in index order. The
+  keys of one call are all integers, all floats or all strings; anything else
+  is a `TypeMismatch`, and a symbol or a term a `NotConcrete`. Both sorts are
+  stable, each on its own terms: `sort-by-descending` is not the reversal of
+  `sort-by`.
+- String keys compare by Unicode code point, which is Go's own string
+  comparison. It is not the UTF-16 order this package uses to write object
+  keys.
+- **`format-number(x, decimals, group)`** is an ordinary builtin: positional
+  decimal text with exactly `decimals` digits (0 to 20) after the point and
+  `group` between groups of three digits of the integer part. It rounds the
+  exact value of the number, ties away from zero, on `math/big` integers,
+  since `strconv` rounds ties to even: `format-number(2.5, 0, "")` is `3`
+  and `format-number(1.005, 2, "")` is `1.00`. It never writes an exponent
+  or a negative zero.
 
 ## Command line
 
@@ -135,9 +162,14 @@ go test ./...
 `corpus_test.go` runs every case under `../corpus/cases` in the mode its
 `meta.json` names, with the arithmetic profile on only for a case that lists
 `arithmetic`. It provides the profiles `base`, `int-float`, `arithmetic` and
-`int64`, and skips a case that lists any other (`go test -v` shows each as
-`--- SKIP` with what was not provided). `node_test.go` covers the decoder's
+`int64`, and the three names `sort`, `format-number` and `round`, and skips
+a case that lists any other (`go test -v` shows each as `--- SKIP` with what
+was not provided). `node_test.go` covers the decoder's
 rejection list and the round-trip law; `analysis_test.go` covers the analyses
 and `Number::toString`; `arithmetic_test.go` covers how JSON text becomes the
 two number types and back, the arithmetic option and its default, the two
-arithmetic analyses, and integer arithmetic at the ends of the 64-bit range.
+arithmetic analyses, and integer arithmetic at the ends of the 64-bit range;
+`sort_format_test.go` covers what no corpus case can state about the sorts,
+`format-number` and `round`: the key function applied once per element, the
+analyses seeing inside it, the parser's lowering, and the rounding against
+`strconv` away from ties.

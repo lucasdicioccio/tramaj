@@ -77,6 +77,18 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`ArithmeticNames\`, \`ArithmeticOps\` and \`DeepArithmeticOps\`, the arithmetic names a program references; \`tramaj-go analyze arithmetic\` prints them."
+          },
+          {
+              "kind": "added",
+              "text": "\`sort-by(list, fn)\` and \`sort-by-descending(list, fn)\` (decisions section 20): a stable sort by a key function, over integer, float or string keys, strings by code point. Both are special forms lowered to one new AST constructor, \`SortBy\`, so neither name can be bound and called or passed by reference."
+          },
+          {
+              "kind": "added",
+              "text": "\`format-number(x, decimals, group)\`: a number as positional decimal text, rounding its exact value with ties away from zero, 0 to 20 decimals, never an exponent or a negative zero. An ordinary builtin that needs no option."
+          },
+          {
+              "kind": "added",
+              "text": "\`round(x)\`, the tenth name of the arithmetic profile: the nearest integer, ties away from zero. It builds a term over a symbol and is reported by \`ArithmeticOps\`."
           }
       ]
   }).rendered)

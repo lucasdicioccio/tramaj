@@ -159,10 +159,17 @@ type (
 	Branch   struct{ Condition, Then, Else Expr }
 	Map      struct{ Collection, Fn Expr }
 	Filter   struct{ Collection, Fn Expr }
-	Scan     struct{ Collection, Initial, Fn Expr }
-	Fold     struct{ Collection, Initial, Fn Expr }
-	Concat   struct{ Left, Right Expr }
-	Import   struct {
+	// SortBy is sort-by(list, fn), and sort-by-descending(list, fn) when
+	// Descending is set (specs/reference.md section 11, Sorting): the one
+	// constructor both names lower to.
+	SortBy struct {
+		Descending     bool
+		Collection, Fn Expr
+	}
+	Scan   struct{ Collection, Initial, Fn Expr }
+	Fold   struct{ Collection, Initial, Fn Expr }
+	Concat struct{ Left, Right Expr }
+	Import struct {
 		Name   string
 		Params []Param
 	}
@@ -224,6 +231,7 @@ func (*Fragment) isExpr()     {}
 func (*Branch) isExpr()       {}
 func (*Map) isExpr()          {}
 func (*Filter) isExpr()       {}
+func (*SortBy) isExpr()       {}
 func (*Scan) isExpr()         {}
 func (*Fold) isExpr()         {}
 func (*Concat) isExpr()       {}
@@ -278,6 +286,8 @@ func SubExprs(e Expr) []Expr {
 	case *Map:
 		return []Expr{x.Collection, x.Fn}
 	case *Filter:
+		return []Expr{x.Collection, x.Fn}
+	case *SortBy:
 		return []Expr{x.Collection, x.Fn}
 	case *Scan:
 		return []Expr{x.Collection, x.Initial, x.Fn}
