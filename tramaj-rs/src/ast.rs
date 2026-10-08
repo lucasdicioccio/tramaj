@@ -25,7 +25,12 @@ pub enum Expr {
     Lambda(Vec<String>, Box<Expr>),
     Let(String, Box<Expr>, Box<Expr>),
     StringLit(String),
-    NumberLit(f64),
+    /// A number literal with neither a fraction nor an exponent
+    /// (`reference.md` §5): an integer, in the signed 64-bit range.
+    IntLit(i64),
+    /// A number literal with a fraction or an exponent: a finite double,
+    /// never a negative zero.
+    FloatLit(f64),
     BoolLit(bool),
     NullLit,
     ArrayLit(Vec<Expr>),
@@ -84,7 +89,7 @@ pub enum Expr {
 /// alone cannot tell a declaration name from a typo.
 ///
 /// `Prim` is recognized at parse time, rather than left for resolution to
-/// classify: the five primitive names are a closed, reserved lexical set
+/// classify: the six primitive names are a closed, reserved lexical set
 /// (§1), not ordinary identifiers that happen to resolve to a primitive.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeExpr {
@@ -109,7 +114,8 @@ pub enum TypeExpr {
 pub enum TypeConstraintArg {
     Type(TypeExpr),
     ScalarStr(String),
-    ScalarNum(f64),
+    ScalarInt(i64),
+    ScalarFloat(f64),
     ScalarBool(bool),
     ScalarNull,
 }
@@ -157,7 +163,8 @@ pub fn sub_exprs(e: &Expr) -> Vec<&Expr> {
         Expr::Lambda(_, body) => vec![body],
         Expr::Let(_, value, body) => vec![value, body],
         Expr::StringLit(_) => vec![],
-        Expr::NumberLit(_) => vec![],
+        Expr::IntLit(_) => vec![],
+        Expr::FloatLit(_) => vec![],
         Expr::BoolLit(_) => vec![],
         Expr::NullLit => vec![],
         Expr::ArrayLit(elems) => elems.iter().collect(),
@@ -215,7 +222,8 @@ fn sub_exprs_mut(e: &mut Expr) -> Vec<&mut Expr> {
         Expr::Lambda(_, body) => vec![body],
         Expr::Let(_, value, body) => vec![value, body],
         Expr::StringLit(_) => vec![],
-        Expr::NumberLit(_) => vec![],
+        Expr::IntLit(_) => vec![],
+        Expr::FloatLit(_) => vec![],
         Expr::BoolLit(_) => vec![],
         Expr::NullLit => vec![],
         Expr::ArrayLit(elems) => elems.iter_mut().collect(),

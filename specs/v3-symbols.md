@@ -285,7 +285,7 @@ with them, which the language does not.
 
 ### 1.9 Terms
 
-*Implemented in `tramaj/` and `tramaj-hs/`, for the nine names other than
+*Implemented in `tramaj/`, `tramaj-hs/` and `tramaj-rs/`, for the nine names other than
 `round`; not yet in the other ports (decisions §18).* This section applies to an
 implementation with the arithmetic profile (ref §11, §5.5).
 

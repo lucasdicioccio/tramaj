@@ -90,7 +90,7 @@ corpus fixtures are written. Where each implementation stands:
 
 The corpus cases for these carry a `"requires"` field, and an implementation
 skips the cases whose requirement it does not declare. So every
-implementation still passes every case it runs, while the four in the last
+implementation still passes every case it runs, while the three in the last
 row run fewer of them. The split changes existing output:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 lists how.

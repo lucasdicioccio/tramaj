@@ -48,9 +48,9 @@ some existing templates and hosts produce. This page covers the split.
 <tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code></td><td>not yet</td><td>not yet</td><td>numbers are doubles</td></tr>
 </table>
 
-The PureScript and Haskell changes are on the `main` branch and in no
+The PureScript, Haskell and Rust changes are on the `main` branch and in no
 release yet. A host that follows `main` as a git dependency gets them on its
-next update. The other four implementations still behave as before, and will
+next update. The other three implementations still behave as before, and will
 change the same way when they get the split.
 
 ## The changes at a glance
