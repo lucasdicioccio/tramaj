@@ -89,4 +89,4 @@ from .typesys import (
 )
 
 __all__ = [n for n in dir() if not n.startswith("_")]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

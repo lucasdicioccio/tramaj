@@ -27,8 +27,8 @@ package:
       - exceptions
       - node-fs
   publish:
-    # Tracks tramaj-hs (0.3.0.0); v0.1.0 predates the rename, 0.3.0-0.3.2 were never published.
-    version: 0.3.3
+    # Tracks tramaj-hs (0.4.0.0); v0.1.0 predates the rename, 0.3.0-0.3.2 were never published.
+    version: 0.4.0
     license: MIT
     location:
       githubOwner: lucasdicioccio

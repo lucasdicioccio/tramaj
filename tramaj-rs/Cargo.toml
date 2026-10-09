@@ -1,6 +1,6 @@
 [package]
 name = "tramaj-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Rust parser/AST/evaluator for the Tramaj language (specs/reference.md), a hand-written port kept in agreement with tramaj/ and tramaj-hs/ via the shared corpus/ conformance suite."
 authors = ["Lucas DiCioccio <lucas.dicioccio@gmail.com>"]

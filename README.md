@@ -245,14 +245,14 @@ produce` then reads from `website/src/`.
 ## Consuming from your own project
 
 Both halves are on the PureScript registry (`tramaj-purs`, `tramaj-halogen`,
-currently 0.3.3), so with a package set that does not yet list them, add them
+currently 0.4.0), so with a package set that does not yet list them, add them
 as registry extra packages in your `spago.yaml`:
 
 ```yaml
 workspace:
   extraPackages:
-    tramaj-purs: 0.3.3
-    tramaj-halogen: 0.3.3
+    tramaj-purs: 0.4.0
+    tramaj-halogen: 0.4.0
 ```
 
 Cabal, in your `cabal.project`:
@@ -307,7 +307,7 @@ Bump `publish.version` in `tramaj/spago.yaml` and `tramaj-halogen/spago.yaml`
 (a failed or used version cannot be reused), commit, then run
 `scripts/sync-purs-registry-repos.sh --publish` (with `RELEASE_CONFIRM=yes`)
 and `spago publish` from a clone of each copy repo, `tramaj-purs` first. Needs
-spago 1.0 on Node 22.5+. `tramaj-hs` is on Hackage (`0.3.0.0`).
+spago 1.0 on Node 22.5+. `tramaj-hs` is on Hackage (`0.4.0.0`).
 
 ## License
 
