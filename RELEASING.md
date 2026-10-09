@@ -92,7 +92,7 @@ package right before its first release:
 README.md's *Publishing* section already flags what's missing for these
 and says it's "deliberately deferred until the API has settled":
 
-- [x] PureScript registry: `tramaj-purs` and `tramaj-halogen` `0.4.0`
+- [x] PureScript registry: `tramaj-purs` and `tramaj-halogen` `0.4.1`
       published from generated copy repos (the registry rejects `subdir`);
       see `scripts/sync-purs-registry-repos.sh`.
 - [x] Hackage: an account at [hackage.haskell.org](https://hackage.haskell.org),

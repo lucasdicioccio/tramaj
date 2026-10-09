@@ -245,14 +245,14 @@ produce` then reads from `website/src/`.
 ## Consuming from your own project
 
 Both halves are on the PureScript registry (`tramaj-purs`, `tramaj-halogen`,
-currently 0.4.0), so with a package set that does not yet list them, add them
+currently 0.4.1), so with a package set that does not yet list them, add them
 as registry extra packages in your `spago.yaml`:
 
 ```yaml
 workspace:
   extraPackages:
-    tramaj-purs: 0.4.0
-    tramaj-halogen: 0.4.0
+    tramaj-purs: 0.4.1
+    tramaj-halogen: 0.4.1
 ```
 
 Cabal, in your `cabal.project`:
