@@ -93,6 +93,11 @@ var providedProfiles = map[string]bool{
 	"sort": true, "format-number": true, "round": true,
 }
 
+// requiredProfiles holds the profiles every port provides
+// (corpus/README.md). A case naming one that providedProfiles lacks fails
+// instead of being skipped.
+var requiredProfiles = map[string]bool{"int-float": true, "arithmetic": true}
+
 // missingProfiles lists the profiles a case names that this port does not
 // provide.
 func missingProfiles(meta caseMeta) []string {
@@ -208,6 +213,11 @@ func runCase(t *testing.T, caseDir string, meta caseMeta) {
 		t.Fatal(`"requires" was replaced by "profiles" (corpus/README.md)`)
 	}
 	missing := missingProfiles(meta)
+	for _, r := range missing {
+		if requiredProfiles[r] {
+			t.Fatalf("not provided, but required of every port: %s", r)
+		}
+	}
 	if meta.Expect == "analysis" {
 		runAnalysisCase(t, caseDir, missing)
 		return

@@ -58,6 +58,10 @@ const PROVIDED_PROFILES: &[&str] = &[
     "round",
 ];
 
+/// The profiles every port provides (`corpus/README.md`). A case naming one
+/// that `PROVIDED_PROFILES` lacks fails instead of being skipped.
+const REQUIRED_PROFILES: &[&str] = &["int-float", "arithmetic"];
+
 /// The profiles a case names that this port does not provide.
 fn missing_profiles(meta: &CaseMeta) -> Vec<String> {
     meta.profiles
@@ -204,6 +208,9 @@ fn run_case(dir: &Path) -> Outcome {
         panic!("{label}: \"requires\" was replaced by \"profiles\" (corpus/README.md)");
     }
     let missing = missing_profiles(&meta);
+    if let Some(r) = missing.iter().find(|r| REQUIRED_PROFILES.contains(&r.as_str())) {
+        panic!("{label}: not provided, but required of every port: {r}");
+    }
     if meta.expect == "analysis" {
         return run_analysis_case(dir, label, missing);
     }

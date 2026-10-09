@@ -97,7 +97,9 @@ The corpus cases for these carry a `"profiles"` field, and an implementation
 skips the cases that list a name it does not provide. All six provide every
 name but one: the integer range, 53 bits in PureScript and TypeScript and
 64 bits in the other four, so each skips the few cases written for the other
-range. The split changes existing output:
+range. The number split and the arithmetic profile are no longer skippable:
+a case that lists `"int-float"` or `"arithmetic"` fails in an implementation
+that does not provide it. The split changes existing output:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 lists how.
 

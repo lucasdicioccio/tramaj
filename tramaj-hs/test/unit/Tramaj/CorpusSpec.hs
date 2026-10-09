@@ -73,6 +73,11 @@ instance FromJSON CaseMeta where
 providedProfiles :: [Text]
 providedProfiles = ["base", "int-float", "int64", "arithmetic", "sort", "format-number", "round"]
 
+-- | The profiles every port provides (@corpus/README.md@). A case naming one
+-- that 'providedProfiles' lacks fails instead of being skipped.
+requiredProfiles :: [Text]
+requiredProfiles = ["int-float", "arithmetic"]
+
 -- | The profiles a case names that this port does not provide.
 missingProfiles :: CaseMeta -> [Text]
 missingProfiles = filter (`notElem` providedProfiles) . metaProfiles
@@ -215,6 +220,9 @@ checkCase dir = do
   meta <- (readJsonFile (dir </> "meta.json") :: IO CaseMeta)
   when (metaHasRequires meta) $
     error (dir <> ": \"requires\" was replaced by \"profiles\" (corpus/README.md)")
+  case filter (`elem` requiredProfiles) (missingProfiles meta) of
+    [] -> pure ()
+    required -> error (dir <> ": not provided, but required of every port: " <> T.unpack (T.intercalate ", " required))
   if metaExpect meta == "analysis"
     then do
       -- The names are the keys of @analysis.json@, which holds no number, so
