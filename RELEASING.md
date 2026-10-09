@@ -92,11 +92,11 @@ package right before its first release:
 README.md's *Publishing* section already flags what's missing for these
 and says it's "deliberately deferred until the API has settled":
 
-- [x] PureScript registry: `tramaj-purs` and `tramaj-halogen` `0.3.3`
+- [x] PureScript registry: `tramaj-purs` and `tramaj-halogen` `0.4.0`
       published from generated copy repos (the registry rejects `subdir`);
       see `scripts/sync-purs-registry-repos.sh`.
 - [x] Hackage: an account at [hackage.haskell.org](https://hackage.haskell.org),
-      and `cabal upload` for `tramaj-hs` (`0.3.0.0` published).
+      and `cabal upload` for `tramaj-hs` (`0.4.0.0` published).
 
 Not blocking the crates.io/npm work above — separate ecosystem, separate
 timeline.

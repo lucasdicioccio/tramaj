@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               tramaj-hs
-version:            0.3.0.0
+version:            0.4.0.0
 synopsis:           Haskell parser/AST/evaluator for the tramaj language
 description:
   Parser, AST and evaluator for the tramaj language specified in

@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "tramaj-cli-rs"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -185,7 +185,7 @@ dependencies = [
 
 [[package]]
 name = "tramaj-rs"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
 ]
