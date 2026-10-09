@@ -61,6 +61,12 @@ const providedProfiles: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The profiles every port provides (corpus/README.md). A case naming one that
+ * `providedProfiles` lacks fails instead of being skipped.
+ */
+const requiredProfiles: ReadonlySet<string> = new Set(["int-float", "arithmetic"]);
+
+/**
  * The static analyses (reference.md §9) this port provides to an
  * `"expect": "analysis"` case, by the name `analysis.json` gives them. A case
  * naming any other one is skipped.
@@ -116,6 +122,13 @@ function registerCase(dir: string, meta: CaseMeta): void {
     return;
   }
   const missing = missingFor(dir, meta);
+  const required = missing.filter((r) => requiredProfiles.has(r));
+  if (required.length > 0) {
+    it(meta.name, () => {
+      throw new Error(`not provided, but required of every port: ${required.join(", ")}`);
+    });
+    return;
+  }
   if (missing.length > 0) {
     it.skip(`${meta.name} (not provided: ${missing.join(", ")})`, () => {});
     return;

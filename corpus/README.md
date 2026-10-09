@@ -70,6 +70,9 @@ cases/<NNN-slug>/
 * `profiles` — optional, defaults to `[]`: the profiles to activate for the
   case. A runner runs a case when its implementation can provide every
   profile listed, with exactly those profiles on, and skips it otherwise.
+  Two names are required of every implementation, `"arithmetic"` and
+  `"int-float"`: a case that lists one fails, rather than being skipped,
+  in a runner that does not provide it.
   The names in use (specs/decisions.md §18):
   * `"base"` — the language without any profile. Every implementation
     provides it and it is always on, so listing it changes nothing; a case
@@ -78,7 +81,9 @@ cases/<NNN-slug>/
     a case only if the case lists it. A case that does not list it runs with
     arithmetic off on every implementation, where the arithmetic names
     are unbound and `sum(1, 2)` is an `UnboundName`; that is how the
-    behaviour of an implementation without the profile is tested.
+    behaviour of a host that leaves the profile off is tested. Every
+    implementation provides the profile, and a runner fails a case that
+    lists it if its own does not.
   * `"int53"` and `"int64"` — the integer range (reference.md §13): the
     guaranteed 53-bit range only, or the full 64-bit range. An
     implementation provides exactly one of the two. A case names one only
@@ -86,10 +91,12 @@ cases/<NNN-slug>/
     `NotRepresentable` under `"int53"` and `9007199254740992` under
     `"int64"`. A case that stays inside the guaranteed range, or outside 64
     bits, names neither and runs on both.
-  * `"int-float"` — integers and floats are two types. This is a transition
-    tag, not a profile: it names a part of the base language that not every
-    implementation had when the cases were written. All six provide it now,
-    and the tag remains on the cases until it is retired. An implementation
+  * `"int-float"` — integers and floats are two types. This is not a
+    profile: it names a part of the base language that not every
+    implementation had when the cases were written. All six have it now, so
+    it is required like `"arithmetic"`: a runner fails a case that lists it
+    if its implementation does not provide it. The tag remains on the cases,
+    where it says that the text of a number matters (below). An implementation
     names its integer range together with `"int-float"`, since without the
     two types it has no integer type to give a range to.
 
@@ -195,6 +202,15 @@ that list one run in every suite.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
+
+Beside that list each runner holds the two names required of every
+implementation, `"int-float"` and `"arithmetic"` (`requiredProfiles`). A
+case that lists one of them, in a runner whose list of provided profiles
+lacks it, is a failed case and not a skipped one
+(`not provided, but required of every port: arithmetic`). So the cases a
+suite may skip are those of the integer range it does not have, of a
+transition tag or analysis it does not provide, and of a name it does not
+know.
 
 In all six implementations the arithmetic profile is an option of each
 evaluation, off by default. Their runners turn it on for a case that lists

@@ -49,6 +49,11 @@ corpusRoot = "corpus/cases"
 providedProfiles :: Array String
 providedProfiles = [ "base", "int-float", "arithmetic", "int53", "sort", "format-number", "round" ]
 
+-- | The profiles every port provides (corpus/README.md). A case naming one
+-- that `providedProfiles` lacks fails instead of being skipped.
+requiredProfiles :: Array String
+requiredProfiles = [ "int-float", "arithmetic" ]
+
 -- | The options a case runs with. A profile is on for a case only if the
 -- case lists it, so a case that does not list `arithmetic` runs without it,
 -- and `sum(1, 2)` is an `UnboundName` there.
@@ -133,6 +138,9 @@ runCase dir name = do
     (throw (name <> ": \"requires\" was replaced by \"profiles\" (corpus/README.md)"))
   expect <- fromMaybe "success" <$> optionalField meta "expect"
   let missingProfiles = Array.filter (\r -> not (Array.elem r providedProfiles)) (profiles meta)
+  case Array.filter (\r -> Array.elem r requiredProfiles) missingProfiles of
+    [] -> pure unit
+    required -> throw (name <> ": not provided, but required of every port: " <> String.joinWith ", " required)
   if expect == "analysis" then do
     -- The names are the keys of `analysis.json`, which holds no number, so
     -- reading it before deciding to skip is safe on every port.

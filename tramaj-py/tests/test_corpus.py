@@ -81,6 +81,10 @@ PROVIDED_PROFILES: frozenset = frozenset(
     {"base", "int-float", "arithmetic", "int64", "sort", "format-number", "round"}
 )
 
+# The profiles every port provides (corpus/README.md). A case naming one that
+# ``PROVIDED_PROFILES`` lacks fails instead of being skipped.
+REQUIRED_PROFILES: frozenset = frozenset({"int-float", "arithmetic"})
+
 
 def arithmetic_on(meta: dict) -> bool:
     """The arithmetic profile is an option of each evaluation: on for a case
@@ -141,6 +145,9 @@ def run_case(case_dir: str, meta: dict) -> None:
     if "requires" in meta:
         raise AssertionError('"requires" was replaced by "profiles" (corpus/README.md)')
     missing = missing_profiles(meta)
+    required = [r for r in missing if r in REQUIRED_PROFILES]
+    if required:
+        raise AssertionError(f"not provided, but required of every port: {', '.join(required)}")
     if meta.get("expect") == "analysis":
         run_analysis_case(case_dir, missing)
         return

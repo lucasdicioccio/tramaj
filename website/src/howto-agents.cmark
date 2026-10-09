@@ -55,7 +55,9 @@ normative text:
   `libs/*.tramaj`) that every implementation must satisfy — treat these as
   runnable, ground-truth examples rather than prose. A case's `meta.json`
   may carry `"profiles"` (`int-float`, `arithmetic`, `int64`, …), naming what an
-  implementation must provide before it runs that case.
+  implementation must provide before it runs that case. Every implementation
+  must provide `int-float` and `arithmetic`; a case that lists another name
+  it lacks, such as the integer range it does not have, is skipped.
 - See also [`llms.txt`](/raw/llms.txt) for a short machine-readable index of
   the above (Kitchen-Sink serves arbitrary `.txt` files under `/raw/`, so
   this isn't at the conventional `/llms.txt` root path).
