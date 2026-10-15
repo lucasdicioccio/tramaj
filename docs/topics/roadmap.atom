@@ -25,9 +25,11 @@ independently written implementations can run it identically.&lt;/p&gt;
 &lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-halogen&lt;/code&gt; are on the PureScript registry (0.4.1),
 &lt;code&gt;tramaj-hs&lt;/code&gt; on Hackage (0.4.0.0), &lt;code&gt;tramaj-rs&lt;/code&gt; and &lt;code&gt;tramaj-cli-rs&lt;/code&gt; on
-crates.io (0.2.0), and &lt;code&gt;tramaj-py&lt;/code&gt; on PyPI as &lt;code&gt;tramaj&lt;/code&gt; (0.2.0), each with
-language v5. &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt; and &lt;code&gt;tramaj-cli&lt;/code&gt; are
-in no package registry yet, and are used as source or git dependencies.
+crates.io (0.2.0), &lt;code&gt;tramaj-py&lt;/code&gt; on PyPI as &lt;code&gt;tramaj&lt;/code&gt; (0.2.0), and
+&lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-react&lt;/code&gt; on npm as &lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt; and
+&lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt; (0.2.0), each with language v5. &lt;code&gt;tramaj-go&lt;/code&gt;
+and &lt;code&gt;tramaj-cli&lt;/code&gt; are in no package registry yet, and are used as source or
+git dependencies.
 Each has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom feed. See &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for what’s
 actually usable from each right now, including the fold each one does or
 doesn’t ship.&lt;/p&gt;
@@ -50,7 +52,7 @@ are written, and all six implementations have all of it:&lt;/p&gt;
 &lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Language v5&lt;/th&gt;&lt;th&gt;Released in&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (PureScript), &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-halogen&lt;/code&gt; 0.4.1 (PureScript registry)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.4.0.0 (Hackage)&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;; not on npm yet&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.2.0 (npm)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.2.0 (crates.io)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, no tagged version&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.2.0 (PyPI, as &lt;code&gt;tramaj&lt;/code&gt;)&lt;/td&gt;&lt;/tr&gt;
@@ -67,16 +69,19 @@ lists how.&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;?shape&lt;/code&gt; is an accepted design without normative text, and no implementation
 has it. See
 &lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;Two designs accepted&lt;/a&gt;.&lt;/p&gt;
-&lt;h3 id="desired-next-folds-and-npm"&gt;Desired next: folds, and npm&lt;/h3&gt;
+&lt;h3 id="desired-next-folds-and-python-type-definitions"&gt;Desired next: folds, and Python type definitions&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Folds.&lt;/strong&gt; Only PureScript (&lt;code&gt;tramaj-halogen&lt;/code&gt;) and JavaScript
 (&lt;code&gt;tramaj-react&lt;/code&gt;) ship a fold to a rendering target. A DOM fold for JS, a
 fold to a common Python templating output, and a fold for at least one
 Haskell or Rust UI or markup library are the obvious next pieces.
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;npm packages.&lt;/strong&gt; crates.io, PyPI, Hackage and the PureScript registry
-have a v5 release; npm has only a &lt;code&gt;0.0.0-stage&lt;/code&gt; placeholder, and a release
-of &lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-react&lt;/code&gt; is wanted there. Releases happen when
+&lt;li&gt;&lt;strong&gt;Type definitions for the Python modules.&lt;/strong&gt; &lt;code&gt;tramaj-py&lt;/code&gt; annotates its
+functions, but ships no &lt;code&gt;py.typed&lt;/code&gt; marker, so a type checker treats the
+installed package as untyped. Shipping type definitions would let a
+Python host check its calls the way a TypeScript host already can.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Releases.&lt;/strong&gt; Every registry now has a v5 release. Releases happen when
 there are major changes, and each package’s version tracks the language
 version it implements in its major digit.
 &lt;/li&gt;
@@ -123,7 +128,7 @@ evaluation semantics agree with theirs. Open an issue on the
 &lt;a href="https://github.com/lucasdicioccio/tramaj"&gt;repository&lt;/a&gt; before investing
 heavily in one — coordinating on which language is being worked on avoids
 duplicate effort.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/roadmap.html" rel="alternate"/><summary type="text">Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. All six carry the whole of language v5 (integers and floats as two types, arithmetic, sorting and number formatting) and run the whole corpus. Wanted next: npm packages and folds.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/roadmap.html" rel="alternate"/><summary type="text">Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. All six carry the whole of language v5 (integers and floats as two types, arithmetic, sorting and number formatting) and run the whole corpus. Wanted next: folds, and type definitions for the Python modules.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
 &lt;p&gt;tramaj has gone through four iterations so far: v1 (the original
 block/template split), v2 (expression-oriented documents, static analyses
 and the &lt;code&gt;Node&lt;/code&gt; JSON format), v3 (symbols and constraints) and v4 (types).
@@ -225,7 +230,7 @@ edges.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;Hackage, 0.4.0.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;crates.io, 0.2.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (&lt;code&gt;tramaj-py&lt;/code&gt;)&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;PyPI, 0.2.0&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;from the repository; npm has only a placeholder so far&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;npm, 0.2.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;from the repository, as &lt;code&gt;github.com/lucasdicioccio/tramaj/tramaj-go&lt;/code&gt;, at a commit on &lt;code&gt;main&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Each package has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom
@@ -233,8 +238,8 @@ feed. &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt;
 each one.&lt;/p&gt;
 &lt;h3 id="whats-next"&gt;What’s next&lt;/h3&gt;
 &lt;p&gt;v5 is a fifth iteration, not a stable release: the language can still
-change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: the npm
-packages and folds to more rendering targets. Beyond v5,
+change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: folds to
+more rendering targets, and type definitions for the Python modules. Beyond v5,
 &lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;&lt;code&gt;?shape&lt;/code&gt;&lt;/a&gt; is an accepted design for
 allocating a structure of symbols in one form; no implementation has it
 yet.&lt;/p&gt;

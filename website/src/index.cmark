@@ -81,7 +81,7 @@ on GitHub for the full spec, or explore the site below.
   integers and floats, arithmetic, sorting and number formatting, in all six
   implementations.
 - [**Roadmap**](/roadmap.html) — where the six implementations stand, and
-  the folds and npm packages that are wanted next.
+  the folds and Python type definitions that are wanted next.
 - [**Two designs accepted**](/design-arithmetic-and-shapes.html) — arithmetic
   with integers and floats as two types, and `?shape`, a form that allocates
   a structure of symbols.

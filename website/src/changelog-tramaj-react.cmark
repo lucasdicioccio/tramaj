@@ -39,8 +39,8 @@ tagged so the site builds one Atom feed per implementation:
 .div(class: "changelog",
   $version({
       "version": "0.2.0",
-      "date": "unreleased",
-      "summary": "The React counterpart of tramaj-halogen, and the only package here that depends on react.",
+      "date": "2026-10-15",
+      "summary": "The React counterpart of tramaj-halogen, and the only package here that depends on react. The first release on npm.",
       "changes": [
           {
               "kind": "added",

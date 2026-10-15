@@ -34,7 +34,7 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #javascript #tramaj-js
 
-The unreleased entry has breaking changes to numbers:
+The 0.2.0 entry has breaking changes to numbers:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 says what to do about each.
 
@@ -43,8 +43,8 @@ says what to do about each.
 .div(class: "changelog",
   $version({
       "version": "0.2.0",
-      "date": "unreleased",
-      "summary": "TypeScript port: parser, evaluator (concrete and symbolic modes), Node JSON codec and static analyses.",
+      "date": "2026-10-15",
+      "summary": "TypeScript port: parser, evaluator (concrete and symbolic modes), Node JSON codec and static analyses, with language v5. The first release on npm.",
       "changes": [
           {
               "kind": "added",
