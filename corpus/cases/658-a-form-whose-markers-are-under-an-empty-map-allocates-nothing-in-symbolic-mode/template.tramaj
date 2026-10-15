@@ -1,0 +1,1 @@
+?shape("d", {name: "d", hosts: map($ctx.vms, (vm) => ~host($vm.name))})

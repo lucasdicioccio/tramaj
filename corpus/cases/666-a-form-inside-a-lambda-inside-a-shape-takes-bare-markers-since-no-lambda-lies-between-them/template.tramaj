@@ -1,0 +1,1 @@
+?shape("outer", {~a, rows: map($ctx.xs, (x) => ?shape($x, {~v}))})

@@ -1,0 +1,61 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [
+    {
+      "a": {
+        "$sym": "#0:[\"d\",\"a\"]",
+        "path": []
+      }
+    },
+    {
+      "$sym": "#1:[\"x\",\"x\"]",
+      "path": []
+    },
+    {
+      "$sym": "#2:[\"i\",\"i\"]",
+      "path": []
+    }
+  ],
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"d\",\"a\"]",
+      "origin": {
+        "key": [
+          "d",
+          "a"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#1:[\"x\",\"x\"]",
+      "origin": {
+        "key": [
+          "x",
+          "x"
+        ],
+        "kind": "alloc",
+        "site": 1
+      }
+    },
+    {
+      "binding": null,
+      "id": "#2:[\"i\",\"i\"]",
+      "origin": {
+        "key": [
+          "i",
+          "i"
+        ],
+        "kind": "alloc",
+        "site": 2
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": []
+}

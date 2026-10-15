@@ -1,0 +1,6 @@
+{
+  "name": "the long form of a shorthand marker field gives the same symbols and root",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

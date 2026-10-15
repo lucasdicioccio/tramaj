@@ -1,0 +1,1 @@
+?shape("o", {~a, inner: ?shape(~k, {~b})})

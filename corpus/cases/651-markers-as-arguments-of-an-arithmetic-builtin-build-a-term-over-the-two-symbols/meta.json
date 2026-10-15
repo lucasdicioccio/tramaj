@@ -1,0 +1,6 @@
+{
+  "name": "markers as arguments of an arithmetic builtin build a term over the two symbols",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape", "arithmetic"]
+}

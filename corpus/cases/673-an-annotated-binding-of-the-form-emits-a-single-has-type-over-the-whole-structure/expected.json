@@ -1,0 +1,85 @@
+{
+  "constraints": [
+    {
+      "arguments": [
+        {
+          "a": {
+            "$sym": "#0:[\"p\",\"a\"]",
+            "path": []
+          },
+          "b": {
+            "$sym": "#0:[\"p\",\"b\"]",
+            "path": []
+          }
+        },
+        {
+          "$type": "root:Pair"
+        }
+      ],
+      "name": "has-type"
+    }
+  ],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "a": {
+      "$sym": "#0:[\"p\",\"a\"]",
+      "path": []
+    },
+    "b": {
+      "$sym": "#0:[\"p\",\"b\"]",
+      "path": []
+    }
+  },
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"p\",\"a\"]",
+      "origin": {
+        "key": [
+          "p",
+          "a"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"p\",\"b\"]",
+      "origin": {
+        "key": [
+          "p",
+          "b"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": [
+    {
+      "definition": {
+        "fields": [
+          {
+            "name": "a",
+            "type": {
+              "kind": "prim",
+              "name": "string"
+            }
+          },
+          {
+            "name": "b",
+            "type": {
+              "kind": "prim",
+              "name": "string"
+            }
+          }
+        ],
+        "kind": "record"
+      },
+      "id": "root:Pair"
+    }
+  ]
+}

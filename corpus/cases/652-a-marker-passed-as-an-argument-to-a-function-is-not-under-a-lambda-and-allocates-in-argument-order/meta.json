@@ -1,0 +1,6 @@
+{
+  "name": "a marker passed as an argument to a function is not under a lambda and allocates in argument order",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

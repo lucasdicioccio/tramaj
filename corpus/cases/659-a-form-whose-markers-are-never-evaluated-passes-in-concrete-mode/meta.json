@@ -1,0 +1,6 @@
+{
+  "name": "a form whose markers are never evaluated passes in concrete mode",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["shape"]
+}

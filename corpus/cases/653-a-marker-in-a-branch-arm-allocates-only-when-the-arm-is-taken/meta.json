@@ -1,0 +1,6 @@
+{
+  "name": "a marker in a branch arm allocates only when the arm is taken",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

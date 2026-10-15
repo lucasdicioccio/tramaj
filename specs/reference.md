@@ -28,6 +28,12 @@ an implementation predates them, so there every number is a double,
 `str(1.0)` is `1`, the two sort names parse as ordinary calls, and the names
 of §11's *Sorting*, *Number formatting* and *Arithmetic* are unbound.
 
+**A third part is specified ahead.** The traverse form for allocation,
+`?shape(key, shape)` with its `~name` markers, is accepted design
+(decisions §19) and normative in `v3-symbols.md` §1.2, but no implementation
+has it yet: `?shape` and `~` are parse errors everywhere. Each passage of
+this document it touches is marked **[§19]**.
+
 ---
 
 ## 1. Shape of the language
@@ -214,7 +220,10 @@ Serialization — including the strict decoding rules — is specified in
 ## 5. Surface syntax
 
 Three leader characters: `.` builds a document, `$` reads a name, `@` defines
-one.
+one. The symbolic extension (`v3-symbols.md`) adds three more: `?` introduces
+a symbol (§1.2, §1.3 there), `!` emits a constraint (§2.2 there) and
+**[§19]** `~` marks a symbol inside the shape of a `?shape` (§1.2 there). A
+`~` anywhere else is a parse error.
 
 ```
 @count=cardinality($ctx.items)          -- bindings, one per line
@@ -255,6 +264,10 @@ one.
 | `branch(fallback, p1, v1, …)` | conditional |
 | `import("name", {k: expr, j: ctx(path)})` | import; a parameter may also be left out and supplied later |
 | `adapt-actions(node, prefix("ns:") \| identity [, fn])` | action adaptation |
+| `?(key)`, `?ctx.a.b`, `!expr` | allocation, demand and emission (v3-symbols §1.2, §1.3, §2.2) |
+| `?shape(key, shape)` | **[§19]** allocation over a structure: each marker in `shape` is an allocation at the form's one site (v3-symbols §1.2) |
+| `~name`, `~name(key)` | **[§19]** a symbol marker, inside a `?shape`'s shape only; under a lambda in the shape it MUST carry a key |
+| `{~name}`, `{~name(key)}` | **[§19]** shorthand for `{name: ~name}`, `{name: ~name(key)}` |
 
 Names — bindings, path segments, tags, bare keys — start with a letter and
 may contain letters, digits, `_` and internal `-`. *Internal* is enforced,

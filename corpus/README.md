@@ -116,6 +116,14 @@ cases/<NNN-slug>/
     `"arithmetic"` and `"int-float"` too, and an implementation provides
     `"round"` only together with `"arithmetic"`.
 
+  One more name is a transition tag for a part of the language that no
+  implementation has yet (specs/decisions.md §19):
+  * `"shape"` — the `?shape(key, shape)` form and its `~name` markers
+    (v3-symbols §1.2). It is not in any runner's list, so every suite skips
+    these cases, the parse-error ones included, until its implementation
+    declares the name. It is not required of every implementation. A case
+    that also needs the arithmetic profile lists `"arithmetic"` beside it.
+
   A case without `profiles` runs everywhere, with no profile on. A case that
   lists several names runs only where all of them are provided. `mode` is
   not a profile and is unchanged.
@@ -199,6 +207,7 @@ the language's own spelling), and the table of analyses beside it
 
 All six lists hold `"sort"`, `"format-number"` and `"round"`, so the cases
 that list one run in every suite.
+None holds `"shape"` yet, so its cases are skipped in every suite.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.

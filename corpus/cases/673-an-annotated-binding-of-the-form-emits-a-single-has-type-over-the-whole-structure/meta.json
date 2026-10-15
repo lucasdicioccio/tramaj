@@ -1,0 +1,6 @@
+{
+  "name": "an annotated binding of the form emits a single has-type over the whole structure",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

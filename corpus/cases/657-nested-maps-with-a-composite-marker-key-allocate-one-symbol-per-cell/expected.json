@@ -1,0 +1,95 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [
+    [
+      {
+        "$sym": "#0:[\"g\",\"cell\",[\"r1\",\"x\"]]",
+        "path": []
+      },
+      {
+        "$sym": "#0:[\"g\",\"cell\",[\"r1\",\"y\"]]",
+        "path": []
+      }
+    ],
+    [
+      {
+        "$sym": "#0:[\"g\",\"cell\",[\"r2\",\"x\"]]",
+        "path": []
+      },
+      {
+        "$sym": "#0:[\"g\",\"cell\",[\"r2\",\"y\"]]",
+        "path": []
+      }
+    ]
+  ],
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"g\",\"cell\",[\"r1\",\"x\"]]",
+      "origin": {
+        "key": [
+          "g",
+          "cell",
+          [
+            "r1",
+            "x"
+          ]
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"g\",\"cell\",[\"r1\",\"y\"]]",
+      "origin": {
+        "key": [
+          "g",
+          "cell",
+          [
+            "r1",
+            "y"
+          ]
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"g\",\"cell\",[\"r2\",\"x\"]]",
+      "origin": {
+        "key": [
+          "g",
+          "cell",
+          [
+            "r2",
+            "x"
+          ]
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"g\",\"cell\",[\"r2\",\"y\"]]",
+      "origin": {
+        "key": [
+          "g",
+          "cell",
+          [
+            "r2",
+            "y"
+          ]
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": []
+}

@@ -1,0 +1,5 @@
+@cluster = ?shape("cluster", {
+  placements: map($ctx.vms, (vm) => {vm: $vm.name, where: {zone: ~zone($vm.name), host: ~host($vm.name)}}),
+  lb:         ~lb
+})
+$cluster

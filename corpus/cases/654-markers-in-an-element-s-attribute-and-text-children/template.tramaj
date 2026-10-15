@@ -1,0 +1,2 @@
+@e = ?shape("e", .p(class: ~cls, "Deploy ", ~n, " replicas"))
+.div($e)

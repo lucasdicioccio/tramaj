@@ -1,0 +1,6 @@
+{
+  "name": "a shorthand marker field bare and keyed is the field of that name holding the marker",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

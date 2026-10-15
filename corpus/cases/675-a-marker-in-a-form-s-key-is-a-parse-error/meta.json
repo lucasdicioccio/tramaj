@@ -1,0 +1,7 @@
+{
+  "name": "a marker in a form's key is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "a shorthand marker field and a marker of the same name in one form is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

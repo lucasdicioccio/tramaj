@@ -1,0 +1,1 @@
+?shape("d", {~replicas, ports: map($ctx.ports, (p) => {p, ~open($p)})})

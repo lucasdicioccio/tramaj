@@ -1,0 +1,6 @@
+{
+  "name": "the form under a map takes its key per iteration and its bare markers need no key",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

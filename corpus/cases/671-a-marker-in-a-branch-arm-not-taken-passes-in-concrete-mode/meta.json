@@ -1,0 +1,6 @@
+{
+  "name": "a marker in a branch arm not taken passes in concrete mode",
+  "kind": "expression",
+  "mode": "concrete",
+  "profiles": ["shape"]
+}

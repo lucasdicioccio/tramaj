@@ -22,6 +22,11 @@ number types (ref §3) wherever this document writes a number: in canon
 (§1.4) and in the envelope (§5.2). All of it is on the `main` branch and in
 no release yet.
 
+**A traverse form for allocation is specified ahead.** `?shape(key, shape)`
+and its `~name` markers are accepted design (decisions §19) and are
+normative here, but no implementation has them yet: `?shape` and `~` are
+parse errors everywhere. Each passage this applies to is marked **[§19]**.
+
 ---
 
 ## 0. What v3 adds, and the rule it follows
@@ -92,6 +97,102 @@ Both are legal and mean what they say. A constant key is a constant symbol.
 What v3 refuses is the version where the author writes nothing and the
 language guesses.
 
+#### `?shape(key, shape)` — allocation over a structure
+
+**[§19] Specified, not yet implemented.**
+
+```
+alloc  ::= "?(" expr ")"                 -- above
+         | "?shape(" expr "," expr ")"   -- key, shape
+marker ::= "~" name                      -- inside a shape only
+         | "~" name "(" expr ")"         -- with a marker key
+field  ::= … | marker                    -- in an object literal: name ":" marker
+
+@d = ?shape("d", {~replicas, zone: "eu", ports: [~http, ~admin]})
+
+@cluster = ?shape("cluster", {
+  lb:         ~lb,
+  placements: map($ctx.vms, (vm) => {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
+})
+```
+
+`?shape` is a second allocation form. It takes a key and a **shape**, an
+ordinary expression in which each **symbol marker** `~name` stands for an
+allocation. It is a way to write allocations, not a new kind of one: it
+lowers to `?(k)` allocations (below), so a structure of symbols is written
+with its key once and one site, instead of one site and a hand-composed key
+per symbol.
+
+* `~` is a leader character (ref §5). The name follows it directly and obeys
+  ref §5's name rule; `~ a` is a parse error. The `(` of a marker key follows
+  the name directly.
+* A marker is an expression, and may be written **anywhere in the shape**: an
+  array element, a field value, a call's argument (`sum(~a, ~b)`), a
+  `branch` arm, an element's attribute or child, a lambda's body. A marker
+  belongs to the innermost `?shape` whose shape contains it. A marker
+  outside any shape, and a marker in a `?shape`'s key (also when that form
+  is itself inside another form's shape), is a parse error.
+* **Under a lambda, a marker MUST carry a key.** A lambda's body is evaluated
+  once per application, so a marker in it stands for many symbols, and the
+  marker key says which. A bare `~name` inside a lambda that is itself inside
+  the shape is a parse error. A lambda *around* the whole form does not
+  count, since the form's own key does that job:
+  `map($ctx.vms, (vm) => ?shape($vm.name, {host: ~host}))`.
+* **Shorthand field.** In an object literal, a marker written alone as a
+  field is the field of that name holding that marker: `{~replicas}` is
+  `{replicas: ~replicas}`, and `{~host($vm.name)}` is
+  `{host: ~host($vm.name)}`, beside the literal's own `{foo}` (ref §5). It is
+  expanded before anything else, so every rule here applies to the long
+  form. A marker under another field name is written out: `{min: ~lo}`.
+* A marker key is legal outside a lambda too. Like any allocation key it is
+  an ordinary expression that MUST evaluate to a concrete value; a symbol in
+  it is `NotConcrete`. So is a symbol in the form's key.
+* A shape MUST contain at least one marker of its own (markers of a nested
+  `?shape` are that form's). A marker name appears at most once in a form,
+  with or without a key: `{web: {port: ~port}, db: {port: ~port}}` and
+  `{a: ~x, b: map($xs, (x) => ~x($x))}` are parse errors. Sharing a symbol is
+  written as two reads of one binding.
+* The form takes exactly two arguments; any other count is a parse error, and
+  `?(a, b)` stays one.
+* `shape` is a word under the `?` leader, read the way `ctx` is in
+  `?ctx.path`. It is not reserved: `$shape`, `@shape` and `.shape(...)` are
+  unaffected.
+
+It is a special form, and not a builtin, for the reason `?(k)` is: it needs a
+site, which the parser assigns (§1.4). Under the core profile it is rejected
+at parse time with every other `?` (§5.5), and the marker with it.
+
+**Lowering.** The core AST does not change (§3). `?shape(k, shape)` at site
+*n* lowers to the shape with each marker replaced by an allocation at that
+same site:
+
+```text
+~name        Alloc n [k, "name"]         -- what ?([k, "name"]) would be at site n
+~name(e)     Alloc n [k, "name", e]      -- what ?([k, "name", e]) would be at site n
+```
+
+where `k` is evaluated once, bound to a hidden name (ref §8's hidden names,
+decisions §17) and read by each marker. Everything else in the shape is left
+as written. The form therefore means exactly what that hand-written
+expression would mean, with two differences a hand-written one cannot have:
+the key is written once, and every allocation shares one site.
+
+Everything else follows from the lowering:
+
+* The symbols are allocated in the order the lowered expression evaluates
+  (§4), so an object's markers in the order its fields are written, not in
+  sorted key order.
+* `AllocationInLibrary` applies to a `?shape` as to a `?(k)`, lexically
+  (§1.4), and `SymbolsUnavailable` to a marker in concrete mode, when the
+  marker is evaluated (§5.1).
+* A demand is an ordinary expression in a shape:
+  `?shape("d", {replicas: ~replicas, zone: ?ctx.zone})`.
+* An annotation (v4-types §7) on a binding of the form,
+  `@p : Pair = ?shape("p", {~a, ~b})`, is the existing sugar: one `has-type`
+  on the whole value, none per symbol.
+* No error kind is added: `NotConcrete`, `SymbolsUnavailable`,
+  `AllocationInLibrary`, and the parse errors above.
+
 ### 1.3 `?ctx.path` — demand
 
 ```
@@ -128,8 +229,8 @@ only in the `"binding"` the symbol table reports (§5.2).
 > **Only a root program may allocate. A library MUST NOT**, because the root
 > runs exactly once and a library does not.
 
-`AllocationInLibrary` is raised when a program containing `?(k)` is loaded as
-a library. The check is **lexical**: it is about where the `?` is written, not
+`AllocationInLibrary` is raised when a program containing `?(k)` (or
+**[§19]** `?shape`) is loaded as a library. The check is **lexical**: it is about where the `?` is written, not
 where it is evaluated, so a closure created in the root and applied inside a
 library still allocates in the root, which is where its `?` is written.
 
@@ -139,10 +240,15 @@ implementation:
 | form | id |
 |---|---|
 | `?(k)`, the *n*-th `?` in the program's source | `#` *n* `:` canon(*k*) |
+| **[§19]** `~name` in `?shape(k, …)` at site *n* | `#` *n* `:` canon(`[`*k*`, "name"]`) |
+| **[§19]** `~name(e)` in `?shape(k, …)` at site *n* | `#` *n* `:` canon(`[`*k*`, "name",` *e*`]`) |
 | `?ctx.a.b`, unsupplied at the root | `#ctx.a.b` |
 
 * *n* is assigned by the parser: the `?(k)` occurrences of one program are
-  numbered `0, 1, 2, …` in source order. It belongs to the core AST for the
+  numbered `0, 1, 2, …` in source order. **[§19]** A `?shape` takes a number
+  in the same sequence, at the position of its `?`; a marker takes none.
+  So in `?shape("o", {~a, p: ?("p"), i: ?shape("i", {~b})})` the outer form
+  is site 0, the `?("p")` site 1 and the inner form site 2. It belongs to the core AST for the
   same reason a binding's name does — it *is* the variable's identity, not
   source trivia.
 * **canon** is compact JSON with object keys sorted, numbers rendered by
@@ -163,6 +269,26 @@ ids by construction rather than by agreeing on a traversal.
 The site is part of the id, as well as the key, so that two independent
 `?("replicas")` in different places are different variables. A key names a
 distinction, not a variable.
+
+**[§19]** For a marker, the name says which symbol of the shape, the marker
+key says which application of a lambda, and the form's key says which
+evaluation of the site; each is something the author wrote, and nothing is
+derived from an index or from evaluation order. With `vms` named `"a"` and
+`"b"`, the `@cluster` of §1.2 at site 0 allocates
+`#0:["cluster","lb"]`, then `#0:["cluster","host","a"]`,
+`#0:["cluster","zone","a"]`, `#0:["cluster","host","b"]` and
+`#0:["cluster","zone","b"]`.
+
+* Symbols are shared only where the author's keys are equal: two `vms` with
+  the same name share `host` and `zone`. A constant marker key under a lambda
+  (`~region("all")`) shares one symbol across applications. Under nested
+  lambdas the marker key has to distinguish every level: `~cell([$r, $c])`.
+* The position in the shape is not in the id. Reordering the collection, or
+  moving a marker to another field, keeps every symbol's id; renaming a
+  marker changes it.
+* The ids stay injective: a name appears once in a form, a pair and a triple
+  differ, and a site is one form or the other, so no id from a `?shape` can
+  meet one from a `?(k)`.
 
 ### 1.5 What may be done with a symbol
 
@@ -259,6 +385,12 @@ same operations work on it: `cardinality([sum($a, 1), 2])` is `2`.
 fine; `map($d.items, f)` is `NotConcrete`, because the length is unknown. A
 symbol may *have* structure as far as its host-side meaning is concerned; the
 language cannot walk it.
+
+**[§19]** `?shape` (§1.2) builds such a structure of symbols in one form,
+over a collection the caller supplies: the spine is the shape's own, so a
+`map` in it iterates a concrete array and each marker under it allocates
+per application. It does not give a number of symbols from a number: that
+needs a collection of that length, and is not in the language.
 
 Two cases fall out of the same rule: a symbol cannot be an object key, because
 keys are static (ref §5) and nothing computes one; and a symbol inside an
@@ -531,6 +663,9 @@ still `DocumentProgram Expr | ExpressionProgram Expr`.
 `Emit` is representable anywhere an expression is, but the parser produces it
 only at statement position.
 
+**[§19]** `?shape` and its markers add no constructor: they lower to `Let`
+and `Alloc` (§1.2).
+
 ---
 
 ## 4. Evaluation
@@ -590,6 +725,7 @@ In concrete mode a symbol cannot exist:
 | form | concrete mode |
 |---|---|
 | `?(key)` | `SymbolsUnavailable` |
+| **[§19]** a `~name` marker, when it is evaluated | `SymbolsUnavailable`, as for the `?(k)` it lowers to; a form whose markers are never evaluated (an empty collection, an arm not taken) passes |
 | `?ctx.path`, supplied | the value the caller supplied; no symbol involved |
 | `?ctx.path`, unsupplied at the root | `SymbolsUnavailable` — that is the same minting |
 | `!expr` | evaluated; the constraints are discarded |
@@ -655,7 +791,12 @@ about `!` and two refusals.
   name only when the `?(k)` or `?ctx.path` is the whole right-hand side of an
   `@name = …` binding. Used inline it is `null`, and so it is in
   `@x = sum(?ctx.s, 1)`, where `x` names the term and not the symbol. It is
-  provenance for humans. `"origin"` is the structured form of `"id"`, so a
+  provenance for humans. **[§19]** It is `null` for every symbol a
+  `?shape` allocates, bound or not: no marker is the whole right-hand side
+  of a binding, and in `@d = ?shape("d", …)` the name `d` names the
+  structure. `origin.key` carries the form's key, the marker's name and the
+  marker key, as an array; a host decoder needs no new case and cannot tell
+  these entries from hand-written allocations. `"origin"` is the structured form of `"id"`, so a
   host never has to parse the id.
 * A demand's origin `"path"` is the `Demand` path of §3: the segments after
   `ctx`, so `?ctx.a.b` has `["a", "b"]`. The `ctx` root is not repeated; it
@@ -795,7 +936,7 @@ Three kinds join ref §12's table.
 | error | when |
 |---|---|
 | `NotConcrete` | a symbolic value where the language requires a concrete one — §1.5's table, and a symbol used as an allocation key |
-| `AllocationInLibrary` | a program containing `?(k)` is loaded as a library (§1.4) |
+| `AllocationInLibrary` | a program containing `?(k)` or **[§19]** `?shape` is loaded as a library (§1.4) |
 | `SymbolsUnavailable` | a symbol would have to be minted in concrete mode (§5.1) |
 
 `TypeMismatch` covers the rest: a constraint value crossing a JSON boundary,
@@ -824,7 +965,7 @@ Answered from the AST alone — no context, no library evaluation, no host code
 
 | function | answers |
 |---|---|
-| `symbolSites` | the `?(k)` allocation sites this program contains |
+| `symbolSites` | the `?(k)` allocation sites this program contains, and **[§19]** the `?shape` sites, each reported once |
 | `symbolDemands` / `deepSymbolDemands` | which context paths it declares symbolic with `?ctx.…` |
 | `constraintKinds` / `deepConstraintKinds` | which constraint names it can emit |
 
@@ -844,6 +985,8 @@ Two of these earn their keep immediately:
 `symbolSites` reports sites, not keys, which are computed. The number of
 symbols is a runtime fact; the number of sites is not, and a site inside a
 `map` is exactly where a reader should look to see what distinguishes them.
+**[§19]** The same holds for a `?shape`: one site, whatever number of
+markers it holds and of symbols they allocate.
 
 Like the existing analyses, these over-approximate: a kind emitted only under
 a `Branch` arm that no context will select is still reported.
@@ -883,6 +1026,19 @@ refusal; deduplication over equal and over reordered terms; seeding; and the
 residual law, as one program run symbolically, then concretely with the symbol
 seeded as a number.
 
+**[§19]** For `?shape`: markers at several depths; a shorthand field, bare
+and keyed, equal to its long form; an expression beside a marker; a marker
+in a call, in a `branch` arm taken and not taken, and in an element; a keyed
+marker under `map`, with distinct keys and with equal keys sharing; nested
+`map`s with a composite marker key; an empty collection in both modes; the
+form under a `map` with a key per iteration; reordered markers and
+reordered elements keeping their ids; table order for an object written in
+non-sorted key order; `"binding"` bound and inline; a nested form; a
+symbolic form key and a symbolic marker key; concrete mode; the form in a
+library; an annotated binding emitting a single `has-type`; and every parse
+error of §1.2. They are in the shared corpus under the `"shape"` profile
+name.
+
 ---
 
 ## 9. Not in v3
@@ -891,7 +1047,8 @@ seeded as a number.
 |---|---|
 | nominal types, declarations, `.types`, typed annotations | `v4-types.md` |
 | any solver, domain or propagation | the host's, per §0 |
-| a keyless `?` | §1.2 — a symbol always says what distinguishes it |
+| a keyless `?` | §1.2 — a symbol always says what distinguishes it; **[§19]** a `?shape` marker names its symbol, and under a lambda carries a key |
+| a number of symbols from a number | **[§19]** §1.7 — `?shape` walks a collection the caller supplies |
 | allocation inside libraries, and any call-frame identity scheme | §1.4 — the root allocates, so identity is a site and a key |
 | symbolic strings, symbolic control flow | §1.5, §1.8 |
 | an envelope around concrete output | §5.1 — an expression program's result must still pipe into `jq` |

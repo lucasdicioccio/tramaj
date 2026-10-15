@@ -1,0 +1,6 @@
+{
+  "name": "an ordinary expression and a demand beside a marker are left as written",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "a marker name used bare and keyed in one form is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

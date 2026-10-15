@@ -1,0 +1,6 @@
+{
+  "name": "a marker belongs to the innermost form and sites are one sequence across both allocation forms",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}
