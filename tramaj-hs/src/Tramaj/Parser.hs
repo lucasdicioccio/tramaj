@@ -5,6 +5,8 @@
 -- * string interpolation becomes 'Concat' over the @str@ builtin;
 -- * @branch(fallback, p1, v1, ...)@ becomes nested 'Branch';
 -- * object shorthand @{foo}@ becomes @{"foo": $foo}@;
+-- * @?shape(key, shape)@ becomes a 'Let' of its key and the shape, each
+--   @~name@ marker in it an 'Alloc' at the form's one site;
 -- * escape sequences are resolved into the 'StringLit' they denote.
 --
 -- The grammar keeps three leader characters from v1: @.@ introduces a
@@ -35,7 +37,7 @@ module Tramaj.Parser
 import Data.Char (chr, isAlphaNum, isDigit, isHexDigit, isLetter)
 import Data.Int (Int64)
 import Data.List (nub)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
@@ -292,7 +294,13 @@ objectLit = lexeme $ do
   pure (ObjectLit entries)
   where
     objEntry :: P (Text, Expr)
-    objEntry = try explicitEntry <|> shorthandEntry
+    objEntry = try explicitEntry <|> markerEntry <|> shorthandEntry
+
+    -- | @{~replicas}@ is @{replicas: ~replicas}@, and @{~host($x)}@ is
+    -- @{host: ~host($x)}@ (v3-symbols \S1.2): the shorthand field of a
+    -- marker, expanded here so every other rule sees the long form.
+    markerEntry :: P (Text, Expr)
+    markerEntry = marker
 
     explicitEntry :: P (Text, Expr)
     explicitEntry = do
@@ -344,6 +352,82 @@ allocExpr = try $ do
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Alloc 0 keyExpr) segs)
+
+-- | @?shape(key, shape)@ (v3-symbols \S1.2, decisions \S19): a structure of
+-- symbols written with one key and one site. It lowers here, so the core AST
+-- is unchanged: the key is bound once to the hidden 'shapeKeyName', and each
+-- marker in the shape is already an 'Alloc' over @[$#shape, "name"]@ or
+-- @[$#shape, "name", key]@ ('marker'). 'numberAllocs' then gives the form
+-- one site and its markers that same site.
+--
+-- The 'try' covers @?shape(@ only; past it, the form is exactly two
+-- arguments, and a malformed one is a parse error. So are the marker rules
+-- the shape must keep ('checkShape') and a marker in the key.
+shapeExpr :: P Expr
+shapeExpr = do
+  _ <- try $ do
+    _ <- char '?'
+    n <- rawIdent
+    if n == "shape" then pure () else fail "not a ?shape form"
+    symbol "("
+  keyExpr <- expr
+  if null (ownMarkers False keyExpr)
+    then pure ()
+    else fail "a marker cannot be written in a ?shape's key"
+  _ <- symbol ","
+  shape <- expr
+  _ <- char ')'
+  checkShape shape
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Let shapeKeyName keyExpr shape) segs)
+
+-- | The rules on a @?shape@'s own markers, all static: at least one, no name
+-- twice (bare or keyed), and a key on every marker that sits under a lambda
+-- inside the shape.
+checkShape :: Expr -> P ()
+checkShape shape
+  | null markers = fail "a ?shape's shape must contain at least one marker of its own"
+  | any (\(_, keyed, underLambda) -> underLambda && not keyed) markers =
+      fail "a marker under a lambda inside a ?shape must carry a key, as in ~name(key)"
+  | length (nub names) /= length names = fail "a marker name appears twice in one ?shape"
+  | otherwise = pure ()
+  where
+    markers = ownMarkers False shape
+    names = [n | (n, _, _) <- markers]
+
+-- | @~name@ or @~name(key)@: a symbol marker, as the allocation it lowers to,
+-- with 'markerSite' until 'numberAllocs' gives it its form's site. The name
+-- follows the @~@ directly, and the @(@ of a key follows the name directly.
+-- Parsed anywhere an expression is; the enclosing 'shapeExpr' (or, outside
+-- any, 'noStrayMarker') decides whether it is legal there.
+marker :: P (Text, Expr)
+marker = lexeme $ do
+  _ <- char '~'
+  name <- rawIdent
+  key <- optional (char '(' *> skipSpaces *> expr <* char ')')
+  pure (name, Alloc markerSite (ArrayLit ([Path shapeKeyName [], StringLit name] <> maybeToList key)))
+
+markerExpr :: P Expr
+markerExpr = snd <$> marker
+
+-- | The markers that belong to the form whose shape (or key) this is: every
+-- marker in it but those inside a nested @?shape@'s shape, as (name, keyed,
+-- under a lambda written inside it).
+ownMarkers :: Bool -> Expr -> [(Text, Bool, Bool)]
+ownMarkers underLambda e = case e of
+  Alloc site (ArrayLit (_ : StringLit name : rest))
+    | site == markerSite -> (name, not (null rest), underLambda) : concatMap (ownMarkers underLambda) rest
+  Let name value _
+    | name == shapeKeyName -> ownMarkers underLambda value
+  Lambda _ body -> ownMarkers True body
+  _ -> concatMap (ownMarkers underLambda) (subExprs e)
+
+-- | A marker belongs to a @?shape@'s shape; anywhere else it is a parse error.
+noStrayMarker :: Expr -> P ()
+noStrayMarker e
+  | null (ownMarkers False e) = pure ()
+  | otherwise = fail "a marker ~name may only be written inside a ?shape's shape"
 
 -- | @?ctx.a.b@ (\S1.3): the path MUST be rooted at @ctx@ -- unlike an
 -- ordinary read, an unsupplied demand allocates at the root rather than
@@ -927,7 +1011,9 @@ operand =
     <|> call
     <|> pathExpr
     <|> allocExpr
+    <|> shapeExpr
     <|> demandExpr
+    <|> markerExpr
     <|> documentExpr
     <|> stringLit
     <|> numberLit
@@ -983,11 +1069,13 @@ parseProgram = runParser program ""
       root <- expr
       skipSpaces
       eof
-      let programBody = numberAllocs (stmts (concat statements) root)
+      let body = stmts (concat statements) root
+      noStrayMarker body
+      let programBody = numberAllocs body
       pure $ case root of
         Element {} -> DocumentProgram programBody
         Fragment {} -> DocumentProgram programBody
         _ -> ExpressionProgram programBody
 
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
-parseExpr = runParser (numberAllocs <$> (skipSpaces *> expr <* eof)) ""
+parseExpr = runParser (numberAllocs <$> (skipSpaces *> expr <* eof >>= \e -> e <$ noStrayMarker e)) ""

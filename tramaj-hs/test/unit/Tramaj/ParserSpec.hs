@@ -399,3 +399,38 @@ typeExprSpec = describe "type declarations" $ do
   it "does not confuse !type-constraint with an ordinary !expr emission" $
     parseProgram "!constraint(\"k\", 1)\ntrue"
       `shouldBe` Right (ExpressionProgram (Emit (Constrain "k" [IntLit 1]) (BoolLit True)))
+
+  -- v3-symbols \S1.2, decisions \S19: ?shape lowers at parse time.
+  declares
+    "?shape lowers to a hidden binding of its key and markers allocating at the form's one site"
+    "?shape(\"d\", {~replicas, ports: [~http($x)]})"
+    ( ExpressionProgram
+        ( Let
+            "#shape"
+            (StringLit "d")
+            ( ObjectLit
+                [ ("replicas", Alloc 0 (ArrayLit [Path "#shape" [], StringLit "replicas"]))
+                , ("ports", ArrayLit [Alloc 0 (ArrayLit [Path "#shape" [], StringLit "http", Path "x" []])])
+                ]
+            )
+        )
+    )
+
+  declares
+    "a ?(k) inside a shape takes the next site, after the form's own"
+    "?shape(\"o\", [~a, ?(\"p\")])"
+    ( ExpressionProgram
+        ( Let
+            "#shape"
+            (StringLit "o")
+            (ArrayLit [Alloc 0 (ArrayLit [Path "#shape" [], StringLit "a"]), Alloc 1 (StringLit "p")])
+        )
+    )
+
+  rejects "a marker outside any shape" "[~a]"
+  rejects "a marker in a ?shape's key" "?shape(~k, {~a})"
+  rejects "a bare marker under a lambda inside the shape" "?shape(\"d\", map($xs, (x) => ~a))"
+  rejects "a duplicate marker name, bare and keyed" "?shape(\"d\", [~a, map($xs, (x) => ~a($x))])"
+  rejects "a shape with no marker" "?shape(\"d\", {a: 1})"
+  rejects "?shape with three arguments" "?shape(\"d\", {~a}, 1)"
+  rejects "a space after the marker leader" "?shape(\"d\", ~ a)"
