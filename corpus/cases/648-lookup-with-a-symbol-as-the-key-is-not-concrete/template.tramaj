@@ -1,0 +1,4 @@
+-- v3-symbols §1.5: a symbol as the key of lookup is NotConcrete; the
+-- fallback would answer as if an unknown key were missing
+@s = ?("s")
+lookup([10, 20], $s, 0)

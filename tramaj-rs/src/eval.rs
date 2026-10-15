@@ -1879,11 +1879,11 @@ fn as_index(v: &Value) -> Option<usize> {
 
 /// Deliberately tolerant: a missing key, an out-of-range index, or a
 /// container of the wrong shape all answer `false` rather than erroring —
-/// except a symbolic container, which is `NotConcrete` rather than a lie
-/// (v3-symbols §1.5): the tolerant `false` would claim to know something
-/// about a container the language cannot see into.
+/// except a symbolic container or key, which is `NotConcrete` rather than a
+/// lie (v3-symbols §1.5): the tolerant `false` would claim to know something
+/// about a value the language cannot see into.
 fn has_impl(name: &str, container: &Value, key: &Value) -> EResult<bool> {
-    if is_symbolic(container) {
+    if is_symbolic(container) || is_symbolic(key) {
         return Err(EvalError::NotConcrete(name.to_string()));
     }
     Ok(match (container, key) {
@@ -1893,11 +1893,11 @@ fn has_impl(name: &str, container: &Value, key: &Value) -> EResult<bool> {
     })
 }
 
-/// A symbolic container is `NotConcrete` rather than falling back to the
+/// A symbolic container or key is `NotConcrete` rather than falling back to the
 /// fallback value, which would silently discard the symbol (v3-symbols
 /// §1.5).
 fn lookup_impl(name: &str, container: &Value, key: &Value, fallback: Value) -> EResult<Value> {
-    if is_symbolic(container) {
+    if is_symbolic(container) || is_symbolic(key) {
         return Err(EvalError::NotConcrete(name.to_string()));
     }
     Ok(match (container, key) {

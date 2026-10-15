@@ -1418,6 +1418,12 @@ func evalBuiltin(name string, args []value) value {
 // a container of the wrong shape all answer "not found", except a symbolic
 // container, which is NotConcrete rather than a lie.
 func lookupIn(name string, container, key value) (value, bool) {
+	// A symbol or a term as the key is NotConcrete too (v3-symbols section
+	// 1.5): answering "absent" would read an unknown key as a missing one.
+	switch key.(type) {
+	case *vSymbol, *vTerm:
+		notConcrete(name)
+	}
 	switch c := container.(type) {
 	case *vSymbol, *vTerm:
 		notConcrete(name)

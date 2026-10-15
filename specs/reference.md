@@ -620,8 +620,8 @@ The vocabulary is fixed, not user-extensible.
 | `and(…)`, `or(…)` | variadic, including zero arguments (`and()` is `true`, `or()` is `false`) |
 | `eq(a, b)` | deep equality; no cross-type coercion, so `eq(1, "1")` is `false`, and **[§18]** so is `eq(1, 1.0)` |
 | `lt`, `lte`, `gt`, `gte` | numbers only; **[§18]** two integers or two floats, and a mixed pair is a `TypeMismatch`, so `gt(1.5, 0)` is written `gt(1.5, 0.0)` |
-| `has(container, key)` | tolerant: a missing key, out-of-range index or wrong-shaped container answers `false` |
-| `lookup(container, key, fallback)` | dynamic access; the fallback is mandatory, so this never errors |
+| `has(container, key)` | tolerant: a missing key, out-of-range index or wrong-shaped container answers `false`. In symbolic mode a symbol or a term as the container or as the key is `NotConcrete` (v3-symbols §1.5) |
+| `lookup(container, key, fallback)` | dynamic access; the fallback is mandatory, so this never errors in concrete mode. In symbolic mode a symbol or a term as the container or as the key is `NotConcrete` (v3-symbols §1.5) |
 | `map`, `filter`, `scan`, `fold` | also core constructors — see below |
 | `sort-by(list, fn)`, `sort-by-descending(list, fn)` | **[§20]** core constructors too: a stable sort by key — see *Sorting* |
 | `format-number(x, decimals, group)` | **[§20]** a number as positional decimal text — see *Number formatting* |

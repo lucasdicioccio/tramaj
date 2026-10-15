@@ -89,6 +89,10 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`round(x)\`, the tenth name of the arithmetic profile: the nearest integer, ties away from zero. It builds a term over a symbol and is reported by \`ArithmeticOps\`."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking, symbolic mode only: a symbol or a term given as the key of \`has\` or \`lookup\` is \`NotConcrete\` (v3-symbols section 1.5), where it answered \`false\` or the fallback, reading an unknown key as a missing one. A concrete key keeps the tolerant behaviour: a missing key, an out-of-range index or a wrong-shaped container still answers \`false\` or the fallback."
           }
       ]
   }).rendered)

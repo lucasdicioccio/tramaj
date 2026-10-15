@@ -1223,8 +1223,8 @@ def _as_index(key: Value) -> Optional[int]:
 def _has_impl(name: str, container: Value, key: Value) -> bool:
     """Deliberately tolerant: a missing key, an out-of-range index, or a
     container of the wrong shape all answer false, except a symbolic
-    container, which is NotConcrete rather than a lie."""
-    if _is_symbolic(container):
+    container or key, which is NotConcrete rather than a lie."""
+    if _is_symbolic(container) or _is_symbolic(key):
         raise EvalError.not_concrete(name)
     if container.t == "object" and key.t == "str":
         return key.value in container.fields
@@ -1235,7 +1235,7 @@ def _has_impl(name: str, container: Value, key: Value) -> bool:
 
 
 def _lookup_impl(name: str, container: Value, key: Value, fallback: Value) -> Value:
-    if _is_symbolic(container):
+    if _is_symbolic(container) or _is_symbolic(key):
         raise EvalError.not_concrete(name)
     if container.t == "object" and key.t == "str":
         return container.fields.get(key.value, fallback)

@@ -1467,11 +1467,11 @@ function asIndex(n: number): number | null {
 
 /**
  * Deliberately tolerant: a missing key, an out-of-range index, or a container
- * of the wrong shape all answer `false` — except a symbolic container, which
+ * of the wrong shape all answer `false` — except a symbolic container or key, which
  * is `NotConcrete` rather than a lie (`v3-symbols.md` §1.5).
  */
 function hasImpl(name: string, container: Value, key: Value): boolean {
-  if (isSymbolic(container)) throw EvalError.notConcrete(name);
+  if (isSymbolic(container) || isSymbolic(key)) throw EvalError.notConcrete(name);
   if (container.t === "object" && key.t === "str") return container.fields.has(key.value);
   if (container.t === "array" && key.t === "int") {
     const i = asIndex(key.value);
@@ -1481,7 +1481,7 @@ function hasImpl(name: string, container: Value, key: Value): boolean {
 }
 
 function lookupImpl(name: string, container: Value, key: Value, fallback: Value): Value {
-  if (isSymbolic(container)) throw EvalError.notConcrete(name);
+  if (isSymbolic(container) || isSymbolic(key)) throw EvalError.notConcrete(name);
   if (container.t === "object" && key.t === "str") {
     return container.fields.get(key.value) ?? fallback;
   }

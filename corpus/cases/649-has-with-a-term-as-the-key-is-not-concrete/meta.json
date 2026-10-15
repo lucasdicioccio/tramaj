@@ -1,0 +1,8 @@
+{
+  "name": "has with a term as the key is not concrete",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "NotConcrete",
+  "profiles": ["int-float", "arithmetic"]
+}

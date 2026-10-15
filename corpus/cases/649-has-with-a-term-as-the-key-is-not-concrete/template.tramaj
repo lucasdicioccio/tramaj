@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.9: a term as the key of has is refused, as a symbol is
+@s = ?("s")
+@t = sum($s, 1)
+has([10, 20], $t)
