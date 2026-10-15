@@ -5,6 +5,8 @@
 -- | * string interpolation becomes `Concat` over the `str` builtin;
 -- | * `branch(fallback, p1, v1, ...)` becomes nested `Branch`;
 -- | * object shorthand `{foo}` becomes `{"foo": $foo}`;
+-- | * `?shape(key, shape)` becomes a `Let` of its key and the shape, each
+-- |   `~name` marker in it an `Alloc` at the form's one site;
 -- | * escape sequences are resolved into the `StringLit` they denote.
 -- |
 -- | The grammar keeps three leader characters from v1: `.` introduces a
@@ -56,7 +58,7 @@ import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, sepEn
 import Parsing.String (anyChar, char, eof, satisfy, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
-import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), TypeConstraintArg(..), TypeExpr(..), numberAllocs, stmts)
+import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), TypeConstraintArg(..), TypeExpr(..), markerSite, numberAllocs, shapeKeyName, stmts, subExprs)
 import Tramaj.Json (inIntegerRange)
 
 type P a = Parser String a
@@ -323,7 +325,13 @@ objectLit = lexeme do
   pure (ObjectLit (Array.fromFoldable entries))
   where
   objEntry :: P (Tuple String Expr)
-  objEntry = try explicitEntry <|> shorthandEntry
+  objEntry = try explicitEntry <|> markerEntry <|> shorthandEntry
+
+  -- | `{~replicas}` is `{replicas: ~replicas}`, and `{~host($x)}` is
+  -- | `{host: ~host($x)}` (v3-symbols §1.2): the shorthand field of a
+  -- | marker, expanded here so every other rule sees the long form.
+  markerEntry :: P (Tuple String Expr)
+  markerEntry = defer \_ -> marker
 
   explicitEntry :: P (Tuple String Expr)
   explicitEntry = do
@@ -376,6 +384,88 @@ allocExpr = try do
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Alloc 0 keyExpr) segs)
+
+-- | `?shape(key, shape)` (v3-symbols §1.2, decisions §19): a structure of
+-- | symbols written with one key and one site. It lowers here, so the core
+-- | AST is unchanged: the key is bound once to the hidden `shapeKeyName`,
+-- | and each marker in the shape is already an `Alloc` over
+-- | `[$#shape, "name"]` or `[$#shape, "name", key]` (`marker`).
+-- | `numberAllocs` then gives the form one site and its markers that same
+-- | site.
+-- |
+-- | The `try` covers `?shape(` only; past it, the form is exactly two
+-- | arguments, and a malformed one is a parse error. So are the marker
+-- | rules the shape must keep (`checkShape`) and a marker in the key.
+shapeExpr :: P Expr
+shapeExpr = do
+  _ <- try do
+    _ <- char '?'
+    n <- rawIdent
+    if n == "shape" then pure unit else fail "not a ?shape form"
+    symbol "("
+  keyExpr <- defer \_ -> expr
+  if Array.null (ownMarkers false keyExpr) then pure unit
+  else fail "a marker cannot be written in a ?shape's key"
+  _ <- symbol ","
+  shape <- defer \_ -> expr
+  _ <- char ')'
+  checkShape shape
+  segs <- fieldAccessSuffix
+  skipSpaces
+  pure (applyFieldAccess (Let shapeKeyName keyExpr shape) segs)
+
+-- | The rules on a `?shape`'s own markers, all static: at least one, no
+-- | name twice (bare or keyed), and a key on every marker that sits under a
+-- | lambda inside the shape.
+checkShape :: Expr -> P Unit
+checkShape shape =
+  let
+    markers = ownMarkers false shape
+    names = map _.name markers
+  in
+    if Array.null markers then fail "a ?shape's shape must contain at least one marker of its own"
+    else if Array.any (\m -> m.underLambda && not m.keyed) markers then
+      fail "a marker under a lambda inside a ?shape must carry a key, as in ~name(key)"
+    else if Array.length (Array.nub names) /= Array.length names then fail "a marker name appears twice in one ?shape"
+    else pure unit
+
+-- | `~name` or `~name(key)`: a symbol marker, as the allocation it lowers
+-- | to, at `markerSite` until `numberAllocs` gives it its form's site. The
+-- | name follows the `~` directly, and the `(` of a key follows the name
+-- | directly. Parsed anywhere an expression is; the enclosing `shapeExpr`
+-- | (or, outside any, `noStrayMarker`) decides whether it is legal there.
+marker :: P (Tuple String Expr)
+marker = lexeme do
+  _ <- char '~'
+  name <- rawIdent
+  key <- optionMaybe (char '(' *> skipSpaces *> defer (\_ -> expr) <* char ')')
+  let keyArgs = maybe [] pure key
+  pure (Tuple name (Alloc markerSite (ArrayLit ([ Path shapeKeyName [], StringLit name ] <> keyArgs))))
+
+markerExpr :: P Expr
+markerExpr = defer \_ -> map (\(Tuple _ e) -> e) marker
+
+-- | The markers that belong to the form whose shape (or key) this is: every
+-- | marker in it but those inside a nested `?shape`'s shape, with whether
+-- | each carries a key and whether a lambda written inside it encloses it.
+ownMarkers :: Boolean -> Expr -> Array { name :: String, keyed :: Boolean, underLambda :: Boolean }
+ownMarkers underLambda e = case e of
+  Alloc site (ArrayLit xs)
+    | site == markerSite
+    , Just (StringLit name) <- Array.index xs 1 ->
+        let rest = Array.drop 2 xs
+        in Array.cons { name, keyed: not (Array.null rest), underLambda } (Array.concatMap (ownMarkers underLambda) rest)
+  Let name value _
+    | name == shapeKeyName -> ownMarkers underLambda value
+  Lambda _ body -> ownMarkers true body
+  _ -> Array.concatMap (ownMarkers underLambda) (subExprs e)
+
+-- | A marker belongs to a `?shape`'s shape; anywhere else it is a parse
+-- | error.
+noStrayMarker :: Expr -> P Unit
+noStrayMarker e
+  | Array.null (ownMarkers false e) = pure unit
+  | otherwise = fail "a marker ~name may only be written inside a ?shape's shape"
 
 -- | `?ctx.a.b` (§1.3): the path MUST be rooted at `ctx` — unlike an
 -- | ordinary read, an unsupplied demand allocates at the root rather than
@@ -969,7 +1059,9 @@ operand = defer \_ ->
     <|> call
     <|> pathExpr
     <|> allocExpr
+    <|> shapeExpr
     <|> demandExpr
+    <|> markerExpr
     <|> documentExpr
     <|> stringLit
     <|> numberLit
@@ -1029,11 +1121,18 @@ parseProgram input = runParser input program
     root <- expr
     skipSpaces
     eof
-    let programBody = numberAllocs (stmts (Array.concat (Array.fromFoldable statements)) root)
+    let body = stmts (Array.concat (Array.fromFoldable statements)) root
+    noStrayMarker body
+    let programBody = numberAllocs body
     pure case root of
       Element _ _ _ _ -> DocumentProgram programBody
       Fragment _ -> DocumentProgram programBody
       _ -> ExpressionProgram programBody
 
 parseExpr :: String -> Either ParseError Expr
-parseExpr input = numberAllocs <$> runParser input (skipSpaces *> expr <* eof)
+parseExpr input = numberAllocs <$> runParser input do
+  skipSpaces
+  e <- expr
+  eof
+  noStrayMarker e
+  pure e

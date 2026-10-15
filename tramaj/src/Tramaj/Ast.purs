@@ -43,12 +43,14 @@ module Tramaj.Ast
   , subExprs
   , attributeExprs
   , numberAllocs
+  , shapeKeyName
+  , markerSite
   ) where
 
 import Prelude
 
 import Data.Array as Array
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits as Str
 import Data.Tuple (Tuple(..), snd)
 
@@ -528,6 +530,18 @@ attributeExprs = map case _ of
   Attr _ e -> e
   ActionAttr _ _ e -> e
 
+-- | The hidden name a `?shape(key, shape)` binds its key to (v3-symbols
+-- | §1.2, decisions §19). The parser lowers the form to
+-- | `Let shapeKeyName key shape`, each marker in the shape reading it.
+shapeKeyName :: String
+shapeKeyName = "#shape"
+
+-- | The placeholder site of a `~name` marker's `Alloc` between parsing and
+-- | `numberAllocs`, which replaces it with the site of the marker's form.
+-- | Never a real site, so the two are told apart by it alone.
+markerSite :: Int
+markerSite = -1
+
 -- | Assigns each `Alloc` in a program the index of its `?(...)` among all
 -- | of them, in source order (v3-symbols §1.4) — a plain pre-order,
 -- | left-to-right walk over the freshly parsed tree, numbering as it goes.
@@ -543,127 +557,144 @@ attributeExprs = map case _ of
 -- | n-th `?` in the source" for every shape the grammar produces —
 -- | attributes before value before children in an `Element`, condition
 -- | before either arm in a `Branch`, and so on.
+-- |
+-- | A `?shape` (lowered to a `Let` of `shapeKeyName`) takes a number in the
+-- | same sequence, at its `?`, before anything in its key; its markers take
+-- | none and get the form's site instead.
 numberAllocs :: Expr -> Expr
-numberAllocs e = (go 0 e).expr
+numberAllocs e = (numberIn Nothing 0 e).expr
   where
-  go :: Int -> Expr -> { next :: Int, expr :: Expr }
-  go n (Alloc _ key) =
-    let r = go (n + 1) key in { next: r.next, expr: Alloc n r.expr }
-  go n e'@(Path _ _) = { next: n, expr: e' }
-  go n (FieldAccess target fields) =
-    let r = go n target in { next: r.next, expr: FieldAccess r.expr fields }
-  go n (Call fn args) =
-    let r1 = go n fn
-        r2 = goArray r1.next args
-    in { next: r2.next, expr: Call r1.expr r2.arr }
-  go n (Lambda params body) = let r = go n body in { next: r.next, expr: Lambda params r.expr }
-  go n (Let name value body) =
-    let r1 = go n value
-        r2 = go r1.next body
-    in { next: r2.next, expr: Let name r1.expr r2.expr }
-  go n e'@(StringLit _) = { next: n, expr: e' }
-  go n e'@(IntLit _) = { next: n, expr: e' }
-  go n e'@(FloatLit _) = { next: n, expr: e' }
-  go n e'@(BoolLit _) = { next: n, expr: e' }
-  go n NullLit = { next: n, expr: NullLit }
-  go n (ArrayLit elems) = let r = goArray n elems in { next: r.next, expr: ArrayLit r.arr }
-  go n (ObjectLit entries) = let r = goPairs n entries in { next: r.next, expr: ObjectLit r.arr }
-  go n (Element tag attrs val children) =
-    let r1 = goAttrs n attrs
-        r2 = go r1.next val
-        r3 = goArray r2.next children
-    in { next: r3.next, expr: Element tag r1.arr r2.expr r3.arr }
-  go n (Fragment children) = let r = goArray n children in { next: r.next, expr: Fragment r.arr }
-  go n (Branch c t e') =
-    let r1 = go n c
-        r2 = go r1.next t
-        r3 = go r2.next e'
-    in { next: r3.next, expr: Branch r1.expr r2.expr r3.expr }
-  go n (Map coll fn) =
-    let r1 = go n coll
-        r2 = go r1.next fn
-    in { next: r2.next, expr: Map r1.expr r2.expr }
-  go n (Filter coll fn) =
-    let r1 = go n coll
-        r2 = go r1.next fn
-    in { next: r2.next, expr: Filter r1.expr r2.expr }
-  go n (Scan coll initial fn) =
-    let r1 = go n coll
-        r2 = go r1.next initial
-        r3 = go r2.next fn
-    in { next: r3.next, expr: Scan r1.expr r2.expr r3.expr }
-  go n (Fold coll initial fn) =
-    let r1 = go n coll
-        r2 = go r1.next initial
-        r3 = go r2.next fn
-    in { next: r3.next, expr: Fold r1.expr r2.expr r3.expr }
-  go n (SortBy descending coll fn) =
-    let r1 = go n coll
-        r2 = go r1.next fn
-    in { next: r2.next, expr: SortBy descending r1.expr r2.expr }
-  go n (Concat l r) =
-    let r1 = go n l
-        r2 = go r1.next r
-    in { next: r2.next, expr: Concat r1.expr r2.expr }
-  go n (Import name params) = let r = goParams n params in { next: r.next, expr: Import name r.arr }
-  go n (AdaptActions target adaptation fn) =
-    let r1 = go n target
-    in case fn of
-      Nothing -> { next: r1.next, expr: AdaptActions r1.expr adaptation Nothing }
-      Just f ->
-        let r2 = go r1.next f
-        in { next: r2.next, expr: AdaptActions r1.expr adaptation (Just r2.expr) }
-  go n (Constrain name args) = let r = goArray n args in { next: r.next, expr: Constrain name r.arr }
-  go n (Emit constraint body) =
-    let r1 = go n constraint
-        r2 = go r1.next body
-    in { next: r2.next, expr: Emit r1.expr r2.expr }
-  go n e'@(Demand _) = { next: n, expr: e' }
-  go n (TypeDecl name t body) = let r = go n body in { next: r.next, expr: TypeDecl name t r.expr }
-  go n (TypeAnnotate name t value body) =
-    let r1 = go n value
-        r2 = go r1.next body
-    in { next: r2.next, expr: TypeAnnotate name t r1.expr r2.expr }
-  go n (TypeEmit name tcArgs body) = let r = go n body in { next: r.next, expr: TypeEmit name tcArgs r.expr }
+  -- | `shape` is the site of the innermost `?shape` whose shape this is, if
+  -- | any: what a marker (an `Alloc` at `markerSite`) takes as its own.
+  numberIn :: Maybe Int -> Int -> Expr -> { next :: Int, expr :: Expr }
+  numberIn shape = go
+    where
+    go :: Int -> Expr -> { next :: Int, expr :: Expr }
+    go n (Alloc site key)
+      | site == markerSite =
+          let r = go n key in { next: r.next, expr: Alloc (fromMaybe markerSite shape) r.expr }
+      | otherwise =
+          let r = go (n + 1) key in { next: r.next, expr: Alloc n r.expr }
+    go n e'@(Path _ _) = { next: n, expr: e' }
+    go n (FieldAccess target fields) =
+      let r = go n target in { next: r.next, expr: FieldAccess r.expr fields }
+    go n (Call fn args) =
+      let r1 = go n fn
+          r2 = goArray r1.next args
+      in { next: r2.next, expr: Call r1.expr r2.arr }
+    go n (Lambda params body) = let r = go n body in { next: r.next, expr: Lambda params r.expr }
+    go n (Let name value body)
+      | name == shapeKeyName =
+          let r1 = go (n + 1) value
+              r2 = numberIn (Just n) r1.next body
+          in { next: r2.next, expr: Let name r1.expr r2.expr }
+    go n (Let name value body) =
+      let r1 = go n value
+          r2 = go r1.next body
+      in { next: r2.next, expr: Let name r1.expr r2.expr }
+    go n e'@(StringLit _) = { next: n, expr: e' }
+    go n e'@(IntLit _) = { next: n, expr: e' }
+    go n e'@(FloatLit _) = { next: n, expr: e' }
+    go n e'@(BoolLit _) = { next: n, expr: e' }
+    go n NullLit = { next: n, expr: NullLit }
+    go n (ArrayLit elems) = let r = goArray n elems in { next: r.next, expr: ArrayLit r.arr }
+    go n (ObjectLit entries) = let r = goPairs n entries in { next: r.next, expr: ObjectLit r.arr }
+    go n (Element tag attrs val children) =
+      let r1 = goAttrs n attrs
+          r2 = go r1.next val
+          r3 = goArray r2.next children
+      in { next: r3.next, expr: Element tag r1.arr r2.expr r3.arr }
+    go n (Fragment children) = let r = goArray n children in { next: r.next, expr: Fragment r.arr }
+    go n (Branch c t e') =
+      let r1 = go n c
+          r2 = go r1.next t
+          r3 = go r2.next e'
+      in { next: r3.next, expr: Branch r1.expr r2.expr r3.expr }
+    go n (Map coll fn) =
+      let r1 = go n coll
+          r2 = go r1.next fn
+      in { next: r2.next, expr: Map r1.expr r2.expr }
+    go n (Filter coll fn) =
+      let r1 = go n coll
+          r2 = go r1.next fn
+      in { next: r2.next, expr: Filter r1.expr r2.expr }
+    go n (Scan coll initial fn) =
+      let r1 = go n coll
+          r2 = go r1.next initial
+          r3 = go r2.next fn
+      in { next: r3.next, expr: Scan r1.expr r2.expr r3.expr }
+    go n (Fold coll initial fn) =
+      let r1 = go n coll
+          r2 = go r1.next initial
+          r3 = go r2.next fn
+      in { next: r3.next, expr: Fold r1.expr r2.expr r3.expr }
+    go n (SortBy descending coll fn) =
+      let r1 = go n coll
+          r2 = go r1.next fn
+      in { next: r2.next, expr: SortBy descending r1.expr r2.expr }
+    go n (Concat l r) =
+      let r1 = go n l
+          r2 = go r1.next r
+      in { next: r2.next, expr: Concat r1.expr r2.expr }
+    go n (Import name params) = let r = goParams n params in { next: r.next, expr: Import name r.arr }
+    go n (AdaptActions target adaptation fn) =
+      let r1 = go n target
+      in case fn of
+        Nothing -> { next: r1.next, expr: AdaptActions r1.expr adaptation Nothing }
+        Just f ->
+          let r2 = go r1.next f
+          in { next: r2.next, expr: AdaptActions r1.expr adaptation (Just r2.expr) }
+    go n (Constrain name args) = let r = goArray n args in { next: r.next, expr: Constrain name r.arr }
+    go n (Emit constraint body) =
+      let r1 = go n constraint
+          r2 = go r1.next body
+      in { next: r2.next, expr: Emit r1.expr r2.expr }
+    go n e'@(Demand _) = { next: n, expr: e' }
+    go n (TypeDecl name t body) = let r = go n body in { next: r.next, expr: TypeDecl name t r.expr }
+    go n (TypeAnnotate name t value body) =
+      let r1 = go n value
+          r2 = go r1.next body
+      in { next: r2.next, expr: TypeAnnotate name t r1.expr r2.expr }
+    go n (TypeEmit name tcArgs body) = let r = go n body in { next: r.next, expr: TypeEmit name tcArgs r.expr }
 
-  goArray :: Int -> Array Expr -> { next :: Int, arr :: Array Expr }
-  goArray n xs = case Array.uncons xs of
-    Nothing -> { next: n, arr: [] }
-    Just { head, tail } ->
-      let r1 = go n head
-          r2 = goArray r1.next tail
-      in { next: r2.next, arr: Array.cons r1.expr r2.arr }
+    goArray :: Int -> Array Expr -> { next :: Int, arr :: Array Expr }
+    goArray n xs = case Array.uncons xs of
+      Nothing -> { next: n, arr: [] }
+      Just { head, tail } ->
+        let r1 = go n head
+            r2 = goArray r1.next tail
+        in { next: r2.next, arr: Array.cons r1.expr r2.arr }
 
-  goPairs :: Int -> Array (Tuple String Expr) -> { next :: Int, arr :: Array (Tuple String Expr) }
-  goPairs n xs = case Array.uncons xs of
-    Nothing -> { next: n, arr: [] }
-    Just { head: Tuple k x, tail } ->
-      let r1 = go n x
-          r2 = goPairs r1.next tail
-      in { next: r2.next, arr: Array.cons (Tuple k r1.expr) r2.arr }
+    goPairs :: Int -> Array (Tuple String Expr) -> { next :: Int, arr :: Array (Tuple String Expr) }
+    goPairs n xs = case Array.uncons xs of
+      Nothing -> { next: n, arr: [] }
+      Just { head: Tuple k x, tail } ->
+        let r1 = go n x
+            r2 = goPairs r1.next tail
+        in { next: r2.next, arr: Array.cons (Tuple k r1.expr) r2.arr }
 
-  goAttrs :: Int -> Array Attribute -> { next :: Int, arr :: Array Attribute }
-  goAttrs n xs = case Array.uncons xs of
-    Nothing -> { next: n, arr: [] }
-    Just { head: Attr name x, tail } ->
-      let r1 = go n x
-          r2 = goAttrs r1.next tail
-      in { next: r2.next, arr: Array.cons (Attr name r1.expr) r2.arr }
-    Just { head: ActionAttr ev key x, tail } ->
-      let r1 = go n x
-          r2 = goAttrs r1.next tail
-      in { next: r2.next, arr: Array.cons (ActionAttr ev key r1.expr) r2.arr }
+    goAttrs :: Int -> Array Attribute -> { next :: Int, arr :: Array Attribute }
+    goAttrs n xs = case Array.uncons xs of
+      Nothing -> { next: n, arr: [] }
+      Just { head: Attr name x, tail } ->
+        let r1 = go n x
+            r2 = goAttrs r1.next tail
+        in { next: r2.next, arr: Array.cons (Attr name r1.expr) r2.arr }
+      Just { head: ActionAttr ev key x, tail } ->
+        let r1 = go n x
+            r2 = goAttrs r1.next tail
+        in { next: r2.next, arr: Array.cons (ActionAttr ev key r1.expr) r2.arr }
 
-  goParams :: Int -> Array (Tuple String ParamValue) -> { next :: Int, arr :: Array (Tuple String ParamValue) }
-  goParams n xs = case Array.uncons xs of
-    Nothing -> { next: n, arr: [] }
-    Just { head: Tuple k (PExpr x), tail } ->
-      let r1 = go n x
-          r2 = goParams r1.next tail
-      in { next: r2.next, arr: Array.cons (Tuple k (PExpr r1.expr)) r2.arr }
-    Just { head: p@(Tuple _ (PFromContext _)), tail } ->
-      let r1 = goParams n tail
-      in { next: r1.next, arr: Array.cons p r1.arr }
-    Just { head: p@(Tuple _ (PType _)), tail } ->
-      let r1 = goParams n tail
-      in { next: r1.next, arr: Array.cons p r1.arr }
+    goParams :: Int -> Array (Tuple String ParamValue) -> { next :: Int, arr :: Array (Tuple String ParamValue) }
+    goParams n xs = case Array.uncons xs of
+      Nothing -> { next: n, arr: [] }
+      Just { head: Tuple k (PExpr x), tail } ->
+        let r1 = go n x
+            r2 = goParams r1.next tail
+        in { next: r2.next, arr: Array.cons (Tuple k (PExpr r1.expr)) r2.arr }
+      Just { head: p@(Tuple _ (PFromContext _)), tail } ->
+        let r1 = goParams n tail
+        in { next: r1.next, arr: Array.cons p r1.arr }
+      Just { head: p@(Tuple _ (PType _)), tail } ->
+        let r1 = goParams n tail
+        in { next: r1.next, arr: Array.cons p r1.arr }
