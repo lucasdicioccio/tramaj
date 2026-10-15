@@ -20,34 +20,37 @@ Six independent implementations target the same grammar and are checked against 
 
 ![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png )
 
-None is published to a package registry yet (see the README's "Publishing" section) — all are used today as workspace, source or git dependencies. Each has its own [changelog](/topics/changelog.html ) page and Atom feed. See [Integrating tramaj](/integrate-tramaj.html ) for what's actually usable from each right now, including the fold each one does or doesn't ship.
+`tramaj-purs` and `tramaj-halogen` are on the PureScript registry (0.4.1), `tramaj-hs` on Hackage (0.4.0.0), `tramaj-rs` and `tramaj-cli-rs` on crates.io (0.2.0), and `tramaj-py` on PyPI as `tramaj` (0.2.0), each with language v5. `tramaj-js`, `tramaj-react`, `tramaj-go` and `tramaj-cli` are in no package registry yet, and are used as source or git dependencies. Each has its own [changelog](/topics/changelog.html ) page and Atom feed. See [Integrating tramaj](/integrate-tramaj.html ) for what's actually usable from each right now, including the fold each one does or doesn't ship.
 
 ## The native-implementation wish list is done
 
 Earlier versions of this page asked for native JavaScript, Python and Rust implementations, so that hosts in those ecosystems would get what PureScript and Haskell hosts already had: an in-process parser and evaluator, with no subprocess and no JSON round-trip just to get a `Node`. All three exist now — `tramaj-js`, `tramaj-py` and `tramaj-rs` — and each passes the full corpus in both modes, v3 and v4 extensions included. A Go port, `tramaj-go`, has since joined them on the same terms.
 
-## In progress: two number types and arithmetic
+## Language v5, in all six: two number types, arithmetic, sorting and number formatting
 
-Numbers are now an integer and a float, two types, and a template can compute with nine named arithmetic builtins. The specification and the corpus fixtures are written. Where each implementation stands:
+Numbers are now an integer and a float, two types, and a template can compute with ten named arithmetic builtins, `round` among them. It can also sort a list with `sort-by` and `sort-by-descending`, and write a number with `format-number`. Together these are language v5, [announced here](/tramaj-v5.html ). The specification and the corpus fixtures are written, and all six implementations have all of it:
 
 ```html
 <table>
-<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic</th></tr>
-<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-hs</code></td><td>on <code>main</code>, not released</td><td>on <code>main</code>, not released</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-js</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td></tr>
+<tr><th>Implementation</th><th>Language v5</th><th>Released in</th></tr>
+<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td><code>tramaj-purs</code> and <code>tramaj-halogen</code> 0.4.1 (PureScript registry)</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>0.4.0.0 (Hackage)</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>on <code>main</code>; not on npm yet</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>0.2.0 (crates.io)</td></tr>
+<tr><td><code>tramaj-go</code></td><td>yes</td><td>on <code>main</code>, no tagged version</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>0.2.0 (PyPI, as <code>tramaj</code>)</td></tr>
 </table>
 ```
 
-The corpus cases for these carry a `"requires"` field, and an implementation skips the cases whose requirement it does not declare. So every implementation still passes every case it runs, while the four in the last row run fewer of them. The split changes existing output: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) lists how.
+The corpus cases for these carry a `"profiles"` field, and an implementation skips the cases that list a name it does not provide. All six provide every name but one: the integer range, 53 bits in PureScript and TypeScript and 64 bits in the other four, so each skips the few cases written for the other range. The number split and the arithmetic profile are no longer skippable: a case that lists `"int-float"` or `"arithmetic"` fails in an implementation that does not provide it. The split changes existing output: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) lists how.
 
-Specified after that, and in no implementation yet: `round`, sorting (`sort-by`, `sort-by-descending`) and `format-number`. `?shape` is an accepted design without normative text. See [Two designs accepted](/design-arithmetic-and-shapes.html ).
+`?shape` is an accepted design without normative text, and no implementation has it. See [Two designs accepted](/design-arithmetic-and-shapes.html ).
 
-## Desired next: folds, and releases
+## Desired next: folds, and npm
 
 - **Folds.** Only PureScript (`tramaj-halogen`) and JavaScript (`tramaj-react`) ship a fold to a rendering target. A DOM fold for JS, a fold to a common Python templating output, and a fold for at least one Haskell or Rust UI or markup library are the obvious next pieces.
 
-- **Registry releases.** The crates.io, npm and PyPI packages are ready to publish but not published; the PureScript registry and Hackage are deliberately deferred until the API has settled. Releases happen when there are major changes, and each package's version tracks the language version it implements in its major digit.
+- **npm packages.** crates.io, PyPI, Hackage and the PureScript registry have a v5 release; npm has only a `0.0.0-stage` placeholder, and a release of `tramaj-js` and `tramaj-react` is wanted there. Releases happen when there are major changes, and each package's version tracks the language version it implements in its major digit.
 
 
 This is a wish list, not a schedule: there's no committed timeline or assigned owner for any of it.

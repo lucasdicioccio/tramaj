@@ -268,10 +268,11 @@ source-repository-package
 ## Roadmap to a stable release
 
 No package here has had a stable release yet. The language has gone through
-four iterations: v1 (the original block/template split), v2 (expression-oriented
+five iterations: v1 (the original block/template split), v2 (expression-oriented
 documents, static analyses and the normative Node JSON format), v3 (symbolic
-values and constraints), and v4 (types and type constraints). Assume anything
-can still change.
+values and constraints), v4 (types and type constraints), and v5 (integers and
+floats as two types, arithmetic, sorting and number formatting, in all six
+implementations). Assume anything can still change.
 
 Done:
 
@@ -285,7 +286,11 @@ Done:
 - symbolic values (`?(key)`), constraints (`!constraint(...)`) and symbolic
   output mode ([`specs/v3-symbols.md`](specs/v3-symbols.md));
 - nominal types, type parameters through imports, typed annotations and
-  `!type-constraint(...)` ([`specs/v4-types.md`](specs/v4-types.md)).
+  `!type-constraint(...)` ([`specs/v4-types.md`](specs/v4-types.md));
+- integers and floats as two types, arithmetic builtins, `sort-by` and
+  `format-number` (`specs/reference.md`, `specs/decisions.md` §18 and §20);
+- a shared cross-implementation conformance corpus ([`corpus/`](corpus)),
+  which all six implementations run in full.
 
 Still open:
 
@@ -293,7 +298,6 @@ Still open:
 - array patterns, defaults and rest for the object binding patterns that
   `let` and lambda parameters now accept (`specs/reference.md` §8,
   `specs/decisions.md` §17);
-- a shared cross-implementation conformance corpus (see the known gap above);
 - more regression and compatibility tests before anything is called stable.
 
 

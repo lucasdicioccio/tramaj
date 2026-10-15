@@ -1,9 +1,249 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-25T12:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html</id><title type="text">Two designs accepted: arithmetic, and shapes of symbols</title><updated>2026-10-08T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="two-designs-accepted-arithmetic-and-shapes-of-symbols"&gt;Two designs accepted: arithmetic, and shapes of symbols&lt;/h2&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-15T12:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/roadmap.html</id><title type="text">Roadmap</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="roadmap"&gt;Roadmap&lt;/h2&gt;
+&lt;p&gt;No package in this repository has had a stable release yet, and the
+language itself is still settling — see the
+&lt;a href="https://github.com/lucasdicioccio/tramaj#roadmap-to-a-stable-release"&gt;repository README&lt;/a&gt;
+for where the language grammar stands. This page is about something
+narrower: which &lt;em&gt;implementations&lt;/em&gt; of tramaj exist, and which are wanted
+next.&lt;/p&gt;
+&lt;h3 id="where-things-stand-today"&gt;Where things stand today&lt;/h3&gt;
+&lt;p&gt;Six independent implementations target the same grammar and are checked
+against a shared, language-neutral
+&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt; —
+template/context/expected-output triples that all must reproduce
+byte-for-byte, per case, in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; evaluation modes.
+That’s a deliberately strong bar: a case belongs in the corpus only if
+independently written implementations can run it identically.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Language&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;reference implementation, checked against the corpus; &lt;code&gt;tramaj-halogen&lt;/code&gt; folds to Halogen, &lt;code&gt;tramaj-cli&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-react&lt;/code&gt; folds to React&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;python -m tramaj&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;tramaj-go&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-halogen&lt;/code&gt; are on the PureScript registry (0.4.1),
+&lt;code&gt;tramaj-hs&lt;/code&gt; on Hackage (0.4.0.0), &lt;code&gt;tramaj-rs&lt;/code&gt; and &lt;code&gt;tramaj-cli-rs&lt;/code&gt; on
+crates.io (0.2.0), and &lt;code&gt;tramaj-py&lt;/code&gt; on PyPI as &lt;code&gt;tramaj&lt;/code&gt; (0.2.0), each with
+language v5. &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt; and &lt;code&gt;tramaj-cli&lt;/code&gt; are
+in no package registry yet, and are used as source or git dependencies.
+Each has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom feed. See &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for what’s
+actually usable from each right now, including the fold each one does or
+doesn’t ship.&lt;/p&gt;
+&lt;h3 id="the-native-implementation-wish-list-is-done"&gt;The native-implementation wish list is done&lt;/h3&gt;
+&lt;p&gt;Earlier versions of this page asked for native JavaScript, Python and Rust
+implementations, so that hosts in those ecosystems would get what
+PureScript and Haskell hosts already had: an in-process parser and
+evaluator, with no subprocess and no JSON round-trip just to get a &lt;code&gt;Node&lt;/code&gt;.
+All three exist now — &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-rs&lt;/code&gt; — and each
+passes the full corpus in both modes, v3 and v4 extensions included. A Go
+port, &lt;code&gt;tramaj-go&lt;/code&gt;, has since joined them on the same terms.&lt;/p&gt;
+&lt;h3 id="language-v5-in-all-six-two-number-types-arithmetic-sorting-and-number-formatting"&gt;Language v5, in all six: two number types, arithmetic, sorting and number formatting&lt;/h3&gt;
+&lt;p&gt;Numbers are now an integer and a float, two types, and a template can
+compute with ten named arithmetic builtins, &lt;code&gt;round&lt;/code&gt; among them. It can also
+sort a list with &lt;code&gt;sort-by&lt;/code&gt; and &lt;code&gt;sort-by-descending&lt;/code&gt;, and write a number with
+&lt;code&gt;format-number&lt;/code&gt;. Together these are language v5,
+&lt;a href="/tramaj/tramaj-v5.html"&gt;announced here&lt;/a&gt;. The specification and the corpus fixtures
+are written, and all six implementations have all of it:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Language v5&lt;/th&gt;&lt;th&gt;Released in&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (PureScript), &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-halogen&lt;/code&gt; 0.4.1 (PureScript registry)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.4.0.0 (Hackage)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;; not on npm yet&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.2.0 (crates.io)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, no tagged version&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;0.2.0 (PyPI, as &lt;code&gt;tramaj&lt;/code&gt;)&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;The corpus cases for these carry a &lt;code&gt;&amp;quot;profiles&amp;quot;&lt;/code&gt; field, and an implementation
+skips the cases that list a name it does not provide. All six provide every
+name but one: the integer range, 53 bits in PureScript and TypeScript and
+64 bits in the other four, so each skips the few cases written for the other
+range. The number split and the arithmetic profile are no longer skippable:
+a case that lists &lt;code&gt;&amp;quot;int-float&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;arithmetic&amp;quot;&lt;/code&gt; fails in an implementation
+that does not provide it. The split changes existing output:
+&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;
+lists how.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;?shape&lt;/code&gt; is an accepted design without normative text, and no implementation
+has it. See
+&lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;Two designs accepted&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="desired-next-folds-and-npm"&gt;Desired next: folds, and npm&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Folds.&lt;/strong&gt; Only PureScript (&lt;code&gt;tramaj-halogen&lt;/code&gt;) and JavaScript
+(&lt;code&gt;tramaj-react&lt;/code&gt;) ship a fold to a rendering target. A DOM fold for JS, a
+fold to a common Python templating output, and a fold for at least one
+Haskell or Rust UI or markup library are the obvious next pieces.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;npm packages.&lt;/strong&gt; crates.io, PyPI, Hackage and the PureScript registry
+have a v5 release; npm has only a &lt;code&gt;0.0.0-stage&lt;/code&gt; placeholder, and a release
+of &lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-react&lt;/code&gt; is wanted there. Releases happen when
+there are major changes, and each package’s version tracks the language
+version it implements in its major digit.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This is a wish list, not a schedule: there’s no committed timeline or
+assigned owner for any of it.&lt;/p&gt;
+&lt;h3 id="what-done-looks-like-for-a-new-implementation"&gt;What “done” looks like for a new implementation&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;, &lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-go&lt;/code&gt; are the templates to
+follow, since they were added &lt;em&gt;after&lt;/em&gt; the language had settled on a
+normative spec and output format (&lt;code&gt;tramaj-py&lt;/code&gt; is the smallest: one module
+per concern, standard library only). A new implementation is considered on
+par with the existing ones once it:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;implements the grammar and evaluation rules in
+&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt;, including the static
+restrictions that make imports, action keys, and &lt;code&gt;ctx(...)&lt;/code&gt; paths
+analyzable without evaluation (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;);
+&lt;/li&gt;
+&lt;li&gt;encodes and decodes the &lt;code&gt;Node&lt;/code&gt; AST exactly per
+&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;, including the round-trip
+guarantee (&lt;code&gt;decode(encode(n)) == n&lt;/code&gt;);
+&lt;/li&gt;
+&lt;li&gt;passes every case in the
+&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt;,
+in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; mode, byte-for-byte against
+&lt;code&gt;expected.json&lt;/code&gt;;
+&lt;/li&gt;
+&lt;li&gt;optionally, but ideally: a fold analogous to &lt;code&gt;tramaj-halogen&lt;/code&gt;’s
+&lt;code&gt;foldToHalogen&lt;/code&gt; for at least one popular rendering target in that
+ecosystem (e.g. a DOM fold for JS, a common Python templating output for
+Python).
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The v3 (&lt;code&gt;?&lt;/code&gt;/&lt;code&gt;!&lt;/code&gt;, &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;) and v4
+(&lt;code&gt;%&lt;/code&gt;, &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;) extensions are both
+shipped and part of the same conformance bar — a new implementation isn’t
+considered complete while targeting only the v2 core.&lt;/p&gt;
+&lt;h3 id="contributing-an-implementation"&gt;Contributing an implementation&lt;/h3&gt;
+&lt;p&gt;If you’re taking on one of these, the corpus is the fastest way to find out
+what you got wrong: it’s meant to be run against a from-scratch
+implementation just as it’s run against the six that exist, and a case
+that byte-for-byte matches all of them today is a strong signal your
+evaluation semantics agree with theirs. Open an issue on the
+&lt;a href="https://github.com/lucasdicioccio/tramaj"&gt;repository&lt;/a&gt; before investing
+heavily in one — coordinating on which language is being worked on avoids
+duplicate effort.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/roadmap.html" rel="alternate"/><summary type="text">Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. All six carry the whole of language v5 (integers and floats as two types, arithmetic, sorting and number formatting) and run the whole corpus. Wanted next: npm packages and folds.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
+&lt;p&gt;tramaj has gone through four iterations so far: v1 (the original
+block/template split), v2 (expression-oriented documents, static analyses
+and the &lt;code&gt;Node&lt;/code&gt; JSON format), v3 (symbols and constraints) and v4 (types).
+This is the fifth. It changes what a number is, and lets a template do
+something with one:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Two number types.&lt;/strong&gt; An integer and a float, with no implicit conversion
+between them.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Arithmetic.&lt;/strong&gt; Ten named builtins, &lt;code&gt;round&lt;/code&gt; among them, in an optional
+profile that a host turns on.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Sorting.&lt;/strong&gt; &lt;code&gt;sort-by&lt;/code&gt; and &lt;code&gt;sort-by-descending&lt;/code&gt; order a list by a key
+function.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Number formatting.&lt;/strong&gt; &lt;code&gt;format-number&lt;/code&gt; writes a number with a fixed
+number of decimals and a group separator, rounded the same way everywhere.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;And the part that makes it a version rather than a design: &lt;strong&gt;all six
+implementations have all of it, and run the same corpus.&lt;/strong&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;@rows=sort-by-descending($ctx.rows, (r) =&amp;gt; $r.spend)
+@total=sum(map($rows, (r) =&amp;gt; $r.spend))
+.table(
+  map($rows, (r) =&amp;gt; .tr(.td($r.name), .td(format-number($r.spend, 2, &amp;quot;,&amp;quot;))))
+  , .tr(.td(&amp;quot;total&amp;quot;), .td(format-number($total, 2, &amp;quot;,&amp;quot;))))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="what-changed-since-v4"&gt;What changed since v4&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Numbers.&lt;/strong&gt; A JSON number in the context is typed by its text: &lt;code&gt;3&lt;/code&gt; is an
+integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats. A template literal follows the same
+rule. Integers are exact over a guaranteed range; an integer outside it is
+refused instead of being rounded. Comparisons do not mix the two types, and
+&lt;code&gt;real(…)&lt;/code&gt;, &lt;code&gt;floor(…)&lt;/code&gt; and &lt;code&gt;round(…)&lt;/code&gt; convert when the template asks.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Arithmetic.&lt;/strong&gt; Until v4 the reference said a template “compares and
+selects, it does not compute”. That is reversed, narrowly: the grammar has
+no infix operators, and arithmetic is ten named builtins (&lt;code&gt;sum&lt;/code&gt;, &lt;code&gt;product&lt;/code&gt;,
+&lt;code&gt;negate&lt;/code&gt;, &lt;code&gt;round&lt;/code&gt;, …) in a profile the host enables. A host that does not
+enable it can refuse such a program up front, from its static analysis,
+without evaluating it. The design and the alternatives that were rejected
+are in &lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;Two designs accepted&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Sorting and formatting.&lt;/strong&gt; &lt;code&gt;sort-by(list, fn)&lt;/code&gt; and
+&lt;code&gt;sort-by-descending(list, fn)&lt;/code&gt; order a list by the key &lt;code&gt;fn&lt;/code&gt; gives each
+element, and are stable. &lt;code&gt;format-number(x, decimals, group)&lt;/code&gt; writes
+&lt;code&gt;1234567.891&lt;/code&gt; as &lt;code&gt;&amp;quot;1,234,567.89&amp;quot;&lt;/code&gt;. Both are part of the core language and
+need no profile. The rounding rule of &lt;code&gt;format-number&lt;/code&gt; is normative, because
+the native formatters of the six host languages disagree on ties and on
+negative zero: each implementation writes the rule by hand rather than
+calling its own formatter.&lt;/p&gt;
+&lt;p&gt;All of this is specified in
+&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; §3, §11 and §13, and recorded,
+with the alternatives, in
+&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"&gt;&lt;code&gt;specs/decisions.md&lt;/code&gt;&lt;/a&gt;
+sections 18 and 20.&lt;/p&gt;
+&lt;h3 id="breaking-changes"&gt;Breaking changes&lt;/h3&gt;
+&lt;p&gt;The arithmetic profile is an addition: a template that does not use it is
+unaffected. The number split is not optional, and it changes the output of
+some existing templates and hosts:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;what&lt;/th&gt;&lt;th&gt;v4&lt;/th&gt;&lt;th&gt;v5&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;str&lt;/code&gt; of a whole-valued float&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;eq&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;eq(1, 1.0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;gt(1.5, 0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a &lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a JSON number in the context&lt;/td&gt;&lt;td&gt;a double, whatever its text&lt;/td&gt;&lt;td&gt;&lt;code&gt;3&lt;/code&gt; is an integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;an integer outside the range&lt;/td&gt;&lt;td&gt;rounded to the nearest double&lt;/td&gt;&lt;td&gt;refused: a parse error as a literal, a &lt;code&gt;TypeMismatch&lt;/code&gt; in the context&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the object key &lt;code&gt;"$term"&lt;/code&gt;&lt;/td&gt;&lt;td&gt;an ordinary key&lt;/td&gt;&lt;td&gt;reserved, like &lt;code&gt;"$sym"&lt;/code&gt; and &lt;code&gt;"$type"&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the type primitive &lt;code&gt;number&lt;/code&gt; (v4 types)&lt;/td&gt;&lt;td&gt;a primitive&lt;/td&gt;&lt;td&gt;gone: &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; replace it&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;
+takes each row in turn: who it affects, how to find the templates it
+affects, and what to change.&lt;/p&gt;
+&lt;h3 id="every-implementation-runs-the-whole-corpus"&gt;Every implementation runs the whole corpus&lt;/h3&gt;
+&lt;p&gt;The &lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt;
+holds 646 cases: a template, a context and the expected output, compared
+byte for byte, in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; mode. Until now an
+implementation could skip a case that needed a profile it did not provide,
+and while the ports caught up, some did. That is over: &lt;code&gt;&amp;quot;int-float&amp;quot;&lt;/code&gt; and
+&lt;code&gt;&amp;quot;arithmetic&amp;quot;&lt;/code&gt; are now required of every runner, and a case that lists one
+fails, rather than being skipped, in an implementation without it.&lt;/p&gt;
+&lt;p&gt;The only cases any implementation still skips are the ones written for the
+other integer range. PureScript and TypeScript have the guaranteed 53-bit
+range, because their host number is a double; the other four have the
+64-bit range. Each skips the few cases that pin down the other range’s
+edges.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;implementation&lt;/th&gt;&lt;th&gt;integer range&lt;/th&gt;&lt;th&gt;corpus&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (PureScript)&lt;/td&gt;&lt;td&gt;53-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 64-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt; (Haskell)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; (Rust)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt; (TypeScript)&lt;/td&gt;&lt;td&gt;53-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 64-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt; (Go)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt; (Python)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h3 id="packages"&gt;Packages&lt;/h3&gt;
+&lt;p&gt;Where to get v5 today:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;package&lt;/th&gt;&lt;th&gt;language&lt;/th&gt;&lt;th&gt;where&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;PureScript registry, 0.4.1&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;from the repository&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;Hackage, 0.4.0.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;crates.io, 0.2.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (&lt;code&gt;tramaj-py&lt;/code&gt;)&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;PyPI, 0.2.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;from the repository; npm has only a placeholder so far&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;from the repository, as &lt;code&gt;github.com/lucasdicioccio/tramaj/tramaj-go&lt;/code&gt;, at a commit on &lt;code&gt;main&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;Each package has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom
+feed. &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; says how to depend on
+each one.&lt;/p&gt;
+&lt;h3 id="whats-next"&gt;What’s next&lt;/h3&gt;
+&lt;p&gt;v5 is a fifth iteration, not a stable release: the language can still
+change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: the npm
+packages and folds to more rendering targets. Beyond v5,
+&lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;&lt;code&gt;?shape&lt;/code&gt;&lt;/a&gt; is an accepted design for
+allocating a structure of symbols in one form; no implementation has it
+yet.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/tramaj-v5.html" rel="alternate"/><summary type="text">The fifth iteration of the language is out. Numbers are an integer and a float, a template can compute, sort a list and format a number, and all six implementations run the whole conformance corpus. Some existing output changes.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html</id><title type="text">Two designs accepted: arithmetic, and shapes of symbols</title><updated>2026-10-08T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="two-designs-accepted-arithmetic-and-shapes-of-symbols"&gt;Two designs accepted: arithmetic, and shapes of symbols&lt;/h2&gt;
 &lt;p&gt;Two language designs were accepted this week. This page says what each one
 is and how far along it is. The short version:&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;design&lt;/th&gt;&lt;th&gt;accepted&lt;/th&gt;&lt;th&gt;specified&lt;/th&gt;&lt;th&gt;implemented&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;arithmetic, and integers and floats as two types&lt;/td&gt;&lt;td&gt;2026-10-06&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;PureScript (with the command-line tool, the Halogen fold and the playground) and Haskell, on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;arithmetic, and integers and floats as two types&lt;/td&gt;&lt;td&gt;2026-10-06&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;all six implementations, with the command-line tools, the Halogen fold and the playground, on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?shape&lt;/code&gt;, a form that allocates a structure of symbols&lt;/td&gt;&lt;td&gt;2026-10-08&lt;/td&gt;&lt;td&gt;design only&lt;/td&gt;&lt;td&gt;no&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Both are recorded in
@@ -58,11 +298,11 @@ those numbers been in the context. Tramaj still solves nothing.&lt;/p&gt;
 &lt;p&gt;The normative text is in the
 &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt; and the
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;symbols reference&lt;/a&gt;, and the conformance corpus
-has the fixtures. The PureScript and Haskell implementations have the number
-split and the nine builtins on &lt;code&gt;main&lt;/code&gt;, and so do the command-line tool
-(&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;), the Halogen fold and the
-&lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt;. They are not in a release. The Rust,
-JavaScript, Python and Go implementations follow.&lt;/p&gt;
+has the fixtures. All six implementations (PureScript, Haskell, TypeScript,
+Rust, Go and Python) have the number split and the builtins on &lt;code&gt;main&lt;/code&gt;, and
+so do the command-line tools (&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;), the Halogen fold
+and the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt;. They are not in a release. A tenth
+builtin, &lt;code&gt;round&lt;/code&gt;, was added to the nine above by the third design, below.&lt;/p&gt;
 &lt;p&gt;The split changes what some existing templates produce, beyond the &lt;code&gt;str&lt;/code&gt;
 case above: see
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
@@ -126,120 +366,6 @@ function as &lt;code&gt;map&lt;/code&gt; does, and &lt;code&gt;format-number(x, 
 &lt;code&gt;1234567.891&lt;/code&gt; into &lt;code&gt;1,234,567.89&lt;/code&gt; by one rounding rule every implementation
 must agree on, with &lt;code&gt;round&lt;/code&gt; as a tenth arithmetic builtin. Its normative text
 is now in the &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt;, marked
-&lt;strong&gt;[§20]&lt;/strong&gt;; no implementation has it yet.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html" rel="alternate"/><summary type="text">A template can now compute with numbers, and will soon declare a whole structure of solver variables in one form. Both designs are written down and accepted; neither is in a release yet.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/roadmap.html</id><title type="text">Roadmap</title><updated>2026-09-25T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="roadmap"&gt;Roadmap&lt;/h2&gt;
-&lt;p&gt;No package in this repository has had a stable release yet, and the
-language itself is still settling — see the
-&lt;a href="https://github.com/lucasdicioccio/tramaj#roadmap-to-a-stable-release"&gt;repository README&lt;/a&gt;
-for where the language grammar stands. This page is about something
-narrower: which &lt;em&gt;implementations&lt;/em&gt; of tramaj exist, and which are wanted
-next.&lt;/p&gt;
-&lt;h3 id="where-things-stand-today"&gt;Where things stand today&lt;/h3&gt;
-&lt;p&gt;Six independent implementations target the same grammar and are checked
-against a shared, language-neutral
-&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt; —
-template/context/expected-output triples that all must reproduce
-byte-for-byte, per case, in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; evaluation modes.
-That’s a deliberately strong bar: a case belongs in the corpus only if
-independently written implementations can run it identically.&lt;/p&gt;
-&lt;table&gt;
-&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Language&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;reference implementation, checked against the corpus; &lt;code&gt;tramaj-halogen&lt;/code&gt; folds to Halogen, &lt;code&gt;tramaj-cli&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;JavaScript / TypeScript&lt;/td&gt;&lt;td&gt;independent port, checked against the same corpus; &lt;code&gt;tramaj-react&lt;/code&gt; folds to React&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;python -m tramaj&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;independent port on the standard library alone, checked against the same corpus; &lt;code&gt;tramaj-go&lt;/code&gt; is its CLI&lt;/td&gt;&lt;/tr&gt;
-&lt;/table&gt;
-&lt;p&gt;&lt;img src="/tramaj/gen/images/conformance.dot.png" alt="Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte" /&gt;&lt;/p&gt;
-&lt;p&gt;None is published to a package registry yet (see the README’s
-“Publishing” section) — all are used today as workspace, source or git
-dependencies. Each has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and
-Atom feed. See &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; for what’s
-actually usable from each right now, including the fold each one does or
-doesn’t ship.&lt;/p&gt;
-&lt;h3 id="the-native-implementation-wish-list-is-done"&gt;The native-implementation wish list is done&lt;/h3&gt;
-&lt;p&gt;Earlier versions of this page asked for native JavaScript, Python and Rust
-implementations, so that hosts in those ecosystems would get what
-PureScript and Haskell hosts already had: an in-process parser and
-evaluator, with no subprocess and no JSON round-trip just to get a &lt;code&gt;Node&lt;/code&gt;.
-All three exist now — &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-rs&lt;/code&gt; — and each
-passes the full corpus in both modes, v3 and v4 extensions included. A Go
-port, &lt;code&gt;tramaj-go&lt;/code&gt;, has since joined them on the same terms.&lt;/p&gt;
-&lt;h3 id="in-progress-two-number-types-and-arithmetic"&gt;In progress: two number types and arithmetic&lt;/h3&gt;
-&lt;p&gt;Numbers are now an integer and a float, two types, and a template can
-compute with nine named arithmetic builtins. The specification and the
-corpus fixtures are written. Where each implementation stands:&lt;/p&gt;
-&lt;table&gt;
-&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Two number types&lt;/th&gt;&lt;th&gt;Arithmetic&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (PureScript), &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;td&gt;on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;/tr&gt;
-&lt;/table&gt;
-&lt;p&gt;The corpus cases for these carry a &lt;code&gt;&amp;quot;requires&amp;quot;&lt;/code&gt; field, and an implementation
-skips the cases whose requirement it does not declare. So every
-implementation still passes every case it runs, while the four in the last
-row run fewer of them. The split changes existing output:
-&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;
-lists how.&lt;/p&gt;
-&lt;p&gt;Specified after that, and in no implementation yet: &lt;code&gt;round&lt;/code&gt;, sorting
-(&lt;code&gt;sort-by&lt;/code&gt;, &lt;code&gt;sort-by-descending&lt;/code&gt;) and &lt;code&gt;format-number&lt;/code&gt;. &lt;code&gt;?shape&lt;/code&gt; is an
-accepted design without normative text. See
-&lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;Two designs accepted&lt;/a&gt;.&lt;/p&gt;
-&lt;h3 id="desired-next-folds-and-releases"&gt;Desired next: folds, and releases&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;Folds.&lt;/strong&gt; Only PureScript (&lt;code&gt;tramaj-halogen&lt;/code&gt;) and JavaScript
-(&lt;code&gt;tramaj-react&lt;/code&gt;) ship a fold to a rendering target. A DOM fold for JS, a
-fold to a common Python templating output, and a fold for at least one
-Haskell or Rust UI or markup library are the obvious next pieces.
-&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Registry releases.&lt;/strong&gt; The crates.io, npm and PyPI packages are ready to
-publish but not published; the PureScript registry and Hackage are
-deliberately deferred until the API has settled. Releases happen when
-there are major changes, and each package’s version tracks the language
-version it implements in its major digit.
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;This is a wish list, not a schedule: there’s no committed timeline or
-assigned owner for any of it.&lt;/p&gt;
-&lt;h3 id="what-done-looks-like-for-a-new-implementation"&gt;What “done” looks like for a new implementation&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;, &lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt; and &lt;code&gt;tramaj-go&lt;/code&gt; are the templates to
-follow, since they were added &lt;em&gt;after&lt;/em&gt; the language had settled on a
-normative spec and output format (&lt;code&gt;tramaj-py&lt;/code&gt; is the smallest: one module
-per concern, standard library only). A new implementation is considered on
-par with the existing ones once it:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;implements the grammar and evaluation rules in
-&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt;, including the static
-restrictions that make imports, action keys, and &lt;code&gt;ctx(...)&lt;/code&gt; paths
-analyzable without evaluation (see &lt;a href="/tramaj/properties.html"&gt;Properties&lt;/a&gt;);
-&lt;/li&gt;
-&lt;li&gt;encodes and decodes the &lt;code&gt;Node&lt;/code&gt; AST exactly per
-&lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt;, including the round-trip
-guarantee (&lt;code&gt;decode(encode(n)) == n&lt;/code&gt;);
-&lt;/li&gt;
-&lt;li&gt;passes every case in the
-&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt;,
-in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; mode, byte-for-byte against
-&lt;code&gt;expected.json&lt;/code&gt;;
-&lt;/li&gt;
-&lt;li&gt;optionally, but ideally: a fold analogous to &lt;code&gt;tramaj-halogen&lt;/code&gt;’s
-&lt;code&gt;foldToHalogen&lt;/code&gt; for at least one popular rendering target in that
-ecosystem (e.g. a DOM fold for JS, a common Python templating output for
-Python).
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;The v3 (&lt;code&gt;?&lt;/code&gt;/&lt;code&gt;!&lt;/code&gt;, &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;) and v4
-(&lt;code&gt;%&lt;/code&gt;, &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;) extensions are both
-shipped and part of the same conformance bar — a new implementation isn’t
-considered complete while targeting only the v2 core.&lt;/p&gt;
-&lt;h3 id="contributing-an-implementation"&gt;Contributing an implementation&lt;/h3&gt;
-&lt;p&gt;If you’re taking on one of these, the corpus is the fastest way to find out
-what you got wrong: it’s meant to be run against a from-scratch
-implementation just as it’s run against the six that exist, and a case
-that byte-for-byte matches all of them today is a strong signal your
-evaluation semantics agree with theirs. Open an issue on the
-&lt;a href="https://github.com/lucasdicioccio/tramaj"&gt;repository&lt;/a&gt; before investing
-heavily in one — coordinating on which language is being worked on avoids
-duplicate effort.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/roadmap.html" rel="alternate"/><summary type="text">Six implementations exist today: PureScript, Haskell, Rust, JavaScript/TypeScript, Python and Go, all held to one conformance corpus. In progress: integers and floats as two types, and arithmetic. Wanted next: folds and registry releases.</summary></entry></feed>
+&lt;strong&gt;[§20]&lt;/strong&gt;, and all six implementations have it on &lt;code&gt;main&lt;/code&gt;, in no release
+yet.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html" rel="alternate"/><summary type="text">A template can now compute with numbers, and will soon declare a whole structure of solver variables in one form. Both designs are written down and accepted; neither is in a release yet.</summary></entry></feed>

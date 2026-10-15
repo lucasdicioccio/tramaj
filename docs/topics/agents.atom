@@ -23,8 +23,10 @@ in the repository is a conformance corpus: each case is a
 &lt;code&gt;template.tramaj&lt;/code&gt; + &lt;code&gt;ctx.json&lt;/code&gt; + &lt;code&gt;expected.json&lt;/code&gt; triple (plus optional
 &lt;code&gt;libs/*.tramaj&lt;/code&gt;) that every implementation must satisfy — treat these as
 runnable, ground-truth examples rather than prose. A case’s &lt;code&gt;meta.json&lt;/code&gt;
-may carry &lt;code&gt;&amp;quot;requires&amp;quot;&lt;/code&gt; (&lt;code&gt;int-float&lt;/code&gt;, &lt;code&gt;arithmetic&lt;/code&gt;, …), naming a feature an
-implementation must declare before it runs that case.
+may carry &lt;code&gt;&amp;quot;profiles&amp;quot;&lt;/code&gt; (&lt;code&gt;int-float&lt;/code&gt;, &lt;code&gt;arithmetic&lt;/code&gt;, &lt;code&gt;int64&lt;/code&gt;, …), naming what an
+implementation must provide before it runs that case. Every implementation
+must provide &lt;code&gt;int-float&lt;/code&gt; and &lt;code&gt;arithmetic&lt;/code&gt;; a case that lists another name
+it lacks, such as the integer range it does not have, is skipped.
 &lt;/li&gt;
 &lt;li&gt;See also &lt;a href="/tramaj/raw/llms.txt"&gt;&lt;code&gt;llms.txt&lt;/code&gt;&lt;/a&gt; for a short machine-readable index of
 the above (Kitchen-Sink serves arbitrary &lt;code&gt;.txt&lt;/code&gt; files under &lt;code&gt;/raw/&lt;/code&gt;, so
@@ -70,7 +72,7 @@ number in the context. Nothing converts between them implicitly.&lt;/p&gt;
 &lt;li&gt;&lt;code&gt;eq(1, 1.0)&lt;/code&gt; is &lt;code&gt;false&lt;/code&gt;. &lt;code&gt;lt&lt;/code&gt;/&lt;code&gt;lte&lt;/code&gt;/&lt;code&gt;gt&lt;/code&gt;/&lt;code&gt;gte&lt;/code&gt; take two integers or two
 floats; a mixed pair is a &lt;code&gt;TypeMismatch&lt;/code&gt;. Write &lt;code&gt;gt($x, 0.0)&lt;/code&gt; for a float.
 &lt;/li&gt;
-&lt;li&gt;There are no operators: no &lt;code&gt;+&lt;/code&gt;, &lt;code&gt;-&lt;/code&gt;, &lt;code&gt;*&lt;/code&gt;, &lt;code&gt;/&lt;/code&gt;. Arithmetic is nine named
+&lt;li&gt;There are no operators: no &lt;code&gt;+&lt;/code&gt;, &lt;code&gt;-&lt;/code&gt;, &lt;code&gt;*&lt;/code&gt;, &lt;code&gt;/&lt;/code&gt;. Arithmetic is ten named
 builtins, and there is no subtraction: &lt;code&gt;sum(a, negate(b))&lt;/code&gt;.
 &lt;/li&gt;
 &lt;/ul&gt;
@@ -81,6 +83,7 @@ builtins, and there is no subtraction: &lt;code&gt;sum(a, negate(b))&lt;/code&gt
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;quotient(a, b)&lt;/code&gt;, &lt;code&gt;inverse(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;floats only&lt;/td&gt;&lt;td&gt;float&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;floor-quotient(a, b)&lt;/code&gt;, &lt;code&gt;modulo(a, b)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;integers only&lt;/td&gt;&lt;td&gt;integer, rounding toward negative infinity&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;floor(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;either&lt;/td&gt;&lt;td&gt;integer&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;round(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;either&lt;/td&gt;&lt;td&gt;the nearest integer, a tie going away from zero&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;real(x)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;either&lt;/td&gt;&lt;td&gt;float&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;pre&gt;&lt;code&gt;@subtotal = sum($ctx.compute, $ctx.storage, negate($ctx.credit))
@@ -102,7 +105,7 @@ may be empty: &lt;code&gt;sum(0, $xs)&lt;/code&gt; or &lt;code&gt;sum(0.0, $xs)&
 unselected arm is not evaluated.
 &lt;/li&gt;
 &lt;li&gt;Arithmetic is a profile the host turns on (&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;).
-Without it the nine names are unbound.
+Without it the ten names are unbound.
 &lt;/li&gt;
 &lt;li&gt;In symbolic mode, a builtin with a symbol among its operands evaluates to
 a term, &lt;code&gt;{&amp;quot;$term&amp;quot;: &amp;quot;sum&amp;quot;, &amp;quot;arguments&amp;quot;: [...]}&lt;/code&gt;, for the host to evaluate.
@@ -112,12 +115,23 @@ a term, &lt;code&gt;{&amp;quot;$term&amp;quot;: &amp;quot;sum&amp;quot;, &amp;qu
 &lt;code&gt;number&lt;/code&gt;.
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;Do not emit &lt;code&gt;round&lt;/code&gt;, &lt;code&gt;sort-by&lt;/code&gt;, &lt;code&gt;sort-by-descending&lt;/code&gt; or &lt;code&gt;format-number&lt;/code&gt;:
-they are specified in the reference, marked &lt;strong&gt;[§20]&lt;/strong&gt;, and no implementation
-has them yet. The number split and the nine builtins above are in the
-PureScript and Haskell implementations, and not yet in the Rust, JavaScript,
-Python and Go ones, where every number is still a double. Templates written
-before the split:
+&lt;p&gt;Sorting and number formatting need no profile:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;sort-by(list, fn)&lt;/code&gt; and &lt;code&gt;sort-by-descending(list, fn)&lt;/code&gt; order a list by the
+key &lt;code&gt;fn&lt;/code&gt; gives each element, as in &lt;code&gt;sort-by($rows, (r) =&amp;gt; $r.spend)&lt;/code&gt;. The
+sort is stable, and the keys of one call are all integers, all floats or
+all strings.
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;format-number(x, decimals, group)&lt;/code&gt; writes a number as text:
+&lt;code&gt;format-number(1234567.891, 2, &amp;quot;,&amp;quot;)&lt;/code&gt; is &lt;code&gt;&amp;quot;1,234,567.89&amp;quot;&lt;/code&gt;.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The reference marks these two and &lt;code&gt;round&lt;/code&gt; &lt;strong&gt;[§20]&lt;/strong&gt;. All six
+implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have
+the number split, the ten builtins, the two sorts and &lt;code&gt;format-number&lt;/code&gt;. They
+are on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet: a released package predates
+them, and there every number is a double and these names are unbound.
+Templates written before the split:
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="actions-are-opaque-to-the-language"&gt;Actions are opaque to the language&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;action(&amp;quot;on-click&amp;quot;, &amp;quot;select&amp;quot;, {&amp;quot;id&amp;quot;: $i.id})&lt;/code&gt; attaches structured data to an
