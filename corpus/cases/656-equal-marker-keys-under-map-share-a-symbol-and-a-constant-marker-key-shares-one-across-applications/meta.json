@@ -1,0 +1,6 @@
+{
+  "name": "equal marker keys under map share a symbol and a constant marker key shares one across applications",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

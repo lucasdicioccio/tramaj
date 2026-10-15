@@ -1,0 +1,1 @@
+?shape("c", map($ctx.vms, (vm) => {vm: $vm.name, ~host($vm.name), ~region("all")}))

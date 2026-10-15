@@ -1,0 +1,74 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "a": {
+      "$sym": "#0:[\"outer\",\"a\"]",
+      "path": []
+    },
+    "inner": {
+      "a": {
+        "$sym": "#2:[\"inner\",\"a\"]",
+        "path": []
+      },
+      "b": {
+        "$sym": "#2:[\"inner\",\"b\"]",
+        "path": []
+      }
+    },
+    "plain": {
+      "$sym": "#1:\"p\"",
+      "path": []
+    }
+  },
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"outer\",\"a\"]",
+      "origin": {
+        "key": [
+          "outer",
+          "a"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#1:\"p\"",
+      "origin": {
+        "key": "p",
+        "kind": "alloc",
+        "site": 1
+      }
+    },
+    {
+      "binding": null,
+      "id": "#2:[\"inner\",\"a\"]",
+      "origin": {
+        "key": [
+          "inner",
+          "a"
+        ],
+        "kind": "alloc",
+        "site": 2
+      }
+    },
+    {
+      "binding": null,
+      "id": "#2:[\"inner\",\"b\"]",
+      "origin": {
+        "key": [
+          "inner",
+          "b"
+        ],
+        "kind": "alloc",
+        "site": 2
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": []
+}

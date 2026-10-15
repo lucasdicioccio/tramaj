@@ -1,0 +1,6 @@
+{
+  "name": "markers at several depths of a shape allocate one symbol each at the form's one site",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

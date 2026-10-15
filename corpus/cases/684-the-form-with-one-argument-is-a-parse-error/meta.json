@@ -1,0 +1,7 @@
+{
+  "name": "the form with one argument is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

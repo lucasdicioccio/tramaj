@@ -1,0 +1,6 @@
+{
+  "name": "shape is not reserved as a binding name",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

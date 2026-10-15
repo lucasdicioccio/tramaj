@@ -1,0 +1,6 @@
+{
+  "name": "a keyed marker under map allocates one symbol per distinct key",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

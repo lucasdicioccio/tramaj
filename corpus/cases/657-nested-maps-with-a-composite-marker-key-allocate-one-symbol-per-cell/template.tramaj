@@ -1,0 +1,1 @@
+?shape("g", map($ctx.rows, (r) => map($ctx.cols, (c) => ~cell([$r, $c]))))

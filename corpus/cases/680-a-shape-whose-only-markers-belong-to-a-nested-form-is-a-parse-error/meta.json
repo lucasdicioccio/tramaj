@@ -1,0 +1,7 @@
+{
+  "name": "a shape whose only markers belong to a nested form is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

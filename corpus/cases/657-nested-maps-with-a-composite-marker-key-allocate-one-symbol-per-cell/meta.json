@@ -1,0 +1,6 @@
+{
+  "name": "nested maps with a composite marker key allocate one symbol per cell",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "binding is null for every entry of the form bound or inline even when the shape is a single marker",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

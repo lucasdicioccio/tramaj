@@ -1,0 +1,83 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": [
+    {
+      "host": {
+        "$sym": "#0:[\"c\",\"host\",\"a\"]",
+        "path": []
+      },
+      "region": {
+        "$sym": "#0:[\"c\",\"region\",\"all\"]",
+        "path": []
+      },
+      "vm": "a"
+    },
+    {
+      "host": {
+        "$sym": "#0:[\"c\",\"host\",\"b\"]",
+        "path": []
+      },
+      "region": {
+        "$sym": "#0:[\"c\",\"region\",\"all\"]",
+        "path": []
+      },
+      "vm": "b"
+    },
+    {
+      "host": {
+        "$sym": "#0:[\"c\",\"host\",\"a\"]",
+        "path": []
+      },
+      "region": {
+        "$sym": "#0:[\"c\",\"region\",\"all\"]",
+        "path": []
+      },
+      "vm": "a"
+    }
+  ],
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"c\",\"host\",\"a\"]",
+      "origin": {
+        "key": [
+          "c",
+          "host",
+          "a"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"c\",\"region\",\"all\"]",
+      "origin": {
+        "key": [
+          "c",
+          "region",
+          "all"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    },
+    {
+      "binding": null,
+      "id": "#0:[\"c\",\"host\",\"b\"]",
+      "origin": {
+        "key": [
+          "c",
+          "host",
+          "b"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": []
+}

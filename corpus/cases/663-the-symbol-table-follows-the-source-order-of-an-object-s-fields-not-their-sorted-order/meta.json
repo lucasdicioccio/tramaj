@@ -1,0 +1,6 @@
+{
+  "name": "the symbol table follows the source order of an object's fields not their sorted order",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

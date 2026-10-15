@@ -1,0 +1,1 @@
+?shape("outer", {~a, plain: ?("p"), inner: ?shape("inner", {~a, ~b})})

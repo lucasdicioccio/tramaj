@@ -1,0 +1,2 @@
+@pair = (x, y) => [$y, $x]
+?shape("d", $pair(~a, ~b))

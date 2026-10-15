@@ -1,0 +1,6 @@
+{
+  "name": "a form whose markers are under an empty map allocates nothing in symbolic mode",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

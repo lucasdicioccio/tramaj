@@ -1,0 +1,12 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "hosts": [],
+    "name": "d"
+  },
+  "symbols": [],
+  "type-constraints": [],
+  "types": []
+}

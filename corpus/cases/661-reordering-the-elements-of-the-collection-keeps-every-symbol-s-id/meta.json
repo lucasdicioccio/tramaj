@@ -1,0 +1,6 @@
+{
+  "name": "reordering the elements of the collection keeps every symbol's id",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

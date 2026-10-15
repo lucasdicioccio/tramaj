@@ -1,0 +1,1 @@
+?shape("d", {total: sum(~a, ~b)})

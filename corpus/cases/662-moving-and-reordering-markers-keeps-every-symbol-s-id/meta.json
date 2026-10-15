@@ -1,0 +1,6 @@
+{
+  "name": "moving and reordering markers keeps every symbol's id",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

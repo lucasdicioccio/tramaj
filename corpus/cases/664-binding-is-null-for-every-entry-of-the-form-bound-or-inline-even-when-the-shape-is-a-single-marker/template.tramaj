@@ -1,0 +1,3 @@
+@d = ?shape("d", {~a})
+@x = ?shape("x", ~x)
+[$d, $x, ?shape("i", ~i)]

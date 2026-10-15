@@ -1,0 +1,29 @@
+{
+  "constraints": [],
+  "format": "tramaj/symbolic/1",
+  "kind": "expression",
+  "root": {
+    "name": "web-prod",
+    "replicas": {
+      "$sym": "#0:[\"d\",\"replicas\"]",
+      "path": []
+    },
+    "zone": "eu"
+  },
+  "symbols": [
+    {
+      "binding": null,
+      "id": "#0:[\"d\",\"replicas\"]",
+      "origin": {
+        "key": [
+          "d",
+          "replicas"
+        ],
+        "kind": "alloc",
+        "site": 0
+      }
+    }
+  ],
+  "type-constraints": [],
+  "types": []
+}

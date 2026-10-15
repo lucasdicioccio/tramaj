@@ -1,0 +1,7 @@
+{
+  "name": "a space between the marker leader and its name is a parse error",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "parse-error",
+  "profiles": ["shape"]
+}

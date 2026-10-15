@@ -1,0 +1,6 @@
+{
+  "name": "a form inside a lambda inside a shape takes bare markers since no lambda lies between them",
+  "kind": "expression",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

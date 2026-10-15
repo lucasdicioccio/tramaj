@@ -1,0 +1,8 @@
+{
+  "name": "the form inside a library is an allocation in a library",
+  "kind": "expression",
+  "mode": "symbolic",
+  "expect": "eval-error",
+  "errorKind": "AllocationInLibrary",
+  "profiles": ["shape"]
+}

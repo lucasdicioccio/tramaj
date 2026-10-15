@@ -1,0 +1,2 @@
+@d = ?shape("d", {replicas: ~replicas, zone: "eu", ports: [~http, ~admin], tls: {cert: ~cert}})
+$d

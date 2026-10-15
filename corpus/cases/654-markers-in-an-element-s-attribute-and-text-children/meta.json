@@ -1,0 +1,6 @@
+{
+  "name": "markers in an element's attribute and text children",
+  "kind": "document",
+  "mode": "symbolic",
+  "profiles": ["shape"]
+}

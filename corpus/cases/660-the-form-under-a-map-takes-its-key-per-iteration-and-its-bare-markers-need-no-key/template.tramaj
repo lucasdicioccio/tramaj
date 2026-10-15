@@ -1,0 +1,1 @@
+map($ctx.vms, (vm) => ?shape($vm.name, {host: ~host, zone: ~zone}))
