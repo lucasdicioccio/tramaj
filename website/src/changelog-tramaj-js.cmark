@@ -42,7 +42,7 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-js"})
 .div(class: "changelog",
   $version({
-      "version": "0.1.0",
+      "version": "0.2.0",
       "date": "unreleased",
       "summary": "TypeScript port: parser, evaluator (concrete and symbolic modes), Node JSON codec and static analyses.",
       "changes": [

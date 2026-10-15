@@ -1,6 +1,6 @@
 {
   "name": "@lucasdicioccio/tramaj-react",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Folds the normative Tramaj Node AST into React elements. The React counterpart of tramaj-halogen.",
   "license": "MIT",
   "author": "Lucas DiCioccio <lucas.dicioccio@gmail.com>",
@@ -39,7 +39,7 @@
     "react": ">=18"
   },
   "dependencies": {
-    "@lucasdicioccio/tramaj-js": "^0.1.0"
+    "@lucasdicioccio/tramaj-js": "^0.2.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
