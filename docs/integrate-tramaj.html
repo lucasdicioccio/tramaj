@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, Rust, JavaScript, TypeScript, Python, React, fold, tramaj-cli, Node JSON"><meta name="description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-25T12:00:00Z"><meta name="article:modified_time" content="2026-09-25T12:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-25T12:00:00Z","datePublished":"2026-09-25T12:00:00Z","description":"Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="Rust"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="TypeScript"><meta name="article:tag" content="Python"><meta name="article:tag" content="React"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html" class="doc-nav-current" aria-current="page">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#integrating-tramaj-into-a-host">Integrating tramaj into a host</a></li><li class="doc-toc-level-3"><a href="#numbers-at-the-boundary">Numbers at the boundary</a></li><li class="doc-toc-level-3"><a href="#purescript--import-as-a-library-fold-with-tramaj-halogen">PureScript — import as a library, fold with tramaj-halogen</a></li><li class="doc-toc-level-3"><a href="#haskell--the-library-exists-the-fold-doesnt-yet">Haskell — the library exists, the fold doesn’t yet</a></li><li class="doc-toc-level-3"><a href="#rust--the-library-exists-plus-its-own-cli">Rust — the library exists, plus its own CLI</a></li><li class="doc-toc-level-3"><a href="#javascript--typescript--import-as-a-library-fold-with-tramaj-react">JavaScript / TypeScript — import as a library, fold with tramaj-react</a></li><li class="doc-toc-level-3"><a href="#python--import-as-a-library-standard-library-only">Python — import as a library, standard library only</a></li><li class="doc-toc-level-3"><a href="#go--import-as-a-module-standard-library-only">Go — import as a module, standard library only</a></li><li class="doc-toc-level-3"><a href="#any-other-language">Any other language</a></li></ul></nav><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Fri, 25 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 2397 words, 8 code snippets, 33 links, 1images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">3/4</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Integrating tramaj into a host</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="how-to, integration, PureScript, Haskell, Rust, JavaScript, TypeScript, Python, React, fold, tramaj-cli, Node JSON"><meta name="description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Integrating tramaj into a host"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Integrating tramaj into a host"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html"><meta property="og:description" content="Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli&#39;s JSON output."><meta name="article:published_time" content="2026-09-25T12:00:00Z"><meta name="article:modified_time" content="2026-09-25T12:00:00Z"><meta name="ks:article_json" content="/tramaj/json/integrate-tramaj.cmark.json"><meta name="ks:article_text" content="/tramaj/text/integrate-tramaj.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-09-25T12:00:00Z","datePublished":"2026-09-25T12:00:00Z","description":"Six ways to embed tramaj in a host, depending on your language: import the library, or work from tramaj-cli's JSON output.","headline":"Integrating tramaj into a host","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/integrate-tramaj.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="how-to"><meta name="article:tag" content="integration"><meta name="article:tag" content="PureScript"><meta name="article:tag" content="Haskell"><meta name="article:tag" content="Rust"><meta name="article:tag" content="JavaScript"><meta name="article:tag" content="TypeScript"><meta name="article:tag" content="Python"><meta name="article:tag" content="React"><meta name="article:tag" content="fold"><meta name="article:tag" content="tramaj-cli"><meta name="article:tag" content="Node JSON"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html" class="doc-nav-current" aria-current="page">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#integrating-tramaj-into-a-host">Integrating tramaj into a host</a></li><li class="doc-toc-level-3"><a href="#numbers-at-the-boundary">Numbers at the boundary</a></li><li class="doc-toc-level-3"><a href="#purescript--import-as-a-library-fold-with-tramaj-halogen">PureScript — import as a library, fold with tramaj-halogen</a></li><li class="doc-toc-level-3"><a href="#haskell--the-library-exists-the-fold-doesnt-yet">Haskell — the library exists, the fold doesn’t yet</a></li><li class="doc-toc-level-3"><a href="#rust--the-library-exists-plus-its-own-cli">Rust — the library exists, plus its own CLI</a></li><li class="doc-toc-level-3"><a href="#javascript--typescript--import-as-a-library-fold-with-tramaj-react">JavaScript / TypeScript — import as a library, fold with tramaj-react</a></li><li class="doc-toc-level-3"><a href="#python--import-as-a-library-standard-library-only">Python — import as a library, standard library only</a></li><li class="doc-toc-level-3"><a href="#go--import-as-a-module-standard-library-only">Go — import as a module, standard library only</a></li><li class="doc-toc-level-3"><a href="#any-other-language">Any other language</a></li></ul></nav><article><header class="heading"><h1>Integrating tramaj into a host</h1><p>On <span>Fri, 25 Sep 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 2779 words, 9 code snippets, 33 links, 1images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/howto-humans.html">‹</a></span><a class="topic-link" href="/tramaj/topics/how-to.html"><span class="topic-name">how-to</span><span class="topic-count">3/4</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/howto-agents.html">›</a></span></div><div class="topic"><span class="topic-nav topic-prev-link"><span class="topic-nav-boundary">|</span></span><a class="topic-link" href="/tramaj/topics/integration.html"><span class="topic-name">integration</span><span class="topic-count">1/1</span></a><span class="topic-nav topic-next-link"><span class="topic-nav-boundary">|</span></span></div></div></header><div class="main-article"><section class="main-section"><h2 id="integrating-tramaj-into-a-host">Integrating tramaj into a host</h2>
 <p>Every integration has the same two moving parts, regardless of language:</p>
 <ol>
 <li><strong>Evaluate</strong> — parse a template and run it against a JSON context to get
@@ -18,7 +18,7 @@ only on what language your host is written in.</p>
 <p>The implementations and how they relate: one specification and corpus, six
 independently written ports, and the folds and CLIs layered on top of two of
 them.</p>
-<p><img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go" /></p>
+<p><img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed six ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go" /></p>
 <table>
 <tr><th>Host language</th><th>Get the <code>Node</code></th><th>Write the fold</th></tr>
 <tr><td>PureScript</td><td>depend on <code>tramaj-purs</code> directly</td><td>reuse <code>tramaj-halogen</code>, or write your own</td></tr>
@@ -40,6 +40,9 @@ between <code>3</code> and <code>3.0</code>, and must not round a large integer.
 <code>JSON.parse</code> and Haskell’s <code>aeson</code> <code>Value</code> do neither, which is why
 <code>tramaj-purs</code> and <code>tramaj-hs</code> each ship a <code>Tramaj.Json</code> module with a
 reader (<code>jsonParser</code>) and a writer (<code>stringify</code>).
+<code>tramaj-rs</code> has the same in <code>tramaj_rs::json</code> (<code>parse</code>, <code>stringify</code>).
+<code>serde_json</code> keeps <code>3</code> and <code>3.0</code> apart, but rounds an integer beyond 64
+bits and reads <code>-0</code> as a float.
 </li>
 <li><strong>Reading the result.</strong> The output keeps the type: an integer is written
 as digits and a float always with a fraction or an exponent
@@ -47,7 +50,7 @@ as digits and a float always with a fraction or an exponent
 renders a scalar child should write it the same way, as <code>str</code> does:
 <code>tramaj-halogen</code> renders the float <code>1.0</code> as <code>1.0</code>.
 </li>
-<li><strong>Choosing whether templates may compute.</strong> The nine arithmetic builtins
+<li><strong>Choosing whether templates may compute.</strong> The ten arithmetic builtins
 are an optional profile, chosen by the host for each evaluation and off by
 default. In symbolic mode with the profile on, a result may hold a <em>term</em>,
 <code>{&quot;$term&quot;: &quot;sum&quot;, &quot;arguments&quot;: [...]}</code>: arithmetic over a symbol, left for
@@ -56,17 +59,23 @@ section 1.9). A host that has not turned the profile on never receives one.
 </li>
 </ul>
 <table>
-<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile</th><th>Integer range</th></tr>
-<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
-<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code>, <code>tramaj-js</code>, <code>tramaj-react</code>, <code>tramaj-py</code>, <code>tramaj-go</code></td><td>not yet</td><td>not yet</td><td>every number is a double</td></tr>
+<tr><th>Implementation</th><th>Two number types</th><th>Arithmetic profile, with <code>round</code></th><th><code>sort-by</code>, <code>sort-by-descending</code>, <code>format-number</code></th><th>Integer range</th></tr>
+<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>yes</td><td>yes</td><td><code>-(2^53 - 1)</code> to <code>2^53 - 1</code></td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-go</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 </table>
-<p>The first two rows are on the <code>main</code> branch and in no release yet. Until the
-other implementations follow, the same template can give different output on
-two of them: <code>str(1.0)</code> is <code>1.0</code> on the first two rows and <code>1</code> on the third.
-The corpus cases that depend on the split or on arithmetic are marked with
-<code>&quot;requires&quot;</code>, and an implementation that does not declare the name skips
-them. An existing host moving to the split should read
+<p>Every row is on the <code>main</code> branch and in no release yet. The packages
+already published (<code>tramaj-rs</code> and <code>tramaj-cli-rs</code> 0.1.0 on crates.io,
+<code>tramaj</code> 0.1.0 on PyPI) predate all of it: there every number is a double,
+<code>str(1.0)</code> is <code>1</code>, and the arithmetic, sorting and formatting names are
+unbound. On <code>main</code> the six implementations give the same output for the
+same template, except where a result depends on the integer range: the
+corpus cases that do are marked <code>&quot;int53&quot;</code> or <code>&quot;int64&quot;</code> in their <code>&quot;profiles&quot;</code>,
+and an implementation skips the cases of the range it does not have. An
+existing host moving to the split should read
 <a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a>.</p>
 <h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen">PureScript — import as a library, fold with <code>tramaj-halogen</code></h3>
 <p><code>tramaj-purs</code>, <code>tramaj-halogen</code>, <code>tramaj-cli</code>, and <code>playground</code> are members of one
@@ -156,20 +165,46 @@ and evaluation semantics as the PureScript <code>tramaj-purs</code> and Haskell 
 held to the same shared conformance corpus (<code>corpus/cases/</code>, including
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints
 and <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types, not just the
-core language; the two number types and arithmetic are not in this port yet,
-see <em>Numbers at the boundary</em>). It’s a normal Cargo library crate — <code>tramaj_rs::{ast, parser, eval, node, analysis, types}</code> — depended on as a path or git dependency (not
-published to crates.io yet), the same way a PureScript host depends on
+core language, with the two number types and the arithmetic profile,
+see <em>Numbers at the boundary</em>). It’s a normal Cargo library crate — <code>tramaj_rs::{ast, parser, eval, json, node, analysis, types}</code> — depended on as a path or git dependency for
+what this section describes (<code>tramaj-rs</code> 0.1.0 is on crates.io, but predates the
+number split and takes <code>serde_json::Value</code>), the same way a PureScript host depends on
 <code>tramaj-purs</code> or a Haskell host depends on <code>tramaj-hs</code>:</p>
 <div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::parser</span></span>
 <span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> parse_program(src<span class="op">:</span> <span class="op">&amp;</span><span class="dt">str</span>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span>Program<span class="op">,</span> ParseError<span class="op">&gt;;</span></span>
 <span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::eval</span></span>
-<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> run_program(</span>
-<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>    mode<span class="op">:</span> Mode<span class="op">,</span></span>
-<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a>    libs<span class="op">:</span> <span class="op">&amp;</span>LibraryTable<span class="op">,</span></span>
-<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a>    ctx<span class="op">:</span> <span class="op">&amp;</span><span class="pp">serde_json::</span>Value<span class="op">,</span></span>
-<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a>    program<span class="op">:</span> <span class="op">&amp;</span>Program<span class="op">,</span></span>
-<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span><span class="pp">serde_json::</span>Value<span class="op">,</span> EvalError<span class="op">&gt;;</span></span></code></pre></div></div><p><code>run_program</code> gives you the evaluated result as JSON directly, already
+<span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::json</span></span>
+<span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> parse(src<span class="op">:</span> <span class="op">&amp;</span><span class="dt">str</span>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span>Json<span class="op">,</span> <span class="dt">String</span><span class="op">&gt;;</span></span>
+<span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> stringify(v<span class="op">:</span> <span class="op">&amp;</span>Json) <span class="op">-&gt;</span> <span class="dt">String</span><span class="op">;</span></span>
+<span id="7"><a href="#7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="8"><a href="#8" aria-hidden="true" tabindex="-1"></a><span class="co">// tramaj_rs::eval</span></span>
+<span id="9"><a href="#9" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">struct</span> Options <span class="op">{</span> <span class="kw">pub</span> mode<span class="op">:</span> Mode<span class="op">,</span> <span class="kw">pub</span> arithmetic<span class="op">:</span> <span class="dt">bool</span> <span class="op">}</span></span>
+<span id="10"><a href="#10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="11"><a href="#11" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> run_program(</span>
+<span id="12"><a href="#12" aria-hidden="true" tabindex="-1"></a>    mode<span class="op">:</span> Mode<span class="op">,</span></span>
+<span id="13"><a href="#13" aria-hidden="true" tabindex="-1"></a>    libs<span class="op">:</span> <span class="op">&amp;</span>LibraryTable<span class="op">,</span></span>
+<span id="14"><a href="#14" aria-hidden="true" tabindex="-1"></a>    ctx<span class="op">:</span> <span class="op">&amp;</span>Json<span class="op">,</span></span>
+<span id="15"><a href="#15" aria-hidden="true" tabindex="-1"></a>    program<span class="op">:</span> <span class="op">&amp;</span>Program<span class="op">,</span></span>
+<span id="16"><a href="#16" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span>Json<span class="op">,</span> EvalError<span class="op">&gt;;</span></span>
+<span id="17"><a href="#17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="18"><a href="#18" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">fn</span> run_program_with(</span>
+<span id="19"><a href="#19" aria-hidden="true" tabindex="-1"></a>    options<span class="op">:</span> <span class="op">&amp;</span>Options<span class="op">,</span></span>
+<span id="20"><a href="#20" aria-hidden="true" tabindex="-1"></a>    libs<span class="op">:</span> <span class="op">&amp;</span>LibraryTable<span class="op">,</span></span>
+<span id="21"><a href="#21" aria-hidden="true" tabindex="-1"></a>    ctx<span class="op">:</span> <span class="op">&amp;</span>Json<span class="op">,</span></span>
+<span id="22"><a href="#22" aria-hidden="true" tabindex="-1"></a>    program<span class="op">:</span> <span class="op">&amp;</span>Program<span class="op">,</span></span>
+<span id="23"><a href="#23" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="dt">Result</span><span class="op">&lt;</span>Json<span class="op">,</span> EvalError<span class="op">&gt;;</span></span></code></pre></div></div><p><code>tramaj_rs::json::Json</code> is the JSON type of this port: like
+<code>serde_json::Value</code>, with an integer (<code>Json::Int</code>, an <code>i64</code>) and a float
+(<code>Json::Float</code>) as two variants. Read the context with <code>json::parse</code> and
+write the result with <code>json::stringify</code>, so that <code>3</code> and <code>3.0</code> stay two
+values both ways. <code>json::from_serde</code> and <code>json::to_serde</code> bridge to a
+<code>serde_json::Value</code> a host already holds; their documentation says what each
+direction loses. Integers cover the signed 64-bit range, as in the Haskell
+implementation: a literal, a context number or a result outside it is
+refused, never rounded. Arithmetic is off in <code>run_program</code> and on with
+<code>run_program_with(&amp;Options { mode, arithmetic: true }, ...)</code>;
+<code>analysis::deep_arithmetic_ops</code> lists the arithmetic names a program and its
+libraries reference, for a host that leaves the profile off.</p>
+<p><code>run_program</code> gives you the evaluated result as JSON directly, already
 encoded per <a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a> when the program
 produces a document, or the concrete/symbolic envelope from
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a> §5 otherwise — the same shape
@@ -181,13 +216,12 @@ recurse into children, decide what an <code>action(...)</code> payload means in 
 host).</p>
 <p>Unlike the Haskell port, Rust also has a <code>tramaj-cli</code> equivalent —
 <code>tramaj-cli-rs</code> — mirroring <code>tramaj-cli</code>’s command surface field-for-field:
-the same <code>evaluate</code>/<code>analyze &lt;imports|actions|holes|unsupplied|constraints|symbols|types|card|all&gt;</code>
-subcommands, the same <code>--lib name=path</code>/<code>--mode concrete|symbolic</code> flags,
+the same <code>evaluate</code>/<code>analyze &lt;imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all&gt;</code>
+subcommands, the same <code>--lib name=path</code>/<code>--mode concrete|symbolic</code>/<code>--arithmetic</code> flags,
 and the same JSON output shapes. If you’d rather shell out than link a Rust
 library into your host — including from a non-Rust host — <code>tramaj-cli-rs</code> is
-an alternative to <code>tramaj-cli</code> with no Node.js runtime required. It does not
-have <code>tramaj-cli</code>’s <code>--arithmetic</code> flag or <code>analyze arithmetic</code> yet, and it
-writes a whole-valued float without a fraction.</p>
+an alternative to <code>tramaj-cli</code> with no Node.js runtime required. Its integer
+range is the signed 64-bit one, where <code>tramaj-cli</code> has the guaranteed 53 bits.</p>
 <h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react">JavaScript / TypeScript — import as a library, fold with <code>tramaj-react</code></h3>
 <p><code>tramaj-js</code> is an independent, hand-written TypeScript port of the same
 grammar and evaluation semantics as the PureScript <code>tramaj-purs</code>, Haskell
@@ -195,8 +229,9 @@ grammar and evaluation semantics as the PureScript <code>tramaj-purs</code>, Has
 corpus (<code>corpus/cases/</code>, including
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints and
 <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types, not just the
-core language; the two number types and arithmetic are not in this port
-yet). It’s a normal npm package with no React or DOM dependency
+core language, and the two number types with the ten arithmetic builtins;
+see <em>Numbers in <code>tramaj-js</code></em> below). It’s a normal npm package with no React
+or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on <code>tramaj-purs</code>:</p>
 <div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="co">// parseProgram, tryParseProgram</span></span>
@@ -232,6 +267,21 @@ element, because a fragment contributes several siblings with no wrapper —
 splice it into your own container, <code>&lt;&gt;{foldToReact(dispatch, node)}&lt;/&gt;</code>.
 Call <code>validateAttrNames</code> on the <code>Node</code> first, same caveat as
 <code>tramaj-halogen</code>: attribute names aren’t validated by the fold itself.</p>
+<p><strong>Numbers in <code>tramaj-js</code>.</strong> A JavaScript <code>number</code> has no type of its own, so
+the port classifies it: a <code>number</code> that is a safe integer is an integer, and
+any other <code>number</code> is a float. The float <code>3.0</code> is written <code>new Float(3)</code> (or
+<code>float(3)</code>), and the result of an evaluation uses a <code>Float</code> for a
+whole-valued float and a plain <code>number</code> for everything else. The integer
+range is the guaranteed one, <code>-(2^53 - 1)</code> to <code>2^53 - 1</code>. <code>JSON.parse</code> and
+<code>JSON.stringify</code> lose the type, so the package has its own reader and
+writer, <code>parseJson</code> and <code>stringify</code>. Arithmetic is an option of each
+evaluation, off by default:</p>
+<div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> ctx <span class="op">=</span> <span class="fu">parseJson</span>(<span class="st">&#39;{&quot;qty&quot;: 3, &quot;price&quot;: 9.0}&#39;</span>)<span class="op">;</span></span>
+<span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> out <span class="op">=</span> <span class="fu">runProgramWith</span>({ mode<span class="op">:</span> <span class="st">&quot;concrete&quot;</span><span class="op">,</span> arithmetic<span class="op">:</span> <span class="kw">true</span> }<span class="op">,</span> libs<span class="op">,</span> ctx<span class="op">,</span> program)<span class="op">;</span></span>
+<span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a><span class="fu">stringify</span>(out)<span class="op">;</span> <span class="co">// an integer as digits, a float with a fraction or an exponent</span></span></code></pre></div></div><p><code>runProgram</code> and <code>evalProgram</code> run without it, where the ten names are
+unbound, and <code>deepArithmeticOps(libs, program)</code> tells a host beforehand
+whether a program uses them. <code>tramaj-react</code>’s <code>renderScalar</code> writes a number
+as <code>str</code> does and a term as the call that built it.</p>
 <p>If you’d rather not add a JS dependency at all — or your host isn’t Node —
 <code>tramaj-cli</code> (or <code>tramaj-cli-rs</code>) as a subprocess is still the same option
 open to any other language; see <a href="/tramaj/howto-humans.html">Getting started</a> for
@@ -243,13 +293,14 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (<code>corpus/cases/</code>, including
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints and
 <a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types; the two number
-types and arithmetic are not in this port yet). It needs
+types and the ten arithmetic builtins are in this port, on <code>main</code>). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It’s a normal package — <code>tramaj</code> with
 <code>ast</code>, <code>parser</code>, <code>evaluator</code>, <code>node</code>, <code>analysis</code>, <code>typesys</code> and <code>jsonval</code>
 modules, laid out one-to-one like <code>tramaj-js</code> — installed from the
-repository’s <code>tramaj-py/</code> directory (not published to PyPI yet):</p>
+repository’s <code>tramaj-py/</code> directory for what this section describes
+(<code>tramaj</code> 0.1.0 is on PyPI, but predates the number split):</p>
 <div class="code code--highlighted"><div class="sourceCode"><pre class="sourceCode"><code class="sourceCode"><span id="1"><a href="#1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tramaj <span class="im">import</span> parse_program, run_program</span>
 <span id="2"><a href="#2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="3"><a href="#3" aria-hidden="true" tabindex="-1"></a>program <span class="op">=</span> parse_program(<span class="st">&#39;.p($ctx.name)&#39;</span>)          <span class="co"># raises ParseError</span></span>
@@ -261,11 +312,16 @@ document, or the concrete/symbolic envelope from
 <code>runProgram</code> returns on every other side. A library table is a <code>dict</code> from
 import name to parsed program; the mode is <code>&quot;concrete&quot;</code> or <code>&quot;symbolic&quot;</code>.
 <code>eval_program</code> is the lower-level entry point if you want the <code>Node</code> value
-itself rather than its JSON encoding. Every number is still a double
-in this port: an exact integer comes back as an <code>int</code>, and <code>str</code> renders as
-ECMAScript’s <code>Number::toString</code> does. That matches the Rust, JavaScript and
-Go ports byte-for-byte, and differs from the PureScript and Haskell
-implementations for a whole-valued float (<code>1</code> here, <code>1.0</code> there).</p>
+itself rather than its JSON encoding. The two number types are the two
+Python types: an <code>int</code> is an integer and a <code>float</code> a float, in the context
+and in the result, so <code>str(1.0)</code> is <code>1.0</code> here as in the other five
+implementations. Integers cover the signed 64-bit range; Python’s own are
+unbounded, so one outside the range is refused, never rounded.
+<code>tramaj.parse_json</code> reads JSON text with each number typed by its text, and
+<code>compact_json</code> and <code>pretty_json</code> write a float with a fraction or an
+exponent. Arithmetic is off by default and on with
+<code>run_program(..., arithmetic=True)</code>; <code>deep_arithmetic_ops</code> lists the
+arithmetic names a program and its libraries reference.</p>
 <p>As with Haskell and Rust, no fold is shipped: a Python host writes its own
 following the same shape (case on <code>text</code>/<code>element</code>/<code>fragment</code>, recurse into
 children, decide what an <code>action(...)</code> payload means in your host). Python
@@ -278,8 +334,8 @@ to it instead of to Node.</p>
 evaluation semantics as the other implementations, held to the same shared
 conformance corpus (<code>corpus/cases/</code>, including
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a>’s symbols/constraints and
-<a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types; the two number
-types and arithmetic are not in this port yet). It needs nothing
+<a href="/tramaj/reference-v4-types.html"><code>v4-types.md</code></a>’s nominal types, the two number
+types and the arithmetic profile). It needs nothing
 outside the standard library (Go 1.21+), so it compiles into a service or a
 static binary with no Node, Python or PureScript toolchain as a runtime
 dependency. It’s one package, <code>tramaj</code>, in the repository’s <code>tramaj-go/</code>
@@ -290,8 +346,8 @@ directory (no tagged module release yet):</p>
 <span id="4"><a href="#4" aria-hidden="true" tabindex="-1"></a>ctx<span class="op">,</span> _ <span class="op">:=</span> tramaj<span class="op">.</span>ParseJSON<span class="op">([]</span><span class="dt">byte</span><span class="op">(</span><span class="st">`{&quot;name&quot;: &quot;web&quot;}`</span><span class="op">))</span></span>
 <span id="5"><a href="#5" aria-hidden="true" tabindex="-1"></a>out<span class="op">,</span> err <span class="op">:=</span> tramaj<span class="op">.</span>RunProgram<span class="op">(</span>tramaj<span class="op">.</span>Concrete<span class="op">,</span> <span class="ot">nil</span><span class="op">,</span> ctx<span class="op">,</span> program<span class="op">)</span> <span class="co">// err is a *tramaj.EvalError</span></span>
 <span id="6"><a href="#6" aria-hidden="true" tabindex="-1"></a>fmt<span class="op">.</span>Println<span class="op">(</span>tramaj<span class="op">.</span>PrettyJSON<span class="op">(</span>out<span class="op">))</span></span></code></pre></div></div><p><code>RunProgram</code> gives you the evaluated result as a <code>tramaj.JSON</code> value (<code>nil</code>,
-<code>bool</code>, <code>float64</code>, <code>string</code>, <code>[]tramaj.JSON</code> or <code>*tramaj.Object</code>, an object
-that keeps its keys in order), already encoded per
+<code>bool</code>, <code>int64</code>, <code>float64</code>, <code>string</code>, <code>[]tramaj.JSON</code> or <code>*tramaj.Object</code>, an
+object that keeps its keys in order), already encoded per
 <a href="/tramaj/reference-node-json.html"><code>node-json.md</code></a> when the program produces a
 document, or the concrete/symbolic envelope from
 <a href="/tramaj/reference-v3-symbols.html"><code>v3-symbols.md</code></a> §5 otherwise — the same shape
@@ -299,10 +355,13 @@ document, or the concrete/symbolic envelope from
 <code>tramaj.Libraries</code>, a map from import name to parsed program; the mode is
 <code>tramaj.Concrete</code> or <code>tramaj.Symbolic</code>. <code>EvalProgram</code> is the lower-level entry
 point if you want the <code>*tramaj.Node</code> itself rather than its JSON encoding.
-Every number is still a <code>float64</code> in this port, and <code>str</code> renders as
-ECMAScript’s <code>Number::toString</code> does. That matches the Rust, JavaScript and
-Python ports byte-for-byte, and differs from the PureScript and Haskell
-implementations for a whole-valued float (<code>1</code> here, <code>1.0</code> there).</p>
+A number is an <code>int64</code> when it is an integer and a <code>float64</code> when it is a
+float, and <code>tramaj.ParseJSON</code> types each by its text (<code>3</code> and <code>3.0</code> are two
+values); the integer range is the signed 64-bit one. The arithmetic profile
+is off unless the host turns it on:
+<code>tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)</code>,
+and <code>tramaj.DeepArithmeticOps</code> lists the arithmetic names a program
+references. On the <code>main</code> branch, in no release yet.</p>
 <p>As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node’s <code>Type</code>, recurse into
 <code>Children</code>, decide what an action attribute means in your host). Go also has

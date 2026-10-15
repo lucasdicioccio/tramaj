@@ -18,7 +18,7 @@ only on what language your host is written in.&lt;/p&gt;
 &lt;p&gt;The implementations and how they relate: one specification and corpus, six
 independently written ports, and the folds and CLIs layered on top of two of
 them.&lt;/p&gt;
-&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed five ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="/tramaj/gen/images/implementations.dot.png" alt="The specification and corpus feed six ports: tramaj (PureScript) with tramaj-halogen and tramaj-cli, tramaj-hs, tramaj-rs with tramaj-cli-rs, tramaj-js with tramaj-react, tramaj-py, and tramaj-go" /&gt;&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;Host language&lt;/th&gt;&lt;th&gt;Get the &lt;code&gt;Node&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Write the fold&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;depend on &lt;code&gt;tramaj-purs&lt;/code&gt; directly&lt;/td&gt;&lt;td&gt;reuse &lt;code&gt;tramaj-halogen&lt;/code&gt;, or write your own&lt;/td&gt;&lt;/tr&gt;
@@ -40,6 +40,9 @@ between &lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt;, and must no
 &lt;code&gt;JSON.parse&lt;/code&gt; and Haskell’s &lt;code&gt;aeson&lt;/code&gt; &lt;code&gt;Value&lt;/code&gt; do neither, which is why
 &lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-hs&lt;/code&gt; each ship a &lt;code&gt;Tramaj.Json&lt;/code&gt; module with a
 reader (&lt;code&gt;jsonParser&lt;/code&gt;) and a writer (&lt;code&gt;stringify&lt;/code&gt;).
+&lt;code&gt;tramaj-rs&lt;/code&gt; has the same in &lt;code&gt;tramaj_rs::json&lt;/code&gt; (&lt;code&gt;parse&lt;/code&gt;, &lt;code&gt;stringify&lt;/code&gt;).
+&lt;code&gt;serde_json&lt;/code&gt; keeps &lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt; apart, but rounds an integer beyond 64
+bits and reads &lt;code&gt;-0&lt;/code&gt; as a float.
 &lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Reading the result.&lt;/strong&gt; The output keeps the type: an integer is written
 as digits and a float always with a fraction or an exponent
@@ -47,7 +50,7 @@ as digits and a float always with a fraction or an exponent
 renders a scalar child should write it the same way, as &lt;code&gt;str&lt;/code&gt; does:
 &lt;code&gt;tramaj-halogen&lt;/code&gt; renders the float &lt;code&gt;1.0&lt;/code&gt; as &lt;code&gt;1.0&lt;/code&gt;.
 &lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Choosing whether templates may compute.&lt;/strong&gt; The nine arithmetic builtins
+&lt;li&gt;&lt;strong&gt;Choosing whether templates may compute.&lt;/strong&gt; The ten arithmetic builtins
 are an optional profile, chosen by the host for each evaluation and off by
 default. In symbolic mode with the profile on, a result may hold a &lt;em&gt;term&lt;/em&gt;,
 &lt;code&gt;{&amp;quot;$term&amp;quot;: &amp;quot;sum&amp;quot;, &amp;quot;arguments&amp;quot;: [...]}&lt;/code&gt;: arithmetic over a symbol, left for
@@ -56,17 +59,23 @@ section 1.9). A host that has not turned the profile on never receives one.
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;table&gt;
-&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Two number types&lt;/th&gt;&lt;th&gt;Arithmetic profile&lt;/th&gt;&lt;th&gt;Integer range&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;every number is a double&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th&gt;Implementation&lt;/th&gt;&lt;th&gt;Two number types&lt;/th&gt;&lt;th&gt;Arithmetic profile, with &lt;code&gt;round&lt;/code&gt;&lt;/th&gt;&lt;th&gt;&lt;code&gt;sort-by&lt;/code&gt;, &lt;code&gt;sort-by-descending&lt;/code&gt;, &lt;code&gt;format-number&lt;/code&gt;&lt;/th&gt;&lt;th&gt;Integer range&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, playground&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;p&gt;The first two rows are on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet. Until the
-other implementations follow, the same template can give different output on
-two of them: &lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt; on the first two rows and &lt;code&gt;1&lt;/code&gt; on the third.
-The corpus cases that depend on the split or on arithmetic are marked with
-&lt;code&gt;&amp;quot;requires&amp;quot;&lt;/code&gt;, and an implementation that does not declare the name skips
-them. An existing host moving to the split should read
+&lt;p&gt;Every row is on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet. The packages
+already published (&lt;code&gt;tramaj-rs&lt;/code&gt; and &lt;code&gt;tramaj-cli-rs&lt;/code&gt; 0.1.0 on crates.io,
+&lt;code&gt;tramaj&lt;/code&gt; 0.1.0 on PyPI) predate all of it: there every number is a double,
+&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;, and the arithmetic, sorting and formatting names are
+unbound. On &lt;code&gt;main&lt;/code&gt; the six implementations give the same output for the
+same template, except where a result depends on the integer range: the
+corpus cases that do are marked &lt;code&gt;&amp;quot;int53&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;int64&amp;quot;&lt;/code&gt; in their &lt;code&gt;&amp;quot;profiles&amp;quot;&lt;/code&gt;,
+and an implementation skips the cases of the range it does not have. An
+existing host moving to the split should read
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
 &lt;h3 id="purescript--import-as-a-library-fold-with-tramaj-halogen"&gt;PureScript — import as a library, fold with &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt;, and &lt;code&gt;playground&lt;/code&gt; are members of one
@@ -156,20 +165,46 @@ and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; 
 held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
 and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
-core language; the two number types and arithmetic are not in this port yet,
-see &lt;em&gt;Numbers at the boundary&lt;/em&gt;). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency (not
-published to crates.io yet), the same way a PureScript host depends on
+core language, with the two number types and the arithmetic profile,
+see &lt;em&gt;Numbers at the boundary&lt;/em&gt;). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, json, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency for
+what this section describes (&lt;code&gt;tramaj-rs&lt;/code&gt; 0.1.0 is on crates.io, but predates the
+number split and takes &lt;code&gt;serde_json::Value&lt;/code&gt;), the same way a PureScript host depends on
 &lt;code&gt;tramaj-purs&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse_program(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt; ParseError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::eval&lt;/span&gt;&lt;/span&gt;
-&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; run_program(&lt;/span&gt;
-&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    mode&lt;span class="op"&gt;:&lt;/span&gt; Mode&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
-&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    libs&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;LibraryTable&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
-&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    ctx&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="pp"&gt;serde_json::&lt;/span&gt;Value&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
-&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    program&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
-&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;&lt;span class="pp"&gt;serde_json::&lt;/span&gt;Value&lt;span class="op"&gt;,&lt;/span&gt; EvalError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;run_program&lt;/code&gt; gives you the evaluated result as JSON directly, already
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::json&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Json&lt;span class="op"&gt;,&lt;/span&gt; &lt;span class="dt"&gt;String&lt;/span&gt;&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; stringify(v&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Json) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;String&lt;/span&gt;&lt;span class="op"&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::eval&lt;/span&gt;&lt;/span&gt;
+&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;struct&lt;/span&gt; Options &lt;span class="op"&gt;{&lt;/span&gt; &lt;span class="kw"&gt;pub&lt;/span&gt; mode&lt;span class="op"&gt;:&lt;/span&gt; Mode&lt;span class="op"&gt;,&lt;/span&gt; &lt;span class="kw"&gt;pub&lt;/span&gt; arithmetic&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;bool&lt;/span&gt; &lt;span class="op"&gt;}&lt;/span&gt;&lt;/span&gt;
+&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="11"&gt;&lt;a href="#11" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; run_program(&lt;/span&gt;
+&lt;span id="12"&gt;&lt;a href="#12" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    mode&lt;span class="op"&gt;:&lt;/span&gt; Mode&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="13"&gt;&lt;a href="#13" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    libs&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;LibraryTable&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="14"&gt;&lt;a href="#14" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    ctx&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Json&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="15"&gt;&lt;a href="#15" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    program&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="16"&gt;&lt;a href="#16" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Json&lt;span class="op"&gt;,&lt;/span&gt; EvalError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="17"&gt;&lt;a href="#17" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="18"&gt;&lt;a href="#18" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; run_program_with(&lt;/span&gt;
+&lt;span id="19"&gt;&lt;a href="#19" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    options&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Options&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="20"&gt;&lt;a href="#20" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    libs&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;LibraryTable&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="21"&gt;&lt;a href="#21" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    ctx&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Json&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="22"&gt;&lt;a href="#22" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    program&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id="23"&gt;&lt;a href="#23" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Json&lt;span class="op"&gt;,&lt;/span&gt; EvalError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;tramaj_rs::json::Json&lt;/code&gt; is the JSON type of this port: like
+&lt;code&gt;serde_json::Value&lt;/code&gt;, with an integer (&lt;code&gt;Json::Int&lt;/code&gt;, an &lt;code&gt;i64&lt;/code&gt;) and a float
+(&lt;code&gt;Json::Float&lt;/code&gt;) as two variants. Read the context with &lt;code&gt;json::parse&lt;/code&gt; and
+write the result with &lt;code&gt;json::stringify&lt;/code&gt;, so that &lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt; stay two
+values both ways. &lt;code&gt;json::from_serde&lt;/code&gt; and &lt;code&gt;json::to_serde&lt;/code&gt; bridge to a
+&lt;code&gt;serde_json::Value&lt;/code&gt; a host already holds; their documentation says what each
+direction loses. Integers cover the signed 64-bit range, as in the Haskell
+implementation: a literal, a context number or a result outside it is
+refused, never rounded. Arithmetic is off in &lt;code&gt;run_program&lt;/code&gt; and on with
+&lt;code&gt;run_program_with(&amp;amp;Options { mode, arithmetic: true }, ...)&lt;/code&gt;;
+&lt;code&gt;analysis::deep_arithmetic_ops&lt;/code&gt; lists the arithmetic names a program and its
+libraries reference, for a host that leaves the profile off.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;run_program&lt;/code&gt; gives you the evaluated result as JSON directly, already
 encoded per &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt; when the program
 produces a document, or the concrete/symbolic envelope from
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; §5 otherwise — the same shape
@@ -181,13 +216,12 @@ recurse into children, decide what an &lt;code&gt;action(...)&lt;/code&gt; paylo
 host).&lt;/p&gt;
 &lt;p&gt;Unlike the Haskell port, Rust also has a &lt;code&gt;tramaj-cli&lt;/code&gt; equivalent —
 &lt;code&gt;tramaj-cli-rs&lt;/code&gt; — mirroring &lt;code&gt;tramaj-cli&lt;/code&gt;’s command surface field-for-field:
-the same &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze &amp;lt;imports|actions|holes|unsupplied|constraints|symbols|types|card|all&amp;gt;&lt;/code&gt;
-subcommands, the same &lt;code&gt;--lib name=path&lt;/code&gt;/&lt;code&gt;--mode concrete|symbolic&lt;/code&gt; flags,
+the same &lt;code&gt;evaluate&lt;/code&gt;/&lt;code&gt;analyze &amp;lt;imports|actions|holes|unsupplied|constraints|symbols|arithmetic|types|card|all&amp;gt;&lt;/code&gt;
+subcommands, the same &lt;code&gt;--lib name=path&lt;/code&gt;/&lt;code&gt;--mode concrete|symbolic&lt;/code&gt;/&lt;code&gt;--arithmetic&lt;/code&gt; flags,
 and the same JSON output shapes. If you’d rather shell out than link a Rust
 library into your host — including from a non-Rust host — &lt;code&gt;tramaj-cli-rs&lt;/code&gt; is
-an alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required. It does not
-have &lt;code&gt;tramaj-cli&lt;/code&gt;’s &lt;code&gt;--arithmetic&lt;/code&gt; flag or &lt;code&gt;analyze arithmetic&lt;/code&gt; yet, and it
-writes a whole-valued float without a fraction.&lt;/p&gt;
+an alternative to &lt;code&gt;tramaj-cli&lt;/code&gt; with no Node.js runtime required. Its integer
+range is the signed 64-bit one, where &lt;code&gt;tramaj-cli&lt;/code&gt; has the guaranteed 53 bits.&lt;/p&gt;
 &lt;h3 id="javascript--typescript--import-as-a-library-fold-with-tramaj-react"&gt;JavaScript / TypeScript — import as a library, fold with &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;tramaj-js&lt;/code&gt; is an independent, hand-written TypeScript port of the same
 grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt;, Haskell
@@ -195,8 +229,9 @@ grammar and evaluation semantics as the PureScript &lt;code&gt;tramaj-purs&lt;/c
 corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
-core language; the two number types and arithmetic are not in this port
-yet). It’s a normal npm package with no React or DOM dependency
+core language, and the two number types with the ten arithmetic builtins;
+see &lt;em&gt;Numbers in &lt;code&gt;tramaj-js&lt;/code&gt;&lt;/em&gt; below). It’s a normal npm package with no React
+or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
@@ -232,6 +267,21 @@ element, because a fragment contributes several siblings with no wrapper —
 splice it into your own container, &lt;code&gt;&amp;lt;&amp;gt;{foldToReact(dispatch, node)}&amp;lt;/&amp;gt;&lt;/code&gt;.
 Call &lt;code&gt;validateAttrNames&lt;/code&gt; on the &lt;code&gt;Node&lt;/code&gt; first, same caveat as
 &lt;code&gt;tramaj-halogen&lt;/code&gt;: attribute names aren’t validated by the fold itself.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Numbers in &lt;code&gt;tramaj-js&lt;/code&gt;.&lt;/strong&gt; A JavaScript &lt;code&gt;number&lt;/code&gt; has no type of its own, so
+the port classifies it: a &lt;code&gt;number&lt;/code&gt; that is a safe integer is an integer, and
+any other &lt;code&gt;number&lt;/code&gt; is a float. The float &lt;code&gt;3.0&lt;/code&gt; is written &lt;code&gt;new Float(3)&lt;/code&gt; (or
+&lt;code&gt;float(3)&lt;/code&gt;), and the result of an evaluation uses a &lt;code&gt;Float&lt;/code&gt; for a
+whole-valued float and a plain &lt;code&gt;number&lt;/code&gt; for everything else. The integer
+range is the guaranteed one, &lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;. &lt;code&gt;JSON.parse&lt;/code&gt; and
+&lt;code&gt;JSON.stringify&lt;/code&gt; lose the type, so the package has its own reader and
+writer, &lt;code&gt;parseJson&lt;/code&gt; and &lt;code&gt;stringify&lt;/code&gt;. Arithmetic is an option of each
+evaluation, off by default:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;const&lt;/span&gt; ctx &lt;span class="op"&gt;=&lt;/span&gt; &lt;span class="fu"&gt;parseJson&lt;/span&gt;(&lt;span class="st"&gt;&amp;#39;{&amp;quot;qty&amp;quot;: 3, &amp;quot;price&amp;quot;: 9.0}&amp;#39;&lt;/span&gt;)&lt;span class="op"&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;const&lt;/span&gt; out &lt;span class="op"&gt;=&lt;/span&gt; &lt;span class="fu"&gt;runProgramWith&lt;/span&gt;({ mode&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;concrete&amp;quot;&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt; arithmetic&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="kw"&gt;true&lt;/span&gt; }&lt;span class="op"&gt;,&lt;/span&gt; libs&lt;span class="op"&gt;,&lt;/span&gt; ctx&lt;span class="op"&gt;,&lt;/span&gt; program)&lt;span class="op"&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="fu"&gt;stringify&lt;/span&gt;(out)&lt;span class="op"&gt;;&lt;/span&gt; &lt;span class="co"&gt;// an integer as digits, a float with a fraction or an exponent&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;runProgram&lt;/code&gt; and &lt;code&gt;evalProgram&lt;/code&gt; run without it, where the ten names are
+unbound, and &lt;code&gt;deepArithmeticOps(libs, program)&lt;/code&gt; tells a host beforehand
+whether a program uses them. &lt;code&gt;tramaj-react&lt;/code&gt;’s &lt;code&gt;renderScalar&lt;/code&gt; writes a number
+as &lt;code&gt;str&lt;/code&gt; does and a term as the call that built it.&lt;/p&gt;
 &lt;p&gt;If you’d rather not add a JS dependency at all — or your host isn’t Node —
 &lt;code&gt;tramaj-cli&lt;/code&gt; (or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;) as a subprocess is still the same option
 open to any other language; see &lt;a href="/tramaj/howto-humans.html"&gt;Getting started&lt;/a&gt; for
@@ -243,13 +293,14 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types; the two number
-types and arithmetic are not in this port yet). It needs
+types and the ten arithmetic builtins are in this port, on &lt;code&gt;main&lt;/code&gt;). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It’s a normal package — &lt;code&gt;tramaj&lt;/code&gt; with
 &lt;code&gt;ast&lt;/code&gt;, &lt;code&gt;parser&lt;/code&gt;, &lt;code&gt;evaluator&lt;/code&gt;, &lt;code&gt;node&lt;/code&gt;, &lt;code&gt;analysis&lt;/code&gt;, &lt;code&gt;typesys&lt;/code&gt; and &lt;code&gt;jsonval&lt;/code&gt;
 modules, laid out one-to-one like &lt;code&gt;tramaj-js&lt;/code&gt; — installed from the
-repository’s &lt;code&gt;tramaj-py/&lt;/code&gt; directory (not published to PyPI yet):&lt;/p&gt;
+repository’s &lt;code&gt;tramaj-py/&lt;/code&gt; directory for what this section describes
+(&lt;code&gt;tramaj&lt;/code&gt; 0.1.0 is on PyPI, but predates the number split):&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="im"&gt;from&lt;/span&gt; tramaj &lt;span class="im"&gt;import&lt;/span&gt; parse_program, run_program&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;program &lt;span class="op"&gt;=&lt;/span&gt; parse_program(&lt;span class="st"&gt;&amp;#39;.p($ctx.name)&amp;#39;&lt;/span&gt;)          &lt;span class="co"&gt;# raises ParseError&lt;/span&gt;&lt;/span&gt;
@@ -261,11 +312,16 @@ document, or the concrete/symbolic envelope from
 &lt;code&gt;runProgram&lt;/code&gt; returns on every other side. A library table is a &lt;code&gt;dict&lt;/code&gt; from
 import name to parsed program; the mode is &lt;code&gt;&amp;quot;concrete&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;symbolic&amp;quot;&lt;/code&gt;.
 &lt;code&gt;eval_program&lt;/code&gt; is the lower-level entry point if you want the &lt;code&gt;Node&lt;/code&gt; value
-itself rather than its JSON encoding. Every number is still a double
-in this port: an exact integer comes back as an &lt;code&gt;int&lt;/code&gt;, and &lt;code&gt;str&lt;/code&gt; renders as
-ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does. That matches the Rust, JavaScript and
-Go ports byte-for-byte, and differs from the PureScript and Haskell
-implementations for a whole-valued float (&lt;code&gt;1&lt;/code&gt; here, &lt;code&gt;1.0&lt;/code&gt; there).&lt;/p&gt;
+itself rather than its JSON encoding. The two number types are the two
+Python types: an &lt;code&gt;int&lt;/code&gt; is an integer and a &lt;code&gt;float&lt;/code&gt; a float, in the context
+and in the result, so &lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt; here as in the other five
+implementations. Integers cover the signed 64-bit range; Python’s own are
+unbounded, so one outside the range is refused, never rounded.
+&lt;code&gt;tramaj.parse_json&lt;/code&gt; reads JSON text with each number typed by its text, and
+&lt;code&gt;compact_json&lt;/code&gt; and &lt;code&gt;pretty_json&lt;/code&gt; write a float with a fraction or an
+exponent. Arithmetic is off by default and on with
+&lt;code&gt;run_program(..., arithmetic=True)&lt;/code&gt;; &lt;code&gt;deep_arithmetic_ops&lt;/code&gt; lists the
+arithmetic names a program and its libraries reference.&lt;/p&gt;
 &lt;p&gt;As with Haskell and Rust, no fold is shipped: a Python host writes its own
 following the same shape (case on &lt;code&gt;text&lt;/code&gt;/&lt;code&gt;element&lt;/code&gt;/&lt;code&gt;fragment&lt;/code&gt;, recurse into
 children, decide what an &lt;code&gt;action(...)&lt;/code&gt; payload means in your host). Python
@@ -278,8 +334,8 @@ to it instead of to Node.&lt;/p&gt;
 evaluation semantics as the other implementations, held to the same shared
 conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
-&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types; the two number
-types and arithmetic are not in this port yet). It needs nothing
+&lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, the two number
+types and the arithmetic profile). It needs nothing
 outside the standard library (Go 1.21+), so it compiles into a service or a
 static binary with no Node, Python or PureScript toolchain as a runtime
 dependency. It’s one package, &lt;code&gt;tramaj&lt;/code&gt;, in the repository’s &lt;code&gt;tramaj-go/&lt;/code&gt;
@@ -290,8 +346,8 @@ directory (no tagged module release yet):&lt;/p&gt;
 &lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;ctx&lt;span class="op"&gt;,&lt;/span&gt; _ &lt;span class="op"&gt;:=&lt;/span&gt; tramaj&lt;span class="op"&gt;.&lt;/span&gt;ParseJSON&lt;span class="op"&gt;([]&lt;/span&gt;&lt;span class="dt"&gt;byte&lt;/span&gt;&lt;span class="op"&gt;(&lt;/span&gt;&lt;span class="st"&gt;`{&amp;quot;name&amp;quot;: &amp;quot;web&amp;quot;}`&lt;/span&gt;&lt;span class="op"&gt;))&lt;/span&gt;&lt;/span&gt;
 &lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;out&lt;span class="op"&gt;,&lt;/span&gt; err &lt;span class="op"&gt;:=&lt;/span&gt; tramaj&lt;span class="op"&gt;.&lt;/span&gt;RunProgram&lt;span class="op"&gt;(&lt;/span&gt;tramaj&lt;span class="op"&gt;.&lt;/span&gt;Concrete&lt;span class="op"&gt;,&lt;/span&gt; &lt;span class="ot"&gt;nil&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt; ctx&lt;span class="op"&gt;,&lt;/span&gt; program&lt;span class="op"&gt;)&lt;/span&gt; &lt;span class="co"&gt;// err is a *tramaj.EvalError&lt;/span&gt;&lt;/span&gt;
 &lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;fmt&lt;span class="op"&gt;.&lt;/span&gt;Println&lt;span class="op"&gt;(&lt;/span&gt;tramaj&lt;span class="op"&gt;.&lt;/span&gt;PrettyJSON&lt;span class="op"&gt;(&lt;/span&gt;out&lt;span class="op"&gt;))&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;RunProgram&lt;/code&gt; gives you the evaluated result as a &lt;code&gt;tramaj.JSON&lt;/code&gt; value (&lt;code&gt;nil&lt;/code&gt;,
-&lt;code&gt;bool&lt;/code&gt;, &lt;code&gt;float64&lt;/code&gt;, &lt;code&gt;string&lt;/code&gt;, &lt;code&gt;[]tramaj.JSON&lt;/code&gt; or &lt;code&gt;*tramaj.Object&lt;/code&gt;, an object
-that keeps its keys in order), already encoded per
+&lt;code&gt;bool&lt;/code&gt;, &lt;code&gt;int64&lt;/code&gt;, &lt;code&gt;float64&lt;/code&gt;, &lt;code&gt;string&lt;/code&gt;, &lt;code&gt;[]tramaj.JSON&lt;/code&gt; or &lt;code&gt;*tramaj.Object&lt;/code&gt;, an
+object that keeps its keys in order), already encoded per
 &lt;a href="/tramaj/reference-node-json.html"&gt;&lt;code&gt;node-json.md&lt;/code&gt;&lt;/a&gt; when the program produces a
 document, or the concrete/symbolic envelope from
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; §5 otherwise — the same shape
@@ -299,10 +355,13 @@ document, or the concrete/symbolic envelope from
 &lt;code&gt;tramaj.Libraries&lt;/code&gt;, a map from import name to parsed program; the mode is
 &lt;code&gt;tramaj.Concrete&lt;/code&gt; or &lt;code&gt;tramaj.Symbolic&lt;/code&gt;. &lt;code&gt;EvalProgram&lt;/code&gt; is the lower-level entry
 point if you want the &lt;code&gt;*tramaj.Node&lt;/code&gt; itself rather than its JSON encoding.
-Every number is still a &lt;code&gt;float64&lt;/code&gt; in this port, and &lt;code&gt;str&lt;/code&gt; renders as
-ECMAScript’s &lt;code&gt;Number::toString&lt;/code&gt; does. That matches the Rust, JavaScript and
-Python ports byte-for-byte, and differs from the PureScript and Haskell
-implementations for a whole-valued float (&lt;code&gt;1&lt;/code&gt; here, &lt;code&gt;1.0&lt;/code&gt; there).&lt;/p&gt;
+A number is an &lt;code&gt;int64&lt;/code&gt; when it is an integer and a &lt;code&gt;float64&lt;/code&gt; when it is a
+float, and &lt;code&gt;tramaj.ParseJSON&lt;/code&gt; types each by its text (&lt;code&gt;3&lt;/code&gt; and &lt;code&gt;3.0&lt;/code&gt; are two
+values); the integer range is the signed 64-bit one. The arithmetic profile
+is off unless the host turns it on:
+&lt;code&gt;tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)&lt;/code&gt;,
+and &lt;code&gt;tramaj.DeepArithmeticOps&lt;/code&gt; lists the arithmetic names a program
+references. On the &lt;code&gt;main&lt;/code&gt; branch, in no release yet.&lt;/p&gt;
 &lt;p&gt;As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node’s &lt;code&gt;Type&lt;/code&gt;, recurse into
 &lt;code&gt;Children&lt;/code&gt;, decide what an action attribute means in your host). Go also has

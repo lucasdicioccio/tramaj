@@ -8,7 +8,7 @@ Types are **not** in v3. Nominal types, type declarations, imported type namespa
 
 Status: frozen as a design. Not implemented in either `tramaj/` or `tramaj-hs/`.
 
-**Terms are not in every implementation yet.** §1.9, and what the rest of this document says about terms and about `"$term"`, is accepted design (decisions §18). It depends on ref §11's arithmetic profile. `tramaj/` (PureScript) and `tramaj-hs/` (Haskell) implement both, for the nine names other than `round`; the Rust, JavaScript, Python and Go ports have neither yet. The same holds for the two number types (ref §3) wherever this document writes a number: in canon (§1.4) and in the envelope (§5.2).
+**Terms are in all six implementations.** §1.9, and what the rest of this document says about terms and about `"$term"`, is accepted design (decisions §18). It depends on ref §11's arithmetic profile. The PureScript, Haskell, TypeScript, Rust, Go and Python implementations have both, for all ten names, `round` among them. The same holds for the two number types (ref §3) wherever this document writes a number: in canon (§1.4) and in the envelope (§5.2). All of it is on the `main` branch and in no release yet.
 
 -----------------------------
 
@@ -143,7 +143,7 @@ A symbol is data. It may be bound, passed to a lambda, returned from one, stored
 
 Consequence worth stating: v3 can constrain the elements of a list whose length is known, and cannot constrain a list whose length is symbolic. That is the ceiling, and it is where a real symbolic evaluator would have to begin. Declining to go there is what keeps `map` free of any `if value is Symbol` branch — no evaluator rule in ref §6 changes, and no builtin learns a new case beyond refusing. The ten arithmetic builtins are the one exception: over a symbol they build a term (§1.9).
 
-The two sorts and `format-number` (ref §11; decisions §20, not yet implemented) follow the rule and only refuse. A sort builds no term, since a term stands for a number and the result of a sort is an array: a list whose order depends on an unsupplied value cannot be rendered, which is the ceiling above. The elements themselves are not inspected, so `sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) => $o.k)` sorts. `format-number` builds no term either, since its result is text. Its arguments are examined left to right and the first that is not acceptable decides between `NotConcrete` and `TypeMismatch` (ref §11); a sort's keys are examined in index order in the same way.
+The two sorts and `format-number` (ref §11; decisions §20, in all six implementations) follow the rule and only refuse. A sort builds no term, since a term stands for a number and the result of a sort is an array: a list whose order depends on an unsupplied value cannot be rendered, which is the ceiling above. The elements themselves are not inspected, so `sort-by([{k: 2, v: $a}, {k: 1, v: $b}], (o) => $o.k)` sorts. `format-number` builds no term either, since its result is text. Its arguments are examined left to right and the first that is not acceptable decides between `NotConcrete` and `TypeMismatch` (ref §11); a sort's keys are examined in index order in the same way.
 
 A term is data in the same way. Every row above that refuses a symbol refuses a term in the same position, and a row that says _containing_ looks as deep for a term as it does for a symbol. The one difference is projection, which a term does not have (§1.9).
 
@@ -193,7 +193,7 @@ Reconstructing a string from those pieces, if a downstream consumer wants one, i
 
 ### 1.9 Terms
 
-_Implemented in `tramaj/` and `tramaj-hs/`, for the nine names other than `round`; not yet in the other ports (decisions §18)._ This section applies to an implementation with the arithmetic profile (ref §11, §5.5).
+_Implemented in all six implementations, for all ten names (decisions §18; §20 for `round`)._ This section applies to an implementation with the arithmetic profile (ref §11, §5.5).
 
 ```
 !constraint("lte", sum($a, $b), 10)
@@ -492,7 +492,7 @@ A host fold may then: run a solver over `"constraints"`; render an input for eve
 {"$sym": "#0:\"d\"", "path": ["replicas"]}
 ```
 
-and a term (§1.9; not in every implementation yet), whose `op` is one of the ten names of ref §11's _Arithmetic_, `round` among them:
+and a term (§1.9), whose `op` is one of the ten names of ref §11's _Arithmetic_, `round` among them:
 
 ```json
 {"$term": "sum", "arguments": [1, {"$sym": "#0:\"s\"", "path": []}, 2]}
@@ -547,7 +547,7 @@ An implementation MAY implement the **core profile** only — the language of `r
 
 An implementation of the **symbolic profile** implements both modes.
 
-The **arithmetic profile** (ref §11; not in every implementation yet) is a third, independent of both: either of the above may have it or not. It is not refused at parse time, since its ten builtins are names and not syntax; a program that uses one on an implementation without it fails with `UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms (§1.9) exist only where the symbolic and arithmetic profiles meet. The two number types (ref §3) and the reserved `"$term"` key (§5.3) belong to every profile.
+The **arithmetic profile** (ref §11; all six implementations have it) is a third, independent of both: either of the above may have it or not. It is not refused at parse time, since its ten builtins are names and not syntax; a program that uses one on an implementation without it fails with `UnboundName`, and `deepArithmeticOps` (ref §9) detects that beforehand. Terms (§1.9) exist only where the symbolic and arithmetic profiles meet. The two number types (ref §3) and the reserved `"$term"` key (§5.3) belong to every profile.
 
 -----------------------------
 

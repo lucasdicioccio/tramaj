@@ -6,9 +6,11 @@ This is the reference for the language **as implemented**. Where the earlier dra
 
 Two implementations are held to this document: `tramaj/` (PureScript) and `tramaj-hs/` (Haskell). Anything below marked _implementation-defined_ is where they are permitted to differ; everything else they must not.
 
-**One part is not in every implementation yet.** The split of numbers into integers and floats, and the arithmetic builtins, are accepted design (decisions §18) and are normative here. `tramaj/` (PureScript, with the guaranteed integer range) and `tramaj-hs/` (Haskell, with the 64-bit range) implement both, the nine arithmetic names without `round`. The Rust, JavaScript, Python and Go ports do not yet: there every number is a double, `str(1.0)` is `1`, and the nine names of §11's _Arithmetic_ are unbound. Each passage this applies to is marked **[§18]**.
+**Two parts are newer than the rest, and all six implementations have both.** The split of numbers into integers and floats, and the arithmetic builtins, are accepted design (decisions §18) and are normative here. The PureScript and TypeScript implementations have the guaranteed integer range (§13); the Haskell, Rust, Go and Python ones have the 64-bit range. All six implement the two number types and the arithmetic profile with its ten names. Each passage this applies to is marked **[§18]**.
 
-**A second part is specified ahead in the same way.** Sorting (`sort-by`, `sort-by-descending`), `format-number` and `round` are accepted design (decisions §20) and are normative here, but no implementation has them yet: the two sort names parse as ordinary calls, and all four names are unbound. Each passage this applies to is marked **[§20]**.
+Sorting (`sort-by`, `sort-by-descending`), `format-number` and `round` are accepted design (decisions §20) and are normative here, and all six implementations have them too. Each passage this applies to is marked **[§20]**.
+
+Both are on the `main` branch and in no release yet: a released version of an implementation predates them, so there every number is a double, `str(1.0)` is `1`, the two sort names parse as ordinary calls, and the names of §11's _Sorting_, _Number formatting_ and _Arithmetic_ are unbound.
 
 -----------------------------
 
@@ -294,7 +296,7 @@ Mixed types are an error. Object key order is not semantically significant.
 
 Keys are sorted because key order is not semantically significant, so it must not be observable here either. Both implementations must produce these character for character.
 
-**[§18]** The two number rows are the serialization rule of `node-json.md`: `str` renders what the value is, so `str(1)` is `1` and `str(1.0)` is `1.0`. An implementation without the number split yet renders every number by `Number::toString` alone, which differs for a whole-valued float and for nothing else.
+**[§18]** The two number rows are the serialization rule of `node-json.md`: `str` renders what the value is, so `str(1)` is `1` and `str(1.0)` is `1.0`. A release from before the number split renders every number by `Number::toString` alone, which differs for a whole-valued float and for nothing else.
 
 -----------------------------
 
@@ -468,7 +470,7 @@ The vocabulary is fixed, not user-extensible.
 
 ### Sorting
 
-**[§20] Specified, not yet implemented.**
+**[§20]** Implemented in all six implementations.
 
 ```
 sort-by($rows, (r) => $r.spend)                 -- by a field
@@ -532,7 +534,7 @@ A sort on several columns is one sort per column, the least significant key firs
 
 ### Number formatting
 
-**[§20] Specified, not yet implemented.**
+**[§20]** Implemented in all six implementations.
 
 `format-number(x, decimals, group)` writes a number in positional decimal notation, with exactly `decimals` digits after the point, and `group` between each group of three digits of the integer part. It is an ordinary builtin of the core language. It needs no profile, it can be shadowed and passed by reference, and it does not depend on the arithmetic builtins.
 
@@ -577,7 +579,7 @@ format-number(product(100.0, $ratio), 1, "") <> "%"
 
 ### Arithmetic
 
-**[§18]** Implemented in `tramaj/` (PureScript) and `tramaj-hs/` (Haskell), with the nine names other than `round`; not yet in the Rust, JavaScript, Python and Go ports. **[§20]** `round` is the tenth name, added to the profile after the other nine, and no implementation has it yet.
+**[§18]** Implemented in all six implementations. **[§20]** `round` is the tenth name, added to the profile after the other nine, and all six have it as well.
 
 **The arithmetic profile** is optional, and independent of v3-symbols §5.5's core and symbolic profiles. The two number types of §3 are not part of it: they belong to the value domain in every profile.
 
@@ -685,7 +687,7 @@ Programs must not depend on any of these.
 
 - **The place of an ill-formed string in a sort. [§20]** The string order of §11's _Sorting_ is defined for well-formed strings. Whether a string may hold an unpaired surrogate is not specified, and neither is where one would sort.
 
-- **Integer range. [§18]** Either the guaranteed range, `-(2^53 - 1)` to `2^53 - 1`, or the signed 64-bit range, `-2^63` to `2^63 - 1`; no other is permitted, and an implementation documents which it has (§3). Inside the guaranteed range all implementations agree. Between the two, one holds an integer exactly or refuses it (a parse error for a literal, a `TypeMismatch` for a JSON number in the context, a `NotRepresentable` for a result) and never rounds it. Outside 64 bits every implementation refuses. A value one implementation emits above the guaranteed range is therefore rejected by one that has only that range. In an implementation without the number split yet, numbers are doubles, integers beyond 2^53 are not exact, and `str` renders whatever double survived.
+- **Integer range. [§18]** Either the guaranteed range, `-(2^53 - 1)` to `2^53 - 1`, or the signed 64-bit range, `-2^63` to `2^63 - 1`; no other is permitted, and an implementation documents which it has (§3). Inside the guaranteed range all implementations agree. Between the two, one holds an integer exactly or refuses it (a parse error for a literal, a `TypeMismatch` for a JSON number in the context, a `NotRepresentable` for a result) and never rounds it. Outside 64 bits every implementation refuses. A value one implementation emits above the guaranteed range is therefore rejected by one that has only that range. In a release from before the number split, numbers are doubles, integers beyond 2^53 are not exact, and `str` renders whatever double survived.
 
 
 -----------------------------

@@ -1,7 +1,123 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-08T15:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html</id><title type="text">Migrating to integers and floats</title><updated>2026-10-08T15:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="migrating-to-integers-and-floats"&gt;Migrating to integers and floats&lt;/h2&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-08T15:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
+&lt;p&gt;tramaj has gone through four iterations so far: v1 (the original
+block/template split), v2 (expression-oriented documents, static analyses
+and the &lt;code&gt;Node&lt;/code&gt; JSON format), v3 (symbols and constraints) and v4 (types).
+This is the fifth. It changes what a number is, and lets a template do
+something with one:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Two number types.&lt;/strong&gt; An integer and a float, with no implicit conversion
+between them.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Arithmetic.&lt;/strong&gt; Ten named builtins, &lt;code&gt;round&lt;/code&gt; among them, in an optional
+profile that a host turns on.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Sorting.&lt;/strong&gt; &lt;code&gt;sort-by&lt;/code&gt; and &lt;code&gt;sort-by-descending&lt;/code&gt; order a list by a key
+function.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Number formatting.&lt;/strong&gt; &lt;code&gt;format-number&lt;/code&gt; writes a number with a fixed
+number of decimals and a group separator, rounded the same way everywhere.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;And the part that makes it a version rather than a design: &lt;strong&gt;all six
+implementations have all of it, and run the same corpus.&lt;/strong&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;@rows=sort-by-descending($ctx.rows, (r) =&amp;gt; $r.spend)
+@total=sum(map($rows, (r) =&amp;gt; $r.spend))
+.table(
+  map($rows, (r) =&amp;gt; .tr(.td($r.name), .td(format-number($r.spend, 2, &amp;quot;,&amp;quot;))))
+  , .tr(.td(&amp;quot;total&amp;quot;), .td(format-number($total, 2, &amp;quot;,&amp;quot;))))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="what-changed-since-v4"&gt;What changed since v4&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Numbers.&lt;/strong&gt; A JSON number in the context is typed by its text: &lt;code&gt;3&lt;/code&gt; is an
+integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats. A template literal follows the same
+rule. Integers are exact over a guaranteed range; an integer outside it is
+refused instead of being rounded. Comparisons do not mix the two types, and
+&lt;code&gt;real(…)&lt;/code&gt;, &lt;code&gt;floor(…)&lt;/code&gt; and &lt;code&gt;round(…)&lt;/code&gt; convert when the template asks.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Arithmetic.&lt;/strong&gt; Until v4 the reference said a template “compares and
+selects, it does not compute”. That is reversed, narrowly: the grammar has
+no infix operators, and arithmetic is ten named builtins (&lt;code&gt;sum&lt;/code&gt;, &lt;code&gt;product&lt;/code&gt;,
+&lt;code&gt;negate&lt;/code&gt;, &lt;code&gt;round&lt;/code&gt;, …) in a profile the host enables. A host that does not
+enable it can refuse such a program up front, from its static analysis,
+without evaluating it. The design and the alternatives that were rejected
+are in &lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;Two designs accepted&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Sorting and formatting.&lt;/strong&gt; &lt;code&gt;sort-by(list, fn)&lt;/code&gt; and
+&lt;code&gt;sort-by-descending(list, fn)&lt;/code&gt; order a list by the key &lt;code&gt;fn&lt;/code&gt; gives each
+element, and are stable. &lt;code&gt;format-number(x, decimals, group)&lt;/code&gt; writes
+&lt;code&gt;1234567.891&lt;/code&gt; as &lt;code&gt;&amp;quot;1,234,567.89&amp;quot;&lt;/code&gt;. Both are part of the core language and
+need no profile. The rounding rule of &lt;code&gt;format-number&lt;/code&gt; is normative, because
+the native formatters of the six host languages disagree on ties and on
+negative zero: each implementation writes the rule by hand rather than
+calling its own formatter.&lt;/p&gt;
+&lt;p&gt;All of this is specified in
+&lt;a href="/tramaj/reference-language.html"&gt;&lt;code&gt;reference.md&lt;/code&gt;&lt;/a&gt; §3, §11 and §13, and recorded,
+with the alternatives, in
+&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"&gt;&lt;code&gt;specs/decisions.md&lt;/code&gt;&lt;/a&gt;
+sections 18 and 20.&lt;/p&gt;
+&lt;h3 id="breaking-changes"&gt;Breaking changes&lt;/h3&gt;
+&lt;p&gt;The arithmetic profile is an addition: a template that does not use it is
+unaffected. The number split is not optional, and it changes the output of
+some existing templates and hosts:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;what&lt;/th&gt;&lt;th&gt;v4&lt;/th&gt;&lt;th&gt;v5&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;str&lt;/code&gt; of a whole-valued float&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1.0&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;eq&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;eq(1, 1.0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; across the two types&lt;/td&gt;&lt;td&gt;&lt;code&gt;gt(1.5, 0)&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a &lt;code&gt;TypeMismatch&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a JSON number in the context&lt;/td&gt;&lt;td&gt;a double, whatever its text&lt;/td&gt;&lt;td&gt;&lt;code&gt;3&lt;/code&gt; is an integer, &lt;code&gt;3.0&lt;/code&gt; and &lt;code&gt;3e0&lt;/code&gt; are floats&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;an integer outside the range&lt;/td&gt;&lt;td&gt;rounded to the nearest double&lt;/td&gt;&lt;td&gt;refused: a parse error as a literal, a &lt;code&gt;TypeMismatch&lt;/code&gt; in the context&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the object key &lt;code&gt;"$term"&lt;/code&gt;&lt;/td&gt;&lt;td&gt;an ordinary key&lt;/td&gt;&lt;td&gt;reserved, like &lt;code&gt;"$sym"&lt;/code&gt; and &lt;code&gt;"$type"&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the type primitive &lt;code&gt;number&lt;/code&gt; (v4 types)&lt;/td&gt;&lt;td&gt;a primitive&lt;/td&gt;&lt;td&gt;gone: &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; replace it&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;
+takes each row in turn: who it affects, how to find the templates it
+affects, and what to change.&lt;/p&gt;
+&lt;h3 id="every-implementation-runs-the-whole-corpus"&gt;Every implementation runs the whole corpus&lt;/h3&gt;
+&lt;p&gt;The &lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/corpus"&gt;conformance corpus&lt;/a&gt;
+holds 646 cases: a template, a context and the expected output, compared
+byte for byte, in both &lt;code&gt;concrete&lt;/code&gt; and &lt;code&gt;symbolic&lt;/code&gt; mode. Until now an
+implementation could skip a case that needed a profile it did not provide,
+and while the ports caught up, some did. That is over: &lt;code&gt;&amp;quot;int-float&amp;quot;&lt;/code&gt; and
+&lt;code&gt;&amp;quot;arithmetic&amp;quot;&lt;/code&gt; are now required of every runner, and a case that lists one
+fails, rather than being skipped, in an implementation without it.&lt;/p&gt;
+&lt;p&gt;The only cases any implementation still skips are the ones written for the
+other integer range. PureScript and TypeScript have the guaranteed 53-bit
+range, because their host number is a double; the other four have the
+64-bit range. Each skips the few cases that pin down the other range’s
+edges.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;implementation&lt;/th&gt;&lt;th&gt;integer range&lt;/th&gt;&lt;th&gt;corpus&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (PureScript)&lt;/td&gt;&lt;td&gt;53-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 64-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt; (Haskell)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt; (Rust)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt; (TypeScript)&lt;/td&gt;&lt;td&gt;53-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 64-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt; (Go)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt; (Python)&lt;/td&gt;&lt;td&gt;64-bit&lt;/td&gt;&lt;td&gt;passes; skips only the 53-bit range cases&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h3 id="packages"&gt;Packages&lt;/h3&gt;
+&lt;p&gt;Where to get v5 today:&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;package&lt;/th&gt;&lt;th&gt;language&lt;/th&gt;&lt;th&gt;where&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, &lt;code&gt;tramaj-halogen&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;PureScript registry, 0.4.1&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;PureScript&lt;/td&gt;&lt;td&gt;from the repository&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;Hackage, 0.4.0.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;crates.io, 0.2.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (&lt;code&gt;tramaj-py&lt;/code&gt;)&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;PyPI, 0.2.0&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;from the repository; npm has only a placeholder so far&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;from the repository, as &lt;code&gt;github.com/lucasdicioccio/tramaj/tramaj-go&lt;/code&gt;, at a commit on &lt;code&gt;main&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;Each package has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom
+feed. &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; says how to depend on
+each one.&lt;/p&gt;
+&lt;h3 id="whats-next"&gt;What’s next&lt;/h3&gt;
+&lt;p&gt;v5 is a fifth iteration, not a stable release: the language can still
+change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: the npm
+packages and folds to more rendering targets. Beyond v5,
+&lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;&lt;code&gt;?shape&lt;/code&gt;&lt;/a&gt; is an accepted design for
+allocating a structure of symbols in one form; no implementation has it
+yet.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/tramaj-v5.html" rel="alternate"/><summary type="text">The fifth iteration of the language is out. Numbers are an integer and a float, a template can compute, sort a list and format a number, and all six implementations run the whole conformance corpus. Some existing output changes.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/migrating-to-integers-and-floats.html</id><title type="text">Migrating to integers and floats</title><updated>2026-10-08T15:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="migrating-to-integers-and-floats"&gt;Migrating to integers and floats&lt;/h2&gt;
 &lt;p&gt;tramaj had one number type, a double. It now has two, an &lt;strong&gt;integer&lt;/strong&gt; and a
 &lt;strong&gt;float&lt;/strong&gt;, and nothing converts between them unless the template says so.
-The same change brings arithmetic, as nine named builtins.&lt;/p&gt;
+The same change brings arithmetic, as named builtins: nine with the split,
+and a tenth, &lt;code&gt;round&lt;/code&gt;, since.&lt;/p&gt;
 &lt;p&gt;Arithmetic is an addition: a host turns it on, and a template that does not
 use it is unaffected. The number split is not optional, and it changes what
 some existing templates and hosts produce. This page covers the split.&lt;/p&gt;
@@ -10,12 +126,16 @@ some existing templates and hosts produce. This page covers the split.&lt;/p&gt;
 &lt;tr&gt;&lt;th&gt;implementation&lt;/th&gt;&lt;th&gt;number split&lt;/th&gt;&lt;th&gt;arithmetic&lt;/th&gt;&lt;th&gt;integer range&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;, and &lt;code&gt;tramaj-halogen&lt;/code&gt;, &lt;code&gt;tramaj-cli&lt;/code&gt; and the playground built on it&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;, &lt;code&gt;tramaj-py&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;not yet&lt;/td&gt;&lt;td&gt;numbers are doubles&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;, &lt;code&gt;tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;&lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;p&gt;The PureScript and Haskell changes are on the &lt;code&gt;main&lt;/code&gt; branch and in no
-release yet. A host that follows &lt;code&gt;main&lt;/code&gt; as a git dependency gets them on its
-next update. The other four implementations still behave as before, and will
-change the same way when they get the split.&lt;/p&gt;
+&lt;p&gt;All six implementations have the change, on the &lt;code&gt;main&lt;/code&gt; branch and in no
+release yet. A host that follows &lt;code&gt;main&lt;/code&gt; as a git dependency gets it on its
+next update. A host on a published package (&lt;code&gt;tramaj-rs&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;
+0.1.0 from crates.io, &lt;code&gt;tramaj&lt;/code&gt; 0.1.0 from PyPI) still has a single number
+type, and changes the same way when it moves to the next release.&lt;/p&gt;
 &lt;h3 id="the-changes-at-a-glance"&gt;The changes at a glance&lt;/h3&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;what&lt;/th&gt;&lt;th&gt;before&lt;/th&gt;&lt;th&gt;now&lt;/th&gt;&lt;/tr&gt;
@@ -75,9 +195,9 @@ number type writes the float &lt;code&gt;3.0&lt;/code&gt; as &lt;code&gt;3&lt;/c
 integer. If a template needs a float from such a producer, it normalizes
 with &lt;code&gt;real&lt;/code&gt;, as above.&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;The host’s JSON parser must keep the difference.&lt;/strong&gt; JavaScript’s
-&lt;code&gt;JSON.parse&lt;/code&gt; and Haskell’s &lt;code&gt;aeson&lt;/code&gt; &lt;code&gt;Value&lt;/code&gt; both lose it. The two
-implementations therefore ship their own JSON value, and their public API
-takes it in place of the previous one:&lt;/p&gt;
+&lt;code&gt;JSON.parse&lt;/code&gt; and Haskell’s &lt;code&gt;aeson&lt;/code&gt; &lt;code&gt;Value&lt;/code&gt; both lose it. The PureScript and
+Haskell implementations therefore ship their own JSON value, and their public
+API takes it in place of the previous one:&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;&lt;/th&gt;&lt;th&gt;PureScript&lt;/th&gt;&lt;th&gt;Haskell&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;module&lt;/td&gt;&lt;td&gt;&lt;code&gt;Tramaj.Json&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;Tramaj.Json&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
@@ -89,15 +209,22 @@ takes it in place of the previous one:&lt;/p&gt;
 &lt;p&gt;The Haskell bridge cannot recover what &lt;code&gt;aeson&lt;/code&gt; dropped. &lt;code&gt;fromAeson&lt;/code&gt; makes
 every whole number that fits 64 bits an integer, and &lt;code&gt;toAeson&lt;/code&gt; gives the type
 up again. Read the JSON text with &lt;code&gt;jsonParser&lt;/code&gt; when the difference matters.&lt;/p&gt;
+&lt;p&gt;The other four implementations changed the same way, each with a reader that
+types a number by its text: &lt;code&gt;tramaj_rs::json::Json&lt;/code&gt; in place of
+&lt;code&gt;serde_json::Value&lt;/code&gt; in Rust, &lt;code&gt;Float&lt;/code&gt; and &lt;code&gt;parseJson&lt;/code&gt; in TypeScript,
+&lt;code&gt;tramaj.JSON&lt;/code&gt; with &lt;code&gt;int64&lt;/code&gt; and &lt;code&gt;float64&lt;/code&gt; in Go, and &lt;code&gt;int&lt;/code&gt; and &lt;code&gt;float&lt;/code&gt; with
+&lt;code&gt;parse_json&lt;/code&gt; in Python. &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt; has the
+details for each.&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;Numbers that are not values are refused.&lt;/strong&gt; An integer-form number outside
 the implementation’s integer range is not rounded any more: it is a parse
 error as a literal and a &lt;code&gt;TypeMismatch&lt;/code&gt; in the context. So is a float too
 large for a double, such as &lt;code&gt;1e400&lt;/code&gt;. The context is checked whole before
 evaluation starts, so the error does not depend on whether the template
 reads that number. &lt;code&gt;-0&lt;/code&gt; and &lt;code&gt;-0.0&lt;/code&gt; are read as zero.&lt;/p&gt;
-&lt;p&gt;The integer range differs between the two implementations (see the table at
+&lt;p&gt;The integer range differs between implementations (see the table at
 the top). Inside &lt;code&gt;-(2^53 - 1)&lt;/code&gt; to &lt;code&gt;2^53 - 1&lt;/code&gt; they agree. A larger integer
-that the Haskell implementation emits is refused by the PureScript one.&lt;/p&gt;
+that a 64-bit implementation emits is refused by the PureScript and
+TypeScript ones.&lt;/p&gt;
 &lt;h3 id="4-term-is-a-reserved-key"&gt;4. &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; is a reserved key&lt;/h3&gt;
 &lt;p&gt;Over a symbol, an arithmetic builtin does not compute. It evaluates to a
 &lt;em&gt;term&lt;/em&gt;, written as an object with the keys &lt;code&gt;&amp;quot;$term&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;arguments&amp;quot;&lt;/code&gt;. To
@@ -130,8 +257,8 @@ type above. They run without arithmetic.
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="arithmetic-is-separate-and-off-by-default"&gt;Arithmetic is separate, and off by default&lt;/h3&gt;
-&lt;p&gt;The nine builtins (&lt;code&gt;sum&lt;/code&gt;, &lt;code&gt;product&lt;/code&gt;, &lt;code&gt;negate&lt;/code&gt;, &lt;code&gt;quotient&lt;/code&gt;, &lt;code&gt;inverse&lt;/code&gt;,
-&lt;code&gt;floor-quotient&lt;/code&gt;, &lt;code&gt;modulo&lt;/code&gt;, &lt;code&gt;floor&lt;/code&gt;, &lt;code&gt;real&lt;/code&gt;) are an optional profile that a
+&lt;p&gt;The ten builtins (&lt;code&gt;sum&lt;/code&gt;, &lt;code&gt;product&lt;/code&gt;, &lt;code&gt;negate&lt;/code&gt;, &lt;code&gt;quotient&lt;/code&gt;, &lt;code&gt;inverse&lt;/code&gt;,
+&lt;code&gt;floor-quotient&lt;/code&gt;, &lt;code&gt;modulo&lt;/code&gt;, &lt;code&gt;floor&lt;/code&gt;, &lt;code&gt;real&lt;/code&gt;, &lt;code&gt;round&lt;/code&gt;) are an optional profile that a
 host chooses per evaluation. Without it the names are unbound, so an existing
 template that binds its own &lt;code&gt;sum&lt;/code&gt; or &lt;code&gt;floor&lt;/code&gt; keeps working either way: a
 binding shadows the builtin.&lt;/p&gt;
@@ -139,7 +266,11 @@ binding shadows the builtin.&lt;/p&gt;
 &lt;tr&gt;&lt;th&gt;where&lt;/th&gt;&lt;th&gt;how to turn it on&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-purs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;runProgramWith (defaultOptions { arithmetic = true })&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;runProgramWith defaultOptions { optArithmetic = True }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj-cli --arithmetic template.tramaj context.json&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-js&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;runProgramWith({ mode: "concrete", arithmetic: true }, ...)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;run_program_with(&amp;amp;Options { mode, arithmetic: true }, ...)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;run_program(..., arithmetic=True)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-cli&lt;/code&gt;, and the same flag on &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj-go&lt;/code&gt; and &lt;code&gt;python -m tramaj&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;tramaj-cli --arithmetic template.tramaj context.json&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;playground&lt;/td&gt;&lt;td&gt;always on&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;&lt;code&gt;tramaj-cli analyze arithmetic template.tramaj&lt;/code&gt; lists the arithmetic names a

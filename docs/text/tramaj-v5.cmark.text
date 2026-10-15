@@ -1,0 +1,94 @@
+# tramaj v5: numbers that compute, in all six implementations
+
+tramaj has gone through four iterations so far: v1 (the original block/template split), v2 (expression-oriented documents, static analyses and the `Node` JSON format), v3 (symbols and constraints) and v4 (types). This is the fifth. It changes what a number is, and lets a template do something with one:
+
+- **Two number types.** An integer and a float, with no implicit conversion between them.
+
+- **Arithmetic.** Ten named builtins, `round` among them, in an optional profile that a host turns on.
+
+- **Sorting.** `sort-by` and `sort-by-descending` order a list by a key function.
+
+- **Number formatting.** `format-number` writes a number with a fixed number of decimals and a group separator, rounded the same way everywhere.
+
+
+And the part that makes it a version rather than a design: **all six implementations have all of it, and run the same corpus.**
+
+```
+@rows=sort-by-descending($ctx.rows, (r) => $r.spend)
+@total=sum(map($rows, (r) => $r.spend))
+.table(
+  map($rows, (r) => .tr(.td($r.name), .td(format-number($r.spend, 2, ","))))
+  , .tr(.td("total"), .td(format-number($total, 2, ","))))
+```
+
+## What changed since v4
+
+**Numbers.** A JSON number in the context is typed by its text: `3` is an integer, `3.0` and `3e0` are floats. A template literal follows the same rule. Integers are exact over a guaranteed range; an integer outside it is refused instead of being rounded. Comparisons do not mix the two types, and `real(…)`, `floor(…)` and `round(…)` convert when the template asks.
+
+**Arithmetic.** Until v4 the reference said a template "compares and selects, it does not compute". That is reversed, narrowly: the grammar has no infix operators, and arithmetic is ten named builtins (`sum`, `product`, `negate`, `round`, …) in a profile the host enables. A host that does not enable it can refuse such a program up front, from its static analysis, without evaluating it. The design and the alternatives that were rejected are in [Two designs accepted](/design-arithmetic-and-shapes.html ).
+
+**Sorting and formatting.** `sort-by(list, fn)` and `sort-by-descending(list, fn)` order a list by the key `fn` gives each element, and are stable. `format-number(x, decimals, group)` writes `1234567.891` as `"1,234,567.89"`. Both are part of the core language and need no profile. The rounding rule of `format-number` is normative, because the native formatters of the six host languages disagree on ties and on negative zero: each implementation writes the rule by hand rather than calling its own formatter.
+
+All of this is specified in [`reference.md`](/reference-language.html ) §3, §11 and §13, and recorded, with the alternatives, in [`specs/decisions.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md ) sections 18 and 20.
+
+## Breaking changes
+
+The arithmetic profile is an addition: a template that does not use it is unaffected. The number split is not optional, and it changes the output of some existing templates and hosts:
+
+```html
+<table>
+<tr><th>what</th><th>v4</th><th>v5</th></tr>
+<tr><td><code>str</code> of a whole-valued float</td><td><code>str(1.0)</code> is <code>1</code></td><td><code>str(1.0)</code> is <code>1.0</code></td></tr>
+<tr><td><code>eq</code> across the two types</td><td><code>eq(1, 1.0)</code> is <code>true</code></td><td><code>false</code></td></tr>
+<tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> across the two types</td><td><code>gt(1.5, 0)</code> is <code>true</code></td><td>a <code>TypeMismatch</code></td></tr>
+<tr><td>a JSON number in the context</td><td>a double, whatever its text</td><td><code>3</code> is an integer, <code>3.0</code> and <code>3e0</code> are floats</td></tr>
+<tr><td>an integer outside the range</td><td>rounded to the nearest double</td><td>refused: a parse error as a literal, a <code>TypeMismatch</code> in the context</td></tr>
+<tr><td>the object key <code>"$term"</code></td><td>an ordinary key</td><td>reserved, like <code>"$sym"</code> and <code>"$type"</code></td></tr>
+<tr><td>the type primitive <code>number</code> (v4 types)</td><td>a primitive</td><td>gone: <code>int</code> and <code>float</code> replace it</td></tr>
+</table>
+```
+
+[Migrating to integers and floats](/migrating-to-integers-and-floats.html ) takes each row in turn: who it affects, how to find the templates it affects, and what to change.
+
+## Every implementation runs the whole corpus
+
+The [conformance corpus](https://github.com/lucasdicioccio/tramaj/tree/main/corpus ) holds 646 cases: a template, a context and the expected output, compared byte for byte, in both `concrete` and `symbolic` mode. Until now an implementation could skip a case that needed a profile it did not provide, and while the ports caught up, some did. That is over: `"int-float"` and `"arithmetic"` are now required of every runner, and a case that lists one fails, rather than being skipped, in an implementation without it.
+
+The only cases any implementation still skips are the ones written for the other integer range. PureScript and TypeScript have the guaranteed 53-bit range, because their host number is a double; the other four have the 64-bit range. Each skips the few cases that pin down the other range's edges.
+
+```html
+<table>
+<tr><th>implementation</th><th>integer range</th><th>corpus</th></tr>
+<tr><td><code>tramaj</code> (PureScript)</td><td>53-bit</td><td>passes; skips only the 64-bit range cases</td></tr>
+<tr><td><code>tramaj-hs</code> (Haskell)</td><td>64-bit</td><td>passes; skips only the 53-bit range cases</td></tr>
+<tr><td><code>tramaj-rs</code> (Rust)</td><td>64-bit</td><td>passes; skips only the 53-bit range cases</td></tr>
+<tr><td><code>tramaj-js</code> (TypeScript)</td><td>53-bit</td><td>passes; skips only the 64-bit range cases</td></tr>
+<tr><td><code>tramaj-go</code> (Go)</td><td>64-bit</td><td>passes; skips only the 53-bit range cases</td></tr>
+<tr><td><code>tramaj-py</code> (Python)</td><td>64-bit</td><td>passes; skips only the 53-bit range cases</td></tr>
+</table>
+```
+
+## Packages
+
+Where to get v5 today:
+
+```html
+<table>
+<tr><th>package</th><th>language</th><th>where</th></tr>
+<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code></td><td>PureScript</td><td>PureScript registry, 0.4.1</td></tr>
+<tr><td><code>tramaj-cli</code></td><td>PureScript</td><td>from the repository</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>Hackage, 0.4.0.0</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>Rust</td><td>crates.io, 0.2.0</td></tr>
+<tr><td><code>tramaj</code> (<code>tramaj-py</code>)</td><td>Python</td><td>PyPI, 0.2.0</td></tr>
+<tr><td><code>@lucasdicioccio/tramaj-js</code>, <code>@lucasdicioccio/tramaj-react</code></td><td>TypeScript</td><td>from the repository; npm has only a placeholder so far</td></tr>
+<tr><td><code>tramaj-go</code></td><td>Go</td><td>from the repository, as <code>github.com/lucasdicioccio/tramaj/tramaj-go</code>, at a commit on <code>main</code></td></tr>
+</table>
+```
+
+Each package has its own [changelog](/topics/changelog.html ) page and Atom feed. [Integrating tramaj](/integrate-tramaj.html ) says how to depend on each one.
+
+## What's next
+
+v5 is a fifth iteration, not a stable release: the language can still change. The [roadmap](/roadmap.html ) lists what is wanted next: the npm packages and folds to more rendering targets. Beyond v5, [`?shape`](/design-arithmetic-and-shapes.html ) is an accepted design for allocating a structure of symbols in one form; no implementation has it yet.
+
+
