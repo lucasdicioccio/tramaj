@@ -46,8 +46,10 @@ corpusRoot = "corpus/cases"
 -- 53-bit range only (`Tramaj.Json`), so not `int64`. `sort`,
 -- `format-number` and `round`: transition tags for the two sort forms, the
 -- `format-number` builtin and the tenth arithmetic name (decisions §20).
+-- `shape`: the `?shape(key, shape)` form and its `~name` markers
+-- (decisions §19).
 providedProfiles :: Array String
-providedProfiles = [ "base", "int-float", "arithmetic", "int53", "sort", "format-number", "round" ]
+providedProfiles = [ "base", "int-float", "arithmetic", "int53", "sort", "format-number", "round", "shape" ]
 
 -- | The profiles every port provides (corpus/README.md). A case naming one
 -- that `providedProfiles` lacks fails instead of being skipped.

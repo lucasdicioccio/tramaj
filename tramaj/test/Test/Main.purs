@@ -68,6 +68,18 @@ runParserChecks = do
     , Tuple "a computed import name" "@l=import($ctx.name, {})\n.div($l.rendered)"
     , Tuple "an interpolated import name" "@l=import(\"a`$x`\", {})\n.div($l.rendered)"
     , Tuple "a computed action key" ".b(action(\"on-click\", $ctx.key, {}))"
+    -- v3-symbols §1.2, decisions §19: the ?shape form's static rules.
+    , Tuple "a marker outside any shape" "[~a]"
+    , Tuple "a marker in a ?shape's key" "?shape(~k, {~a})"
+    , Tuple "a bare marker under a lambda inside the shape" "?shape(\"d\", map($xs, (x) => ~a))"
+    , Tuple "a bare shorthand marker field under a lambda" "?shape(\"d\", map($xs, (x) => {~a}))"
+    , Tuple "a duplicate marker name, bare and keyed" "?shape(\"d\", [~a, map($xs, (x) => ~a($x))])"
+    , Tuple "a shape with no marker" "?shape(\"d\", {a: 1})"
+    , Tuple "a shape whose only markers belong to a nested form" "?shape(\"o\", [?shape(\"i\", ~a)])"
+    , Tuple "?shape with one argument" "?shape({~a})"
+    , Tuple "?shape with three arguments" "?shape(\"d\", {~a}, 1)"
+    , Tuple "a space after the marker leader" "?shape(\"d\", ~ a)"
+    , Tuple "?(k) with two arguments" "?(\"a\", \"b\")"
     , Tuple "a computed action event" ".b(action($ctx.evt, \"save\", {}))"
     , Tuple "a computed adaptation prefix" "adapt-actions($x, prefix($ctx.ns))"
     , Tuple "an arbitrary function as an adaptation" "adapt-actions($x, (a) => $a)"
@@ -126,6 +138,20 @@ runParserChecks = do
         )
     , Tuple "adapt-actions($x, prefix(\"ns:\"))"
         (AdaptActions (Path "x" []) (Prefix "ns:") Nothing)
+    -- v3-symbols §1.2, decisions §19: ?shape lowers to a hidden binding of
+    -- its key, each marker an allocation at the form's one site, and a
+    -- ?(k) inside the shape takes the next site.
+    , Tuple "?shape(\"d\", {~replicas, ports: [~http($x)], p: ?(\"p\")})"
+        ( Let "#shape" (StringLit "d")
+            ( ObjectLit
+                [ Tuple "replicas" (Alloc 0 (ArrayLit [ Path "#shape" [], StringLit "replicas" ]))
+                , Tuple "ports" (ArrayLit [ Alloc 0 (ArrayLit [ Path "#shape" [], StringLit "http", Path "x" [] ]) ])
+                , Tuple "p" (Alloc 1 (StringLit "p"))
+                ]
+            )
+        )
+    -- `shape` is not reserved outside the `?` leader.
+    , Tuple "[$shape, shape(1)]" (ArrayLit [ Path "shape" [], Call (Path "shape" []) [ IntLit 1.0 ] ])
     -- reference.md §2, §5: the two sort names lower to the one constructor.
     , Tuple "sort-by($xs, (x) => $x.k)"
         (SortBy false (Path "xs" []) (Lambda [ "x" ] (Path "x" [ "k" ])))
@@ -552,6 +578,9 @@ runAnalysisChecks = do
   check "a site inside a lambda"
     (Set.toUnfoldable (symbolSites (unsafeParse "map($ctx.xs, (x) => ?($x))")))
     [ 0 ]
+  check "a ?shape's site once, whatever number of markers, in one sequence with ?(k)"
+    (Set.toUnfoldable (symbolSites (unsafeParse "[?shape(\"o\", {~a, b: [~b, ~c(1)], i: ?shape(\"i\", {~d})}), ?(\"p\")]")))
+    [ 0, 1, 2 ]
   check "every ?ctx.path demand directly"
     (Set.toUnfoldable (symbolDemands (unsafeParse "[?ctx.a, ?ctx.b.c]")))
     [ [ "a" ], [ "b", "c" ] ]
