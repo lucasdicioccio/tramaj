@@ -1,0 +1,4 @@
+-- v3-symbols §1.5, §1.7: only a symbol given as the key is refused; an array
+-- or an object as the key is the wrong shape, whatever it holds
+@s = ?("s")
+[has({k: 1}, [$s]), has([10], {k: $s}), lookup({k: 1}, [$s], 0), lookup([10], {k: $s}, 0)]

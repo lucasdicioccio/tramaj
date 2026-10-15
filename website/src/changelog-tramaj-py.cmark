@@ -42,6 +42,17 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-py"})
 .div(class: "changelog",
   $version({
+      "version": "(next)",
+      "date": "unreleased",
+      "summary": "Not released yet.",
+      "changes": [
+          {
+              "kind": "changed",
+              "text": "Breaking, symbolic mode only: a symbol or a term given as the key of \`has\` or \`lookup\` is \`NotConcrete\` (v3-symbols section 1.5), where it answered \`false\` or the fallback, reading an unknown key as a missing one. A concrete key keeps the tolerant behaviour: a missing key, an out-of-range index or a wrong-shaped container still answers \`false\` or the fallback."
+          }
+      ]
+  }).rendered,
+  $version({
       "version": "0.2.0",
       "date": "2026-10-09",
       "summary": "Language v5: two number types, arithmetic, sorting and number formatting. On PyPI, as tramaj.",

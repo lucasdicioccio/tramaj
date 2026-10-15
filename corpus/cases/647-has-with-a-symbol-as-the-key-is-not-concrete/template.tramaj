@@ -1,0 +1,4 @@
+-- v3-symbols §1.5: a symbol as the key of has is NotConcrete; a tolerant
+-- false would read an unknown key as a missing one
+@s = ?("s")
+has({k: 1}, $s)

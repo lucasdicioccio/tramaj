@@ -185,13 +185,18 @@ language to *know* something about it is an error:
 | `lt`, `lte`, `gt`, `gte` with a symbol as an operand | `NotConcrete`; an array or object operand is the `TypeMismatch` it always was, whatever it holds |
 | `str` of anything *containing* a symbol, and so any interpolation of one | `NotConcrete` — §1.8 |
 | `cardinality($s)`, `has($s, k)`, `lookup($s, k, d)` | `NotConcrete` |
+| `has(c, $s)`, `lookup(c, $s, d)` — a symbol as the key | `NotConcrete`, whatever `c` is |
 | `format-number` with a symbol as any of its three arguments | `NotConcrete` — the result is text (§1.8); an array argument is a `TypeMismatch`, whatever it holds |
 | `$s <> x` | `NotConcrete` |
 
 `has` and `lookup` are called out because both are deliberately *tolerant*
 today — `has` answers `false` for a wrong-shaped container and `lookup` never
-errors. Neither may answer about a symbol: a tolerant `false` would be a lie,
-and `lookup`'s fallback would silently discard the symbol.
+errors. Neither may answer about a symbol, given either as the container or as
+the key: a tolerant `false` would be a lie, and `lookup`'s fallback would
+silently discard the symbol or read an unknown key as a missing one. The
+tolerance for a concrete key is unchanged: a missing key, an out-of-range
+index, a float where an index is expected, or an array or an object as the key
+still answers `false` or the fallback, whatever that key holds.
 
 Consequence worth stating: v3 can constrain the elements of a list whose
 length is known, and cannot constrain a list whose length is symbolic. That is

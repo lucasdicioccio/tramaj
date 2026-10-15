@@ -1487,13 +1487,15 @@ evalBuiltin name args = case name of
 
   -- | Deliberately tolerant: a missing key, an out-of-range index, or a
   -- | container of the wrong shape all answer `false` rather than
-  -- | erroring — except a symbolic container, which is `NotConcrete`
-  -- | rather than a lie (v3-symbols §1.5): the tolerant `false` would
-  -- | claim to know something about a container the language cannot see
-  -- | into.
+  -- | erroring — except a symbolic container or key, which is
+  -- | `NotConcrete` rather than a lie (v3-symbols §1.5): the tolerant
+  -- | `false` would claim to know something about a value the language
+  -- | cannot see into.
   hasImpl :: Value -> Value -> Either EvalError Value
   hasImpl (VSymbol _ _) _ = Left (NotConcrete name)
   hasImpl (VTerm _ _) _ = Left (NotConcrete name)
+  hasImpl _ (VSymbol _ _) = Left (NotConcrete name)
+  hasImpl _ (VTerm _ _) = Left (NotConcrete name)
   hasImpl container key = Right (VBool present)
     where
     present = case container, key of
@@ -1503,11 +1505,13 @@ evalBuiltin name args = case name of
 
   -- | Dynamic access by a computed key or index — the counterpart to a
   -- | static path segment. The third argument is the mandatory fallback.
-  -- | A symbolic container is `NotConcrete` rather than falling back,
+  -- | A symbolic container or key is `NotConcrete` rather than falling back,
   -- | which would silently discard the symbol (§1.5).
   lookupImpl :: Value -> Value -> Value -> Either EvalError Value
   lookupImpl (VSymbol _ _) _ _ = Left (NotConcrete name)
   lookupImpl (VTerm _ _) _ _ = Left (NotConcrete name)
+  lookupImpl _ (VSymbol _ _) _ = Left (NotConcrete name)
+  lookupImpl _ (VTerm _ _) _ = Left (NotConcrete name)
   lookupImpl container key fallback = Right case container, key of
     VObject o, VString k -> fromMaybe fallback (Map.lookup k o)
     VArray xs, VInt n -> fromMaybe fallback (asIndex n >>= Array.index xs)
