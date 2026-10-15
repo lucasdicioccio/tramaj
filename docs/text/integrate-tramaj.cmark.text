@@ -136,7 +136,7 @@ Unlike the Haskell port, Rust also has a `tramaj-cli` equivalent — `tramaj-cli
 
 ## JavaScript / TypeScript — import as a library, fold with `tramaj-react`
 
-`tramaj-js` is an independent, hand-written TypeScript port of the same grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell `tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language, and the two number types with the ten arithmetic builtins; see _Numbers in `tramaj-js`_ below). It's a normal npm package with no React or DOM dependency — a plain Node or browser host can depend on it the same way a PureScript host depends on `tramaj-purs`:
+`tramaj-js` is an independent, hand-written TypeScript port of the same grammar and evaluation semantics as the PureScript `tramaj-purs`, Haskell `tramaj-hs`, and Rust `tramaj-rs`, held to the same shared conformance corpus (`corpus/cases/`, including [`v3-symbols.md`](/reference-v3-symbols.html )'s symbols/constraints and [`v4-types.md`](/reference-v4-types.html )'s nominal types, not just the core language, and the two number types with the ten arithmetic builtins; see _Numbers in `tramaj-js`_ below). It's a normal npm package, `npm install @lucasdicioccio/tramaj-js`, with no React or DOM dependency — a plain Node or browser host can depend on it the same way a PureScript host depends on `tramaj-purs`:
 
 ```typescript
 // parseProgram, tryParseProgram
@@ -153,7 +153,7 @@ function runProgram(
 
 `Mode` is `"concrete"` or `"symbolic"` ([`v3-symbols.md`](/reference-v3-symbols.html )); `runProgram` gives you the evaluated result as JSON directly, already encoded per [`node-json.md`](/reference-node-json.html ) when the program produces a document, or the concrete/symbolic envelope from [`v3-symbols.md`](/reference-v3-symbols.html ) §5 otherwise — the same shape `runProgram` returns on the PureScript, Haskell, and Rust sides. `evalProgram` is the lower-level entry point if you want the `Node` value itself rather than its JSON encoding, to fold it without a round-trip through JSON.
 
-If your host renders through React, don't write a fold at all — `tramaj-react` already has one, the same shape as `tramaj-halogen`'s:
+If your host renders through React, don't write a fold at all — `tramaj-react` (`npm install @lucasdicioccio/tramaj-react`) already has one, the same shape as `tramaj-halogen`'s:
 
 ```typescript
 type Dispatch = (

@@ -289,8 +289,8 @@ corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
 core language, and the two number types with the ten arithmetic builtins;
-see *Numbers in `tramaj-js`* below). It's a normal npm package with no React
-or DOM dependency
+see *Numbers in `tramaj-js`* below). It's a normal npm package,
+`npm install @lucasdicioccio/tramaj-js`, with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on `tramaj-purs`:
 
@@ -317,7 +317,8 @@ is the lower-level entry point if you want the `Node` value itself rather
 than its JSON encoding, to fold it without a round-trip through JSON.
 
 If your host renders through React, don't write a fold at all —
-`tramaj-react` already has one, the same shape as `tramaj-halogen`'s:
+`tramaj-react` (`npm install @lucasdicioccio/tramaj-react`) already has
+one, the same shape as `tramaj-halogen`'s:
 
 ```typescript
 type Dispatch = (

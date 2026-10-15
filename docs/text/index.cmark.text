@@ -49,7 +49,7 @@ Go straight to [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/b
 
 - [**tramaj v5**](/tramaj-v5.html ) — the fifth iteration of the language: integers and floats, arithmetic, sorting and number formatting, in all six implementations.
 
-- [**Roadmap**](/roadmap.html ) — where the six implementations stand, and the folds and npm packages that are wanted next.
+- [**Roadmap**](/roadmap.html ) — where the six implementations stand, and the folds and Python type definitions that are wanted next.
 
 - [**Two designs accepted**](/design-arithmetic-and-shapes.html ) — arithmetic with integers and floats as two types, and `?shape`, a form that allocates a structure of symbols.
 

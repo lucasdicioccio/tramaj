@@ -80,7 +80,7 @@ Where to get v5 today:
 <tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>Hackage, 0.4.0.0</td></tr>
 <tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>Rust</td><td>crates.io, 0.2.0</td></tr>
 <tr><td><code>tramaj</code> (<code>tramaj-py</code>)</td><td>Python</td><td>PyPI, 0.2.0</td></tr>
-<tr><td><code>@lucasdicioccio/tramaj-js</code>, <code>@lucasdicioccio/tramaj-react</code></td><td>TypeScript</td><td>from the repository; npm has only a placeholder so far</td></tr>
+<tr><td><code>@lucasdicioccio/tramaj-js</code>, <code>@lucasdicioccio/tramaj-react</code></td><td>TypeScript</td><td>npm, 0.2.0</td></tr>
 <tr><td><code>tramaj-go</code></td><td>Go</td><td>from the repository, as <code>github.com/lucasdicioccio/tramaj/tramaj-go</code>, at a commit on <code>main</code></td></tr>
 </table>
 ```
@@ -89,6 +89,6 @@ Each package has its own [changelog](/topics/changelog.html ) page and Atom feed
 
 ## What's next
 
-v5 is a fifth iteration, not a stable release: the language can still change. The [roadmap](/roadmap.html ) lists what is wanted next: the npm packages and folds to more rendering targets. Beyond v5, [`?shape`](/design-arithmetic-and-shapes.html ) is an accepted design for allocating a structure of symbols in one form; no implementation has it yet.
+v5 is a fifth iteration, not a stable release: the language can still change. The [roadmap](/roadmap.html ) lists what is wanted next: folds to more rendering targets, and type definitions for the Python modules. Beyond v5, [`?shape`](/design-arithmetic-and-shapes.html ) is an accepted design for allocating a structure of symbols in one form; no implementation has it yet.
 
 

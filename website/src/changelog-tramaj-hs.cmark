@@ -34,7 +34,7 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #haskell #tramaj-hs
 
-The unreleased entry has breaking changes to numbers:
+The 0.4.0.0 entry has breaking changes to numbers:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 says what to do about each.
 
@@ -42,9 +42,9 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-hs"})
 .div(class: "changelog",
   $version({
-      "version": "(none)",
-      "date": "unreleased",
-      "summary": "On the main branch after 0.3.0.0, not released yet: two number types and arithmetic.",
+      "version": "0.4.0.0",
+      "date": "2026-10-09",
+      "summary": "Two number types and arithmetic. On Hackage.",
       "changes": [
           {
               "kind": "changed",

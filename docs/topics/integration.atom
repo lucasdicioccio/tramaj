@@ -230,8 +230,8 @@ corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language, and the two number types with the ten arithmetic builtins;
-see &lt;em&gt;Numbers in &lt;code&gt;tramaj-js&lt;/code&gt;&lt;/em&gt; below). It’s a normal npm package with no React
-or DOM dependency
+see &lt;em&gt;Numbers in &lt;code&gt;tramaj-js&lt;/code&gt;&lt;/em&gt; below). It’s a normal npm package,
+&lt;code&gt;npm install @lucasdicioccio/tramaj-js&lt;/code&gt;, with no React or DOM dependency
 — a plain Node or browser host can depend on it the same way a PureScript
 host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// parseProgram, tryParseProgram&lt;/span&gt;&lt;/span&gt;
@@ -252,7 +252,8 @@ produces a document, or the concrete/symbolic envelope from
 is the lower-level entry point if you want the &lt;code&gt;Node&lt;/code&gt; value itself rather
 than its JSON encoding, to fold it without a round-trip through JSON.&lt;/p&gt;
 &lt;p&gt;If your host renders through React, don’t write a fold at all —
-&lt;code&gt;tramaj-react&lt;/code&gt; already has one, the same shape as &lt;code&gt;tramaj-halogen&lt;/code&gt;’s:&lt;/p&gt;
+&lt;code&gt;tramaj-react&lt;/code&gt; (&lt;code&gt;npm install @lucasdicioccio/tramaj-react&lt;/code&gt;) already has
+one, the same shape as &lt;code&gt;tramaj-halogen&lt;/code&gt;’s:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;type&lt;/span&gt; Dispatch &lt;span class="op"&gt;=&lt;/span&gt; (&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  event&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  key&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="dt"&gt;string&lt;/span&gt;&lt;span class="op"&gt;,&lt;/span&gt;&lt;/span&gt;

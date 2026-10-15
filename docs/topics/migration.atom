@@ -100,7 +100,7 @@ edges.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-hs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Haskell&lt;/td&gt;&lt;td&gt;Hackage, 0.4.0.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Rust&lt;/td&gt;&lt;td&gt;crates.io, 0.2.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj&lt;/code&gt; (&lt;code&gt;tramaj-py&lt;/code&gt;)&lt;/td&gt;&lt;td&gt;Python&lt;/td&gt;&lt;td&gt;PyPI, 0.2.0&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;from the repository; npm has only a placeholder so far&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;@lucasdicioccio/tramaj-js&lt;/code&gt;, &lt;code&gt;@lucasdicioccio/tramaj-react&lt;/code&gt;&lt;/td&gt;&lt;td&gt;TypeScript&lt;/td&gt;&lt;td&gt;npm, 0.2.0&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;Go&lt;/td&gt;&lt;td&gt;from the repository, as &lt;code&gt;github.com/lucasdicioccio/tramaj/tramaj-go&lt;/code&gt;, at a commit on &lt;code&gt;main&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Each package has its own &lt;a href="/tramaj/topics/changelog.html"&gt;changelog&lt;/a&gt; page and Atom
@@ -108,8 +108,8 @@ feed. &lt;a href="/tramaj/integrate-tramaj.html"&gt;Integrating tramaj&lt;/a&gt;
 each one.&lt;/p&gt;
 &lt;h3 id="whats-next"&gt;What’s next&lt;/h3&gt;
 &lt;p&gt;v5 is a fifth iteration, not a stable release: the language can still
-change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: the npm
-packages and folds to more rendering targets. Beyond v5,
+change. The &lt;a href="/tramaj/roadmap.html"&gt;roadmap&lt;/a&gt; lists what is wanted next: folds to
+more rendering targets, and type definitions for the Python modules. Beyond v5,
 &lt;a href="/tramaj/design-arithmetic-and-shapes.html"&gt;&lt;code&gt;?shape&lt;/code&gt;&lt;/a&gt; is an accepted design for
 allocating a structure of symbols in one form; no implementation has it
 yet.&lt;/p&gt;

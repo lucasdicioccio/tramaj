@@ -38,9 +38,9 @@ tagged so the site builds one Atom feed per implementation:
 @version=import("changelog/version", {"package": "tramaj-react"})
 .div(class: "changelog",
   $version({
-      "version": "0.1.0",
-      "date": "unreleased",
-      "summary": "The React counterpart of tramaj-halogen, and the only package here that depends on react.",
+      "version": "0.2.0",
+      "date": "2026-10-15",
+      "summary": "The React counterpart of tramaj-halogen, and the only package here that depends on react. The first release on npm.",
       "changes": [
           {
               "kind": "added",
