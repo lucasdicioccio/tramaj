@@ -70,8 +70,10 @@ instance FromJSON CaseMeta where
 -- which is an option of each evaluation here ('optionsFromMeta'). @sort@,
 -- @format-number@ and @round@: transition tags for the two sort forms, the
 -- @format-number@ builtin and the tenth arithmetic name (decisions \S20).
+-- @shape@: the @?shape(key, shape)@ form and its @~name@ markers (decisions
+-- \S19).
 providedProfiles :: [Text]
-providedProfiles = ["base", "int-float", "int64", "arithmetic", "sort", "format-number", "round"]
+providedProfiles = ["base", "int-float", "int64", "arithmetic", "sort", "format-number", "round", "shape"]
 
 -- | The profiles every port provides (@corpus/README.md@). A case naming one
 -- that 'providedProfiles' lacks fails instead of being skipped.

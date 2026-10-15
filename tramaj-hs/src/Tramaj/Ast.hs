@@ -41,9 +41,12 @@ module Tramaj.Ast
   , subExprs
   , attributeExprs
   , numberAllocs
+  , shapeKeyName
+  , markerSite
   ) where
 
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -152,7 +155,9 @@ data Expr
     -- being derived some other way. Assigned by 'numberAllocs' after
     -- parsing, not by the parser itself, so that agreement between
     -- implementations rests on one small pure function over the AST rather
-    -- than on two parsers' internal traversal order.
+    -- than on two parsers' internal traversal order. A @~name@ marker of a
+    -- @?shape@ (decisions \S19) is one too, at its form's site
+    -- ('shapeKeyName').
     Alloc Int Expr
   | -- | @?ctx.a.b@ (\S1.3): declares a context read symbolic. The path MUST
     -- be rooted at @ctx@, which is why it is not just a 'Path' -- unlike an
@@ -390,9 +395,27 @@ isHiddenName = T.isPrefixOf "#"
 typeDecls :: [Stmt] -> [(Text, TypeExpr)]
 typeDecls stmts = [(n, t) | STypeDecl n t <- stmts]
 
+-- | The hidden name a @?shape(key, shape)@ (v3-symbols \S1.2, decisions
+-- \S19) binds its key to. The form lowers to @Let shapeKeyName key shape@,
+-- with each marker in the shape an 'Alloc' whose key reads this name, so the
+-- core AST needs no constructor of its own for it. It starts with @#@, so no
+-- surface name can collide with it ('isHiddenName'), and only the parser
+-- writes such a 'Let': 'numberAllocs' takes one as a @?shape@ site.
+shapeKeyName :: Text
+shapeKeyName = "#shape"
+
+-- | The site a @~name@ marker carries between the parser and
+-- 'numberAllocs', which replaces it with the site of the innermost enclosing
+-- @?shape@. Never left in a parsed program: the parser refuses a marker
+-- outside a shape.
+markerSite :: Int
+markerSite = -1
+
 -- | Assigns each 'Alloc' in a program the index of its @?(...)@ among all of
 -- them, in source order (v3-symbols \S1.4) -- a plain pre-order, left-to-right
--- walk over the freshly parsed tree, numbering as it goes.
+-- walk over the freshly parsed tree, numbering as it goes. A @?shape@ (its
+-- 'shapeKeyName' 'Let') takes a number in the same sequence, at its @?@,
+-- before its key; its markers take none, only its site.
 --
 -- Done as a rewrite after parsing, rather than by a counter threaded through
 -- the parser itself, so that two independently written parsers agree on site
@@ -405,122 +428,136 @@ typeDecls stmts = [(n, t) | STypeDecl n t <- stmts]
 -- produces -- attributes before value before children in an 'Element',
 -- condition before either arm in a 'Branch', and so on.
 numberAllocs :: Expr -> Expr
-numberAllocs e = snd (go 0 e)
+numberAllocs e = snd (numberIn Nothing 0 e)
   where
-    go :: Int -> Expr -> (Int, Expr)
-    go n (Alloc _ key) =
-      let (n', key') = go (n + 1) key
-       in (n', Alloc n key')
-    go n e'@(Path _ _) = (n, e')
-    go n (FieldAccess target fields) =
-      let (n', target') = go n target in (n', FieldAccess target' fields)
-    go n (Call fn args) =
-      let (n1, fn') = go n fn
-          (n2, args') = goList n1 args
-       in (n2, Call fn' args')
-    go n (Lambda params body) = let (n', body') = go n body in (n', Lambda params body')
-    go n (Let name value body) =
-      let (n1, value') = go n value
-          (n2, body') = go n1 body
-       in (n2, Let name value' body')
-    go n e'@(StringLit _) = (n, e')
-    go n e'@(IntLit _) = (n, e')
-    go n e'@(FloatLit _) = (n, e')
-    go n e'@(BoolLit _) = (n, e')
-    go n NullLit = (n, NullLit)
-    go n (ArrayLit elems) = let (n', elems') = goList n elems in (n', ArrayLit elems')
-    go n (ObjectLit entries) =
-      let (n', entries') = goPairs n entries in (n', ObjectLit entries')
-    go n (Element tag attrs val children) =
-      let (n1, attrs') = goAttrs n attrs
-          (n2, val') = go n1 val
-          (n3, children') = goList n2 children
-       in (n3, Element tag attrs' val' children')
-    go n (Fragment children) = let (n', children') = goList n children in (n', Fragment children')
-    go n (Branch c t e') =
-      let (n1, c') = go n c
-          (n2, t') = go n1 t
-          (n3, e'') = go n2 e'
-       in (n3, Branch c' t' e'')
-    go n (Map coll fn) =
-      let (n1, coll') = go n coll
-          (n2, fn') = go n1 fn
-       in (n2, Map coll' fn')
-    go n (Filter coll fn) =
-      let (n1, coll') = go n coll
-          (n2, fn') = go n1 fn
-       in (n2, Filter coll' fn')
-    go n (Scan coll initial fn) =
-      let (n1, coll') = go n coll
-          (n2, initial') = go n1 initial
-          (n3, fn') = go n2 fn
-       in (n3, Scan coll' initial' fn')
-    go n (Fold coll initial fn) =
-      let (n1, coll') = go n coll
-          (n2, initial') = go n1 initial
-          (n3, fn') = go n2 fn
-       in (n3, Fold coll' initial' fn')
-    go n (SortBy descending coll fn) =
-      let (n1, coll') = go n coll
-          (n2, fn') = go n1 fn
-       in (n2, SortBy descending coll' fn')
-    go n (Concat l r) =
-      let (n1, l') = go n l
-          (n2, r') = go n1 r
-       in (n2, Concat l' r')
-    go n (Import name params) =
-      let (n', params') = goParams n params in (n', Import name params')
-    go n (AdaptActions target adaptation fn) =
-      let (n1, target') = go n target
-          (n2, fn') = case fn of
-            Nothing -> (n1, Nothing)
-            Just f -> let (n', f') = go n1 f in (n', Just f')
-       in (n2, AdaptActions target' adaptation fn')
-    go n (Constrain name args) = let (n', args') = goList n args in (n', Constrain name args')
-    go n (Emit constraint body) =
-      let (n1, constraint') = go n constraint
-          (n2, body') = go n1 body
-       in (n2, Emit constraint' body')
-    go n e'@(Demand _) = (n, e')
-    go n (TypeDecl name t body) = let (n', body') = go n body in (n', TypeDecl name t body')
-    go n (TypeAnnotate name t value body) =
-      let (n1, value') = go n value
-          (n2, body') = go n1 body
-       in (n2, TypeAnnotate name t value' body')
-    go n (TypeEmit name tcArgs body) = let (n', body') = go n body in (n', TypeEmit name tcArgs body')
+    -- | Numbers under the innermost enclosing @?shape@'s site, if any: a
+    -- marker ('markerSite') takes that site, and no number of its own.
+    numberIn :: Maybe Int -> Int -> Expr -> (Int, Expr)
+    numberIn shape = go
+      where
+        go :: Int -> Expr -> (Int, Expr)
+        go n (Alloc site key)
+          | site == markerSite =
+              let (n', key') = go n key
+               in (n', Alloc (fromMaybe markerSite shape) key')
+          | otherwise =
+              let (n', key') = go (n + 1) key
+               in (n', Alloc n key')
+        go n e'@(Path _ _) = (n, e')
+        go n (FieldAccess target fields) =
+          let (n', target') = go n target in (n', FieldAccess target' fields)
+        go n (Call fn args) =
+          let (n1, fn') = go n fn
+              (n2, args') = goList n1 args
+           in (n2, Call fn' args')
+        go n (Lambda params body) = let (n', body') = go n body in (n', Lambda params body')
+        go n (Let name value body)
+          | name == shapeKeyName =
+              let (n1, value') = go (n + 1) value
+                  (n2, body') = numberIn (Just n) n1 body
+               in (n2, Let name value' body')
+        go n (Let name value body) =
+          let (n1, value') = go n value
+              (n2, body') = go n1 body
+           in (n2, Let name value' body')
+        go n e'@(StringLit _) = (n, e')
+        go n e'@(IntLit _) = (n, e')
+        go n e'@(FloatLit _) = (n, e')
+        go n e'@(BoolLit _) = (n, e')
+        go n NullLit = (n, NullLit)
+        go n (ArrayLit elems) = let (n', elems') = goList n elems in (n', ArrayLit elems')
+        go n (ObjectLit entries) =
+          let (n', entries') = goPairs n entries in (n', ObjectLit entries')
+        go n (Element tag attrs val children) =
+          let (n1, attrs') = goAttrs n attrs
+              (n2, val') = go n1 val
+              (n3, children') = goList n2 children
+           in (n3, Element tag attrs' val' children')
+        go n (Fragment children) = let (n', children') = goList n children in (n', Fragment children')
+        go n (Branch c t e') =
+          let (n1, c') = go n c
+              (n2, t') = go n1 t
+              (n3, e'') = go n2 e'
+           in (n3, Branch c' t' e'')
+        go n (Map coll fn) =
+          let (n1, coll') = go n coll
+              (n2, fn') = go n1 fn
+           in (n2, Map coll' fn')
+        go n (Filter coll fn) =
+          let (n1, coll') = go n coll
+              (n2, fn') = go n1 fn
+           in (n2, Filter coll' fn')
+        go n (Scan coll initial fn) =
+          let (n1, coll') = go n coll
+              (n2, initial') = go n1 initial
+              (n3, fn') = go n2 fn
+           in (n3, Scan coll' initial' fn')
+        go n (Fold coll initial fn) =
+          let (n1, coll') = go n coll
+              (n2, initial') = go n1 initial
+              (n3, fn') = go n2 fn
+           in (n3, Fold coll' initial' fn')
+        go n (SortBy descending coll fn) =
+          let (n1, coll') = go n coll
+              (n2, fn') = go n1 fn
+           in (n2, SortBy descending coll' fn')
+        go n (Concat l r) =
+          let (n1, l') = go n l
+              (n2, r') = go n1 r
+           in (n2, Concat l' r')
+        go n (Import name params) =
+          let (n', params') = goParams n params in (n', Import name params')
+        go n (AdaptActions target adaptation fn) =
+          let (n1, target') = go n target
+              (n2, fn') = case fn of
+                Nothing -> (n1, Nothing)
+                Just f -> let (n', f') = go n1 f in (n', Just f')
+           in (n2, AdaptActions target' adaptation fn')
+        go n (Constrain name args) = let (n', args') = goList n args in (n', Constrain name args')
+        go n (Emit constraint body) =
+          let (n1, constraint') = go n constraint
+              (n2, body') = go n1 body
+           in (n2, Emit constraint' body')
+        go n e'@(Demand _) = (n, e')
+        go n (TypeDecl name t body) = let (n', body') = go n body in (n', TypeDecl name t body')
+        go n (TypeAnnotate name t value body) =
+          let (n1, value') = go n value
+              (n2, body') = go n1 body
+           in (n2, TypeAnnotate name t value' body')
+        go n (TypeEmit name tcArgs body) = let (n', body') = go n body in (n', TypeEmit name tcArgs body')
 
-    goList :: Int -> [Expr] -> (Int, [Expr])
-    goList n [] = (n, [])
-    goList n (x : xs) =
-      let (n1, x') = go n x
-          (n2, xs') = goList n1 xs
-       in (n2, x' : xs')
+        goList :: Int -> [Expr] -> (Int, [Expr])
+        goList n [] = (n, [])
+        goList n (x : xs) =
+          let (n1, x') = go n x
+              (n2, xs') = goList n1 xs
+           in (n2, x' : xs')
 
-    goPairs :: Int -> [(Text, Expr)] -> (Int, [(Text, Expr)])
-    goPairs n [] = (n, [])
-    goPairs n ((k, x) : xs) =
-      let (n1, x') = go n x
-          (n2, xs') = goPairs n1 xs
-       in (n2, (k, x') : xs')
+        goPairs :: Int -> [(Text, Expr)] -> (Int, [(Text, Expr)])
+        goPairs n [] = (n, [])
+        goPairs n ((k, x) : xs) =
+          let (n1, x') = go n x
+              (n2, xs') = goPairs n1 xs
+           in (n2, (k, x') : xs')
 
-    goAttrs :: Int -> [Attribute] -> (Int, [Attribute])
-    goAttrs n [] = (n, [])
-    goAttrs n (Attr name x : xs) =
-      let (n1, x') = go n x
-          (n2, xs') = goAttrs n1 xs
-       in (n2, Attr name x' : xs')
-    goAttrs n (ActionAttr ev key x : xs) =
-      let (n1, x') = go n x
-          (n2, xs') = goAttrs n1 xs
-       in (n2, ActionAttr ev key x' : xs')
+        goAttrs :: Int -> [Attribute] -> (Int, [Attribute])
+        goAttrs n [] = (n, [])
+        goAttrs n (Attr name x : xs) =
+          let (n1, x') = go n x
+              (n2, xs') = goAttrs n1 xs
+           in (n2, Attr name x' : xs')
+        goAttrs n (ActionAttr ev key x : xs) =
+          let (n1, x') = go n x
+              (n2, xs') = goAttrs n1 xs
+           in (n2, ActionAttr ev key x' : xs')
 
-    goParams :: Int -> [(Text, ParamValue)] -> (Int, [(Text, ParamValue)])
-    goParams n [] = (n, [])
-    goParams n ((k, PExpr x) : xs) =
-      let (n1, x') = go n x
-          (n2, xs') = goParams n1 xs
-       in (n2, (k, PExpr x') : xs')
-    goParams n ((k, p@(PFromContext _)) : xs) =
-      let (n1, xs') = goParams n xs in (n1, (k, p) : xs')
-    goParams n ((k, p@(PType _)) : xs) =
-      let (n1, xs') = goParams n xs in (n1, (k, p) : xs')
+        goParams :: Int -> [(Text, ParamValue)] -> (Int, [(Text, ParamValue)])
+        goParams n [] = (n, [])
+        goParams n ((k, PExpr x) : xs) =
+          let (n1, x') = go n x
+              (n2, xs') = goParams n1 xs
+           in (n2, (k, PExpr x') : xs')
+        goParams n ((k, p@(PFromContext _)) : xs) =
+          let (n1, xs') = goParams n xs in (n1, (k, p) : xs')
+        goParams n ((k, p@(PType _)) : xs) =
+          let (n1, xs') = goParams n xs in (n1, (k, p) : xs')

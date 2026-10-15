@@ -181,6 +181,10 @@ symbolSpec = describe "symbol sites" $ do
   it "finds a site inside a lambda" $
     symbolSites (prog "map($ctx.xs, (x) => ?($x))") `shouldBe` Set.fromList [0]
 
+  it "reports a ?shape's site once, whatever number of markers it holds, in one sequence with ?(k)" $
+    symbolSites (prog "[?shape(\"o\", {~a, b: [~b, ~c(1)], i: ?shape(\"i\", {~d})}), ?(\"p\")]")
+      `shouldBe` Set.fromList [0, 1, 2]
+
   it "is non-empty for a program that cannot serve as a library" $
     symbolSites (prog "?(\"x\")") `shouldNotBe` Set.empty
 
