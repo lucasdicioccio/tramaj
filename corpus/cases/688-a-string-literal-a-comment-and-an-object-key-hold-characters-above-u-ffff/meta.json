@@ -1,0 +1,5 @@
+{
+  "name": "a string literal, a comment and an object key hold characters above U+FFFF",
+  "kind": "expression",
+  "mode": "concrete"
+}

@@ -97,6 +97,7 @@ runParserChecks = do
     , Tuple "a sort passed by reference" "map($xs, $sort-by)"
     , Tuple "import parameters that are not a parameter list" "import(\"lib\", $ctx)"
     , Tuple "an unknown escape sequence" "\"a\\qb\""
+    , Tuple "a backslash before a character above U+FFFF" "\"a\\\x1F600 b\""
     , Tuple "trailing input after the root" ".div() .span()"
     -- This port has the guaranteed integer range only (reference.md §13),
     -- so the first integer past either end of it does not parse.
@@ -119,6 +120,14 @@ runParserChecks = do
   -- quirk instead of the desugaring.
   traverse_ (uncurry desugarsTo)
     [ Tuple "\"hello\"" (StringLit "hello")
+    -- Characters above U+FFFF are a surrogate pair in a JavaScript string
+    -- and two `Char`s to `satisfy`; a literal reads them whole, as the
+    -- Haskell port does, with or without an interpolation beside them.
+    , Tuple "\"\x1F600\"" (StringLit "\x1F600")
+    , Tuple "\"a\x1F44D b \x1F1EB\x1F1F7 c\"" (StringLit "a\x1F44D b \x1F1EB\x1F1F7 c")
+    , Tuple "\"\x1F600 `$x`\x1F389\""
+        (Concat (Concat (StringLit "\x1F600 ") (Call (Path "str" []) [ Path "x" [] ])) (StringLit "\x1F389"))
+    , Tuple "{\"\x1F600\": 1}" (ObjectLit [ Tuple "\x1F600" (IntLit 1.0) ])
     , Tuple "\"n: `$x`!\""
         (Concat (Concat (StringLit "n: ") (Call (Path "str" []) [ Path "x" [] ])) (StringLit "!"))
     , Tuple "{foo, bar: 1}"
@@ -285,6 +294,7 @@ runCommentChecks = do
     , Tuple "a file that is comments and one expression" "-- one\n-- two\n1"
     , Tuple "an empty comment" ".p(\"hi\") --"
     , Tuple "a second -- inside a comment, which does not nest or close it" "1 -- a -- b"
+    , Tuple "a comment holding a character above U+FFFF" "-- \x1F600 heading\n.p(\"hi\") -- \x1F389"
     ]
   -- A hyphen is a name character only between two others, which is what
   -- leaves `--` free to start a comment right after a name.

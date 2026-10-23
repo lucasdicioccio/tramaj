@@ -1,0 +1,3 @@
+-- 🎉 a comment holding an emoji
+@who=$ctx.name
+{"😀 key": "a😀 b 👍🏽 `$who` 🇫🇷", "plain": "x"}
