@@ -48,12 +48,13 @@ import Data.Foldable (foldMap)
 import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Number as Number
+import Data.String.CodePoints (CodePoint)
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
 import Data.Tuple (Tuple(..))
 import Parsing (ParseError, Parser, fail, runParser)
 import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, sepEndBy1, skipMany, try)
-import Parsing.String (anyChar, char, eof, satisfy, string)
+import Parsing.String (anyCodePoint, char, eof, satisfyCodePoint, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
 import Tramaj.Ast (ActionAdaptation(..), Attribute(..), Expr(..), ParamValue(..), Program(..), Stmt(..), TypeConstraintArg(..), TypeExpr(..), numberAllocs, stmts)
@@ -95,7 +96,7 @@ skipSpaces :: P Unit
 skipSpaces = Basic.skipSpaces *> skipMany (lineComment *> Basic.skipSpaces)
   where
   lineComment :: P Unit
-  lineComment = string "--" *> skipMany (satisfy (_ /= '\n'))
+  lineComment = string "--" *> skipMany (satisfyCodePoint (_ /= codePoint '\n'))
 
 lexeme :: forall a. P a -> P a
 lexeme p = p <* skipSpaces
@@ -111,6 +112,28 @@ manyChars p = charsToString <<< Array.fromFoldable <$> many p
 
 many1Chars :: P Char -> P String
 many1Chars p = charsToString <<< NEA.toArray <$> (NEA.fromFoldable1 <$> many1 p)
+
+-- | Text read code point by code point, for string bodies and comments.
+-- |
+-- | Not `satisfy`: its `Char` is a UTF-16 code unit, so `satisfy` refuses
+-- | every character above U+FFFF (most emoji), which a JavaScript string
+-- | holds as a surrogate pair. A literal `"😀"` used to be a parse error
+-- | here while parsing fine in the Haskell sibling, whose `Char` is a code
+-- | point. Anything that may hold arbitrary text goes through these.
+manyCodePoints :: (CodePoint -> Boolean) -> P String
+manyCodePoints f = SCP.fromCodePointArray <<< Array.fromFoldable <$> many (satisfyCodePoint f)
+
+many1CodePoints :: (CodePoint -> Boolean) -> P String
+many1CodePoints f = SCP.fromCodePointArray <<< NEA.toArray <$> (NEA.fromFoldable1 <$> many1 (satisfyCodePoint f))
+
+-- | A `Char` literal as a `CodePoint`, for comparing against what
+-- | `satisfyCodePoint` reads.
+codePoint :: Char -> CodePoint
+codePoint = SCP.codePointFromChar
+
+-- | Not one of the given ASCII characters.
+noneOfCodePoints :: Array Char -> CodePoint -> Boolean
+noneOfCodePoints cs c = not (Array.elem c (map codePoint cs))
 
 -- | An identifier with no trailing whitespace consumed — used where the
 -- | following character is significant: inside dotted paths and after an
@@ -164,7 +187,7 @@ applyFieldAccess base segs = if Array.null segs then base else FieldAccess base 
 staticString :: P String
 staticString = lexeme do
   _ <- char '"'
-  s <- manyChars (satisfy (\c -> c /= '"' && c /= '`'))
+  s <- manyCodePoints (noneOfCodePoints [ '"', '`' ])
   _ <- char '"' <|> interpolationRefused
   pure s
   where
@@ -195,23 +218,23 @@ stringLit = lexeme do
   litChunk = Array.fold <<< Array.fromFoldable <$> many1 (escapeSeq <|> plainRun)
 
   plainRun :: P String
-  plainRun = many1Chars (satisfy (\c -> c /= '"' && c /= '`' && c /= '\\'))
+  plainRun = many1CodePoints (noneOfCodePoints [ '"', '`', '\\' ])
 
 escapeSeq :: P String
 escapeSeq = char '\\' *> (unicodeEscape <|> simpleEscape)
   where
   simpleEscape :: P String
   simpleEscape = do
-    c <- anyChar
-    case c of
-      'n' -> pure "\n"
-      't' -> pure "\t"
-      'r' -> pure "\r"
-      '\\' -> pure "\\"
-      '"' -> pure "\""
-      '`' -> pure "`"
-      '0' -> pure "\x0"
-      _ -> fail ("unknown escape sequence: \\" <> SCU.singleton c)
+    c <- anyCodePoint
+    case SCU.toChar (SCP.singleton c) of
+      Just 'n' -> pure "\n"
+      Just 't' -> pure "\t"
+      Just 'r' -> pure "\r"
+      Just '\\' -> pure "\\"
+      Just '"' -> pure "\""
+      Just '`' -> pure "`"
+      Just '0' -> pure "\x0"
+      _ -> fail ("unknown escape sequence: \\" <> SCP.singleton c)
 
   -- | `\u{1F600}` — braced so it is not limited to four hex digits and does
   -- | not need surrogate pairs.
