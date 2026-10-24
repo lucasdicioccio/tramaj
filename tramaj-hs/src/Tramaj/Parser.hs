@@ -26,6 +26,13 @@
 --   @map@ has matched, its shape is parsed without backtracking, so a
 --   malformed one is a hard parse error instead of silently falling through
 --   to a meaningless 'Call' that would only fail much later at eval time.
+--   The same holds for every form, not only the special ones: a 'try'
+--   covers what tells a form from its alternatives (@name(@, @key:@,
+--   @(params) =>@) and never the form's body. A 'try' around a body throws
+--   away the error inside it, and the program is then reported as wrong at
+--   wherever the outermost alternative started -- line 1, column 1 for an
+--   unclosed bracket anywhere in a document. Each closer also names its
+--   opener and where it is ('closing').
 -- * A field-access suffix is parsed with no whitespace skipped before it, so
 --   @f().rendered@ is a field access while @f()@ followed by a newline and
 --   @.div(...)@ is two separate things.
@@ -84,6 +91,50 @@ skipSpaces = L.space space1 (L.skipLineComment "--") empty
 lexeme :: P a -> P a
 lexeme p = p <* skipSpaces
 
+-- Unclosed openers ---------------------------------------------------------
+
+-- | An opener that has been read -- a bracket, a quote, a backtick -- and
+-- where it sits, so the closer that never comes can say which one it was.
+--
+-- The error for a missing closer is reported where the closer was looked
+-- for (often the end of the input), and names the opener and its position:
+-- @expecting ')' to close the '(' at line 1, column 5@. Without that, the
+-- only position a reader got was wherever the outermost backtracking
+-- alternative started, which for most programs is line 1, column 1.
+data Opened = Opened String SourcePos
+
+-- | Reads an opener with @p@, remembering where it started. @what@ is how
+-- the closer's error names it: @'('@, @the string@, @the interpolation@.
+opening :: String -> P a -> P Opened
+opening what p = do
+  pos <- getSourcePos
+  _ <- p
+  pure (Opened what pos)
+
+-- | Reads the closer that matches an 'Opened', labelled with it.
+closing :: Opened -> String -> P a -> P a
+closing (Opened what pos) closer p =
+  p <?> (closer <> " to close " <> what <> " at line " <> show (unPos (sourceLine pos)) <> ", column " <> show (unPos (sourceColumn pos)))
+
+-- | The common case: a lexeme opener and its lexeme closer.
+openSym :: Text -> P Opened
+openSym o = opening ("the '" <> T.unpack o <> "'") (symbol o)
+
+closeSym :: Opened -> Text -> P ()
+closeSym opened c = () <$ closing opened ("'" <> T.unpack c <> "'") (symbol c)
+
+-- | A closer read with no whitespace skipped after it, for the forms that
+-- read a field-access suffix directly behind their @)@.
+closeChar :: Opened -> Char -> P ()
+closeChar opened c = () <$ closing opened ("'" <> [c] <> "'") (char c)
+
+-- | Another item of a comma-separated list: a @,@ that is not the trailing
+-- one before the closer @c@. Recognizing the comma this way, rather than
+-- wrapping the comma /and the item/ in a 'try', is what keeps an error inside
+-- the item where it happened instead of rewinding to the comma.
+nextItem :: Char -> P ()
+nextItem c = () <$ try (symbol "," <* notFollowedBy (char c))
+
 symbol :: Text -> P Text
 symbol s = lexeme (string s)
 
@@ -137,9 +188,12 @@ applyFieldAccess base segs = FieldAccess base segs
 -- whole point of the position being static is that it cannot be computed.
 staticString :: P Text
 staticString = lexeme $ do
-  _ <- char '"'
+  opened <- opening "the string" (char '"')
   s <- takeWhileP Nothing (\c -> c /= '"' && c /= '`')
-  _ <- char '"' <|> interpolationRefused
+  next <- optional (lookAhead anySingle)
+  case next of
+    Just '`' -> interpolationRefused
+    _ -> () <$ closing opened "'\"'" (char '"')
   pure s
   where
     interpolationRefused =
@@ -151,16 +205,20 @@ staticString = lexeme $ do
 -- arbitrary expression.
 stringLit :: P Expr
 stringLit = lexeme $ do
-  _ <- char '"'
+  opened <- opening "the string" (char '"')
   parts <- many stringPart
-  _ <- char '"'
+  _ <- closing opened "'\"'" (char '"')
   pure (desugarString parts)
   where
     stringPart :: P StringPart
     stringPart = interpPart <|> (SLit <$> litChunk)
 
     interpPart :: P StringPart
-    interpPart = SInterp <$> (char '`' *> expr <* char '`')
+    interpPart = do
+      opened <- opening "the interpolation" (char '`')
+      e <- expr
+      _ <- closing opened "'`'" (char '`')
+      pure (SInterp e)
 
     -- | A run of ordinary characters, with escape sequences resolved as they
     -- are read. Stops at a closing quote or an interpolation's backtick;
@@ -192,9 +250,9 @@ escapeSeq = char '\\' *> (unicodeEscape <|> simpleEscape)
     unicodeEscape :: P Text
     unicodeEscape = do
       _ <- char 'u'
-      _ <- char '{'
+      opened <- opening "the '{' of the unicode escape" (char '{')
       digits <- takeWhile1P (Just "hex digit") isHexDigit
-      _ <- char '}'
+      _ <- closing opened "'}'" (char '}')
       case readHex (T.unpack digits) of
         [(n, "")] | n <= 0x10FFFF -> pure (T.singleton (chr n))
         _ -> fail ("invalid unicode escape: \\u{" <> T.unpack digits <> "}")
@@ -279,22 +337,22 @@ keywordLit = try $ do
 
 arrayLit :: P Expr
 arrayLit = lexeme $ do
-  _ <- symbol "["
+  opened <- openSym "["
   elems <- sepEndBy expr (symbol ",")
-  _ <- symbol "]"
+  closeSym opened "]"
   pure (ArrayLit elems)
 
 -- | Object keys may be quoted or bare, and a bare key on its own is shorthand
 -- for reading the binding of the same name: @{foo, bar: $baz}@.
 objectLit :: P Expr
 objectLit = lexeme $ do
-  _ <- symbol "{"
+  opened <- openSym "{"
   entries <- sepEndBy objEntry (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   pure (ObjectLit entries)
   where
     objEntry :: P (Text, Expr)
-    objEntry = try explicitEntry <|> markerEntry <|> shorthandEntry
+    objEntry = explicitEntry <|> markerEntry <|> shorthandEntry
 
     -- | @{~replicas}@ is @{replicas: ~replicas}@, and @{~host($x)}@ is
     -- @{host: ~host($x)}@ (v3-symbols \S1.2): the shorthand field of a
@@ -302,9 +360,11 @@ objectLit = lexeme $ do
     markerEntry :: P (Text, Expr)
     markerEntry = marker
 
+    -- The 'try' covers @key:@ only, which is what tells this from the
+    -- shorthand; an error in the value is reported where it is.
     explicitEntry :: P (Text, Expr)
     explicitEntry = do
-      k <- objectKey
+      k <- try (objectKey <* lookAhead (symbol ":"))
       _ <- reservedKeyRefused k
       _ <- symbol ":"
       v <- expr
@@ -344,11 +404,12 @@ pathExpr = lexeme $ do
 -- traversal order. A projection following it, as in @?(key).field@, is an
 -- ordinary field-access suffix, the same mechanism a call result uses.
 allocExpr :: P Expr
-allocExpr = try $ do
-  _ <- char '?'
-  _ <- symbol "("
+allocExpr = do
+  opened <- try $ do
+    _ <- char '?'
+    openSym "("
   keyExpr <- expr
-  _ <- char ')'
+  closeChar opened ')'
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Alloc 0 keyExpr) segs)
@@ -365,18 +426,18 @@ allocExpr = try $ do
 -- the shape must keep ('checkShape') and a marker in the key.
 shapeExpr :: P Expr
 shapeExpr = do
-  _ <- try $ do
+  opened <- try $ do
     _ <- char '?'
     n <- rawIdent
     if n == "shape" then pure () else fail "not a ?shape form"
-    symbol "("
+    openSym "("
   keyExpr <- expr
   if null (ownMarkers False keyExpr)
     then pure ()
     else fail "a marker cannot be written in a ?shape's key"
   _ <- symbol ","
   shape <- expr
-  _ <- char ')'
+  closeChar opened ')'
   checkShape shape
   segs <- fieldAccessSuffix
   skipSpaces
@@ -405,7 +466,12 @@ marker :: P (Text, Expr)
 marker = lexeme $ do
   _ <- char '~'
   name <- rawIdent
-  key <- optional (char '(' *> skipSpaces *> expr <* char ')')
+  key <- optional $ do
+    opened <- opening "the '('" (char '(')
+    skipSpaces
+    e <- expr
+    closeChar opened ')'
+    pure e
   pure (name, Alloc markerSite (ArrayLit ([Path shapeKeyName [], StringLit name] <> maybeToList key)))
 
 markerExpr :: P Expr
@@ -446,22 +512,26 @@ demandExpr = lexeme $ try $ do
 -- values (@$lib.vals.fn(1)@) or an import being given more parameters
 -- (@$deployment({...})@) is callable directly.
 call :: P Expr
-call = try $ do
-  _ <- optional (char '$')
-  (root, fields) <- pathTail
-  _ <- symbol "("
+call = do
+  ((root, fields), opened) <- try $ do
+    _ <- optional (char '$')
+    callee <- pathTail
+    opened <- openSym "("
+    pure (callee, opened)
   args <- sepEndBy expr (symbol ",")
-  _ <- char ')'
+  closeChar opened ')'
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Call (Path root fields) args) segs)
 
 lambdaExpr :: P Expr
-lambdaExpr = try $ do
-  _ <- symbol "("
-  params <- sepEndBy pattern (symbol ",")
-  _ <- symbol ")"
-  _ <- symbol "=>"
+lambdaExpr = do
+  params <- try $ do
+    _ <- symbol "("
+    params <- sepEndBy pattern (symbol ",")
+    _ <- symbol ")"
+    _ <- symbol "=>"
+    pure params
   lowerLambda params <$> expr
 
 -- Binding patterns (decisions \S17) -------------------------------------------
@@ -478,9 +548,9 @@ pattern = (PName <$> identifier) <|> objectPattern
 
 objectPattern :: P Pattern
 objectPattern = do
-  _ <- symbol "{"
+  opened <- openSym "{"
   fields <- sepEndBy1 patternField (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   let pat = PObject fields
       names = patternNames pat
   if length (nub names) /= length names
@@ -530,11 +600,14 @@ lowerLambda params body =
 
 -- | Grouping, for readability where 'Concat' chains get long. Not a semantic
 -- construct: the parse tree it produces is the same as the inner expression's.
+--
+-- No 'try': 'lambdaExpr' is tried first, and nothing else starts with @(@,
+-- so an error inside the parentheses is reported where it is.
 parenExpr :: P Expr
-parenExpr = try $ do
-  _ <- symbol "("
+parenExpr = do
+  opened <- openSym "("
   e <- expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure e
 
 -- | The forms whose evaluation the language defines itself, rather than
@@ -569,22 +642,22 @@ specialForm = do
   where
     binaryShape :: (Expr -> Expr -> Expr) -> P Expr
     binaryShape ctor = do
-      _ <- symbol "("
+      opened <- openSym "("
       a <- expr
       _ <- symbol ","
       b <- expr
-      _ <- char ')'
+      closeChar opened ')'
       pure (ctor a b)
 
     ternaryShape :: (Expr -> Expr -> Expr -> Expr) -> P Expr
     ternaryShape ctor = do
-      _ <- symbol "("
+      opened <- openSym "("
       a <- expr
       _ <- symbol ","
       b <- expr
       _ <- symbol ","
       c <- expr
-      _ <- char ')'
+      closeChar opened ')'
       pure (ctor a b c)
 
     -- | @branch(fallback, p1, v1, p2, v2, ...)@ reads "if p1 then v1, else if
@@ -592,11 +665,11 @@ specialForm = do
     -- laziness is the core constructor's rather than a rule of its own.
     branchShape :: P Expr
     branchShape = do
-      _ <- symbol "("
+      opened <- openSym "("
       fallback <- expr
-      arms <- many (try (symbol "," *> arm))
+      arms <- many (nextItem ')' *> arm)
       _ <- optional (symbol ",")
-      _ <- char ')'
+      closeChar opened ')'
       pure (foldr (\(p, v) acc -> Branch p v acc) fallback arms)
 
     arm :: P (Expr, Expr)
@@ -612,11 +685,11 @@ specialForm = do
     -- signature for any name.
     constraintShape :: P Expr
     constraintShape = do
-      _ <- symbol "("
+      opened <- openSym "("
       name <- staticString
-      args <- many (try (symbol "," *> expr))
+      args <- many (nextItem ')' *> expr)
       _ <- optional (symbol ",")
-      _ <- char ')'
+      closeChar opened ')'
       pure (Constrain name args)
 
     -- | @import("name", {param: expr, other: ctx(path)})@. The name is a
@@ -625,27 +698,26 @@ specialForm = do
     -- only here.
     importShape :: P Expr
     importShape = do
-      _ <- symbol "("
+      opened <- openSym "("
       name <- staticString
       _ <- symbol ","
       params <- importParams
-      _ <- char ')'
+      closeChar opened ')'
       pure (Import name params)
 
     importParams :: P [(Text, ParamValue)]
     importParams = do
-      _ <- symbol "{"
+      opened <- openSym "{"
       entries <- sepEndBy paramEntry (symbol ",")
-      _ <- symbol "}"
+      closeSym opened "}"
       pure entries
 
     paramEntry :: P (Text, ParamValue)
-    paramEntry = try explicitParam <|> shorthandParam
+    paramEntry = explicitParam <|> shorthandParam
 
     explicitParam :: P (Text, ParamValue)
     explicitParam = do
-      k <- objectKey
-      _ <- symbol ":"
+      k <- try (objectKey <* symbol ":")
       v <- paramValue
       pure (k, v)
 
@@ -666,10 +738,10 @@ specialForm = do
         n <- identifier
         _ <- lookAhead (char '(')
         if n == ("ctx" :: Text) then pure n else fail "not a ctx(...) parameter"
-      _ <- symbol "("
+      opened <- openSym "("
       (root, fields) <- pathTail
       skipSpaces
-      _ <- char ')'
+      closeChar opened ')'
       skipSpaces
       pure (PFromContext (root : fields))
 
@@ -677,13 +749,13 @@ specialForm = do
     -- the event type and payload.
     adaptActionsShape :: P Expr
     adaptActionsShape = do
-      _ <- symbol "("
+      opened <- openSym "("
       target <- expr
       _ <- symbol ","
       adaptation <- adaptationShape
-      fn <- optional (try (symbol "," *> expr))
+      fn <- optional (nextItem ')' *> expr)
       _ <- optional (symbol ",")
-      _ <- char ')'
+      closeChar opened ')'
       pure (AdaptActions target adaptation fn)
 
     -- | Two forms only, never an arbitrary rewriting function: this is what
@@ -695,9 +767,9 @@ specialForm = do
       case name of
         "identity" -> pure Identity
         "prefix" -> do
-          _ <- symbol "("
+          opened <- openSym "("
           p <- staticString
-          _ <- char ')'
+          closeChar opened ')'
           skipSpaces
           pure (Prefix p)
         _ -> fail "an action adaptation must be identity or prefix(\"...\")"
@@ -766,16 +838,16 @@ markedTypeExpr = try $ do
 
 typeArray :: P TypeExpr
 typeArray = do
-  _ <- symbol "["
+  opened <- openSym "["
   t <- typeExpr
-  _ <- symbol "]"
+  closeSym opened "]"
   pure (TArray t)
 
 typeRecord :: P TypeExpr
 typeRecord = do
-  _ <- symbol "{"
+  opened <- openSym "{"
   fields <- sepEndBy typeField (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   pure (TRecord fields)
   where
     -- | Unlike an ordinary object literal's 'objectKey', a field name here is
@@ -856,15 +928,16 @@ typeConstraintArg = (TCType <$> markedTypeExpr) <|> scalarArg
 -- @type-constraint(...)@ would otherwise parse as an ordinary call to an
 -- unbound name.
 typeEmission :: P Stmt
-typeEmission = try $ do
-  _ <- char '!'
-  kw <- identifier
-  if kw /= ("type-constraint" :: Text) then fail "not a !type-constraint" else pure ()
-  _ <- symbol "("
+typeEmission = do
+  opened <- try $ do
+    _ <- char '!'
+    kw <- identifier
+    if kw /= ("type-constraint" :: Text) then fail "not a !type-constraint" else pure ()
+    openSym "("
   name <- staticString
-  args <- many (try (symbol "," *> typeConstraintArg))
+  args <- many (nextItem ')' *> typeConstraintArg)
   _ <- optional (symbol ",")
-  _ <- char ')'
+  closeChar opened ')'
   skipSpaces
   pure (STypeEmit name args)
 
@@ -874,36 +947,41 @@ typeEmission = try $ do
 -- it -- the same device 'keywordLit' uses -- which is what keeps @typeface =
 -- ...@ from being chopped into the keyword @type@ plus leftovers.
 typeDeclStmt :: P Stmt
-typeDeclStmt = try $ do
-  kw <- identifier
-  if kw /= "type" then fail "not a type declaration" else pure ()
-  name <- identifier
-  _ <- symbol "="
+typeDeclStmt = do
+  name <- try $ do
+    kw <- identifier
+    if kw /= "type" then fail "not a type declaration" else pure ()
+    name <- identifier
+    _ <- symbol "="
+    pure name
   STypeDecl name <$> typeExpr
 
 -- Documents ---------------------------------------------------------------
 
 -- | @.tag(...)@ is an element; @.(...)@ is a fragment -- a tagless element,
 -- introducing siblings with no wrapper.
+--
+-- No 'try': nothing else an operand can be starts with @.@, so once it is
+-- read this is a document, and an error inside it is reported where it is.
 documentExpr :: P Expr
-documentExpr = try $ do
+documentExpr = do
   _ <- char '.'
   choice [fragmentShape, elementShape]
   where
     fragmentShape :: P Expr
     fragmentShape = do
-      _ <- symbol "("
+      opened <- openSym "("
       children <- sepEndBy expr (symbol ",")
-      _ <- symbol ")"
+      closeSym opened ")"
       pure (Fragment children)
 
     elementShape :: P Expr
     elementShape = do
       tag <- rawIdent
       skipSpaces
-      _ <- symbol "("
+      opened <- opening ("the '(' of ." <> T.unpack tag) (symbol "(")
       args <- sepEndBy elementArg (symbol ",")
-      _ <- symbol ")"
+      closeSym opened ")"
       buildElement tag args
 
 -- | Buckets an element's arguments and enforces the one ordering rule:
@@ -932,7 +1010,7 @@ buildElement tag args = do
 elementArg :: P ElementArg
 elementArg =
   attributePositionArg
-    <|> (EArgAttr <$> try namedArg)
+    <|> (EArgAttr <$> namedArg)
     <|> (EArgChild <$> expr)
 
 -- | @action(...)@ and @value(...)@, the two forms that mean something only in
@@ -965,28 +1043,29 @@ attributePositionArg = do
 -- it.
 actionShape :: P Attribute
 actionShape = do
-  _ <- symbol "("
+  opened <- openSym "("
   event <- staticString
   _ <- symbol ","
   key <- staticString
   _ <- symbol ","
   payload <- expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure (ActionAttr event key payload)
 
 -- | @value(expr)@ fills the element's value slot -- see "Tramaj.Node" for
 -- what a host does with it.
 valueShape :: P Expr
 valueShape = do
-  _ <- symbol "("
+  opened <- openSym "("
   v <- expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure v
 
+-- The 'try' covers @name:@ only, which is what tells an attribute from a
+-- child; an error in its value is reported where it is.
 namedArg :: P Attribute
 namedArg = do
-  name <- objectKey
-  _ <- symbol ":"
+  name <- try (objectKey <* symbol ":")
   Attr name <$> expr
 
 -- Precedence ---------------------------------------------------------------
@@ -996,7 +1075,7 @@ namedArg = do
 expr :: P Expr
 expr = do
   first <- operand
-  rest <- many (try (symbol "<>" *> operand))
+  rest <- many (symbol "<>" *> operand)
   pure (foldl Concat first rest)
 
 -- | Alternatives are ordered so that a longer form is tried before a prefix of
@@ -1025,8 +1104,11 @@ operand =
 -- | @\@name=expr@ or @\@name : T = expr@ (v4-types \S7), one per line. @\@@
 -- leads a binding definition, mirroring @$@ leading a binding read; the
 -- optional @: T@ is what tells 'SLet' and 'SAnnotate' apart.
+--
+-- No 'try': nothing else starts with @\@@, so an error in a binding is
+-- reported where it is rather than at the start of the line.
 binding :: P [Stmt]
-binding = try $ do
+binding = do
   _ <- char '@'
   pat <- pattern
   case pat of
@@ -1044,7 +1126,7 @@ binding = try $ do
 -- @$@ and @\@@. A statement position only -- it may not appear inside an
 -- expression, so there is no operand form for it.
 emission :: P Expr
-emission = try $ do
+emission = do
   _ <- char '!'
   expr
 

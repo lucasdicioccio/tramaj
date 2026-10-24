@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+**Parse errors point at the mistake.** An unclosed `(`, `[`, `{`, string or
+interpolation used to be reported at line 1, column 1 (megaparsec's error
+from wherever the outermost backtracking alternative started), whatever the
+mistake. A `try` now covers only what tells a form from its alternatives,
+never the form's body, so the error is reported where the closer was looked
+for, and the closer names its opener and where it is: `expecting ')' to
+close the '(' of .div at line 1, column 5`. Every program that parsed still
+parses to the same AST; only the position and wording of errors change.
+tramaj-purs has the same fix.
+
 ## 0.4.0.0
 
 **Breaking: integers and floats are two number types** (`../specs/decisions.md`
