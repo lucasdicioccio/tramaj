@@ -11,6 +11,11 @@ use crate::ast::{
     number_allocs, sub_exprs, ActionAdaptation, MARKER_SITE, SHAPE_KEY_NAME, Attribute, Expr, ParamValue, Program, TypeConstraintArg, TypeExpr,
 };
 
+/// A parse failure, as a message that reads `at char <offset> (line <l>,
+/// column <c>): <detail>`. The offset counts `char`s from the start of the
+/// source; line and column are 1-based, a tab advancing the column to the
+/// next tab stop (every 8 columns), as tramaj-hs (megaparsec) and
+/// tramaj-purs count them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError(pub String);
 
@@ -45,6 +50,40 @@ const PRIM_NAMES: &[&str] = &["string", "int", "float", "bool", "null", "documen
 struct P {
     chars: Vec<char>,
     pos: usize,
+    /// The farthest offset any failure was raised at, backtracked or not.
+    farthest: std::cell::Cell<usize>,
+    /// The farthest closer that was looked for and not found.
+    unclosed: Option<Unclosed>,
+}
+
+/// An opener that has been read (a bracket, a quote, a backtick) and where
+/// it sits, so the closer that never comes can say which one it was.
+#[derive(Clone)]
+struct Opened {
+    what: std::borrow::Cow<'static, str>,
+    pos: usize,
+}
+
+struct Unclosed {
+    pos: usize,
+    closer: String,
+    opened: Opened,
+}
+
+/// The 1-based line and column of a `char` offset (tab stops every 8 columns).
+fn line_column(chars: &[char], offset: usize) -> (usize, usize) {
+    let (mut line, mut column) = (1, 1);
+    for &c in chars.iter().take(offset) {
+        match c {
+            '\n' => {
+                line += 1;
+                column = 1;
+            }
+            '\t' => column += 8 - (column - 1) % 8,
+            _ => column += 1,
+        }
+    }
+    (line, column)
 }
 
 enum ElementArg {
@@ -63,11 +102,93 @@ impl P {
         P {
             chars: src.chars().collect(),
             pos: 0,
+            farthest: std::cell::Cell::new(0),
+            unclosed: None,
         }
     }
 
     fn err(&self, msg: &str) -> ParseError {
+        if self.pos > self.farthest.get() {
+            self.farthest.set(self.pos);
+        }
         ParseError(format!("at char {}: {msg}", self.pos))
+    }
+
+    // Unclosed openers -----------------------------------------------------
+    //
+    // Every alternative backtracks, so the error that escapes a failed parse
+    // is usually the outermost alternative's, at char 0. What a reader needs
+    // is where the parse got farthest and, when that is a closer that never
+    // came, which opener it belonged to: `expected ')' to close the '(' of
+    // .div at line 1, column 5`, reported where the closer was looked for.
+    // This changes no parse, only which error a failed one reports
+    // (`report`).
+
+    /// Reads an opener with `f`, remembering where it started.
+    fn opening<T>(
+        &mut self,
+        what: impl Into<std::borrow::Cow<'static, str>>,
+        f: impl FnOnce(&mut Self) -> PResult<T>,
+    ) -> PResult<Opened> {
+        let pos = self.pos;
+        f(self)?;
+        Ok(Opened { what: what.into(), pos })
+    }
+
+    fn open_sym(&mut self, o: &'static str) -> PResult<Opened> {
+        let what = match o {
+            "(" => "the '('",
+            "[" => "the '['",
+            "{" => "the '{'",
+            _ => unreachable!("not an opener: {o}"),
+        };
+        self.opening(what, |p| p.symbol(o))
+    }
+
+    /// Remembers a closer that failed for `report`. A failed `symbol` or
+    /// `char_lit` leaves `pos` where the closer was looked for.
+    fn closing<T>(&mut self, opened: &Opened, closer: String, r: PResult<T>) -> PResult<T> {
+        if r.is_err() && !matches!(&self.unclosed, Some(u) if u.pos >= self.pos) {
+            self.unclosed = Some(Unclosed {
+                pos: self.pos,
+                closer,
+                opened: opened.clone(),
+            });
+        }
+        r
+    }
+
+    fn close_sym(&mut self, opened: &Opened, c: &str) -> PResult<()> {
+        let r = self.symbol(c);
+        self.closing(opened, format!("'{c}'"), r)
+    }
+
+    /// A closer with no whitespace skipped after it (a field-access suffix
+    /// may follow).
+    fn close_char(&mut self, opened: &Opened, c: char) -> PResult<()> {
+        let r = self.char_lit(c).map(|_| ());
+        self.closing(opened, format!("'{c}'"), r)
+    }
+
+    /// The error a failed parse reports: the farthest unclosed opener when
+    /// nothing failed farther than it, otherwise the error that escaped,
+    /// with its line and column added.
+    fn report(&self, e: ParseError) -> ParseError {
+        if let Some(u) = self.unclosed.as_ref().filter(|u| u.pos >= self.farthest.get()) {
+            let (ol, oc) = line_column(&self.chars, u.opened.pos);
+            let (l, c) = line_column(&self.chars, u.pos);
+            return ParseError(format!(
+                "at char {} (line {l}, column {c}): expected {} to close {} at line {ol}, column {oc}",
+                u.pos, u.closer, u.opened.what
+            ));
+        }
+        let positioned = e.0.strip_prefix("at char ").and_then(|rest| {
+            let (n, detail) = rest.split_once(": ")?;
+            let offset: usize = n.parse().ok()?;
+            let (l, c) = line_column(&self.chars, offset);
+            Some(ParseError(format!("at char {offset} (line {l}, column {c}): {detail}")))
+        });
+        positioned.unwrap_or(e)
     }
 
     fn eof(&self) -> bool {
@@ -238,7 +359,7 @@ impl P {
 
     fn static_string(&mut self) -> PResult<String> {
         self.lexeme(|p| {
-            p.char_lit('"')?;
+            let opened = p.opening("the string", |p| p.char_lit('"'))?;
             let mut s = String::new();
             while let Some(c) = p.peek() {
                 if c == '"' || c == '`' {
@@ -247,15 +368,13 @@ impl P {
                 s.push(c);
                 p.advance();
             }
-            match p.peek() {
-                Some('"') => {
-                    p.advance();
-                    Ok(s)
-                }
-                _ => Err(p.err(
+            if p.peek() == Some('`') {
+                return Err(p.err(
                     "this position must be a literal string, so it cannot contain an interpolation",
-                )),
+                ));
             }
+            p.close_char(&opened, '"')?;
+            Ok(s)
         })
     }
 
@@ -263,15 +382,18 @@ impl P {
 
     fn string_lit(&mut self) -> PResult<Expr> {
         self.lexeme(|p| {
-            p.char_lit('"')?;
+            let opened = p.opening("the string", |p| p.char_lit('"'))?;
             let mut parts = Vec::new();
             loop {
                 match p.peek() {
                     Some('"') | None => break,
                     Some('`') => {
-                        p.advance();
+                        let interp = p.opening("the interpolation", |p| {
+                            p.advance();
+                            Ok(())
+                        })?;
                         let e = p.expr()?;
-                        p.char_lit('`')?;
+                        p.close_char(&interp, '`')?;
                         parts.push(StringPart::Interp(e));
                     }
                     _ => {
@@ -280,7 +402,7 @@ impl P {
                     }
                 }
             }
-            p.char_lit('"')?;
+            p.close_char(&opened, '"')?;
             Ok(desugar_string(parts))
         })
     }
@@ -320,7 +442,7 @@ impl P {
             '`' => Ok("`".to_string()),
             '0' => Ok("\0".to_string()),
             'u' => {
-                self.char_lit('{')?;
+                let opened = self.opening("the '{' of the unicode escape", |p| p.char_lit('{'))?;
                 let mut digits = String::new();
                 while let Some(c) = self.peek() {
                     if c.is_ascii_hexdigit() {
@@ -333,7 +455,7 @@ impl P {
                 if digits.is_empty() {
                     return Err(self.err("invalid unicode escape"));
                 }
-                self.char_lit('}')?;
+                self.close_char(&opened, '}')?;
                 let n = u32::from_str_radix(&digits, 16)
                     .map_err(|_| self.err("invalid unicode escape"))?;
                 let ch = char::from_u32(n).ok_or_else(|| self.err("invalid unicode escape"))?;
@@ -436,16 +558,16 @@ impl P {
     }
 
     fn array_lit(&mut self) -> PResult<Expr> {
-        self.symbol("[")?;
+        let opened = self.open_sym("[")?;
         let elems = self.sep_end_by(",", Self::expr)?;
-        self.symbol("]")?;
+        self.close_sym(&opened, "]")?;
         Ok(Expr::ArrayLit(elems))
     }
 
     fn object_lit(&mut self) -> PResult<Expr> {
-        self.symbol("{")?;
+        let opened = self.open_sym("{")?;
         let entries = self.sep_end_by(",", Self::obj_entry)?;
-        self.symbol("}")?;
+        self.close_sym(&opened, "}")?;
         Ok(Expr::ObjectLit(entries))
     }
 
@@ -521,9 +643,9 @@ impl P {
     /// `?(key).field`, is an ordinary field-access suffix.
     fn alloc_expr(&mut self) -> PResult<Expr> {
         self.char_lit('?')?;
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let key_expr = self.expr()?;
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         let segs = self.field_access_suffix();
         self.skip_spaces();
         Ok(Self::apply_field_access(
@@ -622,9 +744,9 @@ impl P {
     fn call_expr(&mut self) -> PResult<Expr> {
         let _ = self.attempt(|p| p.char_lit('$'));
         let (root, fields) = self.path_tail()?;
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let args = self.sep_end_by(",", Self::expr)?;
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         let segs = self.field_access_suffix();
         self.skip_spaces();
         Ok(Self::apply_field_access(
@@ -655,7 +777,7 @@ impl P {
     }
 
     fn object_pattern(&mut self) -> PResult<Pattern> {
-        self.symbol("{")?;
+        let opened = self.open_sym("{")?;
         let mut fields = vec![self.pattern_field()?];
         loop {
             if self.symbol(",").is_err() {
@@ -666,7 +788,7 @@ impl P {
                 Err(_) => break,
             }
         }
-        self.symbol("}")?;
+        self.close_sym(&opened, "}")?;
         let pat = Pattern::Object(fields);
         let names = pattern_names(&pat);
         let mut seen = std::collections::HashSet::new();
@@ -690,9 +812,9 @@ impl P {
     }
 
     fn paren_expr(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let e = self.expr()?;
-        self.symbol(")")?;
+        self.close_sym(&opened, ")")?;
         Ok(e)
     }
 
@@ -749,27 +871,27 @@ impl P {
     }
 
     fn binary_shape(&mut self) -> PResult<(Expr, Expr)> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let a = self.expr()?;
         self.symbol(",")?;
         let b = self.expr()?;
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         Ok((a, b))
     }
 
     fn ternary_shape(&mut self) -> PResult<(Expr, Expr, Expr)> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let a = self.expr()?;
         self.symbol(",")?;
         let b = self.expr()?;
         self.symbol(",")?;
         let c = self.expr()?;
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         Ok((a, b, c))
     }
 
     fn branch_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let fallback = self.expr()?;
         let mut arms = Vec::new();
         loop {
@@ -787,7 +909,7 @@ impl P {
             }
         }
         let _ = self.attempt(|p| p.symbol(","));
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         let mut acc = fallback;
         for (p, v) in arms.into_iter().rev() {
             acc = Expr::Branch(Box::new(p), Box::new(v), Box::new(acc));
@@ -803,18 +925,18 @@ impl P {
     }
 
     fn import_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let name = self.static_string()?;
         self.symbol(",")?;
         let params = self.import_params()?;
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         Ok(Expr::Import(name, params))
     }
 
     fn import_params(&mut self) -> PResult<Vec<(String, ParamValue)>> {
-        self.symbol("{")?;
+        let opened = self.open_sym("{")?;
         let entries = self.sep_end_by(",", Self::param_entry)?;
-        self.symbol("}")?;
+        self.close_sym(&opened, "}")?;
         Ok(entries)
     }
 
@@ -941,16 +1063,16 @@ impl P {
     }
 
     fn type_array(&mut self) -> PResult<TypeExpr> {
-        self.symbol("[")?;
+        let opened = self.open_sym("[")?;
         let t = self.type_expr()?;
-        self.symbol("]")?;
+        self.close_sym(&opened, "]")?;
         Ok(TypeExpr::Array(Box::new(t)))
     }
 
     fn type_record(&mut self) -> PResult<TypeExpr> {
-        self.symbol("{")?;
+        let opened = self.open_sym("{")?;
         let fields = self.sep_end_by(",", Self::type_field)?;
-        self.symbol("}")?;
+        self.close_sym(&opened, "}")?;
         Ok(TypeExpr::Record(fields))
     }
 
@@ -1060,7 +1182,7 @@ impl P {
         if kw != "type-constraint" {
             return Err(self.err("not a !type-constraint"));
         }
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let name = self.static_string()?;
         let mut args = Vec::new();
         loop {
@@ -1078,7 +1200,7 @@ impl P {
             }
         }
         let _ = self.attempt(|p| p.symbol(","));
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         self.skip_spaces();
         Ok(Stmt::TypeEmit(name, args))
     }
@@ -1105,10 +1227,10 @@ impl P {
             self.pos = save;
             return Err(self.err("not a ctx(...) parameter"));
         }
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let (root, fields) = self.path_tail()?;
         self.skip_spaces();
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         self.skip_spaces();
         let mut path = vec![root];
         path.extend(fields);
@@ -1120,7 +1242,7 @@ impl P {
     /// of ordinary expressions — zero included, since the language fixes no
     /// signature for any name.
     fn constraint_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let name = self.static_string()?;
         let mut args = Vec::new();
         loop {
@@ -1138,12 +1260,12 @@ impl P {
             }
         }
         let _ = self.attempt(|p| p.symbol(","));
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         Ok(Expr::Constrain(name, args))
     }
 
     fn adapt_actions_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let target = self.expr()?;
         self.symbol(",")?;
         let adaptation = self.adaptation_shape()?;
@@ -1153,7 +1275,7 @@ impl P {
         });
         let fn_ = fn_.ok();
         let _ = self.attempt(|p| p.symbol(","));
-        self.char_lit(')')?;
+        self.close_char(&opened, ')')?;
         Ok(Expr::AdaptActions(
             Box::new(target),
             adaptation,
@@ -1166,9 +1288,9 @@ impl P {
         match name.as_str() {
             "identity" => Ok(ActionAdaptation::Identity),
             "prefix" => {
-                self.symbol("(")?;
+                let opened = self.open_sym("(")?;
                 let p = self.static_string()?;
-                self.char_lit(')')?;
+                self.close_char(&opened, ')')?;
                 self.skip_spaces();
                 Ok(ActionAdaptation::Prefix(p))
             }
@@ -1187,18 +1309,18 @@ impl P {
     }
 
     fn fragment_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let children = self.sep_end_by(",", Self::expr)?;
-        self.symbol(")")?;
+        self.close_sym(&opened, ")")?;
         Ok(Expr::Fragment(children))
     }
 
     fn element_shape(&mut self) -> PResult<Expr> {
         let tag = self.raw_ident()?;
         self.skip_spaces();
-        self.symbol("(")?;
+        let opened = self.opening(format!("the '(' of .{tag}"), |p| p.symbol("("))?;
         let args = self.sep_end_by(",", Self::element_arg)?;
-        self.symbol(")")?;
+        self.close_sym(&opened, ")")?;
         build_element(self, tag, args)
     }
 
@@ -1236,20 +1358,20 @@ impl P {
     }
 
     fn action_shape(&mut self) -> PResult<Attribute> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let event = self.static_string()?;
         self.symbol(",")?;
         let key = self.static_string()?;
         self.symbol(",")?;
         let payload = self.expr()?;
-        self.symbol(")")?;
+        self.close_sym(&opened, ")")?;
         Ok(Attribute::ActionAttr(event, key, payload))
     }
 
     fn value_shape(&mut self) -> PResult<Expr> {
-        self.symbol("(")?;
+        let opened = self.open_sym("(")?;
         let v = self.expr()?;
-        self.symbol(")")?;
+        self.close_sym(&opened, ")")?;
         Ok(v)
     }
 
@@ -1655,5 +1777,5 @@ fn coalesce(parts: Vec<StringPart>) -> Vec<StringPart> {
 
 pub fn parse_program(src: &str) -> Result<Program, ParseError> {
     let mut p = P::new(src);
-    p.program()
+    p.program().map_err(|e| p.report(e))
 }

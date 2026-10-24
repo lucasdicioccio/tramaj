@@ -15,7 +15,47 @@ T = TypeVar("T")
 
 
 class ParseError(Exception):
-    pass
+    """A parse failure. ``offset`` counts code points from the start of the
+    source; ``line`` and ``column`` are 1-based, a tab advancing the column to
+    the next tab stop (every 8 columns), as tramaj-hs (megaparsec) and
+    tramaj-purs count them. ``detail`` is the message without its position;
+    ``str(e)`` reads ``at char <offset> (line <l>, column <c>): <detail>``."""
+
+    def __init__(self, detail: str, offset: int = 0, line: int = 0, column: int = 0) -> None:
+        if line > 0:
+            message = f"at char {offset} (line {line}, column {column}): {detail}"
+        else:
+            message = f"at char {offset}: {detail}"
+        super().__init__(message)
+        self.detail = detail
+        self.offset = offset
+        self.line = line
+        self.column = column
+
+
+class _Opened:
+    """An opener that has been read (a bracket, a quote, a backtick) and where
+    it sits, so the closer that never comes can say which one it was."""
+
+    __slots__ = ("what", "pos")
+
+    def __init__(self, what: str, pos: int) -> None:
+        self.what = what
+        self.pos = pos
+
+
+def _line_column(chars: list[str], offset: int) -> tuple[int, int]:
+    """The 1-based line and column of a code-point offset (tab stops every 8 columns)."""
+    line, column = 1, 1
+    for c in chars[:offset]:
+        if c == "\n":
+            line += 1
+            column = 1
+        elif c == "\t":
+            column += 8 - (column - 1) % 8
+        else:
+            column += 1
+    return line, column
 
 
 SPECIAL_FORM_NAMES = {
@@ -61,9 +101,63 @@ class _Parser:
     def __init__(self, src: str) -> None:
         self.chars = list(src)
         self.pos = 0
+        # The farthest offset any failure was raised at, backtracked or not.
+        self.farthest = 0
+        # The farthest closer that was looked for and not found:
+        # (offset, closer, opened).
+        self.unclosed: Optional[tuple[int, str, _Opened]] = None
 
     def err(self, msg: str) -> ParseError:
-        return ParseError(f"at char {self.pos}: {msg}")
+        if self.pos > self.farthest:
+            self.farthest = self.pos
+        return ParseError(msg, self.pos)
+
+    # Unclosed openers ---------------------------------------------------------
+    #
+    # Every alternative backtracks, so the error that escapes a failed parse is
+    # usually the outermost alternative's, at char 0. What a reader needs is
+    # where the parse got farthest and, when that is a closer that never came,
+    # which opener it belonged to: ``expected ')' to close the '(' of .div at
+    # line 1, column 5``, reported where the closer was looked for. This
+    # changes no parse, only which error a failed one reports (``report``).
+
+    def opening(self, what: str, f: Callable[[], object]) -> _Opened:
+        """Reads an opener with ``f``, remembering where it started."""
+        pos = self.pos
+        f()
+        return _Opened(what, pos)
+
+    def open_sym(self, o: str, what: Optional[str] = None) -> _Opened:
+        return self.opening(what if what is not None else f"the '{o}'", lambda: self.symbol(o))
+
+    def closing(self, opened: _Opened, closer: str, f: Callable[[], T]) -> T:
+        """Reads the closer that matches ``opened``; a failure is remembered for ``report``."""
+        try:
+            return f()
+        except ParseError as e:
+            if self.unclosed is None or e.offset > self.unclosed[0]:
+                self.unclosed = (e.offset, closer, opened)
+            raise
+
+    def close_sym(self, opened: _Opened, c: str) -> None:
+        self.closing(opened, f"'{c}'", lambda: self.symbol(c))
+
+    def close_char(self, opened: _Opened, c: str) -> None:
+        """A closer with no whitespace skipped after it (a field-access suffix may follow)."""
+        self.closing(opened, f"'{c}'", lambda: self.char_lit(c))
+
+    def report(self, e: ParseError) -> ParseError:
+        """The error a failed parse reports: the farthest unclosed opener when
+        nothing failed farther than it, otherwise the error that escaped."""
+        if self.unclosed is not None and self.unclosed[0] >= self.farthest:
+            pos, closer, opened = self.unclosed
+            ol, oc = _line_column(self.chars, opened.pos)
+            line, column = _line_column(self.chars, pos)
+            return ParseError(
+                f"expected {closer} to close {opened.what} at line {ol}, column {oc}", pos, line, column
+            )
+        line, column = _line_column(self.chars, e.offset)
+        return ParseError(e.detail, e.offset, line, column)
 
     def eof(self) -> bool:
         return self.pos >= len(self.chars)
@@ -177,7 +271,7 @@ class _Parser:
 
     def static_string(self) -> str:
         def go() -> str:
-            self.char_lit('"')
+            opened = self.opening("the string", lambda: self.char_lit('"'))
             s: list[str] = []
             while True:
                 c = self.peek()
@@ -185,11 +279,11 @@ class _Parser:
                     break
                 s.append(c)
                 self.advance()
-            if self.peek() != '"':
+            if self.peek() == "`":
                 raise self.err(
                     "this position must be a literal string, so it cannot contain an interpolation"
                 )
-            self.advance()
+            self.close_char(opened, '"')
             return "".join(s)
 
         return self.lexeme(go)
@@ -198,20 +292,20 @@ class _Parser:
 
     def string_lit(self) -> A.Expr:
         def go() -> A.Expr:
-            self.char_lit('"')
+            opened = self.opening("the string", lambda: self.char_lit('"'))
             parts: list[tuple[str, object]] = []
             while True:
                 c = self.peek()
                 if c is None or c == '"':
                     break
                 if c == "`":
-                    self.advance()
+                    interp = self.opening("the interpolation", self.advance)
                     e = self.expr()
-                    self.char_lit("`")
+                    self.close_char(interp, "`")
                     parts.append(("interp", e))
                 else:
                     parts.append(("lit", self.lit_chunk()))
-            self.char_lit('"')
+            self.close_char(opened, '"')
             return _desugar_string(parts)
 
         return self.lexeme(go)
@@ -240,7 +334,7 @@ class _Parser:
         if c in simple:
             return simple[c]
         if c == "u":
-            self.char_lit("{")
+            opened = self.opening("the '{' of the unicode escape", lambda: self.char_lit("{"))
             digits: list[str] = []
             while True:
                 d = self.peek()
@@ -251,7 +345,7 @@ class _Parser:
                     break
             if not digits:
                 raise self.err("invalid unicode escape")
-            self.char_lit("}")
+            self.close_char(opened, "}")
             n = int("".join(digits), 16)
             if n > 0x10FFFF or 0xD800 <= n <= 0xDFFF:
                 raise self.err("invalid unicode escape")
@@ -346,15 +440,15 @@ class _Parser:
         raise self.err("not a literal keyword")
 
     def array_lit(self) -> A.Expr:
-        self.symbol("[")
+        opened = self.open_sym("[")
         elements = self.sep_end_by(",", self.expr)
-        self.symbol("]")
+        self.close_sym(opened, "]")
         return A.ArrayLit(elements)
 
     def object_lit(self) -> A.Expr:
-        self.symbol("{")
+        opened = self.open_sym("{")
         fields = self.sep_end_by(",", self.obj_entry)
-        self.symbol("}")
+        self.close_sym(opened, "}")
         return A.ObjectLit(fields)
 
     def obj_entry(self) -> tuple[str, A.Expr]:
@@ -411,9 +505,9 @@ class _Parser:
     def alloc_expr(self) -> A.Expr:
         """``?(key)`` (``v3-symbols.md`` section 1.2); ``number_allocs`` assigns the real site later."""
         self.char_lit("?")
-        self.symbol("(")
+        opened = self.open_sym("(")
         key = self.expr()
-        self.char_lit(")")
+        self.close_char(opened, ")")
         segs = self.field_access_suffix()
         self.skip_spaces()
         return self.apply_field_access(A.Alloc(0, key), segs)
@@ -433,9 +527,9 @@ class _Parser:
     def call_expr(self) -> A.Expr:
         self.attempt(lambda: self.char_lit("$"))
         root, fields = self.path_tail()
-        self.symbol("(")
+        opened = self.open_sym("(")
         args = self.sep_end_by(",", self.expr)
-        self.char_lit(")")
+        self.close_char(opened, ")")
         segs = self.field_access_suffix()
         self.skip_spaces()
         return self.apply_field_access(A.Call(A.Path(root, fields), args), segs)
@@ -459,11 +553,11 @@ class _Parser:
         return self.object_pattern()
 
     def object_pattern(self) -> Pattern:
-        self.symbol("{")
+        opened = self.open_sym("{")
         fields = self.sep_end_by(",", self.pattern_field)
         if not fields:
             raise self.err("expected a field in a binding pattern")
-        self.symbol("}")
+        self.close_sym(opened, "}")
         pat: Pattern = ("obj", fields)
         names = _pattern_names(pat)
         if len(set(names)) != len(names):
@@ -483,9 +577,9 @@ class _Parser:
         return k, ("name", k) if sub is FAIL else sub
 
     def paren_expr(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         e = self.expr()
-        self.symbol(")")
+        self.close_sym(opened, ")")
         return e
 
     def try_special_form_name(self) -> Optional[str]:
@@ -534,25 +628,25 @@ class _Parser:
         return self.apply_field_access(base, segs)
 
     def binary_shape(self) -> tuple[A.Expr, A.Expr]:
-        self.symbol("(")
+        opened = self.open_sym("(")
         a = self.expr()
         self.symbol(",")
         b = self.expr()
-        self.char_lit(")")
+        self.close_char(opened, ")")
         return a, b
 
     def ternary_shape(self) -> tuple[A.Expr, A.Expr, A.Expr]:
-        self.symbol("(")
+        opened = self.open_sym("(")
         a = self.expr()
         self.symbol(",")
         b = self.expr()
         self.symbol(",")
         c = self.expr()
-        self.char_lit(")")
+        self.close_char(opened, ")")
         return a, b, c
 
     def branch_shape(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         fallback = self.expr()
         arms: list[tuple[A.Expr, A.Expr]] = []
         while True:
@@ -567,7 +661,7 @@ class _Parser:
                 break
             arms.append(arm)
         self.attempt(lambda: self.symbol(","))
-        self.char_lit(")")
+        self.close_char(opened, ")")
         acc = fallback
         for condition, then in reversed(arms):
             acc = A.Branch(condition, then, acc)
@@ -579,17 +673,17 @@ class _Parser:
         return p, self.expr()
 
     def import_shape(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         name = self.static_string()
         self.symbol(",")
         params = self.import_params()
-        self.char_lit(")")
+        self.close_char(opened, ")")
         return A.Import(name, params)
 
     def import_params(self) -> list[tuple[str, A.ParamValue]]:
-        self.symbol("{")
+        opened = self.open_sym("{")
         entries = self.sep_end_by(",", self.param_entry)
-        self.symbol("}")
+        self.close_sym(opened, "}")
         return entries
 
     def param_entry(self) -> tuple[str, A.ParamValue]:
@@ -663,15 +757,15 @@ class _Parser:
         return self.lexeme(go)
 
     def type_array(self) -> A.TypeExpr:
-        self.symbol("[")
+        opened = self.open_sym("[")
         element = self.type_expr()
-        self.symbol("]")
+        self.close_sym(opened, "]")
         return A.TArray(element)
 
     def type_record(self) -> A.TypeExpr:
-        self.symbol("{")
+        opened = self.open_sym("{")
         fields = self.sep_end_by(",", self.type_field)
-        self.symbol("}")
+        self.close_sym(opened, "}")
         return A.TRecord(fields)
 
     def type_field(self) -> tuple[str, A.TypeExpr]:
@@ -743,7 +837,7 @@ class _Parser:
         kw = self.identifier()
         if kw != "type-constraint":
             raise self.err("not a !type-constraint")
-        self.symbol("(")
+        opened = self.open_sym("(")
         name = self.static_string()
         args: list[A.TypeConstraintArg] = []
         while True:
@@ -758,7 +852,7 @@ class _Parser:
                 break
             args.append(a)
         self.attempt(lambda: self.symbol(","))
-        self.char_lit(")")
+        self.close_char(opened, ")")
         self.skip_spaces()
         return A.STypeEmit(name, args)
 
@@ -777,16 +871,16 @@ class _Parser:
         if n != "ctx" or self.peek() != "(":
             self.pos = save
             raise self.err("not a ctx(...) parameter")
-        self.symbol("(")
+        opened = self.open_sym("(")
         root, fields = self.path_tail()
         self.skip_spaces()
-        self.char_lit(")")
+        self.close_char(opened, ")")
         self.skip_spaces()
         return A.PFromContext([root, *fields])
 
     def constraint_shape(self) -> A.Expr:
         """``constraint(name, args...)`` (``v3-symbols.md`` section 2.1)."""
-        self.symbol("(")
+        opened = self.open_sym("(")
         name = self.static_string()
         args: list[A.Expr] = []
         while True:
@@ -801,11 +895,11 @@ class _Parser:
                 break
             args.append(a)
         self.attempt(lambda: self.symbol(","))
-        self.char_lit(")")
+        self.close_char(opened, ")")
         return A.Constrain(name, args)
 
     def adapt_actions_shape(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         target = self.expr()
         self.symbol(",")
         adaptation = self.adaptation_shape()
@@ -816,7 +910,7 @@ class _Parser:
 
         fn = self.attempt(fn_arg)
         self.attempt(lambda: self.symbol(","))
-        self.char_lit(")")
+        self.close_char(opened, ")")
         return A.AdaptActions(target, adaptation, None if fn is FAIL else fn)
 
     def adaptation_shape(self) -> A.ActionAdaptation:
@@ -824,9 +918,9 @@ class _Parser:
         if name == "identity":
             return A.Identity()
         if name == "prefix":
-            self.symbol("(")
+            opened = self.open_sym("(")
             prefix = self.static_string()
-            self.char_lit(")")
+            self.close_char(opened, ")")
             self.skip_spaces()
             return A.Prefix(prefix)
         raise self.err('an action adaptation must be identity or prefix("...")')
@@ -841,17 +935,17 @@ class _Parser:
         return self.element_shape()
 
     def fragment_shape(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         children = self.sep_end_by(",", self.expr)
-        self.symbol(")")
+        self.close_sym(opened, ")")
         return A.Fragment(children)
 
     def element_shape(self) -> A.Expr:
         tag = self.raw_ident()
         self.skip_spaces()
-        self.symbol("(")
+        opened = self.open_sym("(", f"the '(' of .{tag}")
         args = self.sep_end_by(",", self.element_arg)
-        self.symbol(")")
+        self.close_sym(opened, ")")
         return self.build_element(tag, args)
 
     def element_arg(self) -> tuple[str, object]:
@@ -878,19 +972,19 @@ class _Parser:
         return ("value", self.value_shape())
 
     def action_shape(self) -> A.Attribute:
-        self.symbol("(")
+        opened = self.open_sym("(")
         event = self.static_string()
         self.symbol(",")
         key = self.static_string()
         self.symbol(",")
         payload = self.expr()
-        self.symbol(")")
+        self.close_sym(opened, ")")
         return A.ActionAttr(event, key, payload)
 
     def value_shape(self) -> A.Expr:
-        self.symbol("(")
+        opened = self.open_sym("(")
         v = self.expr()
-        self.symbol(")")
+        self.close_sym(opened, ")")
         return v
 
     def named_arg(self) -> A.Attribute:
@@ -1109,7 +1203,11 @@ def _desugar_string(parts: list[tuple[str, object]]) -> A.Expr:
 
 
 def parse_program(src: str) -> A.Program:
-    return _Parser(src).program()
+    p = _Parser(src)
+    try:
+        return p.program()
+    except ParseError as e:
+        raise p.report(e) from None
 
 
 def try_parse_program(src: str):

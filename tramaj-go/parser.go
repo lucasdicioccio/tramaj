@@ -17,13 +17,52 @@ import (
 // Inside the parser a failure is a panic carrying a *ParseError; attempt
 // turns one back into a restored position, and ParseProgram into an error.
 
+// ParseError is a parse failure. Line and Column are 1-based, a tab
+// advancing the column to the next tab stop (every 8 columns), as tramaj-hs
+// (megaparsec) and tramaj-purs count them; ParseProgram always sets them.
 type ParseError struct {
-	Pos int // in characters, not bytes
-	Msg string
+	Pos    int // in characters, not bytes
+	Msg    string
+	Line   int
+	Column int
 }
 
 func (e *ParseError) Error() string {
+	if e.Line > 0 {
+		return fmt.Sprintf("at char %d (line %d, column %d): %s", e.Pos, e.Line, e.Column, e.Msg)
+	}
 	return fmt.Sprintf("at char %d: %s", e.Pos, e.Msg)
+}
+
+// opened is an opener that has been read (a bracket, a quote, a backtick)
+// and where it sits, so the closer that never comes can say which one it was.
+type opened struct {
+	what string
+	pos  int
+}
+
+type unclosedCloser struct {
+	pos    int
+	closer string
+	opened opened
+}
+
+// lineColumn is the 1-based line and column of a character offset (tab
+// stops every 8 columns).
+func lineColumn(chars []rune, offset int) (int, int) {
+	line, column := 1, 1
+	for i := 0; i < offset && i < len(chars); i++ {
+		switch chars[i] {
+		case '\n':
+			line++
+			column = 1
+		case '\t':
+			column += 8 - (column-1)%8
+		default:
+			column++
+		}
+	}
+	return line, column
 }
 
 var specialFormNames = map[string]bool{
@@ -54,10 +93,78 @@ func isSpace(c rune) bool {
 type parser struct {
 	chars []rune
 	pos   int
+	// farthest is the farthest offset any failure was raised at,
+	// backtracked or not.
+	farthest int
+	// unclosed is the farthest closer that was looked for and not found.
+	unclosed *unclosedCloser
 }
 
 func (p *parser) fail(format string, args ...any) {
+	if p.pos > p.farthest {
+		p.farthest = p.pos
+	}
 	panic(&ParseError{Pos: p.pos, Msg: fmt.Sprintf(format, args...)})
+}
+
+// Unclosed openers.
+//
+// Every alternative backtracks, so the error that escapes a failed parse is
+// usually the outermost alternative's, at char 0. What a reader needs is
+// where the parse got farthest and, when that is a closer that never came,
+// which opener it belonged to: "expected ')' to close the '(' of .div at
+// line 1, column 5", reported where the closer was looked for. This changes
+// no parse, only which error a failed one reports (report).
+
+// opening reads an opener with f, remembering where it started.
+func (p *parser) opening(what string, f func()) opened {
+	pos := p.pos
+	f()
+	return opened{what: what, pos: pos}
+}
+
+func (p *parser) openSym(o string) opened {
+	return p.opening("the '"+o+"'", func() { p.symbol(o) })
+}
+
+// closing runs the closer f for o; a failure is remembered for report.
+func (p *parser) closing(o opened, closer string, f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			if pe, isParse := r.(*ParseError); isParse && (p.unclosed == nil || pe.Pos > p.unclosed.pos) {
+				p.unclosed = &unclosedCloser{pos: pe.Pos, closer: closer, opened: o}
+			}
+			panic(r)
+		}
+	}()
+	f()
+}
+
+func (p *parser) closeSym(o opened, c string) {
+	p.closing(o, "'"+c+"'", func() { p.symbol(c) })
+}
+
+// closeChar reads a closer with no whitespace skipped after it (a
+// field-access suffix may follow).
+func (p *parser) closeChar(o opened, c rune) {
+	p.closing(o, "'"+string(c)+"'", func() { p.charLit(c) })
+}
+
+// report is the error a failed parse reports: the farthest unclosed opener
+// when nothing failed farther than it, otherwise the error that escaped.
+func (p *parser) report(e *ParseError) *ParseError {
+	if u := p.unclosed; u != nil && u.pos >= p.farthest {
+		ol, oc := lineColumn(p.chars, u.opened.pos)
+		l, c := lineColumn(p.chars, u.pos)
+		return &ParseError{
+			Pos:    u.pos,
+			Msg:    fmt.Sprintf("expected %s to close %s at line %d, column %d", u.closer, u.opened.what, ol, oc),
+			Line:   l,
+			Column: c,
+		}
+	}
+	l, c := lineColumn(p.chars, e.Pos)
+	return &ParseError{Pos: e.Pos, Msg: e.Msg, Line: l, Column: c}
 }
 
 func (p *parser) peek() rune { return p.peekAt(0) }
@@ -211,7 +318,7 @@ func (p *parser) fieldAccessTail(base Expr) Expr {
 
 func (p *parser) staticString() string {
 	return lexeme(p, func() string {
-		p.charLit('"')
+		o := p.opening("the string", func() { p.charLit('"') })
 		var s []rune
 		for {
 			c := p.peek()
@@ -221,10 +328,10 @@ func (p *parser) staticString() string {
 			s = append(s, c)
 			p.pos++
 		}
-		if p.peek() != '"' {
+		if p.peek() == '`' {
 			p.fail("this position must be a literal string, so it cannot contain an interpolation")
 		}
-		p.pos++
+		p.closeChar(o, '"')
 		return string(s)
 	})
 }
@@ -238,7 +345,7 @@ type stringPart struct {
 
 func (p *parser) stringLit() Expr {
 	return lexeme(p, func() Expr {
-		p.charLit('"')
+		o := p.opening("the string", func() { p.charLit('"') })
 		var parts []stringPart
 		for {
 			c := p.peek()
@@ -246,15 +353,15 @@ func (p *parser) stringLit() Expr {
 				break
 			}
 			if c == '`' {
-				p.pos++
+				interp := p.opening("the interpolation", func() { p.pos++ })
 				e := p.expr()
-				p.charLit('`')
+				p.closeChar(interp, '`')
 				parts = append(parts, stringPart{interp: e})
 			} else {
 				parts = append(parts, stringPart{lit: p.litChunk()})
 			}
 		}
-		p.charLit('"')
+		p.closeChar(o, '"')
 		return desugarString(parts)
 	})
 }
@@ -295,7 +402,7 @@ func (p *parser) escapeSeq() rune {
 	case '0':
 		return 0
 	case 'u':
-		p.charLit('{')
+		o := p.opening("the '{' of the unicode escape", func() { p.charLit('{') })
 		var digits []rune
 		for isHex(p.peek()) {
 			digits = append(digits, p.advance())
@@ -303,7 +410,7 @@ func (p *parser) escapeSeq() rune {
 		if len(digits) == 0 {
 			p.fail("invalid unicode escape")
 		}
-		p.charLit('}')
+		p.closeChar(o, '}')
 		n, err := strconv.ParseUint(string(digits), 16, 32)
 		if err != nil || n > 0x10FFFF || (0xD800 <= n && n <= 0xDFFF) {
 			p.fail("invalid unicode escape")
@@ -410,16 +517,16 @@ func (p *parser) keywordLit() Expr {
 }
 
 func (p *parser) arrayLit() Expr {
-	p.symbol("[")
+	o := p.openSym("[")
 	elements := sepEndBy(p, ",", p.expr)
-	p.symbol("]")
+	p.closeSym(o, "]")
 	return &ArrayLit{Elements: elements}
 }
 
 func (p *parser) objectLit() Expr {
-	p.symbol("{")
+	o := p.openSym("{")
 	fields := sepEndBy(p, ",", p.objEntry)
-	p.symbol("}")
+	p.closeSym(o, "}")
 	return &ObjectLit{Fields: fields}
 }
 
@@ -482,9 +589,9 @@ func (p *parser) pathExpr() Expr {
 // the real site later.
 func (p *parser) allocExpr() Expr {
 	p.charLit('?')
-	p.symbol("(")
+	o := p.openSym("(")
 	key := p.expr()
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return p.fieldAccessTail(&Alloc{Key: key})
 }
 
@@ -502,9 +609,9 @@ func (p *parser) demandExpr() Expr {
 func (p *parser) callExpr() Expr {
 	p.attemptDo(func() { p.charLit('$') })
 	root, fields := p.pathTail()
-	p.symbol("(")
+	o := p.openSym("(")
 	args := sepEndBy(p, ",", p.expr)
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return p.fieldAccessTail(&Call{Fn: &Path{Root: root, Fields: fields}, Args: args})
 }
 
@@ -553,12 +660,12 @@ func (p *parser) pattern() pattern {
 }
 
 func (p *parser) objectPattern() pattern {
-	p.symbol("{")
+	o := p.openSym("{")
 	fields := sepEndBy(p, ",", p.patternField)
 	if len(fields) == 0 {
 		p.fail("expected a field in a binding pattern")
 	}
-	p.symbol("}")
+	p.closeSym(o, "}")
 	pat := pattern{fields: fields}
 	seen := map[string]bool{}
 	for _, n := range pat.names() {
@@ -585,9 +692,9 @@ func (p *parser) patternField() patternField {
 }
 
 func (p *parser) parenExpr() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	e := p.expr()
-	p.symbol(")")
+	p.closeSym(o, ")")
 	return e
 }
 
@@ -639,28 +746,28 @@ func (p *parser) specialFormShape(name string) Expr {
 }
 
 func (p *parser) binaryShape() (Expr, Expr) {
-	p.symbol("(")
+	o := p.openSym("(")
 	a := p.expr()
 	p.symbol(",")
 	b := p.expr()
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return a, b
 }
 
 func (p *parser) ternaryShape() (Expr, Expr, Expr) {
-	p.symbol("(")
+	o := p.openSym("(")
 	a := p.expr()
 	p.symbol(",")
 	b := p.expr()
 	p.symbol(",")
 	c := p.expr()
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return a, b, c
 }
 
 // commaSeparatedTail reads { "," item } [","] ")" after a form's first
-// argument.
-func commaSeparatedTail[T any](p *parser, item func() T) []T {
+// argument; o is the "(" that the ")" closes.
+func commaSeparatedTail[T any](p *parser, o opened, item func() T) []T {
 	var out []T
 	for {
 		save := p.pos
@@ -675,14 +782,14 @@ func commaSeparatedTail[T any](p *parser, item func() T) []T {
 		out = append(out, x)
 	}
 	p.trySymbol(",")
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return out
 }
 
 func (p *parser) branchShape() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	acc := p.expr()
-	arms := commaSeparatedTail(p, func() [2]Expr {
+	arms := commaSeparatedTail(p, o, func() [2]Expr {
 		cond := p.expr()
 		p.symbol(",")
 		return [2]Expr{cond, p.expr()}
@@ -694,13 +801,13 @@ func (p *parser) branchShape() Expr {
 }
 
 func (p *parser) importShape() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	name := p.staticString()
 	p.symbol(",")
-	p.symbol("{")
+	brace := p.openSym("{")
 	params := sepEndBy(p, ",", p.paramEntry)
-	p.symbol("}")
-	p.charLit(')')
+	p.closeSym(brace, "}")
+	p.closeChar(o, ')')
 	return &Import{Name: name, Params: params}
 }
 
@@ -781,20 +888,20 @@ func (p *parser) ctxForward() TypeExpr {
 }
 
 func (p *parser) typeArray() TypeExpr {
-	p.symbol("[")
+	o := p.openSym("[")
 	element := p.typeExpr()
-	p.symbol("]")
+	p.closeSym(o, "]")
 	return &TArray{Element: element}
 }
 
 func (p *parser) typeRecord() TypeExpr {
-	p.symbol("{")
+	o := p.openSym("{")
 	fields := sepEndBy(p, ",", func() TypeField {
 		k := p.identifier()
 		p.symbol(":")
 		return TypeField{Name: k, Type: p.typeExpr()}
 	})
-	p.symbol("}")
+	p.closeSym(o, "}")
 	return &TRecord{Fields: fields}
 }
 
@@ -865,9 +972,9 @@ func (p *parser) typeEmission() Stmt {
 	if p.identifier() != "type-constraint" {
 		p.fail("not a !type-constraint")
 	}
-	p.symbol("(")
+	o := p.openSym("(")
 	name := p.staticString()
-	args := commaSeparatedTail(p, p.typeConstraintArg)
+	args := commaSeparatedTail(p, o, p.typeConstraintArg)
 	p.skipSpaces()
 	return Stmt{Kind: StmtTypeEmit, Name: name, Args: args}
 }
@@ -889,10 +996,10 @@ func (p *parser) ctxParam() ParamValue {
 		p.pos = save
 		p.fail("not a ctx(...) parameter")
 	}
-	p.symbol("(")
+	o := p.openSym("(")
 	root, fields := p.pathTail()
 	p.skipSpaces()
-	p.charLit(')')
+	p.closeChar(o, ')')
 	p.skipSpaces()
 	return &PFromContext{Path: append([]string{root}, fields...)}
 }
@@ -900,13 +1007,13 @@ func (p *parser) ctxParam() ParamValue {
 // constraintShape parses constraint(name, args...) (v3-symbols.md section
 // 2.1).
 func (p *parser) constraintShape() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	name := p.staticString()
-	return &Constrain{Name: name, Args: commaSeparatedTail(p, p.expr)}
+	return &Constrain{Name: name, Args: commaSeparatedTail(p, o, p.expr)}
 }
 
 func (p *parser) adaptActionsShape() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	target := p.expr()
 	p.symbol(",")
 	adaptation := p.adaptationShape()
@@ -915,7 +1022,7 @@ func (p *parser) adaptActionsShape() Expr {
 		return p.expr()
 	})
 	p.trySymbol(",")
-	p.charLit(')')
+	p.closeChar(o, ')')
 	return &AdaptActions{Target: target, Adaptation: adaptation, Fn: fn}
 }
 
@@ -924,9 +1031,9 @@ func (p *parser) adaptationShape() ActionAdaptation {
 	case "identity":
 		return ActionAdaptation{}
 	case "prefix":
-		p.symbol("(")
+		o := p.openSym("(")
 		prefix := p.staticString()
-		p.charLit(')')
+		p.closeChar(o, ')')
 		p.skipSpaces()
 		return ActionAdaptation{IsPrefix: true, Prefix: prefix}
 	}
@@ -945,9 +1052,9 @@ func (p *parser) documentExpr() Expr {
 }
 
 func (p *parser) fragmentShape() Expr {
-	p.symbol("(")
+	o := p.openSym("(")
 	children := sepEndBy(p, ",", p.expr)
-	p.symbol(")")
+	p.closeSym(o, ")")
 	return &Fragment{Children: children}
 }
 
@@ -962,9 +1069,9 @@ type elementArg struct {
 func (p *parser) elementShape() Expr {
 	tag := p.rawIdent()
 	p.skipSpaces()
-	p.symbol("(")
+	o := p.opening("the '(' of ."+tag, func() { p.symbol("(") })
 	args := sepEndBy(p, ",", p.elementArg)
-	p.symbol(")")
+	p.closeSym(o, ")")
 
 	el := &Element{Tag: tag}
 	seenChild, values := false, 0
@@ -1016,10 +1123,10 @@ func (p *parser) tryAttributePositionArg() (elementArg, bool) {
 		p.pos = save
 		return elementArg{}, false
 	}
-	p.symbol("(")
+	o := p.openSym("(")
 	if n == "value" {
 		v := p.expr()
-		p.symbol(")")
+		p.closeSym(o, ")")
 		return elementArg{value: v}, true
 	}
 	event := p.staticString()
@@ -1027,7 +1134,7 @@ func (p *parser) tryAttributePositionArg() (elementArg, bool) {
 	key := p.staticString()
 	p.symbol(",")
 	payload := p.expr()
-	p.symbol(")")
+	p.closeSym(o, ")")
 	return elementArg{attr: &ActionAttr{Event: event, Key: key, Payload: payload}}, true
 }
 
@@ -1229,15 +1336,15 @@ func desugarString(parts []stringPart) Expr {
 // ParseProgram parses a program's source. The error, when there is one, is a
 // *ParseError.
 func ParseProgram(src string) (prog *Program, err error) {
+	p := &parser{chars: []rune(src)}
 	defer func() {
 		if r := recover(); r != nil {
 			pe, ok := r.(*ParseError)
 			if !ok {
 				panic(r)
 			}
-			prog, err = nil, pe
+			prog, err = nil, p.report(pe)
 		}
 	}()
-	p := &parser{chars: []rune(src)}
 	return p.program(), nil
 }
