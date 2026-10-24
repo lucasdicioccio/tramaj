@@ -20,8 +20,54 @@ import {
   type TypeExpr,
 } from "./ast.js";
 
+/**
+ * A parse failure. `offset` counts code points from the start of the source;
+ * `line` and `column` are 1-based, a tab advancing the column to the next tab
+ * stop (every 8 columns), as tramaj-hs (megaparsec) and tramaj-purs count
+ * them. The message reads `at char <offset> (line <l>, column <c>): <detail>`.
+ */
 export class ParseError extends Error {
   override readonly name = "ParseError";
+  readonly offset: number;
+  readonly line: number;
+  readonly column: number;
+  readonly detail: string;
+
+  constructor(detail: string, offset = 0, line = 0, column = 0) {
+    super(
+      line > 0
+        ? `at char ${offset} (line ${line}, column ${column}): ${detail}`
+        : `at char ${offset}: ${detail}`,
+    );
+    this.offset = offset;
+    this.line = line;
+    this.column = column;
+    this.detail = detail;
+  }
+}
+
+/**
+ * An opener that has been read (a bracket, a quote, a backtick) and where it
+ * sits, so the closer that never comes can say which one it was.
+ */
+type Opened = { what: string; pos: number };
+
+/** The 1-based line and column of a code-point offset (tab stops every 8 columns). */
+function lineColumn(chars: string[], offset: number): [number, number] {
+  let line = 1;
+  let column = 1;
+  for (let i = 0; i < offset && i < chars.length; i += 1) {
+    const c = chars[i];
+    if (c === "\n") {
+      line += 1;
+      column = 1;
+    } else if (c === "\t") {
+      column += 8 - ((column - 1) % 8);
+    } else {
+      column += 1;
+    }
+  }
+  return [line, column];
 }
 
 const SPECIAL_FORM_NAMES = new Set([
@@ -59,13 +105,79 @@ type StringPart = { t: "lit"; value: string } | { t: "interp"; value: Expr };
 class P {
   private readonly chars: string[];
   private pos = 0;
+  /** The farthest offset any failure was raised at, backtracked or not. */
+  private farthest = 0;
+  /** The farthest closer that was looked for and not found. */
+  private unclosed: { pos: number; closer: string; opened: Opened } | null = null;
 
   constructor(src: string) {
     this.chars = Array.from(src);
   }
 
   private err(msg: string): ParseError {
-    return new ParseError(`at char ${this.pos}: ${msg}`);
+    if (this.pos > this.farthest) this.farthest = this.pos;
+    return new ParseError(msg, this.pos);
+  }
+
+  // Unclosed openers -----------------------------------------------------
+  //
+  // Every alternative backtracks, so the error that escapes a failed parse
+  // is usually the outermost alternative's, at char 0. What a reader needs
+  // is where the parse got farthest and, when that is a closer that never
+  // came, which opener it belonged to: `expected ')' to close the '(' of
+  // .div at line 1, column 5`, reported where the closer was looked for.
+  // This changes no parse, only which error a failed one reports (`report`).
+
+  /** Reads an opener with `f`, remembering where it started. */
+  private opening(what: string, f: () => unknown): Opened {
+    const pos = this.pos;
+    f();
+    return { what, pos };
+  }
+
+  private openSym(o: string, what = `the '${o}'`): Opened {
+    return this.opening(what, () => this.symbol(o));
+  }
+
+  /** Reads the closer that matches `opened`; a failure is remembered for `report`. */
+  private closing<T>(opened: Opened, closer: string, f: () => T): T {
+    try {
+      return f();
+    } catch (e) {
+      if (e instanceof ParseError && (this.unclosed === null || e.offset > this.unclosed.pos)) {
+        this.unclosed = { pos: e.offset, closer, opened };
+      }
+      throw e;
+    }
+  }
+
+  private closeSym(opened: Opened, c: string): void {
+    this.closing(opened, `'${c}'`, () => this.symbol(c));
+  }
+
+  /** A closer with no whitespace skipped after it (a field-access suffix may follow). */
+  private closeChar(opened: Opened, c: string): void {
+    this.closing(opened, `'${c}'`, () => this.charLit(c));
+  }
+
+  /**
+   * The error a failed parse reports: the farthest unclosed opener when
+   * nothing failed farther than it, otherwise the error that escaped.
+   */
+  report(e: ParseError): ParseError {
+    const u = this.unclosed;
+    if (u !== null && u.pos >= this.farthest) {
+      const [ol, oc] = lineColumn(this.chars, u.opened.pos);
+      const [l, c] = lineColumn(this.chars, u.pos);
+      return new ParseError(
+        `expected ${u.closer} to close ${u.opened.what} at line ${ol}, column ${oc}`,
+        u.pos,
+        l,
+        c,
+      );
+    }
+    const [l, c] = lineColumn(this.chars, e.offset);
+    return new ParseError(e.detail, e.offset, l, c);
   }
 
   private eof(): boolean {
@@ -208,7 +320,7 @@ class P {
 
   private staticString(): string {
     return this.lexeme(() => {
-      this.charLit('"');
+      const opened = this.opening("the string", () => this.charLit('"'));
       let s = "";
       for (;;) {
         const c = this.peek();
@@ -216,12 +328,12 @@ class P {
         s += c;
         this.advance();
       }
-      if (this.peek() !== '"') {
+      if (this.peek() === "`") {
         throw this.err(
           "this position must be a literal string, so it cannot contain an interpolation",
         );
       }
-      this.advance();
+      this.closeChar(opened, '"');
       return s;
     });
   }
@@ -230,21 +342,21 @@ class P {
 
   private stringLit(): Expr {
     return this.lexeme(() => {
-      this.charLit('"');
+      const opened = this.opening("the string", () => this.charLit('"'));
       const parts: StringPart[] = [];
       for (;;) {
         const c = this.peek();
         if (c === undefined || c === '"') break;
         if (c === "`") {
-          this.advance();
+          const interp = this.opening("the interpolation", () => this.advance());
           const e = this.expr();
-          this.charLit("`");
+          this.closeChar(interp, "`");
           parts.push({ t: "interp", value: e });
         } else {
           parts.push({ t: "lit", value: this.litChunk() });
         }
       }
-      this.charLit('"');
+      this.closeChar(opened, '"');
       return desugarString(parts);
     });
   }
@@ -286,7 +398,7 @@ class P {
       case "0":
         return "\0";
       case "u": {
-        this.charLit("{");
+        const opened = this.opening("the '{' of the unicode escape", () => this.charLit("{"));
         let digits = "";
         for (;;) {
           const d = this.peek();
@@ -298,7 +410,7 @@ class P {
           }
         }
         if (digits === "") throw this.err("invalid unicode escape");
-        this.charLit("}");
+        this.closeChar(opened, "}");
         const n = Number.parseInt(digits, 16);
         // Rust's `char::from_u32` rejects surrogates as well as out-of-range
         // code points, and a lone surrogate must not parse here either.
@@ -403,16 +515,16 @@ class P {
   }
 
   private arrayLit(): Expr {
-    this.symbol("[");
+    const opened = this.openSym("[");
     const elements = this.sepEndBy(",", () => this.expr());
-    this.symbol("]");
+    this.closeSym(opened, "]");
     return { t: "ArrayLit", elements };
   }
 
   private objectLit(): Expr {
-    this.symbol("{");
+    const opened = this.openSym("{");
     const fields = this.sepEndBy(",", () => this.objEntry());
-    this.symbol("}");
+    this.closeSym(opened, "}");
     return { t: "ObjectLit", fields };
   }
 
@@ -477,9 +589,9 @@ class P {
   /** `?(key)` (`v3-symbols.md` §1.2); `numberAllocs` assigns the real site later. */
   private allocExpr(): Expr {
     this.charLit("?");
-    this.symbol("(");
+    const opened = this.openSym("(");
     const key = this.expr();
-    this.charLit(")");
+    this.closeChar(opened, ")");
     const segs = this.fieldAccessSuffix();
     this.skipSpaces();
     return P.applyFieldAccess({ t: "Alloc", site: 0, key }, segs);
@@ -498,9 +610,9 @@ class P {
   private callExpr(): Expr {
     this.attempt(() => this.charLit("$"));
     const [root, fields] = this.pathTail();
-    this.symbol("(");
+    const opened = this.openSym("(");
     const args = this.sepEndBy(",", () => this.expr());
-    this.charLit(")");
+    this.closeChar(opened, ")");
     const segs = this.fieldAccessSuffix();
     this.skipSpaces();
     return P.applyFieldAccess({ t: "Call", fn: { t: "Path", root, fields }, args }, segs);
@@ -527,10 +639,10 @@ class P {
   }
 
   private objectPattern(): Pattern {
-    this.symbol("{");
+    const opened = this.openSym("{");
     const fields = this.sepEndBy(",", () => this.patternField());
     if (fields.length === 0) throw this.err("expected a field in a binding pattern");
-    this.symbol("}");
+    this.closeSym(opened, "}");
     const pat: Pattern = { t: "PObject", fields };
     const names = patternNames(pat);
     if (new Set(names).size !== names.length) {
@@ -550,9 +662,9 @@ class P {
   }
 
   private parenExpr(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const e = this.expr();
-    this.symbol(")");
+    this.closeSym(opened, ")");
     return e;
   }
 
@@ -623,27 +735,27 @@ class P {
   }
 
   private binaryShape(): [Expr, Expr] {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const a = this.expr();
     this.symbol(",");
     const b = this.expr();
-    this.charLit(")");
+    this.closeChar(opened, ")");
     return [a, b];
   }
 
   private ternaryShape(): [Expr, Expr, Expr] {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const a = this.expr();
     this.symbol(",");
     const b = this.expr();
     this.symbol(",");
     const c = this.expr();
-    this.charLit(")");
+    this.closeChar(opened, ")");
     return [a, b, c];
   }
 
   private branchShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const fallback = this.expr();
     const arms: Array<[Expr, Expr]> = [];
     for (;;) {
@@ -661,7 +773,7 @@ class P {
       arms.push(arm);
     }
     this.attempt(() => this.symbol(","));
-    this.charLit(")");
+    this.closeChar(opened, ")");
     let acc = fallback;
     for (let i = arms.length - 1; i >= 0; i -= 1) {
       const [condition, then] = arms[i] as [Expr, Expr];
@@ -677,18 +789,18 @@ class P {
   }
 
   private importShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const name = this.staticString();
     this.symbol(",");
     const params = this.importParams();
-    this.charLit(")");
+    this.closeChar(opened, ")");
     return { t: "Import", name, params };
   }
 
   private importParams(): Array<[string, ParamValue]> {
-    this.symbol("{");
+    const opened = this.openSym("{");
     const entries = this.sepEndBy(",", () => this.paramEntry());
-    this.symbol("}");
+    this.closeSym(opened, "}");
     return entries;
   }
 
@@ -774,16 +886,16 @@ class P {
   }
 
   private typeArray(): TypeExpr {
-    this.symbol("[");
+    const opened = this.openSym("[");
     const element = this.typeExpr();
-    this.symbol("]");
+    this.closeSym(opened, "]");
     return { t: "Array", element };
   }
 
   private typeRecord(): TypeExpr {
-    this.symbol("{");
+    const opened = this.openSym("{");
     const fields = this.sepEndBy(",", () => this.typeField());
-    this.symbol("}");
+    this.closeSym(opened, "}");
     return { t: "Record", fields };
   }
 
@@ -866,7 +978,7 @@ class P {
     this.charLit("!");
     const kw = this.identifier();
     if (kw !== "type-constraint") throw this.err("not a !type-constraint");
-    this.symbol("(");
+    const opened = this.openSym("(");
     const name = this.staticString();
     const args: TypeConstraintArg[] = [];
     for (;;) {
@@ -884,7 +996,7 @@ class P {
       args.push(a);
     }
     this.attempt(() => this.symbol(","));
-    this.charLit(")");
+    this.closeChar(opened, ")");
     this.skipSpaces();
     return { t: "TypeEmit", name, args };
   }
@@ -905,17 +1017,17 @@ class P {
       this.pos = save;
       throw this.err("not a ctx(...) parameter");
     }
-    this.symbol("(");
+    const opened = this.openSym("(");
     const [root, fields] = this.pathTail();
     this.skipSpaces();
-    this.charLit(")");
+    this.closeChar(opened, ")");
     this.skipSpaces();
     return { t: "PFromContext", path: [root, ...fields] };
   }
 
   /** `constraint(name, args...)` (`v3-symbols.md` §2.1): a static name, then any number of expressions. */
   private constraintShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const name = this.staticString();
     const args: Expr[] = [];
     for (;;) {
@@ -933,12 +1045,12 @@ class P {
       args.push(a);
     }
     this.attempt(() => this.symbol(","));
-    this.charLit(")");
+    this.closeChar(opened, ")");
     return { t: "Constrain", name, args };
   }
 
   private adaptActionsShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const target = this.expr();
     this.symbol(",");
     const adaptation = this.adaptationShape();
@@ -947,7 +1059,7 @@ class P {
       return this.expr();
     });
     this.attempt(() => this.symbol(","));
-    this.charLit(")");
+    this.closeChar(opened, ")");
     return { t: "AdaptActions", target, adaptation, fn: this.succeeded(fn) ? fn : null };
   }
 
@@ -955,9 +1067,9 @@ class P {
     const name = this.identifier();
     if (name === "identity") return { t: "Identity" };
     if (name === "prefix") {
-      this.symbol("(");
+      const opened = this.openSym("(");
       const prefix = this.staticString();
-      this.charLit(")");
+      this.closeChar(opened, ")");
       this.skipSpaces();
       return { t: "Prefix", prefix };
     }
@@ -974,18 +1086,18 @@ class P {
   }
 
   private fragmentShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const children = this.sepEndBy(",", () => this.expr());
-    this.symbol(")");
+    this.closeSym(opened, ")");
     return { t: "Fragment", children };
   }
 
   private elementShape(): Expr {
     const tag = this.rawIdent();
     this.skipSpaces();
-    this.symbol("(");
+    const opened = this.openSym("(", `the '(' of .${tag}`);
     const args = this.sepEndBy(",", () => this.elementArg());
-    this.symbol(")");
+    this.closeSym(opened, ")");
     return this.buildElement(tag, args);
   }
 
@@ -1015,20 +1127,20 @@ class P {
   }
 
   private actionShape(): Attribute {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const event = this.staticString();
     this.symbol(",");
     const key = this.staticString();
     this.symbol(",");
     const payload = this.expr();
-    this.symbol(")");
+    this.closeSym(opened, ")");
     return { t: "ActionAttr", event, key, payload };
   }
 
   private valueShape(): Expr {
-    this.symbol("(");
+    const opened = this.openSym("(");
     const v = this.expr();
-    this.symbol(")");
+    this.closeSym(opened, ")");
     return v;
   }
 
@@ -1289,7 +1401,13 @@ function coalesce(parts: StringPart[]): StringPart[] {
 }
 
 export function parseProgram(src: string): Program {
-  return new P(src).program();
+  const p = new P(src);
+  try {
+    return p.program();
+  } catch (e) {
+    if (e instanceof ParseError) throw p.report(e);
+    throw e;
+  }
 }
 
 /** `parseProgram`, returning the error rather than throwing it. */
