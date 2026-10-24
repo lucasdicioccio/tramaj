@@ -101,6 +101,43 @@ and says it's "deliberately deferred until the API has settled":
 Not blocking the crates.io/npm work above — separate ecosystem, separate
 timeline.
 
+## 7. Go: `tramaj-go`
+
+A Go module has no registry account and no upload: **the release is the git
+tag.** `tramaj-go/go.mod` declares
+`module github.com/lucasdicioccio/tramaj/tramaj-go`, the right path for a
+module in a subdirectory, and there is no version field to bump.
+
+1. In the release PR: an entry in `tramaj-go/CHANGELOG.md` and in
+   `website/src/changelog-tramaj-go.cmark`, the README's
+   `go get github.com/lucasdicioccio/tramaj/tramaj-go@vX.Y.Z` line, and
+   `go vet ./... && go test ./...` in `tramaj-go/`.
+2. After the PR merges, tag the merge commit **with the directory prefix**
+   and push the tag:
+   ```
+   git tag tramaj-go/vX.Y.Z <merge-sha>
+   git push github tramaj-go/vX.Y.Z
+   ```
+   Go finds a subdirectory module only through a tag of that form. A plain
+   `vX.Y.Z` or a `tramaj-go-vX.Y.Z` tag, the style the other packages use,
+   is not seen by Go.
+3. Have the public proxy fetch it, so it shows on pkg.go.dev:
+   ```
+   GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go list -m github.com/lucasdicioccio/tramaj/tramaj-go@vX.Y.Z
+   ```
+   then check <https://pkg.go.dev/github.com/lucasdicioccio/tramaj/tramaj-go>
+   (it can take a few minutes; the "Request" button there also works).
+
+- **A pushed tag is permanent.** proxy.golang.org caches it forever, so a
+  bad tag can't be moved, only replaced by a new version (or retracted in
+  `go.mod`). Check the sha before pushing.
+- Stay on v0.x: v1 is a stability promise, and v2 or later needs `/v2` at
+  the end of the module path.
+- No credentials beyond push rights on the repository.
+
+The first Go release is v0.3.0, numbered with the other ports of that
+release.
+
 ## Next step
 
 Once 1–5 above are done, the actual release automation — a script that

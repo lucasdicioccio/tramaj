@@ -38,9 +38,9 @@ tagged so the site builds one Atom feed per implementation:
 @version=import("changelog/version", {"package": "tramaj-go"})
 .div(class: "changelog",
   $version({
-      "version": "0.1.0",
-      "date": "unreleased",
-      "summary": "Go port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a tramaj-go CLI. Standard library only, Go 1.21+.",
+      "version": "0.3.0",
+      "date": "2026-10-24",
+      "summary": "The first release, as the Go module tag \`tramaj-go/v0.3.0\`: \`go get github.com/lucasdicioccio/tramaj/tramaj-go@v0.3.0\`. It is numbered with the other ports of this release, which carry the same language. Go port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a tramaj-go CLI. Standard library only, Go 1.21+.",
       "changes": [
           {
               "kind": "added",
@@ -97,6 +97,10 @@ tagged so the site builds one Atom feed per implementation:
           {
               "kind": "added",
               "text": "\`?shape(key, shape)\` allocates a structure of symbols with one key and one site (v3-symbols section 1.2, decisions section 19). Each \`~name\` or \`~name(e)\` marker in the shape is a symbol \`[key, \"name\"]\` or \`[key, \"name\", e]\` at the form's site, and \`{~name}\` is short for \`{name: ~name}\`. It lowers at parse time, so the AST and the envelope are unchanged. A marker outside a shape or in a key, a bare marker under a lambda in the shape, a marker name used twice, a shape with no marker and a wrong argument count are parse errors. The corpus runner provides the \`shape\` profile."
+          },
+          {
+              "kind": "changed",
+              "text": "An unclosed \`(\`, \`[\`, \`{\`, string or interpolation is reported where the closer was looked for, naming its opener and where it is, instead of mostly at char 0 as \`expected an expression\`. Every parse error now gives a 1-based line and column after its offset: \`at char 8 (line 1, column 9): expected ')' to close the '(' of .div at line 1, column 5\`. Every program that parsed still parses to the same AST. \`ParseError\` gains \`Line\` and \`Column\` next to \`Pos\` and \`Msg\`, and \`Error()\` includes them."
           }
       ]
   }).rendered)

@@ -42,9 +42,9 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-py"})
 .div(class: "changelog",
   $version({
-      "version": "(next)",
-      "date": "unreleased",
-      "summary": "Not released yet.",
+      "version": "0.3.0",
+      "date": "2026-10-24",
+      "summary": "\`?shape\` and \`~name\` markers, a symbol or term key of \`has\`/\`lookup\` is \`NotConcrete\`, and parse errors that point at an unclosed opener.",
       "changes": [
           {
               "kind": "changed",
@@ -53,6 +53,10 @@ says what to do about each.
           {
               "kind": "added",
               "text": "\`?shape(key, shape)\` allocates a structure of symbols with one key and one site (v3-symbols section 1.2, decisions section 19). Each \`~name\` or \`~name(e)\` marker in the shape is a symbol \`[key, \"name\"]\` or \`[key, \"name\", e]\` at the form's site, and \`{~name}\` is short for \`{name: ~name}\`. It lowers at parse time, so the AST and the envelope are unchanged. A marker outside a shape or in a key, a bare marker under a lambda in the shape, a marker name used twice, a shape with no marker and a wrong argument count are parse errors. The corpus runner provides the \`shape\` profile."
+          },
+          {
+              "kind": "changed",
+              "text": "An unclosed \`(\`, \`[\`, \`{\`, string or interpolation is reported where the closer was looked for, naming its opener and where it is, instead of mostly at char 0 as \`expected an expression\`. Every parse error now gives a 1-based line and column after its offset: \`at char 8 (line 1, column 9): expected ')' to close the '(' of .div at line 1, column 5\`. Every program that parsed still parses to the same AST. \`ParseError\` gains \`offset\`, \`line\`, \`column\` and \`detail\`; \`str(e)\` is the message above."
           }
       ]
   }).rendered,
