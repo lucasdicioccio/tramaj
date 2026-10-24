@@ -34,7 +34,7 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #purescript #tramaj-halogen
 
-The unreleased entry has breaking changes to numbers:
+The 0.4.1 entry has breaking changes to numbers:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 says what to do about each.
 
@@ -42,9 +42,20 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-halogen"})
 .div(class: "changelog",
   $version({
-      "version": "(none)",
-      "date": "unreleased",
-      "summary": "Consumed as a git dependency; no registry release yet.",
+      "version": "0.5.0",
+      "date": "2026-10-24",
+      "summary": "Follows tramaj-purs 0.5.0. Includes 0.4.2, which was never released.",
+      "changes": [
+          {
+              "kind": "changed",
+              "text": "Depends on \`tramaj-purs\` 0.5.0 and so gets \`?shape\`, NotConcrete keys, the parse-error positions and astral characters in strings. Nothing in this package changed: \`?shape\` lowers at parse time to symbols, which it already renders."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.4.1",
+      "date": "2026-10-09",
+      "summary": "Two number types and terms. On the PureScript registry.",
       "changes": [
           {
               "kind": "added",
