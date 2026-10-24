@@ -18,7 +18,7 @@ Everything is re-exported from `src/index.ts`.
 
 | module | exports |
 |---|---|
-| `ast` | `Program`, `Expr`, `TypeExpr`, `Attribute`, `ParamValue`, `Stmt`; `subExprs`, `unlets`, `letBindings`, `typeDecls`, `numberAllocs`, `adaptKey` |
+| `ast` | `Program`, `Expr`, `TypeExpr`, `Attribute`, `ParamValue`, `Stmt`; `subExprs`, `unlets`, `letBindings`, `typeDecls`, `numberAllocs`, `adaptKey`, `SHAPE_KEY_NAME`, `MARKER_SITE` |
 | `parser` | `parseProgram`, `tryParseProgram`, `ParseError` |
 | `eval` | `runProgram`, `evalProgram`, `runProgramWith`, `evalProgramWith`, `defaultOptions`, `emittedConstraintCount`, `toJson`; `Mode`, `Options`, `LibraryTable`, `Value`, `Output`, `EvalError` |
 | `json` | `Json`, `Float`; `parseJson`, `stringify`, `float`, `isInteger`, `isFloat`, `numberValue`, `classifyNumber`, `normalizeNumbers`, `inIntegerRange`, `formatInteger`, `formatFloat`, `jsonEqual`, `compactJson`, `displayString`, `isJsonObject`, `JsonParseError`, `JsonNumberError` |
@@ -120,6 +120,25 @@ option.
 - `emittedConstraintCount(options, libs, ctx, program)` returns how many
   constraints an evaluation emitted before equal ones are made one. It exists
   for tests: it is the only way to count how many times a function ran.
+
+## Allocating a structure of symbols
+
+`?shape(key, shape)` (`../specs/v3-symbols.md` §1.2, `../specs/decisions.md`
+§19) writes a structure of symbols with one key and one site:
+
+```
+?shape("d", {~replicas, zone: "eu", ports: map($ctx.ports, (p) => ~port($p))})
+```
+
+Each `~name` marker is the symbol `[key, "name"]`, and `~name(e)` is
+`[key, "name", e]`, both at the form's site; `{~name}` is short for
+`{name: ~name}`. The parser lowers the form to a `Let` of the hidden name
+`#shape` (`SHAPE_KEY_NAME`) and one `Alloc` per marker, so the AST, the
+evaluator and the symbolic envelope are unchanged, and every entry's
+`"binding"` is `null`. `numberAllocs` numbers the form in the same sequence
+as `?(k)`, and `symbolSites` reports it once. A marker outside a shape or in
+a key, a bare marker under a lambda in the shape, a marker name used twice,
+a shape with no marker and a wrong argument count are parse errors.
 
 ## Scripts
 

@@ -49,6 +49,8 @@ interface CaseMeta {
  * and `runCase` turns it on only for a case that lists it. `sort`,
  * `format-number` and `round` are transition tags for the two sort forms, the
  * `format-number` builtin and the tenth arithmetic name (decisions §20).
+ * `shape` is the `?shape(key, shape)` form and its `~name` markers (decisions
+ * §19).
  */
 const providedProfiles: ReadonlySet<string> = new Set([
   "base",
@@ -58,6 +60,7 @@ const providedProfiles: ReadonlySet<string> = new Set([
   "sort",
   "format-number",
   "round",
+  "shape",
 ]);
 
 /**

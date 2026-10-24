@@ -10,6 +10,9 @@ import {
   documentProgram,
   expressionProgram,
   numberAllocs,
+  MARKER_SITE,
+  SHAPE_KEY_NAME,
+  subExprs,
   type ActionAdaptation,
   type Attribute,
   type Expr,
@@ -419,6 +422,7 @@ class P {
   private objEntry(): [string, Expr] {
     const explicit = this.attempt(() => this.explicitEntry());
     if (this.succeeded(explicit)) return explicit;
+    if (this.peek() === "~") return this.marker();
     const k = this.identifier();
     return [k, { t: "Path", root: k, fields: [] }];
   }
@@ -483,6 +487,53 @@ class P {
     const segs = this.fieldAccessSuffix();
     this.skipSpaces();
     return P.applyFieldAccess({ t: "Alloc", site: 0, key }, segs);
+  }
+
+  /**
+   * `?shape(key, shape)` (`v3-symbols.md` §1.2, decisions §19): a structure of
+   * symbols written with one key and one site. It lowers here, so the AST is
+   * unchanged: the key is bound once to the hidden `SHAPE_KEY_NAME`, and each
+   * marker in the shape is already an `Alloc` over `[$#shape, "name"]` or
+   * `[$#shape, "name", key]` (`marker`). `numberAllocs` then gives the form
+   * one site and its markers that same site. Past `?shape(` the form is
+   * exactly two arguments, and the marker rules are checked (`checkShape`).
+   */
+  private shapeExpr(): Expr {
+    this.charLit("?");
+    if (this.rawIdent() !== "shape") throw this.err("not a ?shape form");
+    this.symbol("(");
+    const key = this.expr();
+    if (ownMarkers(key, false).length !== 0) throw this.err("a marker cannot be written in a ?shape's key");
+    this.symbol(",");
+    const shape = this.expr();
+    this.charLit(")");
+    const problem = checkShape(shape);
+    if (problem !== null) throw this.err(problem);
+    const segs = this.fieldAccessSuffix();
+    this.skipSpaces();
+    return P.applyFieldAccess({ t: "Let", name: SHAPE_KEY_NAME, value: key, body: shape }, segs);
+  }
+
+  /**
+   * `~name` or `~name(key)`: a symbol marker, as the allocation it lowers to,
+   * with `MARKER_SITE` until `numberAllocs` gives it its form's site. The name
+   * follows the `~` directly, and the `(` of a key follows the name directly.
+   * Parsed anywhere an expression is; the enclosing `shapeExpr` (or, outside
+   * any, `noStrayMarker`) decides whether it is legal there.
+   */
+  private marker(): [string, Expr] {
+    return this.lexeme(() => {
+      this.charLit("~");
+      const name = this.rawIdent();
+      const elements: Expr[] = [{ t: "Path", root: SHAPE_KEY_NAME, fields: [] }, { t: "StringLit", value: name }];
+      if (this.peek() === "(") {
+        this.charLit("(");
+        this.skipSpaces();
+        elements.push(this.expr());
+        this.charLit(")");
+      }
+      return [name, { t: "Alloc", site: MARKER_SITE, key: { t: "ArrayLit", elements } }];
+    });
   }
 
   /** `?ctx.a.b` (`v3-symbols.md` §1.3): the path MUST be rooted at `ctx`. */
@@ -1090,7 +1141,9 @@ class P {
       () => this.callExpr(),
       () => this.pathExpr(),
       () => this.allocExpr(),
+      () => this.shapeExpr(),
       () => this.demandExpr(),
+      () => this.marker()[1],
       () => this.documentExpr(),
       () => this.stringLit(),
       () => this.numberLit(),
@@ -1187,6 +1240,9 @@ class P {
           break;
       }
     }
+    if (ownMarkers(body, false).length !== 0) {
+      throw this.err("a marker ~name may only be written inside a ?shape's shape");
+    }
     numberAllocs(body);
     return isDocument ? documentProgram(body) : expressionProgram(body);
   }
@@ -1221,6 +1277,37 @@ function readField(src: Expr, k: string): Expr {
   return src.t === "Path"
     ? { t: "Path", root: src.root, fields: [...src.fields, k] }
     : { t: "FieldAccess", target: src, fields: [k] };
+}
+
+/**
+ * The markers that belong to the form whose shape (or key) this is: every
+ * marker in it but those inside a nested `?shape`'s shape, with whether it
+ * carries a key and whether it sits under a lambda written inside it.
+ */
+function ownMarkers(e: Expr, underLambda: boolean): Array<{ name: string; keyed: boolean; underLambda: boolean }> {
+  if (e.t === "Alloc" && e.site === MARKER_SITE && e.key.t === "ArrayLit") {
+    const [, nameLit, ...rest] = e.key.elements;
+    const name = nameLit !== undefined && nameLit.t === "StringLit" ? nameLit.value : "";
+    return [{ name, keyed: rest.length !== 0, underLambda }, ...rest.flatMap((r) => ownMarkers(r, underLambda))];
+  }
+  if (e.t === "Let" && e.name === SHAPE_KEY_NAME) return ownMarkers(e.value, underLambda);
+  if (e.t === "Lambda") return ownMarkers(e.body, true);
+  return subExprs(e).flatMap((sub) => ownMarkers(sub, underLambda));
+}
+
+/**
+ * The rules on a `?shape`'s own markers, all static: at least one, no name
+ * twice (bare or keyed), and a key on every marker that sits under a lambda
+ * inside the shape. The message of the first one broken, or `null`.
+ */
+function checkShape(shape: Expr): string | null {
+  const markers = ownMarkers(shape, false);
+  if (markers.length === 0) return "a ?shape's shape must contain at least one marker of its own";
+  if (markers.some((m) => m.underLambda && !m.keyed)) {
+    return "a marker under a lambda inside a ?shape must carry a key, as in ~name(key)";
+  }
+  if (new Set(markers.map((m) => m.name)).size !== markers.length) return "a marker name appears twice in one ?shape";
+  return null;
 }
 
 /**

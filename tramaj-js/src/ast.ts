@@ -57,7 +57,8 @@ export type Expr =
   /**
    * `?(key)` (`v3-symbols.md` §1.2). `site` is assigned by `numberAllocs`
    * after parsing rather than by the parser, so agreement between
-   * implementations rests on that one pure function.
+   * implementations rests on that one pure function. A `~name` marker of a
+   * `?shape` (decisions §19) is one too, at its form's site (`SHAPE_KEY_NAME`).
    */
   | { t: "Alloc"; site: number; key: Expr }
   /** `?ctx.a.b` (`v3-symbols.md` §1.3): the path is always rooted at `ctx`, which is not stored. */
@@ -165,23 +166,53 @@ export function subExprs(e: Expr): Expr[] {
 }
 
 /**
+ * The hidden name a `?shape(key, shape)` (`v3-symbols.md` §1.2, decisions §19)
+ * binds its key to. The form lowers to `Let SHAPE_KEY_NAME key shape`, each
+ * marker in the shape an `Alloc` whose key reads this name, so the AST needs no
+ * constructor of its own for it. It starts with `#`, so no surface name can
+ * collide with it (`isHiddenName`), and only the parser writes such a `Let`:
+ * `numberAllocs` takes one as a `?shape` site.
+ */
+export const SHAPE_KEY_NAME = "#shape";
+
+/**
+ * The site a `~name` marker carries between the parser and `numberAllocs`,
+ * which replaces it with the site of the innermost enclosing `?shape`. Never
+ * left in a parsed program: the parser refuses a marker outside a shape.
+ */
+export const MARKER_SITE = -1;
+
+/**
  * Assigns each `Alloc` the index of its `?(...)` among all of them, in source
  * order (`v3-symbols.md` §1.4): a plain pre-order, left-to-right walk over the
  * freshly parsed tree. Done as a rewrite after parsing so two independently
- * written parsers agree on site numbers by construction.
+ * written parsers agree on site numbers by construction. A `?shape` (its
+ * `SHAPE_KEY_NAME` `Let`) takes a number in the same sequence, at its `?`,
+ * before its key; its markers take none, only its site.
  */
 export function numberAllocs(e: Expr): void {
   let n = 0;
-  const go = (x: Expr): void => {
+  const go = (x: Expr, shape: number): void => {
     if (x.t === "Alloc") {
-      x.site = n;
-      n += 1;
-      go(x.key);
+      if (x.site === MARKER_SITE) {
+        x.site = shape;
+      } else {
+        x.site = n;
+        n += 1;
+      }
+      go(x.key, shape);
       return;
     }
-    for (const sub of subExprs(x)) go(sub);
+    if (x.t === "Let" && x.name === SHAPE_KEY_NAME) {
+      const site = n;
+      n += 1;
+      go(x.value, shape);
+      go(x.body, site);
+      return;
+    }
+    for (const sub of subExprs(x)) go(sub, shape);
   };
-  go(e);
+  go(e, MARKER_SITE);
 }
 
 export type Stmt =
