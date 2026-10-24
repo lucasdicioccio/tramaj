@@ -34,7 +34,7 @@ Every implementation has its own page like this one, and each page is
 tagged so the site builds one Atom feed per implementation:
 #changelog #purescript #tramaj-purs
 
-The unreleased entry has breaking changes to numbers:
+The 0.4.1 entry has breaking changes to numbers:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html)
 says what to do about each.
 
@@ -42,9 +42,32 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-purs"})
 .div(class: "changelog",
   $version({
-      "version": "(none)",
-      "date": "unreleased",
-      "summary": "Consumed as a git dependency; no registry release yet.",
+      "version": "0.5.0",
+      "date": "2026-10-24",
+      "summary": "The ?shape allocation form, NotConcrete keys, parse errors at the mistake and astral characters. Includes 0.4.2, which was never released.",
+      "changes": [
+          {
+              "kind": "changed",
+              "text": "Breaking, symbolic mode only: a symbol or a term given as the key of \`has\` or \`lookup\` is \`NotConcrete\` (v3-symbols section 1.5), where it answered \`false\` or the fallback, reading an unknown key as a missing one. A concrete key keeps the tolerant behaviour: a missing key, an out-of-range index or a wrong-shaped container still answers \`false\` or the fallback."
+          },
+          {
+              "kind": "added",
+              "text": "\`?shape(key, shape)\` allocates a structure of symbols with one key and one site (v3-symbols section 1.2, decisions section 19). Each \`~name\` or \`~name(e)\` marker in the shape is a symbol \`[key, \"name\"]\` or \`[key, \"name\", e]\` at the form's site, and \`{~name}\` is short for \`{name: ~name}\`. It lowers at parse time, so the AST and the envelope are unchanged. A marker outside a shape or in a key, a bare marker under a lambda in the shape, a marker name used twice, a shape with no marker and a wrong argument count are parse errors. The corpus runner provides the \`shape\` profile."
+          },
+          {
+              "kind": "fixed",
+              "text": "An unclosed \`(\`, \`[\`, \`{\`, string or interpolation is reported where the closer was looked for, naming its opener and where it is (\`')' to close the '(' of .div at line 1, column 5\`), not at line 1, column 1. Every program that parsed still parses to the same AST."
+          },
+          {
+              "kind": "fixed",
+              "text": "A character above U+FFFF (most emoji) in a string, a static string (an object key, an import name, an action key) or a comment is read as one code point, where it was a parse error. This fix was versioned 0.4.2, which was never tagged or published; 0.5.0 is its first release."
+          }
+      ]
+  }).rendered,
+  $version({
+      "version": "0.4.1",
+      "date": "2026-10-09",
+      "summary": "Two number types and arithmetic. On the PureScript registry.",
       "changes": [
           {
               "kind": "added",
@@ -89,14 +112,6 @@ says what to do about each.
           {
               "kind": "added",
               "text": "\`arithmeticOps\` and \`deepArithmeticOps\`, the arithmetic names a program references."
-          },
-          {
-              "kind": "changed",
-              "text": "Breaking, symbolic mode only: a symbol or a term given as the key of \`has\` or \`lookup\` is \`NotConcrete\` (v3-symbols section 1.5), where it answered \`false\` or the fallback, reading an unknown key as a missing one. A concrete key keeps the tolerant behaviour: a missing key, an out-of-range index or a wrong-shaped container still answers \`false\` or the fallback."
-          },
-          {
-              "kind": "added",
-              "text": "\`?shape(key, shape)\` allocates a structure of symbols with one key and one site (v3-symbols section 1.2, decisions section 19). Each \`~name\` or \`~name(e)\` marker in the shape is a symbol \`[key, \"name\"]\` or \`[key, \"name\", e]\` at the form's site, and \`{~name}\` is short for \`{name: ~name}\`. It lowers at parse time, so the AST and the envelope are unchanged. A marker outside a shape or in a key, a bare marker under a lambda in the shape, a marker name used twice, a shape with no marker and a wrong argument count are parse errors. The corpus runner provides the \`shape\` profile."
           }
       ]
   }).rendered)

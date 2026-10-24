@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.5.0.0 (2026-10-24)
+
+**`?shape(key, shape)` allocates a structure of symbols** with one key and
+one site (`../specs/v3-symbols.md` \S1.2, `../specs/decisions.md` \S19). Each
+`~name` or `~name(e)` marker in the shape is a symbol `[key, "name"]` or
+`[key, "name", e]` at the form's site, and `{~name}` is short for
+`{name: ~name}`. It lowers at parse time, so the AST and the envelope are
+unchanged. A marker outside a shape or in a key, a bare marker under a lambda
+in the shape, a marker name used twice, a shape with no marker and a wrong
+argument count are parse errors. New syntax, hence the minor bump; a program
+that parsed before parses to the same AST. The corpus runner provides the
+`shape` profile. New in `Tramaj.Ast`: `shapeKeyName` and `markerSite`.
+
+**Breaking, symbolic mode only: a symbol or a term as the key of `has` or
+`lookup` is `NotConcrete`** (`../specs/v3-symbols.md` \S1.5), where it
+answered `false` or the fallback, reading an unknown key as a missing one. A
+concrete key keeps the tolerant behaviour: a missing key, an out-of-range
+index or a wrong-shaped container still answers `false` or the fallback.
 
 **Parse errors point at the mistake.** An unclosed `(`, `[`, `{`, string or
 interpolation used to be reported at line 1, column 1 (megaparsec's error
