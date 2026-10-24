@@ -10,6 +10,14 @@ which `corpus_test.go` reads directly. Standard library only, Go 1.21+.
 Specs: `../specs/reference.md`, `../specs/node-json.md`,
 `../specs/v3-symbols.md`, `../specs/v4-types.md`.
 
+## Install
+
+```
+go get github.com/lucasdicioccio/tramaj/tramaj-go@v0.3.0
+```
+
+Releases are the git tags `tramaj-go/vX.Y.Z`; see `CHANGELOG.md`.
+
 ## Public API
 
 One package, `tramaj`. The files mirror `tramaj-py/tramaj/*.py` one-to-one.

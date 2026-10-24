@@ -42,6 +42,25 @@ says what to do about each.
 @version=import("changelog/version", {"package": "tramaj-cli-rs"})
 .div(class: "changelog",
   $version({
+      "version": "0.3.0",
+      "date": "2026-10-24",
+      "summary": "Follows tramaj-rs 0.3.0: \`?shape\` and \`~name\` markers, a symbol or term key of \`has\`/\`lookup\` is \`NotConcrete\`, and parse errors that point at an unclosed opener.",
+      "changes": [
+          {
+              "kind": "added",
+              "text": "Templates can use \`?shape(key, shape)\` and \`~name\` markers. The form lowers at parse time, so \`evaluate\` and \`analyze\` treat it as the symbols it stands for."
+          },
+          {
+              "kind": "changed",
+              "text": "Breaking, symbolic mode only: a symbol or a term given as the key of \`has\` or \`lookup\` is \`NotConcrete\`, where it answered \`false\` or the fallback."
+          },
+          {
+              "kind": "changed",
+              "text": "A parse error for an unclosed \`(\`, \`[\`, \`{\`, string or interpolation is reported where the closer was looked for, with a line and column: \`at char 8 (line 1, column 9): expected ')' to close the '(' of .div at line 1, column 5\`."
+          }
+      ]
+  }).rendered,
+  $version({
       "version": "0.2.0",
       "date": "2026-10-09",
       "summary": "Follows tramaj-rs 0.2.0 to language v5: two number types, arithmetic, sorting and number formatting. On crates.io.",
