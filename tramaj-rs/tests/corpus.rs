@@ -47,7 +47,8 @@ struct CaseMeta {
 /// `run_case` turns it on only for a case that lists it. `round` is its
 /// tenth name, which a case that calls it lists as well. `sort` is the two
 /// sorts and `format-number` the builtin of that name, both part of every
-/// evaluation.
+/// evaluation. `shape` is the `?shape(key, shape)` form and its `~name`
+/// markers (decisions §19).
 const PROVIDED_PROFILES: &[&str] = &[
     "base",
     "int-float",
@@ -56,6 +57,7 @@ const PROVIDED_PROFILES: &[&str] = &[
     "sort",
     "format-number",
     "round",
+    "shape",
 ];
 
 /// The profiles every port provides (`corpus/README.md`). A case naming one

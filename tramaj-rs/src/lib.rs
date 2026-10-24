@@ -27,6 +27,21 @@
 //! positional decimal notation, rounding its exact value with a tie going
 //! away from zero (§11, *Number formatting*). Neither needs a profile.
 //!
+//! **Allocating a structure of symbols.** `?shape(key, shape)`
+//! (`specs/v3-symbols.md` §1.2, `specs/decisions.md` §19) writes a structure
+//! of symbols with one key and one site, as in
+//! `?shape("d", {~replicas, zone: "eu", ports: map($ctx.ports, (p) => ~port($p))})`.
+//! Each `~name` marker is the symbol `[key, "name"]`, and `~name(e)` is
+//! `[key, "name", e]`, both at the form's site; `{~name}` is short for
+//! `{name: ~name}`. The parser lowers the form to a `Let` of the hidden name
+//! [`ast::SHAPE_KEY_NAME`] and one `Alloc` per marker, so the AST, the
+//! evaluator and the symbolic envelope are unchanged, and every entry's
+//! `"binding"` is `null`. [`ast::number_allocs`] numbers the form in the same
+//! sequence as `?(k)`, and [`analysis::symbol_sites`] reports it once. A
+//! marker outside a shape or in a key, a bare marker under a lambda in the
+//! shape, a marker name used twice, a shape with no marker and a wrong
+//! argument count are parse errors.
+//!
 //! Module layout mirrors `tramaj-hs/src/Tramaj/*.hs` one-to-one so the two
 //! sources stay easy to diff against each other during the port.
 

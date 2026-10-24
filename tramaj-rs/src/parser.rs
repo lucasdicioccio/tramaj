@@ -8,7 +8,7 @@
 //! (harmlessly, since out of scope) parses as an ordinary call/path.
 
 use crate::ast::{
-    number_allocs, ActionAdaptation, Attribute, Expr, ParamValue, Program, TypeConstraintArg, TypeExpr,
+    number_allocs, sub_exprs, ActionAdaptation, MARKER_SITE, SHAPE_KEY_NAME, Attribute, Expr, ParamValue, Program, TypeConstraintArg, TypeExpr,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -453,6 +453,9 @@ impl P {
         if let Ok(v) = self.attempt(Self::explicit_entry) {
             return Ok(v);
         }
+        if self.peek() == Some('~') {
+            return self.marker();
+        }
         let k = self.identifier()?;
         Ok((k.clone(), Expr::Path(k, vec![])))
     }
@@ -527,6 +530,62 @@ impl P {
             Expr::Alloc(0, Box::new(key_expr)),
             segs,
         ))
+    }
+
+    /// `?shape(key, shape)` (`v3-symbols.md` §1.2, decisions §19): a
+    /// structure of symbols written with one key and one site. It lowers
+    /// here, so the AST is unchanged: the key is bound once to the hidden
+    /// `SHAPE_KEY_NAME`, and each marker in the shape is already an `Alloc`
+    /// over `[$#shape, "name"]` or `[$#shape, "name", key]` (`marker`).
+    /// `number_allocs` then gives the form one site and its markers that
+    /// same site. Past `?shape(` the form is exactly two arguments, and the
+    /// marker rules are checked (`check_shape`).
+    fn shape_expr(&mut self) -> PResult<Expr> {
+        self.char_lit('?')?;
+        if self.raw_ident()? != "shape" {
+            return Err(self.err("not a ?shape form"));
+        }
+        self.symbol("(")?;
+        let key = self.expr()?;
+        if !own_markers(&key, false).is_empty() {
+            return Err(self.err("a marker cannot be written in a ?shape's key"));
+        }
+        self.symbol(",")?;
+        let shape = self.expr()?;
+        self.char_lit(')')?;
+        if let Some(problem) = check_shape(&shape) {
+            return Err(self.err(problem));
+        }
+        let segs = self.field_access_suffix();
+        self.skip_spaces();
+        Ok(Self::apply_field_access(
+            Expr::Let(SHAPE_KEY_NAME.to_string(), Box::new(key), Box::new(shape)),
+            segs,
+        ))
+    }
+
+    /// `~name` or `~name(key)`: a symbol marker, as the allocation it lowers
+    /// to, with `MARKER_SITE` until `number_allocs` gives it its form's
+    /// site. The name follows the `~` directly, and the `(` of a key follows
+    /// the name directly. Parsed anywhere an expression is; the enclosing
+    /// `shape_expr` (or, outside any, `program`) decides whether it is legal
+    /// there. Returns the name too, for the `{~name}` shorthand field.
+    fn marker(&mut self) -> PResult<(String, Expr)> {
+        self.lexeme(|p| {
+            p.char_lit('~')?;
+            let name = p.raw_ident()?;
+            let mut elements = vec![
+                Expr::Path(SHAPE_KEY_NAME.to_string(), vec![]),
+                Expr::StringLit(name.clone()),
+            ];
+            if p.peek() == Some('(') {
+                p.char_lit('(')?;
+                p.skip_spaces();
+                elements.push(p.expr()?);
+                p.char_lit(')')?;
+            }
+            Ok((name, Expr::Alloc(MARKER_SITE, Box::new(Expr::ArrayLit(elements)))))
+        })
     }
 
     /// `?ctx.a.b` (`v3-symbols.md` §1.3): the path MUST be rooted at `ctx` —
@@ -1244,7 +1303,13 @@ impl P {
         if let Ok(e) = self.attempt(Self::alloc_expr) {
             return Ok(e);
         }
+        if let Ok(e) = self.attempt(Self::shape_expr) {
+            return Ok(e);
+        }
         if let Ok(e) = self.attempt(Self::demand_expr) {
+            return Ok(e);
+        }
+        if let Ok((_, e)) = self.attempt(Self::marker) {
             return Ok(e);
         }
         if let Ok(e) = self.attempt(Self::document_expr) {
@@ -1343,6 +1408,9 @@ impl P {
                 Stmt::TypeEmit(name, args) => Expr::TypeEmit(name, args, Box::new(body)),
             };
         }
+        if !own_markers(&body, false).is_empty() {
+            return Err(self.err("a marker ~name may only be written inside a ?shape's shape"));
+        }
         number_allocs(&mut body);
         Ok(if is_document {
             Program::DocumentProgram(body)
@@ -1413,6 +1481,65 @@ fn bind_pattern(pat: &Pattern, source: Expr) -> Vec<Stmt> {
             }
         },
     }
+}
+
+/// One marker that belongs to the form whose shape (or key) is being
+/// checked (`own_markers`).
+struct OwnMarker {
+    name: String,
+    keyed: bool,
+    under_lambda: bool,
+}
+
+/// The markers that belong to the form whose shape (or key) this is: every
+/// marker in it but those inside a nested `?shape`'s shape, with whether it
+/// carries a key and whether it sits under a lambda written inside it.
+fn own_markers(e: &Expr, under_lambda: bool) -> Vec<OwnMarker> {
+    match e {
+        Expr::Alloc(MARKER_SITE, key) => match key.as_ref() {
+            Expr::ArrayLit(elements) => {
+                let name = match elements.get(1) {
+                    Some(Expr::StringLit(n)) => n.clone(),
+                    _ => String::new(),
+                };
+                let rest = elements.get(2..).unwrap_or(&[]);
+                let mut out = vec![OwnMarker {
+                    name,
+                    keyed: !rest.is_empty(),
+                    under_lambda,
+                }];
+                for r in rest {
+                    out.extend(own_markers(r, under_lambda));
+                }
+                out
+            }
+            other => own_markers(other, under_lambda),
+        },
+        Expr::Let(name, value, _) if name == SHAPE_KEY_NAME => own_markers(value, under_lambda),
+        Expr::Lambda(_, body) => own_markers(body, true),
+        _ => sub_exprs(e)
+            .into_iter()
+            .flat_map(|sub| own_markers(sub, under_lambda))
+            .collect(),
+    }
+}
+
+/// The rules on a `?shape`'s own markers, all static: at least one, no name
+/// twice (bare or keyed), and a key on every marker that sits under a
+/// lambda inside the shape. The message of the first one broken, if any.
+fn check_shape(shape: &Expr) -> Option<&'static str> {
+    let markers = own_markers(shape, false);
+    if markers.is_empty() {
+        return Some("a ?shape's shape must contain at least one marker of its own");
+    }
+    if markers.iter().any(|m| m.under_lambda && !m.keyed) {
+        return Some("a marker under a lambda inside a ?shape must carry a key, as in ~name(key)");
+    }
+    let names: std::collections::HashSet<&str> = markers.iter().map(|m| m.name.as_str()).collect();
+    if names.len() != markers.len() {
+        return Some("a marker name appears twice in one ?shape");
+    }
+    None
 }
 
 /// A pattern parameter becomes a hidden parameter `#argN`; the body is
