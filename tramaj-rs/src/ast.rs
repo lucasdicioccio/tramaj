@@ -280,26 +280,58 @@ fn sub_exprs_mut(e: &mut Expr) -> Vec<&mut Expr> {
     }
 }
 
+/// The hidden name a `?shape(key, shape)` (`v3-symbols.md` §1.2, decisions
+/// §19) binds its key to. The parser lowers the form to
+/// `Let(SHAPE_KEY_NAME, key, shape)`, each marker in the shape an `Alloc`
+/// whose key reads this name, so the AST needs no constructor of its own for
+/// it. It starts with `#`, so no surface name can collide with it, and only
+/// the parser writes such a `Let`: `number_allocs` takes one as a `?shape`
+/// site.
+pub const SHAPE_KEY_NAME: &str = "#shape";
+
+/// The site a `~name` marker carries between the parser and `number_allocs`,
+/// which replaces it with the site of the innermost enclosing `?shape`.
+/// Never left in a parsed program: the parser refuses a marker outside a
+/// shape.
+pub const MARKER_SITE: usize = usize::MAX;
+
 /// Assigns each `Alloc` in a program the index of its `?(...)` among all of
 /// them, in source order (`v3-symbols.md` §1.4) — a plain pre-order,
 /// left-to-right walk over the freshly parsed tree, numbering as it goes.
 /// Mirrors `Ast.hs`'s `numberAllocs`: done as a rewrite after parsing so two
 /// independently written parsers agree on site numbers by construction,
 /// rather than by agreeing on a parser-internal traversal order.
+///
+/// A `?shape` (its `SHAPE_KEY_NAME` `Let`) takes a number in the same
+/// sequence, at its `?`, before its key; its markers take none, only its
+/// site.
 pub fn number_allocs(e: &mut Expr) {
-    fn go(e: &mut Expr, n: &mut usize) {
+    fn go(e: &mut Expr, n: &mut usize, shape: usize) {
         if let Expr::Alloc(site, key) = e {
-            *site = *n;
-            *n += 1;
-            go(key, n);
+            if *site == MARKER_SITE {
+                *site = shape;
+            } else {
+                *site = *n;
+                *n += 1;
+            }
+            go(key, n, shape);
             return;
         }
+        if let Expr::Let(name, value, body) = e {
+            if name == SHAPE_KEY_NAME {
+                let site = *n;
+                *n += 1;
+                go(value, n, shape);
+                go(body, n, site);
+                return;
+            }
+        }
         for sub in sub_exprs_mut(e) {
-            go(sub, n);
+            go(sub, n, shape);
         }
     }
     let mut n = 0usize;
-    go(e, &mut n);
+    go(e, &mut n, MARKER_SITE);
 }
 
 fn attribute_exprs(attrs: &[Attribute]) -> Vec<&Expr> {
