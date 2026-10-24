@@ -28,11 +28,11 @@ an implementation predates them, so there every number is a double,
 `str(1.0)` is `1`, the two sort names parse as ordinary calls, and the names
 of §11's *Sorting*, *Number formatting* and *Arithmetic* are unbound.
 
-**A third part is specified ahead.** The traverse form for allocation,
+**A third part came later.** The traverse form for allocation,
 `?shape(key, shape)` with its `~name` markers, is accepted design
-(decisions §19) and normative in `v3-symbols.md` §1.2, but no implementation
-has it yet: `?shape` and `~` are parse errors everywhere. Each passage of
-this document it touches is marked **[§19]**.
+(decisions §19), normative in `v3-symbols.md` §1.2, and implemented in all
+six implementations; every corpus runner requires it. Each passage of this
+document it touches is marked **[§19]**.
 
 ---
 

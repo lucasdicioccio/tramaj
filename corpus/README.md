@@ -116,13 +116,15 @@ cases/<NNN-slug>/
     `"arithmetic"` and `"int-float"` too, and an implementation provides
     `"round"` only together with `"arithmetic"`.
 
-  One more name is a transition tag for a part of the language that no
-  implementation has yet (specs/decisions.md §19):
+  One more name is a transition tag for a part of the language that the
+  implementations gained one after the other (specs/decisions.md §19):
   * `"shape"` — the `?shape(key, shape)` form and its `~name` markers
-    (v3-symbols §1.2). It is not in any runner's list, so every suite skips
-    these cases, the parse-error ones included, until its implementation
-    declares the name. It is not required of every implementation. A case
-    that also needs the arithmetic profile lists `"arithmetic"` beside it.
+    (v3-symbols §1.2). All six provide it now, so it is required like
+    `"arithmetic"` and `"int-float"`: a runner fails a case that lists it,
+    the parse-error ones included, if its implementation does not provide
+    it, rather than skipping it. The tag remains on the cases until it is
+    retired. A case that also needs the arithmetic profile lists
+    `"arithmetic"` beside it.
 
   A case without `profiles` runs everywhere, with no profile on. A case that
   lists several names runs only where all of them are provided. `mode` is
@@ -198,24 +200,23 @@ the language's own spelling), and the table of analyses beside it
 
 | implementation | profiles |
 |---|---|
-| PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
-| Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| Go | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
-| TypeScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round` |
-| Python | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round` |
+| PureScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round`, `shape` |
+| Haskell | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round`, `shape` |
+| Go | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round`, `shape` |
+| Rust | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round`, `shape` |
+| TypeScript | `base`, `int-float`, `arithmetic`, `int53`, `sort`, `format-number`, `round`, `shape` |
+| Python | `base`, `int-float`, `arithmetic`, `int64`, `sort`, `format-number`, `round`, `shape` |
 
-All six lists hold `"sort"`, `"format-number"` and `"round"`, so the cases
-that list one run in every suite.
-None holds `"shape"` yet, so its cases are skipped in every suite.
+All six lists hold `"sort"`, `"format-number"`, `"round"` and `"shape"`, so
+the cases that list one run in every suite.
 
 An implementation that gains a capability adds the name there, and the cases
 that list it start running in that suite; no case needs editing.
 
-Beside that list each runner holds the two names required of every
-implementation, `"int-float"` and `"arithmetic"` (`requiredProfiles`). A
-case that lists one of them, in a runner whose list of provided profiles
-lacks it, is a failed case and not a skipped one
+Beside that list each runner holds the three names required of every
+implementation, `"int-float"`, `"arithmetic"` and `"shape"`
+(`requiredProfiles`). A case that lists one of them, in a runner whose list
+of provided profiles lacks it, is a failed case and not a skipped one
 (`not provided, but required of every port: arithmetic`). So the cases a
 suite may skip are those of the integer range it does not have, of a
 transition tag or analysis it does not provide, and of a name it does not

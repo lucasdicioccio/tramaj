@@ -67,7 +67,7 @@ const providedProfiles: ReadonlySet<string> = new Set([
  * The profiles every port provides (corpus/README.md). A case naming one that
  * `providedProfiles` lacks fails instead of being skipped.
  */
-const requiredProfiles: ReadonlySet<string> = new Set(["int-float", "arithmetic"]);
+const requiredProfiles: ReadonlySet<string> = new Set(["int-float", "arithmetic", "shape"]);
 
 /**
  * The static analyses (reference.md §9) this port provides to an

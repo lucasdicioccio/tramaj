@@ -78,7 +78,7 @@ providedProfiles = ["base", "int-float", "int64", "arithmetic", "sort", "format-
 -- | The profiles every port provides (@corpus/README.md@). A case naming one
 -- that 'providedProfiles' lacks fails instead of being skipped.
 requiredProfiles :: [Text]
-requiredProfiles = ["int-float", "arithmetic"]
+requiredProfiles = ["int-float", "arithmetic", "shape"]
 
 -- | The profiles a case names that this port does not provide.
 missingProfiles :: CaseMeta -> [Text]

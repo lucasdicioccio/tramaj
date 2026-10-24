@@ -62,7 +62,7 @@ const PROVIDED_PROFILES: &[&str] = &[
 
 /// The profiles every port provides (`corpus/README.md`). A case naming one
 /// that `PROVIDED_PROFILES` lacks fails instead of being skipped.
-const REQUIRED_PROFILES: &[&str] = &["int-float", "arithmetic"];
+const REQUIRED_PROFILES: &[&str] = &["int-float", "arithmetic", "shape"];
 
 /// The profiles a case names that this port does not provide.
 fn missing_profiles(meta: &CaseMeta) -> Vec<String> {

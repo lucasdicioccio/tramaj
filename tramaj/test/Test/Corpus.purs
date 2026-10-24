@@ -54,7 +54,7 @@ providedProfiles = [ "base", "int-float", "arithmetic", "int53", "sort", "format
 -- | The profiles every port provides (corpus/README.md). A case naming one
 -- that `providedProfiles` lacks fails instead of being skipped.
 requiredProfiles :: Array String
-requiredProfiles = [ "int-float", "arithmetic" ]
+requiredProfiles = [ "int-float", "arithmetic", "shape" ]
 
 -- | The options a case runs with. A profile is on for a case only if the
 -- case lists it, so a case that does not list `arithmetic` runs without it,

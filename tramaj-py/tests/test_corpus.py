@@ -84,7 +84,7 @@ PROVIDED_PROFILES: frozenset = frozenset(
 
 # The profiles every port provides (corpus/README.md). A case naming one that
 # ``PROVIDED_PROFILES`` lacks fails instead of being skipped.
-REQUIRED_PROFILES: frozenset = frozenset({"int-float", "arithmetic"})
+REQUIRED_PROFILES: frozenset = frozenset({"int-float", "arithmetic", "shape"})
 
 
 def arithmetic_on(meta: dict) -> bool:
