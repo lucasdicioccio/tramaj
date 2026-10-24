@@ -22,10 +22,10 @@ number types (ref §3) wherever this document writes a number: in canon
 (§1.4) and in the envelope (§5.2). All of it is on the `main` branch and in
 no release yet.
 
-**A traverse form for allocation is specified ahead.** `?shape(key, shape)`
-and its `~name` markers are accepted design (decisions §19) and are
-normative here, but no implementation has them yet: `?shape` and `~` are
-parse errors everywhere. Each passage this applies to is marked **[§19]**.
+**A traverse form for allocation came later.** `?shape(key, shape)` and its
+`~name` markers are accepted design (decisions §19), are normative here, and
+are implemented in all six implementations; every corpus runner requires
+them. Each passage this applies to is marked **[§19]**.
 
 ---
 

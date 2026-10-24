@@ -98,7 +98,7 @@ var providedProfiles = map[string]bool{
 // requiredProfiles holds the profiles every port provides
 // (corpus/README.md). A case naming one that providedProfiles lacks fails
 // instead of being skipped.
-var requiredProfiles = map[string]bool{"int-float": true, "arithmetic": true}
+var requiredProfiles = map[string]bool{"int-float": true, "arithmetic": true, "shape": true}
 
 // missingProfiles lists the profiles a case names that this port does not
 // provide.

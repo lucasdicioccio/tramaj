@@ -157,8 +157,8 @@ v5 is a fifth iteration, not a stable release: the language can still
 change. The [roadmap](/roadmap.html) lists what is wanted next: folds to
 more rendering targets, and type definitions for the Python modules. Beyond v5,
 [`?shape`](/design-arithmetic-and-shapes.html) is an accepted design for
-allocating a structure of symbols in one form; no implementation has it
-yet.
+allocating a structure of symbols in one form; no implementation had it at
+v5, and all six have it on `main` now.
 
 =base:main-css.tramaj-json
 { "format": "css"

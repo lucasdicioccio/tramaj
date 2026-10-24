@@ -34,7 +34,7 @@ is and how far along it is. The short version:
 <table>
 <tr><th>design</th><th>accepted</th><th>specified</th><th>implemented</th></tr>
 <tr><td>arithmetic, and integers and floats as two types</td><td>2026-10-06</td><td>yes, in the reference</td><td>all six implementations, with the command-line tools, the Halogen fold and the playground, on <code>main</code>, not released</td></tr>
-<tr><td><code>?shape</code>, a form that allocates a structure of symbols</td><td>2026-10-08</td><td>design only</td><td>no</td></tr>
+<tr><td><code>?shape</code>, a form that allocates a structure of symbols</td><td>2026-10-08</td><td>yes, in the reference</td><td>all six implementations, on <code>main</code></td></tr>
 </table>
 
 
@@ -174,9 +174,10 @@ every host decoder stay as they are.
 
 ### Where it stands
 
-This one is a design only. The normative text is not written and no
-implementation has it. PureScript and Haskell come first, as for arithmetic.
-One thing it does not cover is a caller that supplies a *count* rather than
+The normative text is written (`v3-symbols.md` §1.2 and the passages marked
+**[§19]**), and all six implementations have the form on `main`. The corpus
+cases for it list `"shape"`, which every runner requires, like
+`"arithmetic"` and `"int-float"`. One thing it does not cover is a caller that supplies a *count* rather than
 a list: that needs a `range`, which is a separate question.
 
 ## Also accepted: sorting and number formatting
