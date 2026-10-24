@@ -81,6 +81,7 @@ test-suite unit
     , directory
     , filepath
     , hspec        >=2.11
+    , megaparsec
     , tramaj-hs
     , text
     , vector

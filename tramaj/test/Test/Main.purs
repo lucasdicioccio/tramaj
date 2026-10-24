@@ -34,12 +34,14 @@ import Tramaj.Ast (ActionAdaptation(..), Expr(..), ParamValue(..), Program(..), 
 import Tramaj.Eval (EvalError(..), LibraryTable, Mode(..), Options, Output(..), defaultOptions, emittedConstraintCount, evalProgram, runProgram, runProgramWith)
 import Tramaj.Json (Json(..), fromArgonaut, fromArray, jsonNull, jsonParser, normalizeNumbers, stringify, stringifyWithIndent, toArgonaut, toObject)
 import Tramaj.Node (Node(..), NodeAttribute(..), noAnnotations, nodeFromJson, nodeToJson)
+import Parsing (ParseError(..), Position(..))
 import Tramaj.Parser (parseExpr, parseProgram)
 import Tramaj.Types (ResolvedConstraintArg(..), ResolvedType(..), TypeError(..), canonicalId, checkTypeParamCollisions, deepTypeConstraints, deepTypeReferences, requireClosed, resolveTypeExpr, typeClosure, typeConstraints, typeReferences)
 main :: Effect Unit
 main = do
   runCorpus
   runParserChecks
+  runUnclosedChecks
   runTypeDeclChecks
   runCommentChecks
   runLibraryChecks
@@ -185,6 +187,45 @@ runParserChecks = do
     Right e ->
       if e == expected then pure unit
       else throw (src <> " desugared to\n  " <> show e <> "\nexpected\n  " <> show expected)
+
+-- | An unclosed bracket, quote or interpolation is reported where the
+-- | closer was looked for, and names the opener and where it is. Each case
+-- | gives the line and column the error must carry and its message.
+-- |
+-- | Before, every one of these said `Expected "{"` at line 1, column 1: the
+-- | backtracking alternatives that recognize a form wrapped the whole form,
+-- | so the deep error was dropped in favour of the last alternative tried at
+-- | the start of the program. The same cases, at the same positions, are in
+-- | `tramaj-hs`'s `ParserSpec`.
+runUnclosedChecks :: Effect Unit
+runUnclosedChecks = do
+  failsAt ".div(\"x\"" 1 9 "Expected ')' to close the '(' of .div at line 1, column 5"
+  failsAt ".div(\n  .p(\"a\"),\n  .p(\"b\")\n" 4 1 "Expected ')' to close the '(' of .div at line 1, column 5"
+  failsAt ".div(.p(\"a\", .span(\"b\"))" 1 25 "Expected ')' to close the '(' of .div at line 1, column 5"
+  failsAt ".div(\"abc)" 1 11 "Expected '\"' to close the string at line 1, column 6"
+  failsAt ".div(class: \"x\n)" 2 2 "Expected '\"' to close the string at line 1, column 13"
+  failsAt "\"a `$x" 1 7 "Expected '`' to close the interpolation at line 1, column 4"
+  failsAt ".div(\"a`$x\")" 1 11 "Expected '`' to close the interpolation at line 1, column 8"
+  failsAt "f(1, 2" 1 7 "Expected ')' to close the '(' at line 1, column 2"
+  failsAt "(1" 1 3 "Expected ')' to close the '(' at line 1, column 1"
+  failsAt "[1, 2" 1 6 "Expected ']' to close the '[' at line 1, column 1"
+  failsAt "{a: 1" 1 6 "Expected '}' to close the '{' at line 1, column 1"
+  failsAt "map($xs, (x) => $x" 1 19 "Expected ')' to close the '(' at line 1, column 4"
+  failsAt "branch($x, $p, \"abc" 1 20 "Expected '\"' to close the string at line 1, column 16"
+  failsAt "@x = 1\n@y = [1,\n$x" 3 3 "Expected ']' to close the '[' at line 2, column 6"
+  failsAt ".b(action(\"on-click\", \"save, {}))" 1 34 "Expected '\"' to close the string at line 1, column 23"
+  log "ok - an unclosed opener is reported where input ended, naming where it opened"
+  where
+  failsAt :: String -> Int -> Int -> String -> Effect Unit
+  failsAt src line column msg = case parseProgram src of
+    Right p -> throw ("expected a parse error for " <> show src <> ", got: " <> show p)
+    Left (ParseError m (Position pos)) ->
+      if pos.line == line && pos.column == column && m == msg then pure unit
+      else
+        throw
+          ( show src <> " failed at line " <> show pos.line <> ", column " <> show pos.column <> " with " <> show m
+              <> "\nexpected line " <> show line <> ", column " <> show column <> " with " <> show msg
+          )
 
 -- Type declarations ------------------------------------------------------
 

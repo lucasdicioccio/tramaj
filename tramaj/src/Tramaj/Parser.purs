@@ -26,7 +26,13 @@
 -- |   or `map` has matched, its shape is parsed without backtracking, so a
 -- |   malformed one is a hard parse error instead of silently falling
 -- |   through to a meaningless `Call` that would only fail much later at
--- |   eval time.
+-- |   eval time. The same holds for every form, not only the special ones:
+-- |   a `try` covers what tells a form from its alternatives (`name(`,
+-- |   `key:`, `(params) =>`) and never the form's body. A `try` around a
+-- |   body throws away the error inside it, and the program is then reported
+-- |   as wrong at wherever the outermost alternative started — line 1,
+-- |   column 1 for an unclosed bracket anywhere in a document. Each closer
+-- |   also names its opener and where it is (`closing`).
 -- | * A field-access suffix is parsed with no whitespace skipped before it,
 -- |   so `f().rendered` is a field access while `f()` followed by a newline
 -- |   and `.div(...)` is two separate things.
@@ -54,8 +60,8 @@ import Data.String.CodePoints (CodePoint)
 import Data.String.CodePoints as SCP
 import Data.String.CodeUnits as SCU
 import Data.Tuple (Tuple(..))
-import Parsing (ParseError, Parser, fail, runParser)
-import Parsing.Combinators (lookAhead, many, many1, optionMaybe, sepEndBy, sepEndBy1, skipMany, try)
+import Parsing (ParseError, Parser, Position(..), fail, position, runParser)
+import Parsing.Combinators (lookAhead, many, many1, notFollowedBy, optionMaybe, sepEndBy, sepEndBy1, skipMany, try, (<?>))
 import Parsing.String (anyCodePoint, char, eof, satisfyCodePoint, string)
 import Parsing.String.Basic (alphaNum, digit, hexDigit, letter)
 import Parsing.String.Basic as Basic
@@ -105,6 +111,52 @@ lexeme p = p <* skipSpaces
 
 symbol :: String -> P String
 symbol s = lexeme (string s)
+
+-- Unclosed openers ---------------------------------------------------------
+
+-- | An opener that has been read — a bracket, a quote, a backtick — and
+-- | where it sits, so the closer that never comes can say which one it was.
+-- |
+-- | The error for a missing closer is reported where the closer was looked
+-- | for (often the end of the input), and names the opener and its
+-- | position: `Expected ')' to close the '(' at line 1, column 5`. Without
+-- | that, the only position a reader got was wherever the outermost
+-- | backtracking alternative started, which for most programs is line 1,
+-- | column 1.
+data Opened = Opened String Position
+
+-- | Reads an opener with `p`, remembering where it started. `what` is how
+-- | the closer's error names it: `the '('`, `the string`, `the
+-- | interpolation`.
+opening :: forall a. String -> P a -> P Opened
+opening what p = do
+  pos <- position
+  _ <- p
+  pure (Opened what pos)
+
+-- | Reads the closer that matches an `Opened`, labelled with it.
+closing :: forall a. Opened -> String -> P a -> P a
+closing (Opened what (Position pos)) closer p =
+  p <?> (closer <> " to close " <> what <> " at line " <> show pos.line <> ", column " <> show pos.column)
+
+-- | The common case: a lexeme opener and its lexeme closer.
+openSym :: String -> P Opened
+openSym o = opening ("the '" <> o <> "'") (symbol o)
+
+closeSym :: Opened -> String -> P Unit
+closeSym opened c = void (closing opened ("'" <> c <> "'") (symbol c))
+
+-- | A closer read with no whitespace skipped after it, for the forms that
+-- | read a field-access suffix directly behind their `)`.
+closeChar :: Opened -> Char -> P Unit
+closeChar opened c = void (closing opened ("'" <> SCU.singleton c <> "'") (char c))
+
+-- | Another item of a comma-separated list: a `,` that is not the trailing
+-- | one before the closer `c`. Recognizing the comma this way, rather than
+-- | wrapping the comma *and the item* in a `try`, is what keeps an error
+-- | inside the item where it happened instead of rewinding to the comma.
+nextItem :: Char -> P Unit
+nextItem c = void (try (symbol "," <* notFollowedBy (char c)))
 
 charsToString :: Array Char -> String
 charsToString = SCU.fromCharArray
@@ -188,9 +240,12 @@ applyFieldAccess base segs = if Array.null segs then base else FieldAccess base 
 -- | cannot be computed.
 staticString :: P String
 staticString = lexeme do
-  _ <- char '"'
+  opened <- opening "the string" (char '"')
   s <- manyCodePoints (noneOfCodePoints [ '"', '`' ])
-  _ <- char '"' <|> interpolationRefused
+  next <- optionMaybe (lookAhead (char '`'))
+  case next of
+    Just _ -> interpolationRefused
+    Nothing -> void (closing opened "'\"'" (char '"'))
   pure s
   where
   interpolationRefused =
@@ -202,16 +257,20 @@ staticString = lexeme do
 -- | arbitrary expression.
 stringLit :: P Expr
 stringLit = lexeme do
-  _ <- char '"'
+  opened <- opening "the string" (char '"')
   parts <- many (defer \_ -> stringPart)
-  _ <- char '"'
+  _ <- closing opened "'\"'" (char '"')
   pure (desugarString (Array.fromFoldable parts))
   where
   stringPart :: P StringPart
   stringPart = interpPart <|> (SLit <$> litChunk)
 
   interpPart :: P StringPart
-  interpPart = SInterp <$> (char '`' *> defer (\_ -> expr) <* char '`')
+  interpPart = do
+    opened <- opening "the interpolation" (char '`')
+    e <- defer \_ -> expr
+    _ <- closing opened "'`'" (char '`')
+    pure (SInterp e)
 
   -- | A run of ordinary characters, with escape sequences resolved as they
   -- | are read. Stops at a closing quote or an interpolation's backtick;
@@ -248,9 +307,9 @@ escapeSeq = char '\\' *> (unicodeEscape <|> simpleEscape)
   unicodeEscape :: P String
   unicodeEscape = do
     _ <- char 'u'
-    _ <- char '{'
+    opened <- opening "the '{' of the unicode escape" (char '{')
     digits <- many1Chars hexDigit
-    _ <- char '}'
+    _ <- closing opened "'}'" (char '}')
     case Int.fromStringAs Int.hexadecimal digits >>= toEnum of
       Just cp -> pure (SCP.singleton cp)
       Nothing -> fail ("invalid unicode escape: \\u{" <> digits <> "}")
@@ -332,9 +391,9 @@ keywordLit = try do
 
 arrayLit :: P Expr
 arrayLit = lexeme do
-  _ <- symbol "["
+  opened <- openSym "["
   elems <- sepEndBy (defer \_ -> expr) (symbol ",")
-  _ <- symbol "]"
+  closeSym opened "]"
   pure (ArrayLit (Array.fromFoldable elems))
 
 -- | Object keys may be quoted or bare, and a bare key on its own is
@@ -342,13 +401,13 @@ arrayLit = lexeme do
 -- | `{foo, bar: $baz}`.
 objectLit :: P Expr
 objectLit = lexeme do
-  _ <- symbol "{"
+  opened <- openSym "{"
   entries <- sepEndBy (defer \_ -> objEntry) (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   pure (ObjectLit (Array.fromFoldable entries))
   where
   objEntry :: P (Tuple String Expr)
-  objEntry = try explicitEntry <|> markerEntry <|> shorthandEntry
+  objEntry = explicitEntry <|> markerEntry <|> shorthandEntry
 
   -- | `{~replicas}` is `{replicas: ~replicas}`, and `{~host($x)}` is
   -- | `{host: ~host($x)}` (v3-symbols §1.2): the shorthand field of a
@@ -356,9 +415,11 @@ objectLit = lexeme do
   markerEntry :: P (Tuple String Expr)
   markerEntry = defer \_ -> marker
 
+  -- | The `try` covers `key:` only, which is what tells this from the
+  -- | shorthand; an error in the value is reported where it is.
   explicitEntry :: P (Tuple String Expr)
   explicitEntry = do
-    k <- objectKey
+    k <- try (objectKey <* lookAhead (symbol ":"))
     _ <- reservedKeyRefused k
     _ <- symbol ":"
     v <- defer \_ -> expr
@@ -399,11 +460,12 @@ pathExpr = lexeme do
 -- | `?(key).field`, is an ordinary field-access suffix, the same mechanism
 -- | a call result uses.
 allocExpr :: P Expr
-allocExpr = try do
-  _ <- char '?'
-  _ <- symbol "("
+allocExpr = do
+  opened <- try do
+    _ <- char '?'
+    openSym "("
   keyExpr <- defer \_ -> expr
-  _ <- char ')'
+  closeChar opened ')'
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Alloc 0 keyExpr) segs)
@@ -421,17 +483,17 @@ allocExpr = try do
 -- | rules the shape must keep (`checkShape`) and a marker in the key.
 shapeExpr :: P Expr
 shapeExpr = do
-  _ <- try do
+  opened <- try do
     _ <- char '?'
     n <- rawIdent
     if n == "shape" then pure unit else fail "not a ?shape form"
-    symbol "("
+    openSym "("
   keyExpr <- defer \_ -> expr
   if Array.null (ownMarkers false keyExpr) then pure unit
   else fail "a marker cannot be written in a ?shape's key"
   _ <- symbol ","
   shape <- defer \_ -> expr
-  _ <- char ')'
+  closeChar opened ')'
   checkShape shape
   segs <- fieldAccessSuffix
   skipSpaces
@@ -461,7 +523,12 @@ marker :: P (Tuple String Expr)
 marker = lexeme do
   _ <- char '~'
   name <- rawIdent
-  key <- optionMaybe (char '(' *> skipSpaces *> defer (\_ -> expr) <* char ')')
+  key <- optionMaybe do
+    opened <- opening "the '('" (char '(')
+    skipSpaces
+    e <- defer \_ -> expr
+    closeChar opened ')'
+    pure e
   let keyArgs = maybe [] pure key
   pure (Tuple name (Alloc markerSite (ArrayLit ([ Path shapeKeyName [], StringLit name ] <> keyArgs))))
 
@@ -506,22 +573,26 @@ demandExpr = lexeme $ try do
 -- | import's values (`$lib.vals.fn(1)`) or an import being given more
 -- | parameters (`$deployment({...})`) is callable directly.
 call :: P Expr
-call = try do
-  _ <- optionMaybe (char '$')
-  p <- pathTail
-  _ <- symbol "("
+call = do
+  { p, opened } <- try do
+    _ <- optionMaybe (char '$')
+    p <- pathTail
+    opened <- openSym "("
+    pure { p, opened }
   args <- sepEndBy (defer \_ -> expr) (symbol ",")
-  _ <- char ')'
+  closeChar opened ')'
   segs <- fieldAccessSuffix
   skipSpaces
   pure (applyFieldAccess (Call (Path p.root p.fields) (Array.fromFoldable args)) segs)
 
 lambdaExpr :: P Expr
-lambdaExpr = try do
-  _ <- symbol "("
-  params <- sepEndBy pattern (symbol ",")
-  _ <- symbol ")"
-  _ <- symbol "=>"
+lambdaExpr = do
+  params <- try do
+    _ <- symbol "("
+    params <- sepEndBy pattern (symbol ",")
+    _ <- symbol ")"
+    _ <- symbol "=>"
+    pure params
   body <- defer \_ -> expr
   pure (lowerLambda (Array.fromFoldable params) body)
 
@@ -539,9 +610,9 @@ pattern = defer \_ -> (PName <$> identifier) <|> objectPattern
 
 objectPattern :: P Pattern
 objectPattern = do
-  _ <- symbol "{"
+  opened <- openSym "{"
   fields <- sepEndBy1 patternField (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   let
     pat = PObject (Array.fromFoldable (NEL.toList fields))
     names = patternNames pat
@@ -592,11 +663,14 @@ lowerLambda params body =
 -- | Grouping, for readability where `Concat` chains get long. Not a
 -- | semantic construct: the parse tree it produces is the same as the inner
 -- | expression's.
+-- |
+-- | No `try`: `lambdaExpr` is tried first, and nothing else starts with
+-- | `(`, so an error inside the parentheses is reported where it is.
 parenExpr :: P Expr
-parenExpr = try do
-  _ <- symbol "("
+parenExpr = do
+  opened <- openSym "("
   e <- defer \_ -> expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure e
 
 -- | The forms whose evaluation the language defines itself, rather than
@@ -629,22 +703,22 @@ specialForm = do
   where
   binaryShape :: (Expr -> Expr -> Expr) -> P Expr
   binaryShape ctor = do
-    _ <- symbol "("
+    opened <- openSym "("
     a <- defer \_ -> expr
     _ <- symbol ","
     b <- defer \_ -> expr
-    _ <- char ')'
+    closeChar opened ')'
     pure (ctor a b)
 
   ternaryShape :: (Expr -> Expr -> Expr -> Expr) -> P Expr
   ternaryShape ctor = do
-    _ <- symbol "("
+    opened <- openSym "("
     a <- defer \_ -> expr
     _ <- symbol ","
     b <- defer \_ -> expr
     _ <- symbol ","
     c <- defer \_ -> expr
-    _ <- char ')'
+    closeChar opened ')'
     pure (ctor a b c)
 
   -- | `branch(fallback, p1, v1, p2, v2, ...)` reads "if p1 then v1, else if
@@ -652,11 +726,11 @@ specialForm = do
   -- | laziness is the core constructor's rather than a rule of its own.
   branchShape :: P Expr
   branchShape = do
-    _ <- symbol "("
+    opened <- openSym "("
     fallback <- defer \_ -> expr
-    arms <- many (try (symbol "," *> arm))
+    arms <- many (nextItem ')' *> arm)
     _ <- optionMaybe (symbol ",")
-    _ <- char ')'
+    closeChar opened ')'
     pure (Array.foldr (\(Tuple p v) acc -> Branch p v acc) fallback (Array.fromFoldable arms))
 
   arm :: P (Tuple Expr Expr)
@@ -672,11 +746,11 @@ specialForm = do
   -- | signature for any name.
   constraintShape :: P Expr
   constraintShape = do
-    _ <- symbol "("
+    opened <- openSym "("
     name <- staticString
-    args <- many (try (symbol "," *> defer \_ -> expr))
+    args <- many (nextItem ')' *> defer \_ -> expr)
     _ <- optionMaybe (symbol ",")
-    _ <- char ')'
+    closeChar opened ')'
     pure (Constrain name (Array.fromFoldable args))
 
   -- | `import("name", {param: expr, other: ctx(path)})`. The name is a
@@ -685,27 +759,26 @@ specialForm = do
   -- | something only here.
   importShape :: P Expr
   importShape = do
-    _ <- symbol "("
+    opened <- openSym "("
     name <- staticString
     _ <- symbol ","
     params <- importParams
-    _ <- char ')'
+    closeChar opened ')'
     pure (Import name params)
 
   importParams :: P (Array (Tuple String ParamValue))
   importParams = do
-    _ <- symbol "{"
+    opened <- openSym "{"
     entries <- sepEndBy (defer \_ -> paramEntry) (symbol ",")
-    _ <- symbol "}"
+    closeSym opened "}"
     pure (Array.fromFoldable entries)
 
   paramEntry :: P (Tuple String ParamValue)
-  paramEntry = try explicitParam <|> shorthandParam
+  paramEntry = explicitParam <|> shorthandParam
 
   explicitParam :: P (Tuple String ParamValue)
   explicitParam = do
-    k <- objectKey
-    _ <- symbol ":"
+    k <- try (objectKey <* symbol ":")
     v <- paramValue
     pure (Tuple k v)
 
@@ -727,10 +800,10 @@ specialForm = do
       n <- identifier
       _ <- lookAhead (char '(')
       if n == "ctx" then pure n else fail "not a ctx(...) parameter"
-    _ <- symbol "("
+    opened <- openSym "("
     p <- pathTail
     skipSpaces
-    _ <- char ')'
+    closeChar opened ')'
     skipSpaces
     pure (PFromContext (Array.cons p.root p.fields))
 
@@ -738,13 +811,13 @@ specialForm = do
   -- | the event type and payload.
   adaptActionsShape :: P Expr
   adaptActionsShape = do
-    _ <- symbol "("
+    opened <- openSym "("
     target <- defer \_ -> expr
     _ <- symbol ","
     adaptation <- adaptationShape
-    fn <- optionMaybe (try (symbol "," *> defer \_ -> expr))
+    fn <- optionMaybe (nextItem ')' *> defer \_ -> expr)
     _ <- optionMaybe (symbol ",")
-    _ <- char ')'
+    closeChar opened ')'
     pure (AdaptActions target adaptation fn)
 
   -- | Two forms only, never an arbitrary rewriting function: this is what
@@ -756,9 +829,9 @@ specialForm = do
     case name of
       "identity" -> pure Identity
       "prefix" -> do
-        _ <- symbol "("
+        opened <- openSym "("
         p <- staticString
-        _ <- char ')'
+        closeChar opened ')'
         skipSpaces
         pure (Prefix p)
       _ -> fail "an action adaptation must be identity or prefix(\"...\")"
@@ -825,16 +898,16 @@ markedTypeExpr = try do
 
 typeArray :: P TypeExpr
 typeArray = do
-  _ <- symbol "["
+  opened <- openSym "["
   t <- defer \_ -> typeExpr
-  _ <- symbol "]"
+  closeSym opened "]"
   pure (TArray t)
 
 typeRecord :: P TypeExpr
 typeRecord = do
-  _ <- symbol "{"
+  opened <- openSym "{"
   fields <- sepEndBy (defer \_ -> typeField) (symbol ",")
-  _ <- symbol "}"
+  closeSym opened "}"
   pure (TRecord (Array.fromFoldable fields))
   where
   -- | Unlike an ordinary object literal's `objectKey`, a field name here is
@@ -894,11 +967,13 @@ typePrimOrRef = libRef <|> nameOrPrim
 -- | `typeface = ...` from being chopped into the keyword `type` plus
 -- | leftovers.
 typeDeclStmt :: P Stmt
-typeDeclStmt = try do
-  kw <- identifier
-  if kw /= "type" then fail "not a type declaration" else pure unit
-  name <- identifier
-  _ <- symbol "="
+typeDeclStmt = do
+  name <- try do
+    kw <- identifier
+    if kw /= "type" then fail "not a type declaration" else pure unit
+    name <- identifier
+    _ <- symbol "="
+    pure name
   STypeDecl name <$> defer \_ -> typeExpr
 
 -- | One argument to `!type-constraint` (v4-types §5): a `%`-marked type
@@ -929,15 +1004,16 @@ typeConstraintArg = (TCType <$> markedTypeExpr) <|> scalarArg
 -- | and `type-constraint(...)` would otherwise parse as an ordinary call to
 -- | an unbound name.
 typeEmission :: P Stmt
-typeEmission = try do
-  _ <- char '!'
-  kw <- identifier
-  if kw /= "type-constraint" then fail "not a !type-constraint" else pure unit
-  _ <- symbol "("
+typeEmission = do
+  opened <- try do
+    _ <- char '!'
+    kw <- identifier
+    if kw /= "type-constraint" then fail "not a !type-constraint" else pure unit
+    openSym "("
   name <- staticString
-  args <- many (try (symbol "," *> typeConstraintArg))
+  args <- many (nextItem ')' *> typeConstraintArg)
   _ <- optionMaybe (symbol ",")
-  _ <- char ')'
+  closeChar opened ')'
   skipSpaces
   pure (STypeEmit name (Array.fromFoldable args))
 
@@ -945,25 +1021,28 @@ typeEmission = try do
 
 -- | `.tag(...)` is an element; `.(...)` is a fragment — a tagless element,
 -- | introducing siblings with no wrapper.
+-- |
+-- | No `try`: nothing else an operand can be starts with `.`, so once it is
+-- | read this is a document, and an error inside it is reported where it is.
 documentExpr :: P Expr
-documentExpr = try do
+documentExpr = do
   _ <- char '.'
   fragmentShape <|> elementShape
   where
   fragmentShape :: P Expr
   fragmentShape = do
-    _ <- symbol "("
+    opened <- openSym "("
     children <- sepEndBy (defer \_ -> expr) (symbol ",")
-    _ <- symbol ")"
+    closeSym opened ")"
     pure (Fragment (Array.fromFoldable children))
 
   elementShape :: P Expr
   elementShape = do
     tag <- rawIdent
     skipSpaces
-    _ <- symbol "("
+    opened <- opening ("the '(' of ." <> tag) (symbol "(")
     args <- sepEndBy (defer \_ -> elementArg) (symbol ",")
-    _ <- symbol ")"
+    closeSym opened ")"
     buildElement tag (Array.fromFoldable args)
 
 -- | Buckets an element's arguments and enforces the one ordering rule:
@@ -1004,7 +1083,7 @@ buildElement tag args = do
 elementArg :: P ElementArg
 elementArg = defer \_ ->
   attributePositionArg
-    <|> (EArgAttr <$> try namedArg)
+    <|> (EArgAttr <$> namedArg)
     <|> (EArgChild <$> expr)
 
 -- | `action(...)` and `value(...)`, the two forms that mean something only
@@ -1036,28 +1115,29 @@ attributePositionArg = do
 -- | allowed in it.
 actionShape :: P Attribute
 actionShape = do
-  _ <- symbol "("
+  opened <- openSym "("
   event <- staticString
   _ <- symbol ","
   key <- staticString
   _ <- symbol ","
   payload <- defer \_ -> expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure (ActionAttr event key payload)
 
 -- | `value(expr)` fills the element's value slot — see `Tramaj.Node` for
 -- | what a host does with it.
 valueShape :: P Expr
 valueShape = do
-  _ <- symbol "("
+  opened <- openSym "("
   v <- defer \_ -> expr
-  _ <- symbol ")"
+  closeSym opened ")"
   pure v
 
+-- | The `try` covers `name:` only, which is what tells an attribute from a
+-- | child; an error in its value is reported where it is.
 namedArg :: P Attribute
 namedArg = do
-  name <- objectKey
-  _ <- symbol ":"
+  name <- try (objectKey <* symbol ":")
   Attr name <$> defer \_ -> expr
 
 -- Precedence ---------------------------------------------------------------
@@ -1067,7 +1147,7 @@ namedArg = do
 expr :: P Expr
 expr = do
   first <- defer \_ -> operand
-  rest <- many (try (symbol "<>" *> defer \_ -> operand))
+  rest <- many (symbol "<>" *> defer \_ -> operand)
   pure (Array.foldl Concat first (Array.fromFoldable rest))
 
 -- | Alternatives are ordered so that a longer form is tried before a prefix
@@ -1096,8 +1176,11 @@ operand = defer \_ ->
 -- | `@name=expr` or `@name : T = expr` (v4-types §7), one per line. `@`
 -- | leads a binding definition, mirroring `$` leading a binding read; the
 -- | optional `: T` is what tells `SLet` and `SAnnotate` apart.
+-- |
+-- | No `try`: nothing else starts with `@`, so an error in a binding is
+-- | reported where it is rather than at the start of the line.
 binding :: P (Array Stmt)
-binding = try do
+binding = do
   _ <- char '@'
   pat <- pattern
   case pat of
@@ -1118,7 +1201,7 @@ binding = try do
 -- | `$` and `@`. A statement position only — it may not appear inside an
 -- | expression, so there is no operand form for it.
 emission :: P Expr
-emission = try do
+emission = do
   _ <- char '!'
   defer \_ -> expr
 

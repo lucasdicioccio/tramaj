@@ -9,8 +9,10 @@
 module Tramaj.ParserSpec (spec) where
 
 import Data.Either (isLeft, isRight)
+import Data.List (isInfixOf, isPrefixOf)
 import Data.Text (Text)
 import Test.Hspec
+import Text.Megaparsec (errorBundlePretty)
 import Tramaj.Ast
 import Tramaj.Parser
 
@@ -18,6 +20,7 @@ spec :: Spec
 spec = do
   acceptanceSpec
   rejectionSpec
+  unclosedSpec
   commentSpec
   desugaringSpec
   programKindSpec
@@ -100,6 +103,44 @@ rejectionSpec = describe "rejects" $ do
   -- leaves @--@ free to start a comment right after a name.
   rejects "a binding name ending in a hyphen" "@a-=1\n$a"
   rejects "a tag ending in a hyphen" ".div-()"
+
+-- | An unclosed bracket, quote or interpolation is reported where the
+-- closer was looked for, and names the opener and where it is. Each case
+-- gives the position the error must carry (@line:column@, as
+-- 'errorBundlePretty' prints it first) and a part of its message.
+--
+-- Before, every one of these said line 1, column 1: the backtracking
+-- alternatives that recognize a form wrapped the whole form, so the deep
+-- error was dropped in favour of the alternative's starting point.
+unclosedSpec :: Spec
+unclosedSpec = describe "an unclosed opener" $ do
+  failsAt "an element's parenthesis" ".div(\"x\"" "1:9" "')' to close the '(' of .div at line 1, column 5"
+  failsAt
+    "an element's parenthesis, over several lines"
+    ".div(\n  .p(\"a\"),\n  .p(\"b\")\n"
+    "4:1"
+    "')' to close the '(' of .div at line 1, column 5"
+  failsAt "a nested element's parenthesis" ".div(.p(\"a\", .span(\"b\"))" "1:25" "')' to close the '(' of .div at line 1, column 5"
+  failsAt "a string" ".div(\"abc)" "1:11" "'\"' to close the string at line 1, column 6"
+  failsAt "a string over several lines" ".div(class: \"x\n)" "2:2" "'\"' to close the string at line 1, column 13"
+  failsAt "an interpolation" "\"a `$x" "1:7" "'`' to close the interpolation at line 1, column 4"
+  failsAt "an interpolation the string closes first" ".div(\"a`$x\")" "1:11" "'`' to close the interpolation at line 1, column 8"
+  failsAt "a call's parenthesis" "f(1, 2" "1:7" "')' to close the '(' at line 1, column 2"
+  failsAt "a grouping parenthesis" "(1" "1:3" "')' to close the '(' at line 1, column 1"
+  failsAt "an array" "[1, 2" "1:6" "']' to close the '[' at line 1, column 1"
+  failsAt "an object" "{a: 1" "1:6" "'}' to close the '{' at line 1, column 1"
+  failsAt "a special form's parenthesis" "map($xs, (x) => $x" "1:19" "')' to close the '(' at line 1, column 4"
+  failsAt "a string in a branch arm" "branch($x, $p, \"abc" "1:20" "'\"' to close the string at line 1, column 16"
+  failsAt "an array in a binding" "@x = 1\n@y = [1,\n$x" "3:3" "']' to close the '[' at line 2, column 6"
+  failsAt "a static string" ".b(action(\"on-click\", \"save, {}))" "1:34" "'\"' to close the string at line 1, column 23"
+  where
+    failsAt :: String -> Text -> String -> String -> Spec
+    failsAt name src pos msg = it name $ case parseProgram src of
+      Right _ -> expectationFailure "parsed, but should not have"
+      Left bundle -> do
+        let rendered = errorBundlePretty bundle
+        rendered `shouldSatisfy` ((pos <> ":") `isPrefixOf`)
+        rendered `shouldSatisfy` (msg `isInfixOf`)
 
 -- | Comments: @--@ to the end of the line, single-line only.
 --
