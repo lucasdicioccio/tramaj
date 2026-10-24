@@ -352,7 +352,8 @@ class Emit:
 class Alloc:
     """``?(key)`` (section 1.2). ``site`` is assigned by ``number_allocs`` after
     parsing rather than by the parser, so agreement between implementations
-    rests on that one pure function."""
+    rests on that one pure function. A ``~name`` marker of a ``?shape``
+    (decisions section 19) is one too, at its form's site (``SHAPE_KEY_NAME``)."""
 
     site: int
     key: "Expr"
@@ -453,22 +454,48 @@ def sub_exprs(e: Expr) -> list[Expr]:
     raise AssertionError(f"unknown expression {t}")
 
 
+# The hidden name a ``?shape(key, shape)`` (``v3-symbols.md`` section 1.2,
+# decisions section 19) binds its key to. The form lowers to
+# ``Let(SHAPE_KEY_NAME, key, shape)``, each marker in the shape an ``Alloc``
+# whose key reads this name, so the AST needs no constructor of its own for it.
+# It starts with ``#``, so no surface name can collide with it
+# (``is_hidden_name``), and only the parser writes such a ``Let``:
+# ``number_allocs`` takes one as a ``?shape`` site.
+SHAPE_KEY_NAME = "#shape"
+
+# The site a ``~name`` marker carries between the parser and ``number_allocs``,
+# which replaces it with the site of the innermost enclosing ``?shape``. Never
+# left in a parsed program: the parser refuses a marker outside a shape.
+MARKER_SITE = -1
+
+
 def number_allocs(e: Expr) -> None:
     """Assigns each ``Alloc`` the index of its ``?(...)`` among all of them, in
     source order (``v3-symbols.md`` section 1.4): a plain pre-order,
-    left-to-right walk over the freshly parsed tree."""
+    left-to-right walk over the freshly parsed tree. A ``?shape`` (its
+    ``SHAPE_KEY_NAME`` ``Let``) takes a number in the same sequence, at its
+    ``?``, before its key; its markers take none, only its site."""
     counter = [0]
 
-    def go(x: Expr) -> None:
+    def go(x: Expr, shape: int) -> None:
         if x.t == "Alloc":
-            x.site = counter[0]
+            if x.site == MARKER_SITE:
+                x.site = shape
+            else:
+                x.site = counter[0]
+                counter[0] += 1
+            go(x.key, shape)
+            return
+        if x.t == "Let" and x.name == SHAPE_KEY_NAME:
+            site = counter[0]
             counter[0] += 1
-            go(x.key)
+            go(x.value, shape)
+            go(x.body, site)
             return
         for sub in sub_exprs(x):
-            go(sub)
+            go(sub, shape)
 
-    go(e)
+    go(e, MARKER_SITE)
 
 
 # Statements -----------------------------------------------------------------

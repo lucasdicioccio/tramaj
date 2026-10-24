@@ -76,9 +76,10 @@ def read_libs(case_dir: str) -> dict:
 # ``arithmetic`` is the arithmetic profile, and ``round`` its tenth name,
 # listed apart because it was added after the other nine. ``sort`` is the two
 # sorts and ``format-number`` the builtin of that name; both belong to the
-# language in every profile.
+# language in every profile. ``shape`` is the ``?shape(key, shape)`` form and
+# its ``~name`` markers (decisions section 19).
 PROVIDED_PROFILES: frozenset = frozenset(
-    {"base", "int-float", "arithmetic", "int64", "sort", "format-number", "round"}
+    {"base", "int-float", "arithmetic", "int64", "sort", "format-number", "round", "shape"}
 )
 
 # The profiles every port provides (corpus/README.md). A case naming one that

@@ -127,6 +127,26 @@ run_program("concrete", {}, rows, program)
   never writes an exponent or a negative zero. It is computed on
   `fractions.Fraction` and Python integers, not with `round` or `"%f"`.
 
+## Allocating a structure of symbols
+
+`?shape(key, shape)` (`../specs/v3-symbols.md` §1.2, `../specs/decisions.md`
+§19) writes a structure of symbols with one key and one site:
+
+```
+?shape("d", {~replicas, zone: "eu", ports: map($ctx.ports, (p) => ~port($p))})
+```
+
+Each `~name` marker is the symbol `[key, "name"]`, and `~name(e)` is
+`[key, "name", e]`, both at the form's site; `{~name}` is short for
+`{name: ~name}`. The parser lowers the form to an `ast.Let` of the hidden
+name `#shape` and one `ast.Alloc` per marker, so the AST, the evaluator and
+the symbolic envelope are unchanged, and every entry's `"binding"` is `null`.
+The form takes a site in the same sequence as `?(k)`, at its `?`, and
+`symbol_sites` reports it once. A marker outside a shape or in a key, a bare
+marker under a lambda in the shape, a marker name used twice, a shape with no
+marker and a wrong argument count are parse errors, reported where the rule
+is broken.
+
 ## Command line
 
 The same shape as `tramaj-cli-rs`:
@@ -157,7 +177,7 @@ or `python3 -m unittest discover -s tests`; nothing needs installing.
 `tests/test_corpus.py` runs every case under `../corpus/cases` in the mode its
 `meta.json` names, with the arithmetic profile on only for a case that lists
 `arithmetic`. It declares the profiles `base`, `int-float`, `arithmetic`,
-`int64`, `sort`, `format-number` and `round`, and skips a case that lists any
+`int64`, `sort`, `format-number`, `round` and `shape`, and skips a case that lists any
 other (`int53`), counted in `OK (skipped=N)`. `tests/test_node_json.py`
 covers the decoder's rejection list and the round-trip law;
 `tests/test_analysis.py` covers the analyses and the number rendering;
@@ -166,4 +186,6 @@ two number types, the arithmetic option and the command line;
 `tests/test_sort_format.py` covers what the corpus cannot state about the
 sorts, `format-number` and `round`: one application of the key function per
 element, the analyses inside a key function, the parser, and the rounding
-rule against an exact computation on random doubles.
+rule against an exact computation on random doubles. `tests/test_shape.py`
+covers `?shape`: the AST it lowers to, its site numbering, `symbol_sites`,
+the `null` bindings and each parse error with its message.

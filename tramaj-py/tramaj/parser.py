@@ -455,6 +455,8 @@ class _Parser:
         explicit = self.attempt(self.explicit_entry)
         if explicit is not FAIL:
             return explicit
+        if self.peek() == "~":
+            return self.marker()
         k = self.identifier()
         return k, A.Path(k, [])
 
@@ -511,6 +513,72 @@ class _Parser:
         segs = self.field_access_suffix()
         self.skip_spaces()
         return self.apply_field_access(A.Alloc(0, key), segs)
+
+    def shape_expr(self) -> A.Expr:
+        """``?shape(key, shape)`` (``v3-symbols.md`` section 1.2, decisions
+        section 19): a structure of symbols written with one key and one site.
+        It lowers here, so the AST is unchanged: the key is bound once to the
+        hidden ``A.SHAPE_KEY_NAME``, and each marker in the shape is already an
+        ``Alloc`` over ``[$#shape, "name"]`` or ``[$#shape, "name", key]``
+        (``marker``). ``number_allocs`` then gives the form one site and its
+        markers that same site. Past ``?shape(`` the form is exactly two
+        arguments, and the marker rules are checked (``_check_shape``)."""
+        self.char_lit("?")
+        if self.raw_ident() != "shape":
+            raise self.err("not a ?shape form")
+        opened = self.open_sym("(")
+        key = self.expr()
+        if _own_markers(key, False):
+            raise self.err("a marker cannot be written in a ?shape's key")
+        self.symbol(",")
+        shape = self.expr()
+        self.close_char(opened, ")")
+        problem = _check_shape(shape)
+        if problem is not None:
+            raise self.err(problem)
+        segs = self.field_access_suffix()
+        self.skip_spaces()
+        return self.apply_field_access(A.Let(A.SHAPE_KEY_NAME, key, shape), segs)
+
+    def marker(self) -> tuple[str, A.Expr]:
+        """``~name`` or ``~name(key)``: a symbol marker, as the allocation it
+        lowers to, with ``A.MARKER_SITE`` until ``number_allocs`` gives it its
+        form's site. The name follows the ``~`` directly, and the ``(`` of a key
+        follows the name directly. Parsed anywhere an expression is; the
+        enclosing ``shape_expr`` (or, outside any, ``program``) decides whether
+        it is legal there."""
+
+        def go() -> tuple[str, A.Expr]:
+            self.char_lit("~")
+            name = self.raw_ident()
+            elements: list[A.Expr] = [A.Path(A.SHAPE_KEY_NAME, []), A.StringLit(name)]
+            if self.peek() == "(":
+                opened = self.open_sym("(")
+                elements.append(self.expr())
+                self.close_char(opened, ")")
+            return name, A.Alloc(A.MARKER_SITE, A.ArrayLit(elements))
+
+        return self.lexeme(go)
+
+    def marker_expr(self) -> A.Expr:
+        return self.marker()[1]
+
+    def shape_ahead(self) -> bool:
+        """Whether ``?shape(`` starts here, without consuming it. As with the
+        special forms, recognising the name backtracks and the form does not:
+        past ``?shape(`` a malformed form is reported where it went wrong. A
+        lookahead leaves no trace in the error report either."""
+        save, farthest = self.pos, self.farthest
+
+        def go() -> None:
+            self.char_lit("?")
+            if self.raw_ident() != "shape":
+                raise self.err("not a ?shape form")
+            self.char_lit("(")
+
+        ok = self.attempt(go) is not FAIL
+        self.pos, self.farthest = save, farthest
+        return ok
 
     def demand_expr(self) -> A.Expr:
         """``?ctx.a.b`` (section 1.3): the path MUST be rooted at ``ctx``."""
@@ -1034,11 +1102,15 @@ class _Parser:
         special = self.try_special_form_name()
         if special is not None:
             return self.special_form_shape(special)
+        if self.shape_ahead():
+            return self.shape_expr()
         for alt in (
             self.call_expr,
             self.path_expr,
             self.alloc_expr,
+            self.shape_expr,
             self.demand_expr,
+            self.marker_expr,
             self.document_expr,
             self.string_lit,
             self.number_lit,
@@ -1117,8 +1189,50 @@ class _Parser:
                 body = A.TypeAnnotate(stmt.name, stmt.type, stmt.value, body)
             elif stmt.t == "TypeEmit":
                 body = A.TypeEmit(stmt.name, stmt.args, body)
+        if _own_markers(body, False):
+            raise self.err("a marker ~name may only be written inside a ?shape's shape")
         A.number_allocs(body)
         return A.document_program(body) if is_document else A.expression_program(body)
+
+
+def _own_markers(e: A.Expr, under_lambda: bool) -> list[tuple[str, bool, bool]]:
+    """The markers that belong to the form whose shape (or key) this is, as
+    ``(name, keyed, under_lambda)``: every marker in it but those inside a
+    nested ``?shape``'s shape."""
+    if e.t == "Alloc" and e.site == A.MARKER_SITE and e.key.t == "ArrayLit":
+        elements = e.key.elements
+        name = elements[1].value if len(elements) > 1 and elements[1].t == "StringLit" else ""
+        rest = elements[2:]
+        out = [(name, bool(rest), under_lambda)]
+        for r in rest:
+            out.extend(_own_markers(r, under_lambda))
+        return out
+    if e.t == "Let" and e.name == A.SHAPE_KEY_NAME:
+        return _own_markers(e.value, under_lambda)
+    if e.t == "Lambda":
+        return _own_markers(e.body, True)
+    out = []
+    for sub in A.sub_exprs(e):
+        out.extend(_own_markers(sub, under_lambda))
+    return out
+
+
+def _check_shape(shape: A.Expr) -> Optional[str]:
+    """The rules on a ``?shape``'s own markers, all static: at least one, no
+    name twice (bare or keyed), and a key on every marker that sits under a
+    lambda inside the shape. The message of the first one broken, or None."""
+    markers = _own_markers(shape, False)
+    if not markers:
+        return "a ?shape's shape must contain at least one marker of its own"
+    for _, keyed, under_lambda in markers:
+        if under_lambda and not keyed:
+            return "a marker under a lambda inside a ?shape must carry a key, as in ~name(key)"
+    seen: set[str] = set()
+    for name, _, _ in markers:
+        if name in seen:
+            return "a marker name appears twice in one ?shape"
+        seen.add(name)
+    return None
 
 
 # A binding pattern (decisions section 17): ``("name", n)`` or ``("obj", [(field, pattern)])``.
