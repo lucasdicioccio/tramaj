@@ -189,7 +189,8 @@ type (
 	Emit struct{ Constraint, Body Expr }
 	// Alloc is ?(key) (section 1.2). Site is assigned by numberAllocs after
 	// parsing rather than by the parser, so agreement between implementations
-	// rests on that one pure function.
+	// rests on that one pure function. A ~name marker of a ?shape (decisions
+	// section 19) is one too, at its form's site (shapeKeyName).
 	Alloc struct {
 		Site int
 		Key  Expr
@@ -324,22 +325,53 @@ func SubExprs(e Expr) []Expr {
 	panic("tramaj: unknown expression")
 }
 
+// shapeKeyName is the hidden name a ?shape(key, shape) (v3-symbols.md section
+// 1.2, decisions section 19) binds its key to. The form lowers to
+// Let{shapeKeyName, key, shape}, each marker in the shape an Alloc whose key
+// reads this name, so the AST needs no constructor of its own for it. It
+// starts with '#', so no surface name can collide with it (isHiddenName), and
+// only the parser writes such a Let: numberAllocs takes one as a ?shape site.
+const shapeKeyName = "#shape"
+
+// markerSite is the site a ~name marker carries between the parser and
+// numberAllocs, which replaces it with the site of the innermost enclosing
+// ?shape. Never left in a parsed program: the parser refuses a marker outside
+// a shape.
+const markerSite = -1
+
 // numberAllocs assigns each Alloc the index of its ?(...) among all of them,
 // in source order (v3-symbols.md section 1.4): a plain pre-order,
-// left-to-right walk over the freshly parsed tree.
+// left-to-right walk over the freshly parsed tree. A ?shape (its shapeKeyName
+// Let) takes a number in the same sequence, at its '?', before its key; its
+// markers take none, only its site.
 func numberAllocs(e Expr) {
 	counter := 0
-	var walk func(x Expr)
-	walk = func(x Expr) {
-		if a, ok := x.(*Alloc); ok {
-			a.Site = counter
-			counter++
+	var walk func(x Expr, shape int)
+	walk = func(x Expr, shape int) {
+		switch y := x.(type) {
+		case *Alloc:
+			if y.Site == markerSite {
+				y.Site = shape
+			} else {
+				y.Site = counter
+				counter++
+			}
+			walk(y.Key, shape)
+			return
+		case *Let:
+			if y.Name == shapeKeyName {
+				site := counter
+				counter++
+				walk(y.Value, shape)
+				walk(y.Body, site)
+				return
+			}
 		}
 		for _, sub := range SubExprs(x) {
-			walk(sub)
+			walk(sub, shape)
 		}
 	}
-	walk(e)
+	walk(e, markerSite)
 }
 
 // Statements.

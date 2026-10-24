@@ -534,6 +534,9 @@ func (p *parser) objEntry() Field {
 	if explicit, ok := attempt(p, p.explicitEntry); ok {
 		return explicit
 	}
+	if p.peek() == '~' {
+		return p.marker()
+	}
 	k := p.identifier()
 	return Field{Name: k, Value: &Path{Root: k}}
 }
@@ -594,6 +597,70 @@ func (p *parser) allocExpr() Expr {
 	p.closeChar(o, ')')
 	return p.fieldAccessTail(&Alloc{Key: key})
 }
+
+// shapeExpr parses ?shape(key, shape) (v3-symbols.md section 1.2, decisions
+// section 19): a structure of symbols written with one key and one site. It
+// lowers here, so the AST is unchanged: the key is bound once to the hidden
+// shapeKeyName, and each marker in the shape is already an Alloc over
+// [$#shape, "name"] or [$#shape, "name", key] (marker). numberAllocs then
+// gives the form one site and its markers that same site. Past ?shape( the
+// form is exactly two arguments, and the marker rules are checked
+// (checkShape).
+func (p *parser) shapeExpr() Expr {
+	p.charLit('?')
+	if p.rawIdent() != "shape" {
+		p.fail("not a ?shape form")
+	}
+	o := p.openSym("(")
+	key := p.expr()
+	if len(ownMarkers(key, false)) != 0 {
+		p.fail("a marker cannot be written in a ?shape's key")
+	}
+	p.symbol(",")
+	shape := p.expr()
+	p.closeChar(o, ')')
+	if problem := checkShape(shape); problem != "" {
+		p.fail("%s", problem)
+	}
+	return p.fieldAccessTail(&Let{Name: shapeKeyName, Value: key, Body: shape})
+}
+
+// marker parses ~name or ~name(key): a symbol marker, as the allocation it
+// lowers to, with markerSite until numberAllocs gives it its form's site. The
+// name follows the ~ directly, and the ( of a key follows the name directly.
+// Parsed anywhere an expression is; the enclosing shapeExpr (or, outside any,
+// program) decides whether it is legal there.
+func (p *parser) marker() Field {
+	return lexeme(p, func() Field {
+		p.charLit('~')
+		name := p.rawIdent()
+		elements := []Expr{&Path{Root: shapeKeyName}, &StringLit{Value: name}}
+		if p.peek() == '(' {
+			o := p.openSym("(")
+			elements = append(elements, p.expr())
+			p.closeChar(o, ')')
+		}
+		return Field{Name: name, Value: &Alloc{Site: markerSite, Key: &ArrayLit{Elements: elements}}}
+	})
+}
+
+// shapeAhead reports whether ?shape( starts here, without consuming it. As
+// with the special forms, recognising the name backtracks and the form does
+// not: past ?shape( a malformed form is reported where it went wrong. A
+// lookahead leaves no trace in the error report either.
+func (p *parser) shapeAhead() bool {
+	save, farthest := p.pos, p.farthest
+	defer func() { p.pos, p.farthest = save, farthest }()
+	return p.attemptDo(func() {
+		p.charLit('?')
+		if p.rawIdent() != "shape" {
+			p.fail("not a ?shape form")
+		}
+		p.charLit('(')
+	})
+}
+
+func (p *parser) markerExpr() Expr { return p.marker().Value }
 
 // demandExpr parses ?ctx.a.b (section 1.3): the path MUST be rooted at ctx.
 func (p *parser) demandExpr() Expr {
@@ -1163,9 +1230,13 @@ func (p *parser) operand() Expr {
 	if special, ok := p.trySpecialFormName(); ok {
 		return p.specialFormShape(special)
 	}
+	if p.shapeAhead() {
+		return p.shapeExpr()
+	}
 	for _, alt := range []func() Expr{
-		p.callExpr, p.pathExpr, p.allocExpr, p.demandExpr, p.documentExpr,
-		p.stringLit, p.numberLit, p.arrayLit, p.objectLit,
+		p.callExpr, p.pathExpr, p.allocExpr, p.shapeExpr, p.demandExpr,
+		p.markerExpr, p.documentExpr, p.stringLit, p.numberLit, p.arrayLit,
+		p.objectLit,
 	} {
 		if v, ok := attempt(p, alt); ok {
 			return v
@@ -1230,8 +1301,78 @@ func (p *parser) program() *Program {
 		kind = DocumentProgram
 	}
 	body := wrapStmts(stmts, root)
+	if len(ownMarkers(body, false)) != 0 {
+		p.fail("a marker ~name may only be written inside a ?shape's shape")
+	}
 	numberAllocs(body)
 	return &Program{Kind: kind, Root: body}
+}
+
+// ownMarker is one marker that belongs to a ?shape: its name, whether it
+// carries a key, and whether it sits under a lambda written inside the shape.
+type ownMarker struct {
+	name               string
+	keyed, underLambda bool
+}
+
+// ownMarkers lists the markers that belong to the form whose shape (or key)
+// this is: every marker in it but those inside a nested ?shape's shape.
+func ownMarkers(e Expr, underLambda bool) []ownMarker {
+	switch x := e.(type) {
+	case *Alloc:
+		if arr, ok := x.Key.(*ArrayLit); ok && x.Site == markerSite {
+			name := ""
+			if len(arr.Elements) > 1 {
+				if lit, ok := arr.Elements[1].(*StringLit); ok {
+					name = lit.Value
+				}
+			}
+			var rest []Expr
+			if len(arr.Elements) > 2 {
+				rest = arr.Elements[2:]
+			}
+			out := []ownMarker{{name: name, keyed: len(rest) != 0, underLambda: underLambda}}
+			for _, r := range rest {
+				out = append(out, ownMarkers(r, underLambda)...)
+			}
+			return out
+		}
+	case *Let:
+		if x.Name == shapeKeyName {
+			return ownMarkers(x.Value, underLambda)
+		}
+	case *Lambda:
+		return ownMarkers(x.Body, true)
+	}
+	var out []ownMarker
+	for _, sub := range SubExprs(e) {
+		out = append(out, ownMarkers(sub, underLambda)...)
+	}
+	return out
+}
+
+// checkShape checks the rules on a ?shape's own markers, all static: at least
+// one, no name twice (bare or keyed), and a key on every marker that sits
+// under a lambda inside the shape. It returns the message of the first one
+// broken, or "".
+func checkShape(shape Expr) string {
+	markers := ownMarkers(shape, false)
+	if len(markers) == 0 {
+		return "a ?shape's shape must contain at least one marker of its own"
+	}
+	for _, m := range markers {
+		if m.underLambda && !m.keyed {
+			return "a marker under a lambda inside a ?shape must carry a key, as in ~name(key)"
+		}
+	}
+	seen := map[string]bool{}
+	for _, m := range markers {
+		if seen[m.name] {
+			return "a marker name appears twice in one ?shape"
+		}
+		seen[m.name] = true
+	}
+	return ""
 }
 
 // wrapStmts nests a statement list back around a body, the inverse of Unlets.

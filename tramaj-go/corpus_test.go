@@ -47,7 +47,8 @@ func readFile(t *testing.T, path string) []byte {
 // number by its text and keeps the digits of an integer beyond 2^53, so 3 and
 // 3.0 stay two values. It refuses no number: a context holding 1e400 or an
 // integer beyond 64 bits reaches the evaluator, whose decoder is what refuses
-// it.
+// it. "shape" is the ?shape(key, shape) form and its ~name markers
+// (decisions section 19).
 func readJSON(t *testing.T, path string) JSON {
 	v, err := ParseJSON(readFile(t, path))
 	if err != nil {
@@ -87,10 +88,11 @@ type caseMeta struct {
 // integers and floats are two types here, and "int64" that the integer range
 // is the signed 64-bit one, so the "int53" cases are skipped. "arithmetic" is
 // the arithmetic profile, which runCase turns on only for a case that lists
-// it.
+// it. "shape" is the ?shape(key, shape) form and its ~name markers
+// (decisions section 19).
 var providedProfiles = map[string]bool{
 	"base": true, "int-float": true, "int64": true, "arithmetic": true,
-	"sort": true, "format-number": true, "round": true,
+	"sort": true, "format-number": true, "round": true, "shape": true,
 }
 
 // requiredProfiles holds the profiles every port provides

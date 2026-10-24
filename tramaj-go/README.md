@@ -134,6 +134,26 @@ formatting*) and need no option.
   and `format-number(1.005, 2, "")` is `1.00`. It never writes an exponent
   or a negative zero.
 
+## Allocating a structure of symbols
+
+`?shape(key, shape)` (`../specs/v3-symbols.md` §1.2, `../specs/decisions.md`
+§19) writes a structure of symbols with one key and one site:
+
+```
+?shape("d", {~replicas, zone: "eu", ports: map($ctx.ports, (p) => ~port($p))})
+```
+
+Each `~name` marker is the symbol `[key, "name"]`, and `~name(e)` is
+`[key, "name", e]`, both at the form's site; `{~name}` is short for
+`{name: ~name}`. The parser lowers the form to a `*tramaj.Let` of the hidden
+name `#shape` and one `*tramaj.Alloc` per marker, so the AST, the evaluator
+and the symbolic envelope are unchanged, and every entry's `"binding"` is
+`null`. The form takes a site in the same sequence as `?(k)`, at its `?`, and
+`SymbolSites` reports it once. A marker outside a shape or in a key, a bare
+marker under a lambda in the shape, a marker name used twice, a shape with no
+marker and a wrong argument count are parse errors, reported where the rule
+is broken.
+
 ## Command line
 
 The same shape as `tramaj-cli-rs` and `python -m tramaj`:
@@ -162,7 +182,7 @@ go test ./...
 `corpus_test.go` runs every case under `../corpus/cases` in the mode its
 `meta.json` names, with the arithmetic profile on only for a case that lists
 `arithmetic`. It provides the profiles `base`, `int-float`, `arithmetic` and
-`int64`, and the three names `sort`, `format-number` and `round`, and skips
+`int64`, and the four names `sort`, `format-number`, `round` and `shape`, and skips
 a case that lists any other (`go test -v` shows each as `--- SKIP` with what
 was not provided). `node_test.go` covers the decoder's
 rejection list and the round-trip law; `analysis_test.go` covers the analyses
@@ -172,4 +192,6 @@ arithmetic analyses, and integer arithmetic at the ends of the 64-bit range;
 `sort_format_test.go` covers what no corpus case can state about the sorts,
 `format-number` and `round`: the key function applied once per element, the
 analyses seeing inside it, the parser's lowering, and the rounding against
-`strconv` away from ties.
+`strconv` away from ties; `shape_test.go` covers `?shape`: the AST it lowers
+to, its site numbering, `SymbolSites`, the `null` bindings and each parse
+error with its message.
