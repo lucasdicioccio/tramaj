@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- | The pure half of the PDF fold: a tramaj 'Node' becomes a list of pages,
 -- each a list of text runs and rules at absolute positions. Nothing here
 -- knows about HPDF; font metrics come in as a 'Metrics' record, so the layout
@@ -8,8 +10,9 @@
 -- 1. 'nodeBlocks' reads the tree as a document: a fixed set of tags
 --    ('blockTags', 'inlineTags') get a meaning, and any other tag is a plain
 --    block container, so an unknown element still shows its content rather
---    than vanishing. Attributes and actions are ignored: a PDF page has no
---    handler to wire an action to.
+--    than vanishing. Only @img@ (@src@, @width@, @height@, @align@, @alt@)
+--    and table cells (@align@) read attributes; actions are ignored: a PDF
+--    page has no handler to wire an action to.
 --
 -- 2. 'layoutPages' breaks each paragraph into lines (greedy, at spaces) and
 --    the lines into pages.
@@ -22,6 +25,8 @@ module Tramaj.Hpdf.Layout
     -- * Document blocks
   , Inline (..)
   , Block (..)
+  , Align (..)
+  , Cell (..)
   , nodeBlocks
   , blockTags
   , inlineTags
@@ -33,16 +38,18 @@ module Tramaj.Hpdf.Layout
   , a4
   , Placed (..)
   , layoutPages
+  , columnWidths
   , replaceUnencodable
   ) where
 
-import Data.List (intercalate)
+import Control.Applicative ((<|>))
+import Data.List (intercalate, transpose)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Tramaj.Json (Json (..), formatFloat, formatInteger, stringify)
-import Tramaj.Node (Node (..))
+import Tramaj.Node (Node (..), NodeAttribute (..))
 
 -- Styles ---------------------------------------------------------------------
 
@@ -83,12 +90,45 @@ data Block
       }
   | -- | A horizontal rule from the indent to the right margin.
     Rule Double
+  | -- | An image, on a line of its own.
+    Image
+      { imgIndent :: Double
+      , imgSrc :: Text
+      -- ^ the @src@ attribute, looked up with 'imageSize'
+      , imgWidth :: Maybe Double
+      -- ^ the @width@ attribute, in points
+      , imgHeight :: Maybe Double
+      -- ^ the @height@ attribute, in points
+      , imgAlign :: Align
+      , imgAlt :: Text
+      -- ^ shown in place of an image the backend could not load
+      }
+  | -- | A table: header rows (repeated at the top of each page the table
+    -- runs onto) and body rows, laid out as a grid.
+    Table
+      { tblIndent :: Double
+      , tblHead :: [[Cell]]
+      , tblBody :: [[Cell]]
+      }
+  deriving stock (Eq, Show)
+
+data Align = AlignLeft | AlignCenter | AlignRight
+  deriving stock (Eq, Show)
+
+-- | A table cell: its text, with @\n@ between the paragraphs it holds.
+data Cell = Cell
+  { cellAlign :: Maybe Align
+  -- ^ the @align@ attribute, or right for a cell that holds a number;
+  -- 'Nothing' is left, except that a header cell takes the alignment of
+  -- the column's first body cell
+  , cellRuns :: [Inline]
+  }
   deriving stock (Eq, Show)
 
 -- | Tags read as blocks with a meaning of their own. Any tag in neither
 -- this list nor 'inlineTags' is a block container with no styling.
 blockTags :: [Text]
-blockTags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "pre", "blockquote", "hr"]
+blockTags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "pre", "blockquote", "hr", "img", "table"]
 
 -- | Tags read as inline: their content flows within the surrounding
 -- paragraph. @br@ is a forced line break.
@@ -120,10 +160,106 @@ pieces :: Ctx -> Node -> [Piece]
 pieces ctx = \case
   NText v _ -> [PInline (Inline (ctxStyle ctx) (renderScalar v))]
   NFragment cs _ -> concatMap (pieces ctx) cs
-  NElement tag _ val cs _
+  NElement tag attrs val cs _
     | tag == "br" -> [PInline (Inline (ctxStyle ctx) "\n")]
     | tag `elem` inlineTags -> concatMap (pieces (inlineCtx tag ctx)) (withValue val cs)
+    | tag == "img" -> [PBlocks [imageBlock ctx attrs]]
+    | tag == "table" -> [PBlocks (tableBlocks ctx (withValue val cs))]
     | otherwise -> [PBlocks (elementBlocks ctx tag (withValue val cs))]
+
+-- | The first attribute of that name.
+attr :: Text -> [NodeAttribute] -> Maybe Json
+attr name as = case [v | NAttr k v <- as, k == name] of
+  v : _ -> Just v
+  [] -> Nothing
+
+-- | A length attribute in points: a number, or a string such as @"72"@,
+-- @"72pt"@ or @"72px"@ (a pixel is a point).
+lengthAttr :: Text -> [NodeAttribute] -> Maybe Double
+lengthAttr name as = case attr name as of
+  Just (JInt i) -> Just (fromIntegral i)
+  Just (JFloat d) -> Just d
+  Just (JString s) -> case reads (T.unpack (stripUnit (T.strip s))) :: [(Double, String)] of
+    [(d, "")] -> Just d
+    _ -> case reads (T.unpack (stripUnit (T.strip s))) :: [(Integer, String)] of
+      [(i, "")] -> Just (fromIntegral i)
+      _ -> Nothing
+  _ -> Nothing
+  where
+    stripUnit s = fromMaybe s (T.stripSuffix "pt" s <|> T.stripSuffix "px" s)
+
+alignAttr :: [NodeAttribute] -> Maybe Align
+alignAttr as = case attr "align" as of
+  Just (JString "left") -> Just AlignLeft
+  Just (JString "center") -> Just AlignCenter
+  Just (JString "right") -> Just AlignRight
+  _ -> Nothing
+
+imageBlock :: Ctx -> [NodeAttribute] -> Block
+imageBlock ctx as =
+  Image
+    { imgIndent = ctxIndent ctx
+    , imgSrc = maybe "" renderScalar (attr "src" as)
+    , imgWidth = lengthAttr "width" as
+    , imgHeight = lengthAttr "height" as
+    , imgAlign = fromMaybe AlignLeft (alignAttr as)
+    , imgAlt = maybe "" renderScalar (attr "alt" as)
+    }
+
+-- | A table's rows. @tr@ children (directly, or in @thead@, @tbody@ or
+-- @tfoot@; fragments are looked through) are rows, and the @td@\/@th@
+-- children of a row its cells. The rows of a @thead@ are the header; with
+-- no @thead@, the leading rows made only of @th@ cells are. A @caption@,
+-- and any other content, is laid out as blocks above the table.
+tableBlocks :: Ctx -> [Node] -> [Block]
+tableBlocks ctx cs =
+  let (above, rows) = foldr part ([], []) (concatMap flatten cs)
+      explicitHead = [r | (True, r) <- rows]
+      (heads, body)
+        | not (null explicitHead) = (explicitHead, [r | (False, r) <- rows])
+        | otherwise = span (\r -> not (null r) && all fst r) (map snd rows)
+      strip = map (map snd)
+   in spaced 0 4 above ++ [Table (ctxIndent ctx) (strip heads) (strip body)]
+  where
+    flatten (NFragment xs _) = concatMap flatten xs
+    flatten n = [n]
+    part n (above, rows) = case n of
+      NElement "tr" _ _ tcs _ -> (above, (False, rowCells tcs) : rows)
+      NElement sec _ _ scs _
+        | sec `elem` ["thead", "tbody", "tfoot"] ->
+            (above, [(sec == "thead", rowCells tcs) | NElement "tr" _ _ tcs _ <- concatMap flatten scs] ++ rows)
+      NElement "caption" _ val ccs _ -> (containerBlocks ctx (withValue val ccs) ++ above, rows)
+      _ -> (containerBlocks ctx [n] ++ above, rows)
+    rowCells tcs = [cell c | c <- concatMap flatten tcs, not (blankText c)]
+    blankText = \case
+      NText v _ -> T.all (`elem` [' ', '\t', '\r', '\n']) (renderScalar v)
+      _ -> False
+    plain = Ctx (ctxStyle ctx) 0 False
+    cell = \case
+      NElement t as val ccs _
+        | t `elem` ["td", "th"] ->
+            let isTh = t == "th"
+                cctx = if isTh then plain {ctxStyle = Style Bold (styleSize (ctxStyle ctx))} else plain
+                kids = withValue val ccs
+             in (isTh, Cell (alignAttr as <|> numeric kids) (cellText cctx kids))
+      other -> (False, Cell Nothing (cellText plain [other]))
+    numeric = \case
+      [NText (JInt _) _] -> Just AlignRight
+      [NText (JFloat _) _] -> Just AlignRight
+      _ -> Nothing
+
+-- | A cell's content as one run list: its paragraphs joined by line breaks.
+-- Rules are dropped, an image shows its alt text and a nested table its
+-- cells' text, one row per line.
+cellText :: Ctx -> [Node] -> [Inline]
+cellText ctx = intercalate [Inline (ctxStyle ctx) "\n"] . filter (not . null) . concatMap blockRuns . containerBlocks ctx
+  where
+    blockRuns = \case
+      Para {paraMarker = mk, paraRuns = rs} -> [maybe rs (\(Inline st t) -> Inline st (t <> " ") : rs) mk]
+      Rule _ -> []
+      Image {imgAlt = alt} -> [[Inline (ctxStyle ctx) alt] | not (T.null alt)]
+      Table {tblHead = h, tblBody = b} ->
+        [intercalate [Inline (ctxStyle ctx) " "] (map cellRuns r) | r <- h ++ b]
 
 -- | An element with a value slot and no children shows that value as its
 -- text, as @tramaj-react@ does; one with both keeps its children.
@@ -243,6 +379,9 @@ data Metrics = Metrics
   , encodable :: Style -> Char -> Bool
   -- ^ whether the face can show the character; others are replaced by
   -- 'replaceUnencodable' before measuring
+  , imageSize :: Text -> Maybe (Int, Int)
+  -- ^ the pixel width and height of a loaded image, by its @src@; an image
+  -- with none is laid out as its alt text (or @[image: src]@)
   }
 
 -- | Page size and margins, in points.
@@ -263,6 +402,11 @@ data Placed
   = PlacedText Style Double Double Text
   | PlacedRule Double Double Double
   -- ^ from x, to x, at y
+  | PlacedHLine Double Double Double Double Double
+  -- ^ a table rule: line width, gray level (0 black, 1 white), from x, to
+  -- x, at y
+  | PlacedImage Text Double Double Double Double
+  -- ^ an image by its @src@: x, y of its bottom left corner, width, height
   deriving stock (Eq, Show)
 
 -- | The substitute for a character the font cannot show.
@@ -293,6 +437,30 @@ layoutPages m spec blocks = finish (foldl' block start blocks)
     put ps c = c {curPage = reverse ps ++ curPage c, curFresh = False}
 
     block c = \case
+      Image {..}
+        | Just (pw, ph) <- imageSize m imgSrc, pw > 0, ph > 0 ->
+            let avail = right - (left + imgIndent)
+                aspect = fromIntegral ph / fromIntegral pw
+                (w0, h0) = case (imgWidth, imgHeight) of
+                  (Just w, Just h) -> (w, h)
+                  (Just w, Nothing) -> (w, w * aspect)
+                  (Nothing, Just h) -> (h / aspect, h)
+                  (Nothing, Nothing) -> let w = min avail (fromIntegral pw) in (w, w * aspect)
+                -- Shrink, keeping the proportions, to the text width and
+                -- the page height.
+                k = minimum [1, avail / w0, (top - bottom) / h0]
+                (w, h) = (w0 * k, h0 * k)
+                x = left + imgIndent + case imgAlign of
+                  AlignLeft -> 0
+                  AlignCenter -> (avail - w) / 2
+                  AlignRight -> avail - w
+                c' = room h (skip 4 c)
+                y = curY c' - h
+             in skip 6 ((put [PlacedImage imgSrc x y w h] c') {curY = y})
+        | otherwise ->
+            let alt = if T.null imgAlt then "[image: " <> imgSrc <> "]" else imgAlt
+             in block c (Para imgIndent 0 6 Nothing False [Inline (Style Italic 11) alt])
+      Table {..} -> table c tblIndent tblHead tblBody
       Rule indent ->
         let c' = room 12 (skip 0 c)
             y = curY c' - 6
@@ -317,6 +485,110 @@ layoutPages m spec blocks = finish (foldl' block start blocks)
                   _ -> []
                 texts = [PlacedText st (x0 + dx) baseline t | (st, dx, t) <- frags]
              in (put (marker ++ texts) c') {curY = curY c' - h}
+
+    -- Tables ---------------------------------------------------------------
+    table c0 indent heads body
+      | ncols == 0 = c0
+      | otherwise = skip 6 (closeTable (foldl' row (begin (skip 4 c0)) (zip [0 :: Int ..] bodyL)))
+      where
+        x0 = left + indent
+        ncols = maximum (0 : map length (heads ++ body))
+        pad r = take ncols (r ++ repeat (Cell Nothing []))
+        -- A header cell with no alignment of its own takes its column's.
+        colAlign = case body of
+          r : _ -> map cellAlign (pad r)
+          [] -> replicate ncols Nothing
+        headAligned = [zipWith (\cl a -> cl {cellAlign = cellAlign cl <|> a}) (pad r) colAlign | r <- heads]
+        widths = columnWidths m (right - x0) (headAligned ++ map pad body)
+        xs = scanl (+) x0 widths
+        tableRight = last xs
+        headL = map layRow headAligned
+        bodyL = map (layRow . pad) body
+        headH = sum (map fst headL)
+
+        layRow cells =
+          let cls = [ (cl, breakLines m False (w - 2 * cellPadX) [Inline st (replaceUnencodable m st t) | Inline st t <- cellRuns cl])
+                    | (cl, w) <- zip cells widths ]
+              h = maximum (lineHeight bodyStyle : [sum [lh | Line _ lh <- ls] | (_, ls) <- cls])
+           in (h + 2 * cellPadY, cls)
+
+        heavy y = PlacedHLine 0.8 0 x0 tableRight y
+        light y = PlacedHLine 0.4 0.75 x0 tableRight y
+
+        -- The top rule and the header rows, at the cursor.
+        header c =
+          let c1 = put [heavy (curY c)] c
+              c2 = foldl' (\cc r -> placeRow cc r) c1 headL
+           in if null headL then c1 else put [heavy (curY c2)] c2
+        -- Keeps the header with the first body row.
+        begin c =
+          let firstH = case bodyL of
+                (h, _) : _ -> h
+                [] -> 0
+           in header (room (headH + firstH) c)
+        row c (i, r@(h, _))
+          -- A row that does not fit goes to the next page, under the
+          -- header again. ('begin' made room for the first one.)
+          | i > 0 && curY c - h < bottom = placeRow (header (newPage (closeTable c))) r
+          | otherwise = placeRow (if i > 0 then put [light (curY c)] c else c) r
+        closeTable c = put [heavy (curY c)] c
+
+        placeRow c (h, cls) =
+          let topY = curY c
+              cellsP =
+                concat
+                  [ placeCell cx w cl ls (topY - cellPadY)
+                  | ((cl, ls), (cx, w)) <- zip cls (zip xs widths)
+                  ]
+           in (put cellsP c) {curY = topY - h}
+        placeCell cx w cl ls y0 =
+          let go _ [] = []
+              go y (Line frags lh : rest) =
+                let ext = lineExtent m frags
+                    dx = case fromMaybe AlignLeft (cellAlign cl) of
+                      AlignLeft -> cellPadX
+                      AlignCenter -> (w - ext) / 2
+                      AlignRight -> w - cellPadX - ext
+                    baseline = y - 0.8 * lh
+                 in [PlacedText st (cx + dx + fx) baseline t | (st, fx, t) <- frags] ++ go (y - lh) rest
+           in go y0 ls
+
+-- | Space between a cell's text and its column's edges.
+cellPadX, cellPadY :: Double
+cellPadX = 5
+cellPadY = 3
+
+-- | How far a laid-out line reaches from its left edge.
+lineExtent :: Metrics -> [(Style, Double, Text)] -> Double
+lineExtent m frags = case reverse frags of
+  (st, x, t) : _ -> x + textWidth m st t
+  [] -> 0
+
+-- | Column widths, padding included, for rows of cells within @avail@
+-- points. A column is as wide as its widest unbroken line when the whole
+-- table fits that way. Otherwise each column gets its longest word, and the
+-- room left over is shared in proportion to how much more each would need;
+-- if even the longest words do not fit, they are scaled down to fit (and
+-- words are cut by character).
+columnWidths :: Metrics -> Double -> [[Cell]] -> [Double]
+columnWidths m avail rows = map (+ 2 * cellPadX) inner
+  where
+    room = max 0 (avail - 2 * cellPadX * fromIntegral (length cols))
+    cols = transpose [map runsOf r | r <- rows]
+    runsOf cl = [Inline st (replaceUnencodable m st t) | Inline st t <- cellRuns cl]
+    natural rs = maximum (0 : [lineExtent m frags | Line frags _ <- breakLines m False (1 / 0) rs])
+    longestWord rs = maximum (0 : [textWidth m st t | TWord st t <- tokens False rs])
+    maxW = [maximum (0 : map natural c) | c <- cols]
+    minW = [maximum (0 : map longestWord c) | c <- cols]
+    sumMax = sum maxW
+    sumMin = sum minW
+    inner
+      | sumMax <= room = maxW
+      | sumMin <= room =
+          let extra = room - sumMin
+              want = sumMax - sumMin
+           in zipWith (\lo hi -> lo + extra * (hi - lo) / want) minW maxW
+      | otherwise = [w * room / sumMin | w <- minW]
 
 -- A laid-out line: fragments at x offsets from the paragraph's left edge,
 -- and the line's height.

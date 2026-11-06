@@ -13,6 +13,8 @@ import System.FilePath ((</>))
 import Test.Hspec
 import Tramaj.Hpdf
 import Tramaj.Hpdf.Layout
+import Codec.Picture (PixelRGBA8 (..), generateImage, writePng)
+import System.Directory (getTemporaryDirectory)
 import Tramaj.Json (Json (..), jsonParser)
 import Tramaj.Node (Node (..), NodeAttribute (..), nodeFromJson)
 
@@ -28,7 +30,19 @@ frag cs = NFragment cs Map.empty
 runs :: Block -> [Inline]
 runs = \case
   Para {paraRuns = rs} -> rs
-  Rule _ -> []
+  _ -> []
+
+elA :: Text -> [(Text, Json)] -> [Node] -> Node
+elA tag as cs = NElement tag [NAttr k v | (k, v) <- as] JNull cs Map.empty
+
+num :: Int -> Node
+num i = NText (JInt (fromIntegral i)) Map.empty
+
+cellTexts :: [Cell] -> [Text]
+cellTexts = map (T.concat . map (\(Inline _ t) -> t) . cellRuns)
+
+hlines :: [Placed] -> [(Double, Double)]
+hlines ps = [(w, y) | PlacedHLine w _ _ _ y <- ps]
 
 -- | Every character is half its point size wide, and only ASCII shows.
 monoMetrics :: Metrics
@@ -36,6 +50,9 @@ monoMetrics =
   Metrics
     { textWidth = \st t -> fromIntegral (T.length t) * fromIntegral (styleSize st) / 2
     , encodable = \_ c -> c < '\x80'
+    , imageSize = \case
+        "wide.png" -> Just (200, 100)
+        _ -> Nothing
     }
 
 -- | 100pt by 100pt of room: 18 characters of 11pt text per line.
@@ -96,6 +113,87 @@ main = hspec $ do
     it "renders hr as a rule" $
       nodeBlocks (el "hr" []) `shouldBe` [Rule 0]
 
+  describe "tables" $ do
+    let table = nodeBlocks
+        tbl n = [(h, b) | Table _ h b <- table n]
+    it "reads thead rows as the header and tbody rows as the body" $
+      [(map cellTexts h, map cellTexts b) | (h, b) <- tbl (el "table" [el "thead" [el "tr" [el "th" [txt "a"]]], el "tbody" [frag [el "tr" [el "td" [txt "1"]], el "tr" [el "td" [txt "2"]]]]])]
+        `shouldBe` [([["a"]], [["1"], ["2"]])]
+    it "takes leading all-th rows as the header when there is no thead" $
+      [(length h, length b) | (h, b) <- tbl (el "table" [el "tr" [el "th" [txt "a"], el "th" [txt "b"]], el "tr" [el "th" [txt "x"], el "td" [txt "1"]]])]
+        `shouldBe` [(1, 1)]
+    it "sets th in bold" $
+      [cellRuns c | (h, _) <- tbl (el "table" [el "tr" [el "th" [txt "a"]]]), c <- concat h]
+        `shouldBe` [[Inline (Style Bold 11) "a"]]
+    it "right-aligns a number and honours the align attribute" $
+      [map cellAlign r | (_, b) <- tbl (el "table" [el "tr" [el "td" [num 3], elA "td" [("align", JString "center")] [txt "x"], el "td" [txt "y"]]]), r <- b]
+        `shouldBe` [[Just AlignRight, Just AlignCenter, Nothing]]
+    it "lays a caption out above the table" $
+      case table (el "table" [el "caption" [txt "Cap"], el "tr" [el "td" [txt "1"]]]) of
+        [Para {paraRuns = [Inline _ "Cap"]}, Table {}] -> pure ()
+        other -> expectationFailure (show other)
+    it "sizes columns to their content when the table fits" $
+      -- 6pt per character at 11pt is 5.5; 10pt padding per column.
+      columnWidths monoMetrics 1000 [[Cell Nothing [Inline bodyStyle "ab"], Cell Nothing [Inline bodyStyle "abcd"]]]
+        `shouldBe` [21, 32]
+    it "shares the room by need when it does not, never below the longest word" $ do
+      let ws = columnWidths monoMetrics 100 [[Cell Nothing [Inline bodyStyle "a"], Cell Nothing [Inline bodyStyle "aaaa bbbb cccc dddd eeee"]]]
+      sum ws `shouldSatisfy` (\t -> abs (t - 100) < 1e-9)
+      take 1 ws `shouldBe` [15.5]
+    it "places a row's cells side by side on one baseline and wraps within a cell" $ do
+      let ps = concat (layoutPages monoMetrics (PageSpec 200 200 10) (nodeBlocks (el "table" [el "tr" [el "td" [txt "k"], el "td" [txt (T.unwords (replicate 8 "word"))]]])))
+          placed = [(x, y, t) | PlacedText _ x y t <- ps]
+      case placed of
+        (x1, y1, "k") : (x2, y2, _) : rest -> do
+          y2 `shouldBe` y1
+          x2 `shouldSatisfy` (> x1)
+          length rest `shouldSatisfy` (>= 1) -- the long cell wrapped
+          [y | (_, y, _) <- rest] `shouldSatisfy` all (< y1)
+        other -> expectationFailure (show other)
+    it "draws heavy rules around the header and light ones between body rows" $ do
+      let node = el "table" [el "tr" [el "th" [txt "h"]], el "tr" [el "td" [txt "1"]], el "tr" [el "td" [txt "2"]]]
+          ws = map fst (hlines (concat (layoutPages monoMetrics (PageSpec 200 200 10) (nodeBlocks node))))
+      ws `shouldBe` [0.8, 0.8, 0.4, 0.8]
+    it "breaks between rows and repeats the header on the next page" $ do
+      let node = el "table" (el "tr" [el "th" [txt "head"]] : [el "tr" [el "td" [txt (T.pack (show i))]] | i <- [1 .. 12 :: Int]])
+          pages = layoutPages monoMetrics narrow (nodeBlocks node)
+      length pages `shouldSatisfy` (> 1)
+      map (take 1 . texts) pages `shouldSatisfy` all (== ["head"])
+      concatMap (filter (/= "head") . texts) pages `shouldBe` [T.pack (show i) | i <- [1 .. 12 :: Int]]
+
+  describe "images" $ do
+    let lay spec = concat . layoutPages monoMetrics spec . nodeBlocks
+        imgs spec n = [(x, y, w, h) | PlacedImage _ x y w h <- lay spec n]
+    it "reads src, width, height, align and alt" $
+      nodeBlocks (elA "img" [("src", JString "a.png"), ("width", JInt 72), ("height", JString "36pt"), ("align", JString "right"), ("alt", JString "A")] [])
+        `shouldBe` [Image 0 "a.png" (Just 72) (Just 36) AlignRight "A"]
+    it "scales to the given width, keeping the aspect ratio" $
+      imgs (PageSpec 400 400 10) (elA "img" [("src", JString "wide.png"), ("width", JInt 60)] [])
+        `shouldBe` [(10, 390 - 30, 60, 30)]
+    it "fits the text width when it has no size" $
+      [(w, h) | (_, _, w, h) <- imgs narrow (elA "img" [("src", JString "wide.png")] [])] `shouldBe` [(100, 50)]
+    it "centers and right-aligns" $
+      [x | (x, _, _, _) <- imgs (PageSpec 400 400 10) (frag [elA "img" [("src", JString "wide.png"), ("width", JInt 80), ("align", JString a)] [] | a <- ["center", "right"]])]
+        `shouldBe` [10 + 150, 10 + 300]
+    it "shows the alt text, or the src, for an image it has no size for" $
+      texts (lay narrow (frag [elA "img" [("src", JString "x.png"), ("alt", JString "logo")] [], elA "img" [("src", JString "y.png")] []]))
+        `shouldBe` ["logo", "[image: y.png]"]
+    it "embeds a PNG, flattening transparency onto white" $ do
+      tmp <- getTemporaryDirectory
+      let png = tmp </> "tramaj-hpdf-test.png"
+          px x _ = if x == 0 then PixelRGBA8 255 0 0 0 else PixelRGBA8 10 20 30 255
+      writePng png (generateImage px 2 1)
+      let node = elA "img" [("src", JString "tramaj-hpdf-test.png")] []
+      imageSources node `shouldBe` ["tramaj-hpdf-test.png"]
+      Right images <- loadImages tmp node
+      fonts <- loadFonts
+      let pdf = BL.toStrict (renderPdf fonts images defaultOptions {optCompressed = False} node)
+      BC.isInfixOf "/Subtype /Image" pdf `shouldBe` True
+      BC.isInfixOf (BC.pack "\255\255\255\10\20\30") pdf `shouldBe` True
+    it "fails naming an image it cannot read" $ do
+      r <- loadImages "/nonexistent" (elA "img" [("src", JString "missing.png")] [])
+      either id (const "") r `shouldSatisfy` T.isInfixOf "missing.png" . T.pack
+
   describe "layoutPages" $ do
     let lay = layoutPages monoMetrics narrow . nodeBlocks
     it "lays out nothing as one empty page" $
@@ -142,8 +240,8 @@ main = hspec $ do
     it "writes one PDF page per laid-out page" $ do
       fonts <- loadFonts
       let node = frag [el "p" [txt (T.pack (show i))] | i <- [1 .. 120 :: Int]]
-          pages = length (layoutNode fonts a4 node)
-          pdf = BL.toStrict (renderPdf fonts defaultOptions {optCompressed = False} node)
+          pages = length (layoutNode fonts noImages a4 node)
+          pdf = BL.toStrict (renderPdf fonts noImages defaultOptions {optCompressed = False} node)
       pages `shouldSatisfy` (> 1)
       BC.take 5 pdf `shouldBe` "%PDF-"
       count "/Type /Page" pdf - count "/Type /Pages" pdf `shouldBe` pages
@@ -159,4 +257,4 @@ main = hspec $ do
       length nodes `shouldSatisfy` (>= 20)
       fonts <- loadFonts
       forM_ nodes $ \n ->
-        BL.take 5 (renderPdf fonts defaultOptions n) `shouldBe` "%PDF-"
+        BL.take 5 (renderPdf fonts noImages defaultOptions n) `shouldBe` "%PDF-"

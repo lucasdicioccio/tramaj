@@ -4,7 +4,8 @@ version:            0.1.0.0
 synopsis:           Fold an evaluated tramaj Node tree into a PDF via HPDF
 description:
   Folds the evaluated @Node@ tree of @tramaj-hs@ into a PDF document with
-  HPDF: block layout (headings, paragraphs, lists, preformatted text, rules),
+  HPDF: block layout (headings, paragraphs, lists, preformatted text, rules,
+  tables as grids, JPEG and PNG images),
   greedy line wrapping and pagination, on the PDF standard 14 fonts.
   .
   The layout is a pure function from a 'Node' to placed text and rules, so it
@@ -48,9 +49,12 @@ library
     , base        >=4.19 && <4.22
     , bytestring  >=0.11 && <0.13
     , containers  >=0.6  && <0.9
+    , filepath    >=1.4  && <1.6
     , HPDF        >=1.7  && <1.9
+    , JuicyPixels >=3.3  && <3.4
     , text        >=2.0  && <2.2
     , tramaj-hs   >=0.5  && <0.6
+    , vector      >=0.12 && <0.14
 
 executable tramaj-hpdf
   import:           defaults
@@ -59,6 +63,7 @@ executable tramaj-hpdf
   build-depends:
     , base
     , containers
+    , filepath
     , megaparsec
     , text
     , tramaj-hpdf
@@ -76,6 +81,7 @@ test-suite hpdf
     , directory
     , filepath
     , hspec        >=2.11
+    , JuicyPixels
     , text
     , tramaj-hpdf
     , tramaj-hs
