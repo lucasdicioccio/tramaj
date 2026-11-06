@@ -1604,3 +1604,318 @@ Taken by the owner on 2026-10-08.
 
 Not decided: whether the code point order is also written down for the object
 keys `str` and canon sort (see *Noticed, not changed*).
+
+## 21. Builtins a charting template needs: `log`, `pow` and `sqrt`; `take` and `drop`; reading an ISO 8601 timestamp
+
+*Status: proposed, for owner review. Nothing here is implemented and no
+normative text is written: `reference.md` is unchanged until the decisions at
+the end are taken. The open questions are listed under* Decisions to take*,
+each with the option this draft recommends.*
+
+A charting template (a timeline drawn on a log time axis, glyphs sized by
+hours of work, the first N items only) cannot express three of the things it
+needs, so the library that hosts it works around them in user code or in the
+host:
+
+1. *No logarithm, power or square root.* The template computes `log2` with a
+   fold over powers of two and a quadratic correction inside each octave, and
+   `sqrt` with ten Newton steps. Both are slow and approximate, and every
+   chart needs them again: a log axis, an area-proportional size.
+2. *No list slice.* The template keeps the first N items with a `fold`.
+3. *No date arithmetic.* The host precomputes ages in days (`bucketAgeDays`,
+   `bucketIdleDays`) because a template cannot subtract two timestamps.
+
+This is the coupling §18 and §20 set out to remove, and the request is the
+same kind: a few builtins, no new syntax, no new value kind.
+
+**Scope.** Seven names, all ordinary builtins in the initial environment. No
+new core constructor, no new error kind, no new tagged shape.
+
+| name | arity | arguments | result | where |
+|---|---|---|---|---|
+| `sqrt(x)` | 1 | a float | the square root, correctly rounded | arithmetic profile |
+| `log(x)` | 1 | a float | the natural logarithm | arithmetic profile |
+| `log2(x)`, `log10(x)` | 1 | a float | the logarithm in base 2, in base 10 | arithmetic profile |
+| `pow(x, y)` | 2 | two floats | `x` to the power `y` | arithmetic profile |
+| `take(list, n)`, `drop(list, n)` | 2 | an array and an integer `n ≥ 0` | the first `n` elements; all but the first `n` | no profile |
+| `epoch-seconds(text)` | 1 | a string, an ISO 8601 timestamp | the integer number of seconds since `1970-01-01T00:00:00Z` | no profile |
+
+```
+@age-days  = floor-quotient(sum($ctx.now, negate(epoch-seconds($b.created))), 86400)
+@x         = quotient(log(real(sum(1, $age-days))), log(real(sum(1, $max-days))))
+@r         = product($scale, sqrt(real($b.hours)))
+@shown     = take(sort-by-descending($ctx.buckets, (b) => $b.hours), 12)
+```
+
+### Logarithm, power and square root
+
+**In the arithmetic profile**, as names eleven to fifteen. They are numeric
+builtins of the same kind as `quotient` and `inverse`, so they follow §18 in
+everything: they are bound only where the profile is on, `arithmeticOps`
+reports them, they may be shadowed and passed by reference
+(`map($xs, $sqrt)`), and over a symbol or a term they build a term
+(v3-symbols §1.9), joining the `"$term"` vocabulary and the residual law.
+
+**Floats only**, as for `quotient` and `inverse`: `sqrt(2)` is a
+`TypeMismatch` and is written `sqrt(real(2))`. A result never depends on
+whether a producer wrote `2` or `2.0`, and there is no integer power with its
+own overflow rule to agree on. An integer square or cube is `product`.
+
+**No NaN and no infinity reach a program.** §18 rule 4 already says it: a
+non-finite float result is a `NotRepresentable`. That covers each domain
+error the request names and the overflows:
+
+| call | why | result |
+|---|---|---|
+| `log(0.0)`, `log2(0.0)`, `log10(0.0)` | `-∞` | `NotRepresentable` |
+| `log(-1.0)`, `sqrt(-1.0)` | NaN | `NotRepresentable` |
+| `pow(0.0, -1.0)` | `+∞` | `NotRepresentable` |
+| `pow(-8.0, 0.5)` | NaN: a negative base with a non-integer exponent | `NotRepresentable` |
+| `pow(10.0, 400.0)` | overflow | `NotRepresentable` |
+| `pow(10.0, -400.0)` | underflow | `0.0`, as §18 rule 4 says for every underflow |
+| `pow(x, 0.0)` | | `1.0` for every `x`, `0.0` included |
+| `pow(-2.0, 3.0)` | a negative base with an integer exponent | `-8.0` |
+| `log(1.0)` | | `0.0` |
+
+There is no negative zero (§18 rule 5): `pow(-0.0, …)` cannot arise, and
+`pow(-1e-200, 3.0)`, which underflows to a negative zero in IEEE 754, is
+`0.0`.
+
+**Names.** `log` is the natural logarithm, as in every one of the six host
+languages. `log2` and `log10` are there because they are the two a chart
+uses, and because `quotient(log(x), log(10.0))` is not `log10(x)`: it rounds
+three times, and `quotient(log(1000.0), log(10.0))` is `2.9999999999999996`
+where `log10(1000.0)` is `3.0`. `exp` is not proposed (nobody asked; it is
+`pow(e, x)` with a constant the program writes). Neither is a `log` with a
+base argument, for the same rounding reason.
+
+**Exactness: the part six ports will not agree on unaided.** `sqrt` is one of
+IEEE 754's basic operations: correctly rounded on every platform, so the six
+agree bit for bit with their native function. The logarithms and `pow` are
+not, and IEEE 754 does not require them to be. Measured on 3,000 random
+arguments each (the native function of each language, on this machine):
+
+| function | glibc (Python, Rust, Haskell) against V8 (TypeScript, PureScript) | glibc against Go |
+|---|---|---|
+| `log` | 55 differ, by one bit | 54 differ, one by two bits |
+| `log2` | 5 differ | 111 differ, four by more than one bit |
+| `log10` | 21 differ, two by more than one bit | 881 differ, seven by more than one bit |
+| `pow` | 275 differ | 2,206 differ, 1,102 by more than one bit |
+
+Some of these are visible in the text a program prints. Go's `Log10(1e15)` is
+`14.999999999999998` and its `Pow(1.0001, 10000)` is `2.718145926824356`
+where glibc and V8 give `15.0` and `2.7181459268249255`. Haskell has no
+`log2` or `log10` primitive at all: `logBase` divides two natural logarithms.
+
+The corpus requires byte equality, and every float rule so far (§18 rule 3,
+§20's rounding rule) was written so that the six can reach it. There are
+three ways to keep that here:
+
+- **(a) Correctly rounded, everywhere.** The result is the double nearest to
+  the exact value, which is one answer, so the six agree by definition. Each
+  port that cannot rely on its platform ships its own implementation (a port
+  of CORE-MATH's `log`, `log2`, `log10` and `pow`, or of a double-double
+  algorithm): `log` is about a hundred lines and `pow` several hundred, in
+  six languages. glibc is very nearly correctly rounded but does not promise
+  it, so even the ports on glibc would need their own.
+- **(b) Within one unit in the last place, the last bit
+  implementation-defined**, listed in ref §13, with a list of cases that MUST
+  be exact: `log2` of a power of two, `log10` of a power of ten whose double
+  is exact (`1.0` to `1e22`), `pow` whose exact result is a double
+  (`pow(2.0, 10.0)`, `pow(4.0, 0.5)`, `pow(10.0, -2.0)` is not one of them,
+  `pow(10.0, 2.0)` is). The corpus tests those cases, the error table and
+  `sqrt`, and a template that prints a logarithm uses `format-number` with a
+  sensible number of decimals. Native functions do, except Go's `Log10` and
+  `Pow` (more than one bit off) and Haskell's missing `log2` and `log10`,
+  which call the C library instead.
+- **(c) A prescribed algorithm**, e.g. "the result of fdlibm's `e_log.c`",
+  transcribed in each port. Byte equality without correct rounding. V8 and
+  Go already use fdlibm-derived code for `log`, but neither promises to keep
+  doing so, and `pow` is again several hundred lines per port.
+
+This draft recommends **(b)**. A chart turns these numbers into pixels or
+into `format-number` text, where the last bit is never seen, and (a) and (c)
+cost two thousand lines of numerical code for a guarantee nobody asked for.
+It is, however, the first place where the language would let two
+implementations print different text for the same program (`str(log(3.0))`),
+which is exactly what §18 and §20 avoided at some cost, so it is the owner's
+call.
+
+### `take` and `drop`
+
+```
+take([1, 2, 3, 4], 2)   -- [1, 2]
+drop([1, 2, 3, 4], 2)   -- [3, 4]
+take([1, 2], 5)         -- [1, 2]
+drop([1, 2], 5)         -- []
+take(drop($xs, 10), 10) -- the second page of ten
+```
+
+- **The list comes first**, as in every builtin and form that has one:
+  `map($xs, fn)`, `sort-by($xs, fn)`, `append($xs, x)`,
+  `lookup($xs, k, d)`, `format-number(x, …)`. The request wrote `take(n, xs)`,
+  the Haskell order; the draft keeps the language's own.
+- **`n` past the end clamps**: `take($xs, 12)` is the way to write "at most
+  twelve", which is the case the request has. **A negative `n` is a
+  `TypeMismatch`**, like a `decimals` outside `0` to `20`: there is no reading
+  of `take($xs, -1)` (Haskell clamps to empty, Python slices from the end)
+  that a reader can be sure of. So is a float `n`, a non-integer, and a list
+  that is not an array (a string, an object). `take` of a string is not
+  proposed.
+- **No profile.** Like `concat` and `append`, they compute no number.
+- **Symbols.** A symbol or a term as `list` or as `n` is `NotConcrete`, as for
+  `has` and `lookup` (v3-symbols §1.5): the length of the result depends on
+  it. Elements are never inspected, so an array holding a symbol is taken
+  from like any other.
+- **Checks, in order**: an argument count other than two is a `TypeMismatch`;
+  then `list`, then `n`, each `NotConcrete` for a symbol or a term, then
+  `TypeMismatch` for anything else of the wrong kind.
+- `slice` is not proposed: `take(drop($xs, i), n)` says it, and a third name
+  would bring a third convention for the end index (exclusive, inclusive, a
+  length).
+
+### Reading a timestamp
+
+The smallest thing that makes date arithmetic possible is a conversion from
+the text a host already sends to a number the arithmetic profile can work
+on. Everything else (differences, days, weeks) is then `sum`, `negate` and
+`floor-quotient`, which exist:
+
+```
+@age-s    = sum($ctx.now, negate(epoch-seconds($b.created)))
+@age-days = floor-quotient($age-s, 86400)
+```
+
+**`epoch-seconds(text)`** gives the integer number of seconds from
+`1970-01-01T00:00:00Z` to the instant `text` names, negative before it, in
+the proleptic Gregorian calendar with no leap seconds (POSIX time). It accepts
+exactly two forms of ISO 8601, both in RFC 3339's profile:
+
+| form | example | the instant |
+|---|---|---|
+| a date | `2026-11-05` | its midnight, UTC |
+| a date-time with an offset | `2026-11-05T17:12:04Z`, `2026-11-05T18:12:04.5+01:00` | that instant |
+
+- Four-digit year `0000` to `9999`, two-digit month, day, hour, minute,
+  second, each in its range: month `01`–`12`, the day within its month (leap
+  years by the Gregorian rule), hour `00`–`23`, minute and second `00`–`59`.
+  A leap second (`:60`) is refused.
+- `T` and `Z` are upper case. A space for `T`, lower case, a week date
+  (`2026-W45`), an ordinal date (`2026-309`), the basic format
+  (`20261105T171204Z`), a time without seconds, a date-time **without** an
+  offset, and anything around the timestamp (spaces, a trailing newline) are
+  refused. A date-time without an offset is a local time, and the language has
+  no time zone to read it in.
+- A fraction of a second (`.5`, `.123456789`, any number of digits) is
+  accepted and dropped toward the earlier instant: `…04.9Z` and `…04Z` give
+  the same integer, and so do `1969-12-31T23:59:59.5Z` and `…59Z`, which is
+  `-1`. The result is a count of whole seconds, so it is an integer, exact on
+  every port: the whole range is within `±2^38`, inside the guaranteed range
+  (ref §13).
+- The offset is `Z` or `±HH:MM`, hours `00`–`23` and minutes `00`–`59`.
+  `-00:00` is accepted and means UTC.
+- **A string that is not one of the two forms is a `TypeMismatch`**, as is a
+  non-string. No new error kind: a host that sends a malformed date sent a
+  value of the wrong type, which is what a decoder refusal already is (ref
+  §3). A symbol or a term is `NotConcrete`.
+- **No profile.** It returns an integer and needs no arithmetic, like
+  `cardinality`. It is not an arithmetic name and builds no term.
+
+**"Now" stays in the context.** The language is pure: the same program and
+context give the same document. A template that shows an age reads the
+current time from the host (`$ctx.now`, already a number of seconds, or a
+timestamp it converts). No builtin reads a clock.
+
+**What is deliberately not here.**
+
+- *Formatting a duration* ("3mo", "5w"). Where a month starts, whether "5w"
+  beats "1mo" at 35 days, rounding or truncating, the units' names and
+  language: every one of those is the template's choice, and each is a
+  `branch` over `floor-quotient`:
+
+  ```
+  @ago = (s) => branch(
+    "now",
+    gte($s, 2592000), str(floor-quotient($s, 2592000)) <> "mo",
+    gte($s, 604800),  str(floor-quotient($s, 604800)) <> "w",
+    gte($s, 86400),   str(floor-quotient($s, 86400)) <> "d")
+  ```
+
+  A builtin would fix one answer for everyone. The draft leaves it to
+  libraries, and asks.
+- *The opposite conversion*, seconds back to text (`2026-11-05T17:12:04Z`),
+  and calendar fields (the year, the month, the weekday) for axis labels. A
+  chart with a time axis will want them next. They are a second, larger
+  question (month names are locale data again, as in §20), and not in this
+  request.
+- *A date value kind.* Dates stay strings in the context and integers in the
+  program.
+
+### Follow-up
+
+As for §20, the design is one piece of work and building it is several:
+
+1. *Normative text and fixtures*, in one change, with no port touched:
+   ref §9 (`arithmeticOps` gains five names), §11 (rows for the seven names,
+   the exactness rule and the timestamp grammar), §13 (if (b) is taken, the
+   last bit of the logarithms and `pow`), v3-symbols §1.5 (`take`, `drop` and
+   `epoch-seconds` refuse a symbol), §1.9 and §5.3 (five term operations),
+   `laws.md` (the residual law over the new terms), `corpus/README.md` (three
+   transition tags, below). The fixtures are skipped by a port until it
+   provides the tags.
+2. *Each of the six ports*: the three groups are independent and can land
+   separately. The logarithms need the Go and Haskell substitutions named
+   above under (b), or the numerical code under (a) or (c).
+3. *The playground's help text*, the website's builtin list and each port's
+   README and changelog.
+4. *A tagged release* of every port, after which the library that asked
+   drops its workarounds.
+
+**Transition tags**, one per group, so that each can land in each port on
+its own, as `"sort"`, `"format-number"` and `"round"` did: `"math"` (the five
+arithmetic names; such a case lists `"arithmetic"` and `"int-float"` too),
+`"take-drop"` and `"epoch-seconds"`.
+
+Fixture families:
+
+- `sqrt`: perfect squares, `2.0`, the smallest and the largest double, `0.0`;
+  `-1.0` refused; an integer refused; by reference in `map`;
+- the logarithms: the exact cases of (b) or a table of correctly rounded
+  values under (a); every row of the error table; an integer refused; the
+  quotient of two `log`s next to `log10`, showing they differ;
+- `pow`: exact results, a negative base with an integer exponent, `0.0` and
+  `1.0` exponents, overflow and underflow, the error rows;
+- the five over a symbol, building a term; shadowed; reported by
+  `arithmeticOps`; unbound without the profile;
+- `take` and `drop`: `0`, inside, at and past the end, the empty list; a
+  negative, a float and a `null` `n`; a string, an object and `null` as the
+  list; one and three arguments; a symbolic list, a symbolic `n`, an array
+  holding a symbol; documents in child position; the paging idiom;
+- `epoch-seconds`: the epoch, `-1`, a date, a date-time with `Z`, with each
+  sign of offset, with `-00:00`, with fractions on each side of the epoch;
+  `0000-01-01` and `9999-12-31T23:59:59Z`; `2024-02-29` accepted and
+  `2023-02-29`, `2026-13-01`, `2026-11-05T24:00:00Z` and `…:60Z` refused;
+  each refused spelling listed above; a non-string; a symbol.
+
+### Decisions to take
+
+The draft's recommendation is first in each.
+
+1. Exactness of `log`, `log2`, `log10` and `pow`: **(b)** within one unit in
+   the last place with exact cases, (a) correctly rounded everywhere, or (c) a
+   prescribed algorithm.
+2. The logarithm names: **`log`, `log2` and `log10`**, or fewer (`log` alone),
+   or a base argument.
+3. `pow` and `sqrt` take **floats only**, or an integer too (an integer `pow`
+   with §18's overflow rule).
+4. The order of `take` and `drop`'s arguments: **the list first**, as the rest
+   of the language, or `take(n, list)` as requested.
+5. A negative `n`: **`TypeMismatch`**, or clamped to `0`.
+6. Dates: **`epoch-seconds` alone**, with formatting durations left to
+   libraries; or also a `format-duration` builtin with fixed units; or also the
+   opposite conversion and calendar fields.
+7. The timestamp grammar: **the two RFC 3339 forms above, offset required**;
+   or also a date-time without an offset, read as UTC.
+8. A malformed timestamp: **`TypeMismatch`**, or a new error kind.
+9. The names, in kebab-case: `sqrt`, `log`, `log2`, `log10`, `pow`, `take`,
+   `drop`, `epoch-seconds`.
