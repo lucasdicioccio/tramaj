@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+Factur-X invoices. Needs the HPDF fork's `factur-x` branch (commit
+`dc7cdb7`, built on `unicode-truetype`), which `cabal.project` pins.
+
+- `optArchive` / `facturX` write PDF/A-3b with the invoice's XML attached
+  as `factur-x.xml` (`/CreationDate` and `/ModDate` from the invoice's
+  issue date, `invoiceIssueDate`) and the Factur-X XMP properties;
+  `renderPdfE` reports a PDF/A document that uses a non-embedded font. The
+  bundled fonts are embedded, so no `--fonts` is needed. CLI flags
+  `--factur-x`, `--factur-x-xml`, `--factur-x-level`, `--icc`,
+  `--xml-out`, `--title`, `--author`.
+- `Tramaj.Hpdf.Xml`: an evaluated node written as XML (`ram-ID` is
+  `ram:ID` under an `xmlns:ram`); CLI `--xml`.
+- Example: `examples/invoice/`, a commercial invoice (TypeCode 380), BASIC
+  profile.
+
 ## 0.2.0.0
 
 Embedded fonts and Unicode text. Needs the HPDF fork
@@ -31,9 +48,3 @@ First version.
   cells, a bold header row repeated across page breaks, rules.
 - `img` embeds a JPEG or PNG (and other JuicyPixels formats), scaled to
   its `width`/`height` or to the text width, keeping its proportions.
-- Factur-X (on the HPDF fork): `optArchive` / `facturX` write PDF/A-3b
-  with the invoice's XML attached; `renderPdfE` reports a PDF/A document
-  that uses a non-embedded font. CLI flags `--factur-x`, `--factur-x-xml`,
-  `--factur-x-level`, `--icc`, `--xml-out`, `--title`, `--author`.
-- `Tramaj.Hpdf.Xml`: an evaluated node written as XML (`ram-ID` is
-  `ram:ID` under an `xmlns:ram`); CLI `--xml`.

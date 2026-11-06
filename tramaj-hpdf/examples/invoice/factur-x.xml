@@ -6,8 +6,8 @@
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>
-    <ram:ID>PF-2026-0042</ram:ID>
-    <ram:TypeCode>325</ram:TypeCode>
+    <ram:ID>F-2026-0042</ram:ID>
+    <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
       <udt:DateTimeString format="102">20261106</udt:DateTimeString>
     </ram:IssueDateTime>
@@ -125,7 +125,7 @@
         <ram:RateApplicablePercent>20.00</ram:RateApplicablePercent>
       </ram:ApplicableTradeTax>
       <ram:SpecifiedTradePaymentTerms>
-        <ram:Description>Pro-forma: payment of the final invoice within 30 days, by bank transfer.</ram:Description>
+        <ram:Description>Payment within 30 days, by bank transfer.</ram:Description>
         <ram:DueDateDateTime>
           <udt:DateTimeString format="102">20261206</udt:DateTimeString>
         </ram:DueDateDateTime>

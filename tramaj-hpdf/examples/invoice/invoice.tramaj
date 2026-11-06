@@ -1,6 +1,6 @@
 .div(
   .img(src: "../report/logo001.png", width: 64, alt: "salmon"),
-  .h1("Pro-forma invoice ", $ctx.number),
+  .h1($ctx.typeName, " ", $ctx.number),
   .p(.strong($ctx.seller.name), .br(), $ctx.seller.street, .br(), $ctx.seller.postcode, " ", $ctx.seller.city, ", ", $ctx.seller.countryName, .br(), "VAT ", $ctx.seller.vatId, " · ", $ctx.seller.email),
   .h3("Billed to"),
   .p(.strong($ctx.buyer.name), .br(), $ctx.buyer.street, .br(), $ctx.buyer.postcode, " ", $ctx.buyer.city, ", ", $ctx.buyer.countryName, .br(), "Attn: ", $ctx.buyer.reference),

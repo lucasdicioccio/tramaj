@@ -1,6 +1,7 @@
 {
-  "number": "PF-2026-0042",
-  "typeCode": "325",
+  "number": "F-2026-0042",
+  "typeCode": "380",
+  "typeName": "Invoice",
   "issueDate": "20261106",
   "issueDateText": "6 November 2026",
   "dueDate": "20261206",
@@ -37,5 +38,5 @@
   "taxTotal": 362,
   "grandTotal": 2172,
   "duePayable": 2172,
-  "paymentTerms": "Pro-forma: payment of the final invoice within 30 days, by bank transfer."
+  "paymentTerms": "Payment within 30 days, by bank transfer."
 }

@@ -89,9 +89,10 @@ template and a JSON context ([`report.pdf`](examples/report/report.pdf)):
 With the HPDF fork (below), `optArchive = Just (facturX icc level xml)`
 writes the document as PDF/A-3b: XMP metadata, an sRGB output intent, the
 XML attached as `factur-x.xml` (`/AFRelationship /Alternative`) and the
-Factur-X XMP properties at that level (`BASIC`, `EN 16931`…). It needs the
-TrueType fonts: `renderPdfE` refuses a PDF/A document set in the standard 14
-fonts, which are not embedded.
+Factur-X XMP properties at that level (`BASIC`, `EN 16931`…). It needs
+embedded fonts, which the bundled Noto Sans are: `renderPdfE` refuses a
+PDF/A document set in the standard 14 fonts (`loadFonts`), which are not
+embedded.
 
 `Tramaj.Hpdf.Xml.renderXml` writes an evaluated node as XML, so the invoice's
 XML comes from a tramaj template over the same context as the page. A tag
@@ -99,7 +100,7 @@ has no `:`, so a namespace prefix is written with a `-`: `ram-ID` becomes
 `ram:ID` when an `xmlns:ram` attribute is in scope. The CLI:
 
 ```
-cabal run tramaj-hpdf -- --fonts /usr/share/fonts/truetype/noto \
+cabal run tramaj-hpdf -- \
   --factur-x factur-x.tramaj [--factur-x-level BASIC] [--icc sRGB.icc] [--xml-out factur-x.xml] \
   invoice.tramaj invoice.json invoice.pdf
 cabal run tramaj-hpdf -- --xml factur-x.tramaj invoice.json factur-x.xml
@@ -108,7 +109,7 @@ cabal run tramaj-hpdf -- --xml factur-x.tramaj invoice.json factur-x.xml
 `--factur-x-xml FILE` attaches an XML file as it is. The ICC profile
 defaults to colord's sRGB (`/usr/share/color/icc/colord/sRGB.icc`, CC0-1.0,
 an ICC v4 profile); none is shipped with this package. See
-[`examples/invoice/`](examples/invoice/): a pro-forma invoice, BASIC profile.
+[`examples/invoice/`](examples/invoice/): a commercial invoice (TypeCode 380), BASIC profile.
 
 <img src="examples/invoice/invoice-page1.png" alt="page 1 of the example invoice" width="400">
 

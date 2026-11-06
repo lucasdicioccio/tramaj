@@ -296,16 +296,24 @@ main = hspec $ do
       -- three characters, three glyph ids of four hex digits each
       let shown = BC.takeWhileEnd (/= '<') (fst (BC.breakSubstring "> Tj" pdf))
       BC.length shown `shouldBe` 12
-    it "writes a Factur-X PDF/A-3b with the XML attached" $ withNoto $ \fonts -> do
-      let xml = "<?xml version=\"1.0\"?><x/>"
+    it "writes a Factur-X PDF/A-3b with the XML attached, in the bundled fonts" $ do
+      fonts <- loadDefaultFonts
+      let xml = "<?xml version=\"1.0\"?><x><IssueDateTime><DateTimeString format=\"102\">20261106</DateTimeString></IssueDateTime></x>"
           opts = defaultOptions {optCompressed = False, optTitle = "Invoice 1", optArchive = Just (facturX "icc" "BASIC" xml)}
           Right pdf = BL.toStrict <$> renderPdfE fonts noImages opts (el "p" [txt "Facture \x20AC"])
       BC.isPrefixOf "%PDF-1.7\n" pdf `shouldBe` True
       forM_
         [ "<pdfaid:part>3</pdfaid:part>", "<fx:ConformanceLevel>BASIC</fx:ConformanceLevel>"
         , "/AFRelationship /Alternative", "/Subtype /text#2Fxml", "/UF (factur-x.xml)"
-        , "/OutputIntents", "/Title (Invoice 1)", "<x/>" ]
+        , "/OutputIntents", "/Title (Invoice 1)", "<x><IssueDateTime>"
+        , "/CreationDate (D:20261106000000Z)", "/ModDate (D:20261106000000Z)" ]
         $ \needle -> (needle, BC.isInfixOf needle pdf) `shouldBe` (needle, True)
+
+  describe "invoiceIssueDate" $
+    it "reads the CII issue date, if any" $ do
+      invoiceIssueDate "<a><ram:IssueDateTime><udt:DateTimeString format=\"102\">20261106</udt:DateTimeString></ram:IssueDateTime></a>"
+        `shouldBe` Just "20261106"
+      invoiceIssueDate "<a><DueDateDateTime><DateTimeString format=\"102\">20261106</DateTimeString></DueDateDateTime></a>" `shouldBe` Nothing
 
   describe "PDF/A with the standard 14 fonts" $
     it "is refused: they are not embedded" $ do
@@ -336,7 +344,8 @@ main = hspec $ do
         [ "<rsm:CrossIndustryInvoice xmlns:rsm=", "<ram:ID>urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic</ram:ID>"
         , "<udt:DateTimeString format=\"102\">20261106</udt:DateTimeString>"
         , "<ram:TaxTotalAmount currencyID=\"EUR\">362.00</ram:TaxTotalAmount>"
-        , "<ram:BilledQuantity unitCode=\"HUR\">6.0000</ram:BilledQuantity>" ]
+        , "<ram:BilledQuantity unitCode=\"HUR\">6.0000</ram:BilledQuantity>"
+        , "<ram:TypeCode>380</ram:TypeCode>" ]
         $ \needle -> (needle, T.isInfixOf needle xml) `shouldBe` (needle, True)
 
   describe "with the bundled Noto Sans fonts" $ do
