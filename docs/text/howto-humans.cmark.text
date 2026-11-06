@@ -77,7 +77,7 @@ spago run -p tramaj-cli --args "--arithmetic bill.tramaj bill.json"
 
 The result is a `p` element with the text `subtotal 125, 37% used`. Without the flag the ten names are unbound, and the CLI says which ones the template uses. `sum` and `product` take all integers or all floats, never a mix; `real(x)` and `floor(x)` convert, and each accepts both types.
 
-The [playground](/playground.html ) runs with arithmetic on and has an _arithmetic-demo_ tab. Numbers used to be a single type: if you have templates written before the split, read [Migrating to integers and floats](/migrating-to-integers-and-floats.html ). The split and arithmetic are in all six implementations (PureScript, Haskell, TypeScript, Rust, Go and Python), and so are `sort-by`, `sort-by-descending` and `format-number`, which need no flag. All of it is on the `main` branch and in no release yet.
+The [playground](/playground.html ) runs with arithmetic on and has an _arithmetic-demo_ tab. Numbers used to be a single type: if you have templates written before the split, read [Migrating to integers and floats](/migrating-to-integers-and-floats.html ). The split and arithmetic are in all six implementations (PureScript, Haskell, TypeScript, Rust, Go and Python), and so are `sort-by`, `sort-by-descending` and `format-number`, which need no flag. All of it is released with language v5 ([where to get it](/tramaj-v5.html )).
 
 ## Splitting a template into libraries
 

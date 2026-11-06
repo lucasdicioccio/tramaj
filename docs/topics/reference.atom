@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-10-15T12:37:33Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-09-10T01:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--normative-node-json-representation"&gt;Tramaj — Normative Node JSON representation&lt;/h2&gt;
 &lt;p&gt;The evaluated &lt;code&gt;Node&lt;/code&gt; AST is the portable interchange boundary between Tramaj
 implementations and their hosts. This document defines its &lt;strong&gt;normative&lt;/strong&gt; JSON
@@ -145,7 +145,7 @@ evaluator reports them as a &lt;code&gt;TypeMismatch&lt;/code&gt; (&lt;code&gt;r
 &lt;p&gt;A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
 job; on the wire the representation is explicit, so that a missing field is a bug
 rather than a silent &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-10-15T12:37:33Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v3--symbolic-values-and-constraints"&gt;Tramaj v3 — Symbolic values and constraints&lt;/h2&gt;
 &lt;p&gt;This document is &lt;strong&gt;normative&lt;/strong&gt; for the symbolic extension. It builds on
 &lt;code&gt;reference.md&lt;/code&gt;, which remains normative for everything else; section numbers
@@ -165,6 +165,10 @@ both, for all ten names, &lt;code&gt;round&lt;/code&gt; among them. The same hol
 number types (ref §3) wherever this document writes a number: in canon
 (§1.4) and in the envelope (§5.2). All of it is on the &lt;code&gt;main&lt;/code&gt; branch and in
 no release yet.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;A traverse form for allocation came later.&lt;/strong&gt; &lt;code&gt;?shape(key, shape)&lt;/code&gt; and its
+&lt;code&gt;~name&lt;/code&gt; markers are accepted design (decisions §19), are normative here, and
+are implemented in all six implementations; every corpus runner requires
+them. Each passage this applies to is marked &lt;strong&gt;[§19]&lt;/strong&gt;.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h3 id="0-what-v3-adds-and-the-rule-it-follows"&gt;0. What v3 adds, and the rule it follows&lt;/h3&gt;
 &lt;p&gt;Three things: an expression &lt;code&gt;?&lt;/code&gt; that introduces a &lt;strong&gt;symbol&lt;/strong&gt;, a statement &lt;code&gt;!&lt;/code&gt;
@@ -216,6 +220,106 @@ map($ctx.services, (s) =&amp;gt; ?(&amp;quot;port&amp;quot;))    -- one symbol, 
 &lt;p&gt;Both are legal and mean what they say. A constant key is a constant symbol.
 What v3 refuses is the version where the author writes nothing and the
 language guesses.&lt;/p&gt;
+&lt;h5 id="shapekey-shape--allocation-over-a-structure"&gt;&lt;code&gt;?shape(key, shape)&lt;/code&gt; — allocation over a structure&lt;/h5&gt;
+&lt;p&gt;&lt;strong&gt;[§19] Specified, not yet implemented.&lt;/strong&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;alloc  ::= &amp;quot;?(&amp;quot; expr &amp;quot;)&amp;quot;                 -- above
+         | &amp;quot;?shape(&amp;quot; expr &amp;quot;,&amp;quot; expr &amp;quot;)&amp;quot;   -- key, shape
+marker ::= &amp;quot;~&amp;quot; name                      -- inside a shape only
+         | &amp;quot;~&amp;quot; name &amp;quot;(&amp;quot; expr &amp;quot;)&amp;quot;         -- with a marker key
+field  ::= … | marker                    -- in an object literal: name &amp;quot;:&amp;quot; marker
+
+@d = ?shape(&amp;quot;d&amp;quot;, {~replicas, zone: &amp;quot;eu&amp;quot;, ports: [~http, ~admin]})
+
+@cluster = ?shape(&amp;quot;cluster&amp;quot;, {
+  lb:         ~lb,
+  placements: map($ctx.vms, (vm) =&amp;gt; {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
+})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;?shape&lt;/code&gt; is a second allocation form. It takes a key and a &lt;strong&gt;shape&lt;/strong&gt;, an
+ordinary expression in which each &lt;strong&gt;symbol marker&lt;/strong&gt; &lt;code&gt;~name&lt;/code&gt; stands for an
+allocation. It is a way to write allocations, not a new kind of one: it
+lowers to &lt;code&gt;?(k)&lt;/code&gt; allocations (below), so a structure of symbols is written
+with its key once and one site, instead of one site and a hand-composed key
+per symbol.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;~&lt;/code&gt; is a leader character (ref §5). The name follows it directly and obeys
+ref §5’s name rule; &lt;code&gt;~ a&lt;/code&gt; is a parse error. The &lt;code&gt;(&lt;/code&gt; of a marker key follows
+the name directly.
+&lt;/li&gt;
+&lt;li&gt;A marker is an expression, and may be written &lt;strong&gt;anywhere in the shape&lt;/strong&gt;: an
+array element, a field value, a call’s argument (&lt;code&gt;sum(~a, ~b)&lt;/code&gt;), a
+&lt;code&gt;branch&lt;/code&gt; arm, an element’s attribute or child, a lambda’s body. A marker
+belongs to the innermost &lt;code&gt;?shape&lt;/code&gt; whose shape contains it. A marker
+outside any shape, and a marker in a &lt;code&gt;?shape&lt;/code&gt;’s key (also when that form
+is itself inside another form’s shape), is a parse error.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Under a lambda, a marker MUST carry a key.&lt;/strong&gt; A lambda’s body is evaluated
+once per application, so a marker in it stands for many symbols, and the
+marker key says which. A bare &lt;code&gt;~name&lt;/code&gt; inside a lambda that is itself inside
+the shape is a parse error. A lambda &lt;em&gt;around&lt;/em&gt; the whole form does not
+count, since the form’s own key does that job:
+&lt;code&gt;map($ctx.vms, (vm) =&amp;gt; ?shape($vm.name, {host: ~host}))&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Shorthand field.&lt;/strong&gt; In an object literal, a marker written alone as a
+field is the field of that name holding that marker: &lt;code&gt;{~replicas}&lt;/code&gt; is
+&lt;code&gt;{replicas: ~replicas}&lt;/code&gt;, and &lt;code&gt;{~host($vm.name)}&lt;/code&gt; is
+&lt;code&gt;{host: ~host($vm.name)}&lt;/code&gt;, beside the literal’s own &lt;code&gt;{foo}&lt;/code&gt; (ref §5). It is
+expanded before anything else, so every rule here applies to the long
+form. A marker under another field name is written out: &lt;code&gt;{min: ~lo}&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;A marker key is legal outside a lambda too. Like any allocation key it is
+an ordinary expression that MUST evaluate to a concrete value; a symbol in
+it is &lt;code&gt;NotConcrete&lt;/code&gt;. So is a symbol in the form’s key.
+&lt;/li&gt;
+&lt;li&gt;A shape MUST contain at least one marker of its own (markers of a nested
+&lt;code&gt;?shape&lt;/code&gt; are that form’s). A marker name appears at most once in a form,
+with or without a key: &lt;code&gt;{web: {port: ~port}, db: {port: ~port}}&lt;/code&gt; and
+&lt;code&gt;{a: ~x, b: map($xs, (x) =&amp;gt; ~x($x))}&lt;/code&gt; are parse errors. Sharing a symbol is
+written as two reads of one binding.
+&lt;/li&gt;
+&lt;li&gt;The form takes exactly two arguments; any other count is a parse error, and
+&lt;code&gt;?(a, b)&lt;/code&gt; stays one.
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;shape&lt;/code&gt; is a word under the &lt;code&gt;?&lt;/code&gt; leader, read the way &lt;code&gt;ctx&lt;/code&gt; is in
+&lt;code&gt;?ctx.path&lt;/code&gt;. It is not reserved: &lt;code&gt;$shape&lt;/code&gt;, &lt;code&gt;@shape&lt;/code&gt; and &lt;code&gt;.shape(...)&lt;/code&gt; are
+unaffected.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;It is a special form, and not a builtin, for the reason &lt;code&gt;?(k)&lt;/code&gt; is: it needs a
+site, which the parser assigns (§1.4). Under the core profile it is rejected
+at parse time with every other &lt;code&gt;?&lt;/code&gt; (§5.5), and the marker with it.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Lowering.&lt;/strong&gt; The core AST does not change (§3). &lt;code&gt;?shape(k, shape)&lt;/code&gt; at site
+&lt;em&gt;n&lt;/em&gt; lowers to the shape with each marker replaced by an allocation at that
+same site:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-text"&gt;~name        Alloc n [k, &amp;quot;name&amp;quot;]         -- what ?([k, &amp;quot;name&amp;quot;]) would be at site n
+~name(e)     Alloc n [k, &amp;quot;name&amp;quot;, e]      -- what ?([k, &amp;quot;name&amp;quot;, e]) would be at site n
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;where &lt;code&gt;k&lt;/code&gt; is evaluated once, bound to a hidden name (ref §8’s hidden names,
+decisions §17) and read by each marker. Everything else in the shape is left
+as written. The form therefore means exactly what that hand-written
+expression would mean, with two differences a hand-written one cannot have:
+the key is written once, and every allocation shares one site.&lt;/p&gt;
+&lt;p&gt;Everything else follows from the lowering:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The symbols are allocated in the order the lowered expression evaluates
+(§4), so an object’s markers in the order its fields are written, not in
+sorted key order.
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt; applies to a &lt;code&gt;?shape&lt;/code&gt; as to a &lt;code&gt;?(k)&lt;/code&gt;, lexically
+(§1.4), and &lt;code&gt;SymbolsUnavailable&lt;/code&gt; to a marker in concrete mode, when the
+marker is evaluated (§5.1).
+&lt;/li&gt;
+&lt;li&gt;A demand is an ordinary expression in a shape:
+&lt;code&gt;?shape(&amp;quot;d&amp;quot;, {replicas: ~replicas, zone: ?ctx.zone})&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;An annotation (v4-types §7) on a binding of the form,
+&lt;code&gt;@p : Pair = ?shape(&amp;quot;p&amp;quot;, {~a, ~b})&lt;/code&gt;, is the existing sugar: one &lt;code&gt;has-type&lt;/code&gt;
+on the whole value, none per symbol.
+&lt;/li&gt;
+&lt;li&gt;No error kind is added: &lt;code&gt;NotConcrete&lt;/code&gt;, &lt;code&gt;SymbolsUnavailable&lt;/code&gt;,
+&lt;code&gt;AllocationInLibrary&lt;/code&gt;, and the parse errors above.
+&lt;/li&gt;
+&lt;/ul&gt;
 &lt;h4 id="13-ctxpath--demand"&gt;1.3 &lt;code&gt;?ctx.path&lt;/code&gt; — demand&lt;/h4&gt;
 &lt;pre&gt;&lt;code&gt;@replicas = ?ctx.replicas
 &lt;/code&gt;&lt;/pre&gt;
@@ -248,8 +352,8 @@ only in the &lt;code&gt;&amp;quot;binding&amp;quot;&lt;/code&gt; the symbol tabl
 &lt;p&gt;&lt;strong&gt;Only a root program may allocate. A library MUST NOT&lt;/strong&gt;, because the root
 runs exactly once and a library does not.&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;p&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt; is raised when a program containing &lt;code&gt;?(k)&lt;/code&gt; is loaded as
-a library. The check is &lt;strong&gt;lexical&lt;/strong&gt;: it is about where the &lt;code&gt;?&lt;/code&gt; is written, not
+&lt;p&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt; is raised when a program containing &lt;code&gt;?(k)&lt;/code&gt; (or
+&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;?shape&lt;/code&gt;) is loaded as a library. The check is &lt;strong&gt;lexical&lt;/strong&gt;: it is about where the &lt;code&gt;?&lt;/code&gt; is written, not
 where it is evaluated, so a closure created in the root and applied inside a
 library still allocates in the root, which is where its &lt;code&gt;?&lt;/code&gt; is written.&lt;/p&gt;
 &lt;p&gt;A &lt;code&gt;SymbolId&lt;/code&gt; is a string, formed as follows and identical in every conforming
@@ -257,11 +361,16 @@ implementation:&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;form&lt;/th&gt;&lt;th&gt;id&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?(k)&lt;/code&gt;, the &lt;em&gt;n&lt;/em&gt;-th &lt;code&gt;?&lt;/code&gt; in the program's source&lt;/td&gt;&lt;td&gt;&lt;code&gt;#&lt;/code&gt; &lt;em&gt;n&lt;/em&gt; &lt;code&gt;:&lt;/code&gt; canon(&lt;em&gt;k&lt;/em&gt;)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;~name&lt;/code&gt; in &lt;code&gt;?shape(k, …)&lt;/code&gt; at site &lt;em&gt;n&lt;/em&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;#&lt;/code&gt; &lt;em&gt;n&lt;/em&gt; &lt;code&gt;:&lt;/code&gt; canon(&lt;code&gt;[&lt;/code&gt;&lt;em&gt;k&lt;/em&gt;&lt;code&gt;, "name"]&lt;/code&gt;)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;~name(e)&lt;/code&gt; in &lt;code&gt;?shape(k, …)&lt;/code&gt; at site &lt;em&gt;n&lt;/em&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;#&lt;/code&gt; &lt;em&gt;n&lt;/em&gt; &lt;code&gt;:&lt;/code&gt; canon(&lt;code&gt;[&lt;/code&gt;&lt;em&gt;k&lt;/em&gt;&lt;code&gt;, "name",&lt;/code&gt; &lt;em&gt;e&lt;/em&gt;&lt;code&gt;]&lt;/code&gt;)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?ctx.a.b&lt;/code&gt;, unsupplied at the root&lt;/td&gt;&lt;td&gt;&lt;code&gt;#ctx.a.b&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;em&gt;n&lt;/em&gt; is assigned by the parser: the &lt;code&gt;?(k)&lt;/code&gt; occurrences of one program are
-numbered &lt;code&gt;0, 1, 2, …&lt;/code&gt; in source order. It belongs to the core AST for the
+numbered &lt;code&gt;0, 1, 2, …&lt;/code&gt; in source order. &lt;strong&gt;[§19]&lt;/strong&gt; A &lt;code&gt;?shape&lt;/code&gt; takes a number
+in the same sequence, at the position of its &lt;code&gt;?&lt;/code&gt;; a marker takes none.
+So in &lt;code&gt;?shape(&amp;quot;o&amp;quot;, {~a, p: ?(&amp;quot;p&amp;quot;), i: ?shape(&amp;quot;i&amp;quot;, {~b})})&lt;/code&gt; the outer form
+is site 0, the &lt;code&gt;?(&amp;quot;p&amp;quot;)&lt;/code&gt; site 1 and the inner form site 2. It belongs to the core AST for the
 same reason a binding’s name does — it &lt;em&gt;is&lt;/em&gt; the variable’s identity, not
 source trivia.
 &lt;/li&gt;
@@ -284,6 +393,29 @@ ids by construction rather than by agreeing on a traversal.&lt;/p&gt;
 &lt;p&gt;The site is part of the id, as well as the key, so that two independent
 &lt;code&gt;?(&amp;quot;replicas&amp;quot;)&lt;/code&gt; in different places are different variables. A key names a
 distinction, not a variable.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[§19]&lt;/strong&gt; For a marker, the name says which symbol of the shape, the marker
+key says which application of a lambda, and the form’s key says which
+evaluation of the site; each is something the author wrote, and nothing is
+derived from an index or from evaluation order. With &lt;code&gt;vms&lt;/code&gt; named &lt;code&gt;&amp;quot;a&amp;quot;&lt;/code&gt; and
+&lt;code&gt;&amp;quot;b&amp;quot;&lt;/code&gt;, the &lt;code&gt;@cluster&lt;/code&gt; of §1.2 at site 0 allocates
+&lt;code&gt;#0:[&amp;quot;cluster&amp;quot;,&amp;quot;lb&amp;quot;]&lt;/code&gt;, then &lt;code&gt;#0:[&amp;quot;cluster&amp;quot;,&amp;quot;host&amp;quot;,&amp;quot;a&amp;quot;]&lt;/code&gt;,
+&lt;code&gt;#0:[&amp;quot;cluster&amp;quot;,&amp;quot;zone&amp;quot;,&amp;quot;a&amp;quot;]&lt;/code&gt;, &lt;code&gt;#0:[&amp;quot;cluster&amp;quot;,&amp;quot;host&amp;quot;,&amp;quot;b&amp;quot;]&lt;/code&gt; and
+&lt;code&gt;#0:[&amp;quot;cluster&amp;quot;,&amp;quot;zone&amp;quot;,&amp;quot;b&amp;quot;]&lt;/code&gt;.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Symbols are shared only where the author’s keys are equal: two &lt;code&gt;vms&lt;/code&gt; with
+the same name share &lt;code&gt;host&lt;/code&gt; and &lt;code&gt;zone&lt;/code&gt;. A constant marker key under a lambda
+(&lt;code&gt;~region(&amp;quot;all&amp;quot;)&lt;/code&gt;) shares one symbol across applications. Under nested
+lambdas the marker key has to distinguish every level: &lt;code&gt;~cell([$r, $c])&lt;/code&gt;.
+&lt;/li&gt;
+&lt;li&gt;The position in the shape is not in the id. Reordering the collection, or
+moving a marker to another field, keeps every symbol’s id; renaming a
+marker changes it.
+&lt;/li&gt;
+&lt;li&gt;The ids stay injective: a name appears once in a form, a pair and a triple
+differ, and a site is one form or the other, so no id from a &lt;code&gt;?shape&lt;/code&gt; can
+meet one from a &lt;code&gt;?(k)&lt;/code&gt;.
+&lt;/li&gt;
+&lt;/ul&gt;
 &lt;h4 id="15-what-may-be-done-with-a-symbol"&gt;1.5 What may be done with a symbol&lt;/h4&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;Control flow and structure must be concrete. Only data may be symbolic.&lt;/strong&gt;&lt;/p&gt;
@@ -304,13 +436,18 @@ language to &lt;em&gt;know&lt;/em&gt; something about it is an error:&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt; with a symbol as an operand&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;; an array or object operand is the &lt;code&gt;TypeMismatch&lt;/code&gt; it always was, whatever it holds&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;str&lt;/code&gt; of anything &lt;em&gt;containing&lt;/em&gt; a symbol, and so any interpolation of one&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — §1.8&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;cardinality($s)&lt;/code&gt;, &lt;code&gt;has($s, k)&lt;/code&gt;, &lt;code&gt;lookup($s, k, d)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;has(c, $s)&lt;/code&gt;, &lt;code&gt;lookup(c, $s, d)&lt;/code&gt; — a symbol as the key&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;, whatever &lt;code&gt;c&lt;/code&gt; is&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;format-number&lt;/code&gt; with a symbol as any of its three arguments&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt; — the result is text (§1.8); an array argument is a &lt;code&gt;TypeMismatch&lt;/code&gt;, whatever it holds&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;$s &amp;lt;&amp;gt; x&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;&lt;code&gt;has&lt;/code&gt; and &lt;code&gt;lookup&lt;/code&gt; are called out because both are deliberately &lt;em&gt;tolerant&lt;/em&gt;
 today — &lt;code&gt;has&lt;/code&gt; answers &lt;code&gt;false&lt;/code&gt; for a wrong-shaped container and &lt;code&gt;lookup&lt;/code&gt; never
-errors. Neither may answer about a symbol: a tolerant &lt;code&gt;false&lt;/code&gt; would be a lie,
-and &lt;code&gt;lookup&lt;/code&gt;’s fallback would silently discard the symbol.&lt;/p&gt;
+errors. Neither may answer about a symbol, given either as the container or as
+the key: a tolerant &lt;code&gt;false&lt;/code&gt; would be a lie, and &lt;code&gt;lookup&lt;/code&gt;’s fallback would
+silently discard the symbol or read an unknown key as a missing one. The
+tolerance for a concrete key is unchanged: a missing key, an out-of-range
+index, a float where an index is expected, or an array or an object as the key
+still answers &lt;code&gt;false&lt;/code&gt; or the fallback, whatever that key holds.&lt;/p&gt;
 &lt;p&gt;Consequence worth stating: v3 can constrain the elements of a list whose
 length is known, and cannot constrain a list whose length is symbolic. That is
 the ceiling, and it is where a real symbolic evaluator would have to begin.
@@ -362,6 +499,11 @@ same operations work on it: &lt;code&gt;cardinality([sum($a, 1), 2])&lt;/code&gt
 fine; &lt;code&gt;map($d.items, f)&lt;/code&gt; is &lt;code&gt;NotConcrete&lt;/code&gt;, because the length is unknown. A
 symbol may &lt;em&gt;have&lt;/em&gt; structure as far as its host-side meaning is concerned; the
 language cannot walk it.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;?shape&lt;/code&gt; (§1.2) builds such a structure of symbols in one form,
+over a collection the caller supplies: the spine is the shape’s own, so a
+&lt;code&gt;map&lt;/code&gt; in it iterates a concrete array and each marker under it allocates
+per application. It does not give a number of symbols from a number: that
+needs a collection of that length, and is not in the language.&lt;/p&gt;
 &lt;p&gt;Two cases fall out of the same rule: a symbol cannot be an object key, because
 keys are static (ref §5) and nothing computes one; and a symbol inside an
 import’s parameters is an ordinary value being passed, so it crosses the
@@ -605,6 +747,8 @@ no separate statement machinery, and &lt;code&gt;Program&lt;/code&gt; is unchang
 still &lt;code&gt;DocumentProgram Expr | ExpressionProgram Expr&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;Emit&lt;/code&gt; is representable anywhere an expression is, but the parser produces it
 only at statement position.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;?shape&lt;/code&gt; and its markers add no constructor: they lower to &lt;code&gt;Let&lt;/code&gt;
+and &lt;code&gt;Alloc&lt;/code&gt; (§1.2).&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h3 id="4-evaluation"&gt;4. Evaluation&lt;/h3&gt;
 &lt;p&gt;Evaluation produces a value &lt;strong&gt;and&lt;/strong&gt; an emission record:&lt;/p&gt;
@@ -648,6 +792,7 @@ JSON and nothing else.&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;form&lt;/th&gt;&lt;th&gt;concrete mode&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?(key)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;SymbolsUnavailable&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; a &lt;code&gt;~name&lt;/code&gt; marker, when it is evaluated&lt;/td&gt;&lt;td&gt;&lt;code&gt;SymbolsUnavailable&lt;/code&gt;, as for the &lt;code&gt;?(k)&lt;/code&gt; it lowers to; a form whose markers are never evaluated (an empty collection, an arm not taken) passes&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?ctx.path&lt;/code&gt;, supplied&lt;/td&gt;&lt;td&gt;the value the caller supplied; no symbol involved&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;?ctx.path&lt;/code&gt;, unsupplied at the root&lt;/td&gt;&lt;td&gt;&lt;code&gt;SymbolsUnavailable&lt;/code&gt; — that is the same minting&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;!expr&lt;/code&gt;&lt;/td&gt;&lt;td&gt;evaluated; the constraints are discarded&lt;/td&gt;&lt;/tr&gt;
@@ -714,7 +859,12 @@ was used; the language has nothing to add about it, so it is not listed.
 name only when the &lt;code&gt;?(k)&lt;/code&gt; or &lt;code&gt;?ctx.path&lt;/code&gt; is the whole right-hand side of an
 &lt;code&gt;@name = …&lt;/code&gt; binding. Used inline it is &lt;code&gt;null&lt;/code&gt;, and so it is in
 &lt;code&gt;@x = sum(?ctx.s, 1)&lt;/code&gt;, where &lt;code&gt;x&lt;/code&gt; names the term and not the symbol. It is
-provenance for humans. &lt;code&gt;&amp;quot;origin&amp;quot;&lt;/code&gt; is the structured form of &lt;code&gt;&amp;quot;id&amp;quot;&lt;/code&gt;, so a
+provenance for humans. &lt;strong&gt;[§19]&lt;/strong&gt; It is &lt;code&gt;null&lt;/code&gt; for every symbol a
+&lt;code&gt;?shape&lt;/code&gt; allocates, bound or not: no marker is the whole right-hand side
+of a binding, and in &lt;code&gt;@d = ?shape(&amp;quot;d&amp;quot;, …)&lt;/code&gt; the name &lt;code&gt;d&lt;/code&gt; names the
+structure. &lt;code&gt;origin.key&lt;/code&gt; carries the form’s key, the marker’s name and the
+marker key, as an array; a host decoder needs no new case and cannot tell
+these entries from hand-written allocations. &lt;code&gt;&amp;quot;origin&amp;quot;&lt;/code&gt; is the structured form of &lt;code&gt;&amp;quot;id&amp;quot;&lt;/code&gt;, so a
 host never has to parse the id.
 &lt;/li&gt;
 &lt;li&gt;A demand’s origin &lt;code&gt;&amp;quot;path&amp;quot;&lt;/code&gt; is the &lt;code&gt;Demand&lt;/code&gt; path of §3: the segments after
@@ -850,7 +1000,7 @@ profile.&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;error&lt;/th&gt;&lt;th&gt;when&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;NotConcrete&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a symbolic value where the language requires a concrete one — §1.5's table, and a symbol used as an allocation key&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a program containing &lt;code&gt;?(k)&lt;/code&gt; is loaded as a library (§1.4)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;AllocationInLibrary&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a program containing &lt;code&gt;?(k)&lt;/code&gt; or &lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;?shape&lt;/code&gt; is loaded as a library (§1.4)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;SymbolsUnavailable&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a symbol would have to be minted in concrete mode (§5.1)&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;&lt;code&gt;TypeMismatch&lt;/code&gt; covers the rest: a constraint value crossing a JSON boundary,
@@ -873,7 +1023,7 @@ stable.&lt;/p&gt;
 — alongside ref §9’s existing entries.&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;function&lt;/th&gt;&lt;th&gt;answers&lt;/th&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;symbolSites&lt;/code&gt;&lt;/td&gt;&lt;td&gt;the &lt;code&gt;?(k)&lt;/code&gt; allocation sites this program contains&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;symbolSites&lt;/code&gt;&lt;/td&gt;&lt;td&gt;the &lt;code&gt;?(k)&lt;/code&gt; allocation sites this program contains, and &lt;strong&gt;[§19]&lt;/strong&gt; the &lt;code&gt;?shape&lt;/code&gt; sites, each reported once&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;symbolDemands&lt;/code&gt; / &lt;code&gt;deepSymbolDemands&lt;/code&gt;&lt;/td&gt;&lt;td&gt;which context paths it declares symbolic with &lt;code&gt;?ctx.…&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;constraintKinds&lt;/code&gt; / &lt;code&gt;deepConstraintKinds&lt;/code&gt;&lt;/td&gt;&lt;td&gt;which constraint names it can emit&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
@@ -893,7 +1043,9 @@ and it is answered without running anything.
 &lt;/ul&gt;
 &lt;p&gt;&lt;code&gt;symbolSites&lt;/code&gt; reports sites, not keys, which are computed. The number of
 symbols is a runtime fact; the number of sites is not, and a site inside a
-&lt;code&gt;map&lt;/code&gt; is exactly where a reader should look to see what distinguishes them.&lt;/p&gt;
+&lt;code&gt;map&lt;/code&gt; is exactly where a reader should look to see what distinguishes them.
+&lt;strong&gt;[§19]&lt;/strong&gt; The same holds for a &lt;code&gt;?shape&lt;/code&gt;: one site, whatever number of
+markers it holds and of symbols they allocate.&lt;/p&gt;
 &lt;p&gt;Like the existing analyses, these over-approximate: a kind emitted only under
 a &lt;code&gt;Branch&lt;/code&gt; arm that no context will select is still reported.&lt;/p&gt;
 &lt;p&gt;Which operations a program’s terms can carry is answered by ref §9’s
@@ -932,13 +1084,26 @@ surviving the envelope; a term in each position a symbol may take; every
 refusal; deduplication over equal and over reordered terms; seeding; and the
 residual law, as one program run symbolically, then concretely with the symbol
 seeded as a number.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[§19]&lt;/strong&gt; For &lt;code&gt;?shape&lt;/code&gt;: markers at several depths; a shorthand field, bare
+and keyed, equal to its long form; an expression beside a marker; a marker
+in a call, in a &lt;code&gt;branch&lt;/code&gt; arm taken and not taken, and in an element; a keyed
+marker under &lt;code&gt;map&lt;/code&gt;, with distinct keys and with equal keys sharing; nested
+&lt;code&gt;map&lt;/code&gt;s with a composite marker key; an empty collection in both modes; the
+form under a &lt;code&gt;map&lt;/code&gt; with a key per iteration; reordered markers and
+reordered elements keeping their ids; table order for an object written in
+non-sorted key order; &lt;code&gt;&amp;quot;binding&amp;quot;&lt;/code&gt; bound and inline; a nested form; a
+symbolic form key and a symbolic marker key; concrete mode; the form in a
+library; an annotated binding emitting a single &lt;code&gt;has-type&lt;/code&gt;; and every parse
+error of §1.2. They are in the shared corpus under the &lt;code&gt;&amp;quot;shape&amp;quot;&lt;/code&gt; profile
+name.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h3 id="9-not-in-v3"&gt;9. Not in v3&lt;/h3&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;left out&lt;/th&gt;&lt;th&gt;where it went&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;nominal types, declarations, &lt;code&gt;.types&lt;/code&gt;, typed annotations&lt;/td&gt;&lt;td&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;any solver, domain or propagation&lt;/td&gt;&lt;td&gt;the host's, per §0&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;a keyless &lt;code&gt;?&lt;/code&gt;&lt;/td&gt;&lt;td&gt;§1.2 — a symbol always says what distinguishes it&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a keyless &lt;code&gt;?&lt;/code&gt;&lt;/td&gt;&lt;td&gt;§1.2 — a symbol always says what distinguishes it; &lt;strong&gt;[§19]&lt;/strong&gt; a &lt;code&gt;?shape&lt;/code&gt; marker names its symbol, and under a lambda carries a key&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a number of symbols from a number&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; §1.7 — &lt;code&gt;?shape&lt;/code&gt; walks a collection the caller supplies&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;allocation inside libraries, and any call-frame identity scheme&lt;/td&gt;&lt;td&gt;§1.4 — the root allocates, so identity is a site and a key&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;symbolic strings, symbolic control flow&lt;/td&gt;&lt;td&gt;§1.5, §1.8&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;an envelope around concrete output&lt;/td&gt;&lt;td&gt;§5.1 — an expression program's result must still pipe into &lt;code&gt;jq&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
@@ -967,7 +1132,7 @@ are closed; text has one, separate children, which a form renderer wants
 anyway.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-10-15T12:37:33Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v4--types-draft"&gt;Tramaj v4 — Types (draft)&lt;/h2&gt;
 &lt;p&gt;Status: &lt;strong&gt;draft, not frozen, implemented.&lt;/strong&gt; Split out of the v3 design so
 that &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
@@ -1402,7 +1567,7 @@ what &lt;code&gt;!type-constraint&lt;/code&gt; is likely to be abused into expre
 abuse becomes common the honest fix is a former, not a constraint name.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-10-15T12:37:33Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--language-reference"&gt;Tramaj — Language Reference&lt;/h2&gt;
 &lt;p&gt;This is the reference for the language &lt;strong&gt;as implemented&lt;/strong&gt;. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -1427,6 +1592,11 @@ implementations have them too. Each passage this applies to is marked
 an implementation predates them, so there every number is a double,
 &lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;, the two sort names parse as ordinary calls, and the names
 of §11’s &lt;em&gt;Sorting&lt;/em&gt;, &lt;em&gt;Number formatting&lt;/em&gt; and &lt;em&gt;Arithmetic&lt;/em&gt; are unbound.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;A third part came later.&lt;/strong&gt; The traverse form for allocation,
+&lt;code&gt;?shape(key, shape)&lt;/code&gt; with its &lt;code&gt;~name&lt;/code&gt; markers, is accepted design
+(decisions §19), normative in &lt;code&gt;v3-symbols.md&lt;/code&gt; §1.2, and implemented in all
+six implementations; every corpus runner requires it. Each passage of this
+document it touches is marked &lt;strong&gt;[§19]&lt;/strong&gt;.&lt;/p&gt;
 &lt;hr /&gt;
 &lt;h3 id="1-shape-of-the-language"&gt;1. Shape of the language&lt;/h3&gt;
 &lt;p&gt;Tramaj is expression-oriented. There is one expression language, and
@@ -1597,7 +1767,10 @@ them through unchanged.
 &lt;hr /&gt;
 &lt;h3 id="5-surface-syntax"&gt;5. Surface syntax&lt;/h3&gt;
 &lt;p&gt;Three leader characters: &lt;code&gt;.&lt;/code&gt; builds a document, &lt;code&gt;$&lt;/code&gt; reads a name, &lt;code&gt;@&lt;/code&gt; defines
-one.&lt;/p&gt;
+one. The symbolic extension (&lt;code&gt;v3-symbols.md&lt;/code&gt;) adds three more: &lt;code&gt;?&lt;/code&gt; introduces
+a symbol (§1.2, §1.3 there), &lt;code&gt;!&lt;/code&gt; emits a constraint (§2.2 there) and
+&lt;strong&gt;[§19]&lt;/strong&gt; &lt;code&gt;~&lt;/code&gt; marks a symbol inside the shape of a &lt;code&gt;?shape&lt;/code&gt; (§1.2 there). A
+&lt;code&gt;~&lt;/code&gt; anywhere else is a parse error.&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;@count=cardinality($ctx.items)          -- bindings, one per line
 @panel=(title, kids) =&amp;gt; .section(.h2($title), $kids)
 
@@ -1635,6 +1808,10 @@ one.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;branch(fallback, p1, v1, …)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;conditional&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;import("name", {k: expr, j: ctx(path)})&lt;/code&gt;&lt;/td&gt;&lt;td&gt;import; a parameter may also be left out and supplied later&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;adapt-actions(node, prefix("ns:") \| identity [, fn])&lt;/code&gt;&lt;/td&gt;&lt;td&gt;action adaptation&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;?(key)&lt;/code&gt;, &lt;code&gt;?ctx.a.b&lt;/code&gt;, &lt;code&gt;!expr&lt;/code&gt;&lt;/td&gt;&lt;td&gt;allocation, demand and emission (v3-symbols §1.2, §1.3, §2.2)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;?shape(key, shape)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; allocation over a structure: each marker in &lt;code&gt;shape&lt;/code&gt; is an allocation at the form's one site (v3-symbols §1.2)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;~name&lt;/code&gt;, &lt;code&gt;~name(key)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; a symbol marker, inside a &lt;code&gt;?shape&lt;/code&gt;'s shape only; under a lambda in the shape it MUST carry a key&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;{~name}&lt;/code&gt;, &lt;code&gt;{~name(key)}&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§19]&lt;/strong&gt; shorthand for &lt;code&gt;{name: ~name}&lt;/code&gt;, &lt;code&gt;{name: ~name(key)}&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Names — bindings, path segments, tags, bare keys — start with a letter and
 may contain letters, digits, &lt;code&gt;_&lt;/code&gt; and internal &lt;code&gt;-&lt;/code&gt;. &lt;em&gt;Internal&lt;/em&gt; is enforced,
@@ -1926,8 +2103,8 @@ of the restriction.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;and(…)&lt;/code&gt;, &lt;code&gt;or(…)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;variadic, including zero arguments (&lt;code&gt;and()&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;, &lt;code&gt;or()&lt;/code&gt; is &lt;code&gt;false&lt;/code&gt;)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;eq(a, b)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;deep equality; no cross-type coercion, so &lt;code&gt;eq(1, "1")&lt;/code&gt; is &lt;code&gt;false&lt;/code&gt;, and &lt;strong&gt;[§18]&lt;/strong&gt; so is &lt;code&gt;eq(1, 1.0)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;lt&lt;/code&gt;, &lt;code&gt;lte&lt;/code&gt;, &lt;code&gt;gt&lt;/code&gt;, &lt;code&gt;gte&lt;/code&gt;&lt;/td&gt;&lt;td&gt;numbers only; &lt;strong&gt;[§18]&lt;/strong&gt; two integers or two floats, and a mixed pair is a &lt;code&gt;TypeMismatch&lt;/code&gt;, so &lt;code&gt;gt(1.5, 0)&lt;/code&gt; is written &lt;code&gt;gt(1.5, 0.0)&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;has(container, key)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;tolerant: a missing key, out-of-range index or wrong-shaped container answers &lt;code&gt;false&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;lookup(container, key, fallback)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;dynamic access; the fallback is mandatory, so this never errors&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;has(container, key)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;tolerant: a missing key, out-of-range index or wrong-shaped container answers &lt;code&gt;false&lt;/code&gt;. In symbolic mode a symbol or a term as the container or as the key is &lt;code&gt;NotConcrete&lt;/code&gt; (v3-symbols §1.5)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;lookup(container, key, fallback)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;dynamic access; the fallback is mandatory, so this never errors in concrete mode. In symbolic mode a symbol or a term as the container or as the key is &lt;code&gt;NotConcrete&lt;/code&gt; (v3-symbols §1.5)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;map&lt;/code&gt;, &lt;code&gt;filter&lt;/code&gt;, &lt;code&gt;scan&lt;/code&gt;, &lt;code&gt;fold&lt;/code&gt;&lt;/td&gt;&lt;td&gt;also core constructors — see below&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;sort-by(list, fn)&lt;/code&gt;, &lt;code&gt;sort-by-descending(list, fn)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§20]&lt;/strong&gt; core constructors too: a stable sort by key — see &lt;em&gt;Sorting&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;format-number(x, decimals, group)&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;[§20]&lt;/strong&gt; a number as positional decimal text — see &lt;em&gt;Number formatting&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
@@ -2337,8 +2514,8 @@ type parameters through imports, and typed annotations.
 &lt;/ul&gt;
 &lt;p&gt;Some passages carry a mark. Those marked &lt;strong&gt;[§18]&lt;/strong&gt; (integers and floats as
 two types, and the arithmetic builtins) and those marked &lt;strong&gt;[§20]&lt;/strong&gt; (&lt;code&gt;round&lt;/code&gt;,
-sorting, &lt;code&gt;format-number&lt;/code&gt;) are implemented in all six implementations, on the
-&lt;code&gt;main&lt;/code&gt; branch and in no release yet. The marks are section
+sorting, &lt;code&gt;format-number&lt;/code&gt;) are implemented in all six implementations and
+released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;). The marks are section
 numbers of &lt;code&gt;decisions.md&lt;/code&gt;. For what the number split changes in existing
 templates, see
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;

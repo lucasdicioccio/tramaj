@@ -111,9 +111,9 @@ The normative text is in the
 [language reference](/reference-language.html) and the
 [symbols reference](/reference-v3-symbols.html), and the conformance corpus
 has the fixtures. All six implementations (PureScript, Haskell, TypeScript,
-Rust, Go and Python) have the number split and the builtins on `main`, and
+Rust, Go and Python) have the number split and the builtins, and
 so do the command-line tools (`tramaj-cli --arithmetic`), the Halogen fold
-and the [playground](/playground.html). They are not in a release. A tenth
+and the [playground](/playground.html). They are released with language v5 ([where to get it](/tramaj-v5.html)). A tenth
 builtin, `round`, was added to the nine above by the third design, below.
 
 The split changes what some existing templates produce, beyond the `str`
@@ -175,7 +175,9 @@ every host decoder stay as they are.
 ### Where it stands
 
 The normative text is written (`v3-symbols.md` §1.2 and the passages marked
-**[§19]**), and all six implementations have the form on `main`. The corpus
+**[§19]**), and all six implementations have the form, released in
+`tramaj-purs`/`tramaj-halogen` 0.5.0, `tramaj-hs` 0.5.0.0 and 0.3.0 of the
+Rust, Python and Go ports (the npm 0.3.0 of `tramaj-js` is not published yet). The corpus
 cases for it list `"shape"`, which every runner requires, like
 `"arithmetic"` and `"int-float"`. One thing it does not cover is a caller that supplies a *count* rather than
 a list: that needs a `range`, which is a separate question.
@@ -188,8 +190,7 @@ function as `map` does, and `format-number(x, decimals, group)`, which turns
 `1234567.891` into `1,234,567.89` by one rounding rule every implementation
 must agree on, with `round` as a tenth arithmetic builtin. Its normative text
 is now in the [language reference](/reference-language.html), marked
-**[§20]**, and all six implementations have it on `main`, in no release
-yet.
+**[§20]**, and all six implementations have it, released with language v5 ([where to get it](/tramaj-v5.html)).
 
 =base:main-css.tramaj-json
 { "format": "css"

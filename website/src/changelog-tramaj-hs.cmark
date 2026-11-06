@@ -44,7 +44,7 @@ says what to do about each.
   $version({
       "version": "0.5.0.0",
       "date": "2026-10-24",
-      "summary": "The ?shape allocation form, NotConcrete keys and parse errors at the mistake.",
+      "summary": "The ?shape allocation form, NotConcrete keys and parse errors at the mistake. On Hackage.",
       "changes": [
           {
               "kind": "changed",

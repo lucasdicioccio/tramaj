@@ -245,25 +245,32 @@ produce` then reads from `website/src/`.
 ## Consuming from your own project
 
 Both halves are on the PureScript registry (`tramaj-purs`, `tramaj-halogen`,
-currently 0.4.1), so with a package set that does not yet list them, add them
+currently 0.5.0), so with a package set that does not yet list them, add them
 as registry extra packages in your `spago.yaml`:
 
 ```yaml
 workspace:
   extraPackages:
-    tramaj-purs: 0.4.1
-    tramaj-halogen: 0.4.1
+    tramaj-purs: 0.5.0
+    tramaj-halogen: 0.5.0
 ```
 
-Cabal, in your `cabal.project`:
+`tramaj-hs` is on Hackage (0.5.0.0): add `tramaj-hs` to your `build-depends`.
+To build from the repository instead, in your `cabal.project`:
 
 ```
 source-repository-package
   type: git
-  location: https://github.com/lucasdicioccio/templating-lang.git
-  tag: v0.1.0
+  location: https://github.com/lucasdicioccio/tramaj.git
+  tag: tramaj-hs-v0.5.0.0
   subdir: tramaj-hs
 ```
+
+The other ports are on crates.io (`tramaj-rs`, `tramaj-cli-rs` 0.3.0), PyPI
+(`tramaj` 0.3.0) and the Go module proxy
+(`go get github.com/lucasdicioccio/tramaj/tramaj-go@v0.3.0`).
+`@lucasdicioccio/tramaj-js` and `@lucasdicioccio/tramaj-react` are on npm at
+0.2.0; their 0.3.0 is tagged and not yet published.
 
 ## Roadmap to a stable release
 
@@ -311,7 +318,7 @@ Bump `publish.version` in `tramaj/spago.yaml` and `tramaj-halogen/spago.yaml`
 (a failed or used version cannot be reused), commit, then run
 `scripts/sync-purs-registry-repos.sh --publish` (with `RELEASE_CONFIRM=yes`)
 and `spago publish` from a clone of each copy repo, `tramaj-purs` first. Needs
-spago 1.0 on Node 22.5+. `tramaj-hs` is on Hackage (`0.4.0.0`).
+spago 1.0 on Node 22.5+. `tramaj-hs` is on Hackage (`0.5.0.0`).
 
 ## License
 

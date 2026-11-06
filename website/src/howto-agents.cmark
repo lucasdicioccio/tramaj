@@ -163,7 +163,7 @@ Sorting and number formatting need no profile:
 The reference marks these two and `round` **[§20]**. All six
 implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have
 the number split, the ten builtins, the two sorts and `format-number`. They
-are on the `main` branch and in no release yet: a released package predates
+are released with language v5 ([where to get it](/tramaj-v5.html)); a package from before v5 predates
 them, and there every number is a double and these names are unbound.
 Templates written before the split:
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).

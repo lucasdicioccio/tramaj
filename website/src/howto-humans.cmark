@@ -131,8 +131,8 @@ templates written before the split, read
 [Migrating to integers and floats](/migrating-to-integers-and-floats.html).
 The split and arithmetic are in all six implementations (PureScript,
 Haskell, TypeScript, Rust, Go and Python), and so are `sort-by`,
-`sort-by-descending` and `format-number`, which need no flag. All of it is on
-the `main` branch and in no release yet.
+`sort-by-descending` and `format-number`, which need no flag. All of it is
+released with language v5 ([where to get it](/tramaj-v5.html)).
 
 ## Splitting a template into libraries
 

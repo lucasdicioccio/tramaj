@@ -108,7 +108,7 @@ Sorting and number formatting need no profile:
 - `format-number(x, decimals, group)` writes a number as text: `format-number(1234567.891, 2, ",")` is `"1,234,567.89"`.
 
 
-The reference marks these two and `round` **[§20]**. All six implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have the number split, the ten builtins, the two sorts and `format-number`. They are on the `main` branch and in no release yet: a released package predates them, and there every number is a double and these names are unbound. Templates written before the split: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ).
+The reference marks these two and `round` **[§20]**. All six implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have the number split, the ten builtins, the two sorts and `format-number`. They are released with language v5 ([where to get it](/tramaj-v5.html )); a package from before v5 predates them, and there every number is a double and these names are unbound. Templates written before the split: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ).
 
 ## Actions are opaque to the language
 

@@ -4,7 +4,7 @@ is and how far along it is. The short version:&lt;/p&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;design&lt;/th&gt;&lt;th&gt;accepted&lt;/th&gt;&lt;th&gt;specified&lt;/th&gt;&lt;th&gt;implemented&lt;/th&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;arithmetic, and integers and floats as two types&lt;/td&gt;&lt;td&gt;2026-10-06&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;all six implementations, with the command-line tools, the Halogen fold and the playground, on &lt;code&gt;main&lt;/code&gt;, not released&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;&lt;code&gt;?shape&lt;/code&gt;, a form that allocates a structure of symbols&lt;/td&gt;&lt;td&gt;2026-10-08&lt;/td&gt;&lt;td&gt;design only&lt;/td&gt;&lt;td&gt;no&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;?shape&lt;/code&gt;, a form that allocates a structure of symbols&lt;/td&gt;&lt;td&gt;2026-10-08&lt;/td&gt;&lt;td&gt;yes, in the reference&lt;/td&gt;&lt;td&gt;all six implementations, on &lt;code&gt;main&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
 &lt;p&gt;Both are recorded in
 &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/decisions.md"&gt;&lt;code&gt;specs/decisions.md&lt;/code&gt;&lt;/a&gt;,
@@ -59,9 +59,9 @@ those numbers been in the context. Tramaj still solves nothing.&lt;/p&gt;
 &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt; and the
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;symbols reference&lt;/a&gt;, and the conformance corpus
 has the fixtures. All six implementations (PureScript, Haskell, TypeScript,
-Rust, Go and Python) have the number split and the builtins on &lt;code&gt;main&lt;/code&gt;, and
+Rust, Go and Python) have the number split and the builtins, and
 so do the command-line tools (&lt;code&gt;tramaj-cli --arithmetic&lt;/code&gt;), the Halogen fold
-and the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt;. They are not in a release. A tenth
+and the &lt;a href="/tramaj/playground.html"&gt;playground&lt;/a&gt;. They are released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;). A tenth
 builtin, &lt;code&gt;round&lt;/code&gt;, was added to the nine above by the third design, below.&lt;/p&gt;
 &lt;p&gt;The split changes what some existing templates produce, beyond the &lt;code&gt;str&lt;/code&gt;
 case above: see
@@ -115,9 +115,12 @@ shape with no marker at all.
 hand-written version means, so the core language, the output envelope and
 every host decoder stay as they are.&lt;/p&gt;
 &lt;h4 id="where-it-stands-1"&gt;Where it stands&lt;/h4&gt;
-&lt;p&gt;This one is a design only. The normative text is not written and no
-implementation has it. PureScript and Haskell come first, as for arithmetic.
-One thing it does not cover is a caller that supplies a &lt;em&gt;count&lt;/em&gt; rather than
+&lt;p&gt;The normative text is written (&lt;code&gt;v3-symbols.md&lt;/code&gt; §1.2 and the passages marked
+&lt;strong&gt;[§19]&lt;/strong&gt;), and all six implementations have the form, released in
+&lt;code&gt;tramaj-purs&lt;/code&gt;/&lt;code&gt;tramaj-halogen&lt;/code&gt; 0.5.0, &lt;code&gt;tramaj-hs&lt;/code&gt; 0.5.0.0 and 0.3.0 of the
+Rust, Python and Go ports (the npm 0.3.0 of &lt;code&gt;tramaj-js&lt;/code&gt; is not published yet). The corpus
+cases for it list &lt;code&gt;&amp;quot;shape&amp;quot;&lt;/code&gt;, which every runner requires, like
+&lt;code&gt;&amp;quot;arithmetic&amp;quot;&lt;/code&gt; and &lt;code&gt;&amp;quot;int-float&amp;quot;&lt;/code&gt;. One thing it does not cover is a caller that supplies a &lt;em&gt;count&lt;/em&gt; rather than
 a list: that needs a &lt;code&gt;range&lt;/code&gt;, which is a separate question.&lt;/p&gt;
 &lt;h3 id="also-accepted-sorting-and-number-formatting"&gt;Also accepted: sorting and number formatting&lt;/h3&gt;
 &lt;p&gt;A third design was accepted on the same day, in section 20 of the same file:
@@ -126,6 +129,5 @@ function as &lt;code&gt;map&lt;/code&gt; does, and &lt;code&gt;format-number(x, 
 &lt;code&gt;1234567.891&lt;/code&gt; into &lt;code&gt;1,234,567.89&lt;/code&gt; by one rounding rule every implementation
 must agree on, with &lt;code&gt;round&lt;/code&gt; as a tenth arithmetic builtin. Its normative text
 is now in the &lt;a href="/tramaj/reference-language.html"&gt;language reference&lt;/a&gt;, marked
-&lt;strong&gt;[§20]&lt;/strong&gt;, and all six implementations have it on &lt;code&gt;main&lt;/code&gt;, in no release
-yet.&lt;/p&gt;
+&lt;strong&gt;[§20]&lt;/strong&gt;, and all six implementations have it, released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;).&lt;/p&gt;
 &lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/design-arithmetic-and-shapes.html" rel="alternate"/><summary type="text">A template can now compute with numbers, and will soon declare a whole structure of solver variables in one form. Both designs are written down and accepted; neither is in a release yet.</summary></entry></feed>

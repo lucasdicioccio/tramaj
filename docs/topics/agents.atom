@@ -129,7 +129,7 @@ all strings.
 &lt;p&gt;The reference marks these two and &lt;code&gt;round&lt;/code&gt; &lt;strong&gt;[§20]&lt;/strong&gt;. All six
 implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have
 the number split, the ten builtins, the two sorts and &lt;code&gt;format-number&lt;/code&gt;. They
-are on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet: a released package predates
+are released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;); a package from before v5 predates
 them, and there every number is a double and these names are unbound.
 Templates written before the split:
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;
