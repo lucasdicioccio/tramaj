@@ -23,6 +23,8 @@ module Tramaj.Hpdf
     -- * Fonts
   , Fonts
   , loadFonts
+  , loadTrueTypeFonts
+  , notoSans
   , fontMetrics
 
     -- * Images
@@ -75,7 +77,10 @@ import Graphics.PDF
   , withNewContext
   , Draw
   , FontName (..)
-  , IsFont (charGlyph)
+  , IsFont (charGlyph, glyphWidth)
+  , TrueTypeFontData
+  , mkTrueTypeFont
+  , readTrueTypeFont
   , Line (..)
   , PDF
   , PDFDocumentInfo (..)
@@ -95,8 +100,12 @@ import Tramaj.Hpdf.Layout
 import Tramaj.Node (Node (..), NodeAttribute (..))
 import Tramaj.Json (Json (..))
 
--- | The standard 14 fonts the six 'Face's are drawn in.
-newtype Fonts = Fonts (Face -> AnyFont)
+-- | The fonts the six 'Face's are drawn in: the PDF standard 14 fonts
+-- (not embedded, single-byte encoding), or TrueType fonts, embedded and
+-- written with Unicode glyph ids (the HPDF fork).
+data Fonts
+  = StandardFonts (Face -> AnyFont)
+  | TrueTypeFonts (Face -> TrueTypeFontData)
 
 -- | Loads the font metrics HPDF ships for the standard 14 fonts. Fails only
 -- if HPDF's own embedded metric files do not parse.
@@ -108,7 +117,7 @@ loadFonts = do
   boldItalic <- std Helvetica_BoldOblique
   mono <- std Courier
   monoBold <- std Courier_Bold
-  pure . Fonts $ \case
+  pure . StandardFonts $ \case
     Regular -> regular
     Bold -> bold
     Italic -> italic
@@ -118,18 +127,55 @@ loadFonts = do
   where
     std name = mkStdFont name >>= either (fail . (("tramaj-hpdf: font " <> show name <> ": ") <>) . show) pure
 
-pdfFont :: Fonts -> Style -> PDFFont
-pdfFont (Fonts f) (Style face size) = PDFFont (f face) size
+-- | Reads one TrueType font file per face. The fonts are embedded in the
+-- document (only the faces it uses), so any script they cover renders and
+-- copies out as Unicode. Fails naming the first file that cannot be read.
+loadTrueTypeFonts :: (Face -> FilePath) -> IO Fonts
+loadTrueTypeFonts path = do
+  loaded <- traverse (\face -> (face,) <$> load (path face)) [minBound .. maxBound]
+  let m = Map.fromList loaded
+  pure (TrueTypeFonts (m Map.!))
+  where
+    load p = readTrueTypeFont p >>= either (\e -> fail ("tramaj-hpdf: font " <> p <> ": " <> e)) pure
 
--- | Widths from the fonts' metric files. A character is encodable when the
--- font's encoding gives it a glyph code; HPDF maps any other to code 0.
+-- | The Noto Sans family files in a directory (e.g.
+-- @/usr/share/fonts/truetype/noto@).
+notoSans :: FilePath -> Face -> FilePath
+notoSans dir face = dir </> case face of
+  Regular -> "NotoSans-Regular.ttf"
+  Bold -> "NotoSans-Bold.ttf"
+  Italic -> "NotoSans-Italic.ttf"
+  BoldItalic -> "NotoSans-BoldItalic.ttf"
+  Mono -> "NotoSansMono-Regular.ttf"
+  MonoBold -> "NotoSansMono-Bold.ttf"
+
+-- | The fonts of the faces a layout uses, embedded in the document (a
+-- standard 14 font needs nothing embedded).
+placeFonts :: Fonts -> [Face] -> PDF (Face -> AnyFont)
+placeFonts (StandardFonts f) _ = pure f
+placeFonts (TrueTypeFonts f) faces = do
+  m <- Map.fromList <$> traverse (\face -> (face,) <$> mkTrueTypeFont (f face)) faces
+  pure (m Map.!)
+
+-- | Widths from the fonts' metrics. A character is encodable when the
+-- font gives it a glyph: for the standard 14 fonts, a code in their
+-- encoding (HPDF maps any other to code 0); for a TrueType font, a glyph in
+-- its @cmap@ (glyph 0 is @.notdef@).
 fontMetrics :: Fonts -> Metrics
-fontMetrics fonts@(Fonts f) =
-  Metrics
-    { textWidth = \st t -> Pdf.textWidth (pdfFont fonts st) t
-    , encodable = \(Style face _) c -> c == ' ' || charGlyph (f face) c /= 0
-    , imageSize = const Nothing
-    }
+fontMetrics = \case
+  StandardFonts f ->
+    Metrics
+      { textWidth = \(Style face size) t -> Pdf.textWidth (PDFFont (f face) size) t
+      , encodable = \(Style face _) c -> c == ' ' || charGlyph (f face) c /= 0
+      , imageSize = const Nothing
+      }
+  TrueTypeFonts f ->
+    Metrics
+      { textWidth = \(Style face size) t ->
+          let ttf = f face in sum [glyphWidth ttf size (charGlyph ttf c) | c <- T.unpack t]
+      , encodable = \(Style face _) c -> charGlyph (f face) c /= 0
+      , imageSize = const Nothing
+      }
 
 -- | The fonts' metrics, and the sizes of these images.
 metrics :: Fonts -> Images -> Metrics
@@ -225,10 +271,13 @@ data Options = Options
   -- content streams in a text editor
   , optBaseDir :: FilePath
   -- ^ where 'renderPdfToFile' resolves a relative @img src@
+  , optFontDir :: Maybe FilePath
+  -- ^ for 'renderPdfToFile': embed the Noto Sans fonts from this
+  -- directory ('notoSans') instead of using the standard 14 fonts
   }
 
 defaultOptions :: Options
-defaultOptions = Options a4 "" "" True "."
+defaultOptions = Options a4 "" "" True "." Nothing
 
 -- | The pages a node lays out to with these fonts.
 layoutNode :: Fonts -> Images -> PageSpec -> Node -> [[Placed]]
@@ -239,15 +288,16 @@ layoutNode fonts imgs spec = layoutPages (metrics fonts imgs) spec . nodeBlocks
 drawPages :: Fonts -> Images -> PageSpec -> [[Placed]] -> PDF ()
 drawPages fonts imgs spec pages = do
   refs <- embedImages imgs
-  mapM_ (page refs) pages
+  faceFont <- placeFonts fonts (Map.keys (Map.fromList [(styleFace st, ()) | PlacedText st _ _ _ <- concat pages]))
+  mapM_ (page faceFont refs) pages
   where
-    page refs items = do
+    page faceFont refs items = do
       p <- addPage (Just (PDFRect 0 0 (pageWidth spec) (pageHeight spec)))
-      drawWithPage p (mapM_ (drawPlaced fonts refs) items)
+      drawWithPage p (mapM_ (drawPlaced faceFont refs) items)
 
-drawPlaced :: Fonts -> Map Text (Int, Int, ImageRef) -> Placed -> Draw ()
-drawPlaced fonts refs = \case
-  PlacedText st x y t -> drawText (text (pdfFont fonts st) x y t)
+drawPlaced :: (Face -> AnyFont) -> Map Text (Int, Int, ImageRef) -> Placed -> Draw ()
+drawPlaced faceFont refs = \case
+  PlacedText (Style face size) x y t -> drawText (text (PDFFont (faceFont face) size) x y t)
   PlacedRule x0 x1 y -> stroke (Line x0 y x1 y)
   PlacedHLine w g x0 x1 y -> withNewContext $ do
     setWidth w
@@ -277,6 +327,6 @@ renderPdf fonts imgs opts node =
 
 renderPdfToFile :: FilePath -> Options -> Node -> IO ()
 renderPdfToFile path opts node = do
-  fonts <- loadFonts
+  fonts <- maybe loadFonts (loadTrueTypeFonts . notoSans) (optFontDir opts)
   imgs <- loadImages (optBaseDir opts) node >>= either (fail . ("tramaj-hpdf: " <>)) pure
   BL.writeFile path (renderPdf fonts imgs opts node)
