@@ -1,9 +1,9 @@
 .div(
   .img(src: "../report/logo001.png", width: 64, alt: "salmon"),
   .h1($ctx.typeName, " ", $ctx.number),
-  .p(.strong($ctx.seller.name), .br(), $ctx.seller.street, .br(), $ctx.seller.postcode, " ", $ctx.seller.city, ", ", $ctx.seller.countryName, .br(), "VAT ", $ctx.seller.vatId, " · ", $ctx.seller.email),
+  .p(.strong($ctx.seller.name), .br(), $ctx.seller.street, .br(), $ctx.seller.postcode, " ", $ctx.seller.city, ", ", $ctx.seller.countryName, .br(), "SIREN ", $ctx.seller.siren, " · SIRET ", $ctx.seller.siret, " · VAT ", $ctx.seller.vatId, .br(), $ctx.seller.email),
   .h3("Billed to"),
-  .p(.strong($ctx.buyer.name), .br(), $ctx.buyer.street, .br(), $ctx.buyer.postcode, " ", $ctx.buyer.city, ", ", $ctx.buyer.countryName, .br(), "Attn: ", $ctx.buyer.reference),
+  .p(.strong($ctx.buyer.name), .br(), $ctx.buyer.street, .br(), $ctx.buyer.postcode, " ", $ctx.buyer.city, ", ", $ctx.buyer.countryName, .br(), "SIREN ", $ctx.buyer.siren, " · SIRET ", $ctx.buyer.siret, .br(), "Attn: ", $ctx.buyer.reference),
   .p("Issued on ", $ctx.issueDateText, ". Due on ", $ctx.dueDateText, "."),
   .table(
     .thead(.tr(.th("#"), .th("description"), .th(align: "right", "quantity"), .th(align: "right", "unit price"), .th(align: "right", "amount"))),
@@ -23,5 +23,6 @@
     )
   ),
   .p($ctx.paymentTerms),
+  map($ctx.notes, (n) => .p(.small($n.text))),
   .p(.small("This document is a Factur-X invoice (BASIC profile): the PDF/A-3 file carries the same invoice as structured XML, factur-x.xml."))
 )

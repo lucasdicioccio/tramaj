@@ -27,8 +27,16 @@ format them (`format-number`). The attachment's `/CreationDate` and
 `/ModDate` are the invoice's issue date, read from the XML, so the output
 is the same on every run.
 
-Not yet checked by a validator: run veraPDF (PDF/A-3b) and Mustang
-(Factur-X) on `invoice.pdf`:
+The context carries what a French invoice needs besides the amounts,
+for the XML and the print alike: SIREN (`siren`, BT-30/BT-47) and SIRET,
+electronic addresses (`electronicAddress`: `scheme` 0225 is a SIREN-based
+address, BT-34/BT-49), the delivery date (`deliveryDate`, BT-72) and the
+legal mentions as `notes` with their UNTDID 4451 subject code (BT-21/22:
+`PMT` recovery fee, `PMD` late-payment penalties, `AAB` early-payment
+discount). All the identifiers here are made up.
+
+Validated with veraPDF (PDF/A-3b: compliant, 146/146 rules) and Mustang
+2.26.0 (valid, 0 errors, 0 warnings):
 
 ```
 verapdf --flavour 3b invoice.pdf

@@ -11,7 +11,11 @@
   .rsm-ExchangedDocument(
     .ram-ID($ctx.number),
     .ram-TypeCode($ctx.typeCode),
-    .ram-IssueDateTime(.udt-DateTimeString(format: "102", $ctx.issueDate))
+    .ram-IssueDateTime(.udt-DateTimeString(format: "102", $ctx.issueDate)),
+    map($ctx.notes, (n) => .ram-IncludedNote(
+      .ram-Content($n.text),
+      .ram-SubjectCode($n.subject)
+    ))
   ),
   .rsm-SupplyChainTradeTransaction(
     map($ctx.lines, (l) => .ram-IncludedSupplyChainTradeLineItem(
@@ -37,25 +41,37 @@
     .ram-ApplicableHeaderTradeAgreement(
       .ram-SellerTradeParty(
         .ram-Name($ctx.seller.name),
+        .ram-SpecifiedLegalOrganization(.ram-ID(schemeID: "0002", $ctx.seller.siren)),
         .ram-PostalTradeAddress(
           .ram-PostcodeCode($ctx.seller.postcode),
           .ram-LineOne($ctx.seller.street),
           .ram-CityName($ctx.seller.city),
           .ram-CountryID($ctx.seller.country)
         ),
+        .ram-URIUniversalCommunication(
+          .ram-URIID(schemeID: $ctx.seller.electronicAddress.scheme, $ctx.seller.electronicAddress.id)
+        ),
         .ram-SpecifiedTaxRegistration(.ram-ID(schemeID: "VA", $ctx.seller.vatId))
       ),
       .ram-BuyerTradeParty(
         .ram-Name($ctx.buyer.name),
+        .ram-SpecifiedLegalOrganization(.ram-ID(schemeID: "0002", $ctx.buyer.siren)),
         .ram-PostalTradeAddress(
           .ram-PostcodeCode($ctx.buyer.postcode),
           .ram-LineOne($ctx.buyer.street),
           .ram-CityName($ctx.buyer.city),
           .ram-CountryID($ctx.buyer.country)
+        ),
+        .ram-URIUniversalCommunication(
+          .ram-URIID(schemeID: $ctx.buyer.electronicAddress.scheme, $ctx.buyer.electronicAddress.id)
         )
       )
     ),
-    .ram-ApplicableHeaderTradeDelivery(),
+    .ram-ApplicableHeaderTradeDelivery(
+      .ram-ActualDeliverySupplyChainEvent(
+        .ram-OccurrenceDateTime(.udt-DateTimeString(format: "102", $ctx.deliveryDate))
+      )
+    ),
     .ram-ApplicableHeaderTradeSettlement(
       .ram-InvoiceCurrencyCode($ctx.currency),
       .ram-ApplicableTradeTax(

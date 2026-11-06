@@ -113,10 +113,9 @@ an ICC v4 profile); none is shipped with this package. See
 
 <img src="examples/invoice/invoice-page1.png" alt="page 1 of the example invoice" width="400">
 
-Checked so far with qpdf (through pikepdf), pdfinfo, pdffonts and
-pdfdetach: the structure, the XMP fields, the embedded fonts and the
-attachment. Not yet run through veraPDF or Mustang, nor the XML through
-the Factur-X XSD and Schematron.
+The example passes veraPDF (PDF/A-3b: compliant, 146/146 rules) and
+Mustang 2.26.0 (Factur-X BASIC, with the EN 16931 and French BR-FR
+rules: valid, 0 errors, 0 warnings).
 
 ## What a node becomes
 

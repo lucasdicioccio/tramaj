@@ -15,7 +15,9 @@ Factur-X invoices. Needs the HPDF fork's `factur-x` branch (commit
 - `Tramaj.Hpdf.Xml`: an evaluated node written as XML (`ram-ID` is
   `ram:ID` under an `xmlns:ram`); CLI `--xml`.
 - Example: `examples/invoice/`, a commercial invoice (TypeCode 380), BASIC
-  profile.
+  profile, with the French mentions (SIREN, electronic addresses, delivery
+  date, PMT/PMD/AAB notes) as context fields. veraPDF: PDF/A-3b compliant;
+  Mustang 2.26.0: valid, 0 warnings.
 
 ## 0.2.0.0
 
