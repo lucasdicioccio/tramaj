@@ -40,11 +40,14 @@ module Tramaj.Hpdf.Layout
   , layoutPages
   , columnWidths
   , replaceUnencodable
+  , replacementChar
+  , missingGlyphs
   ) where
 
 import Control.Applicative ((<|>))
 import Data.List (intercalate, transpose)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -409,9 +412,33 @@ data Placed
   -- ^ an image by its @src@: x, y of its bottom left corner, width, height
   deriving stock (Eq, Show)
 
--- | The substitute for a character the font cannot show.
+-- | The substitute for a character the font cannot show: U+FFFD
+-- REPLACEMENT CHARACTER when the face has it (Noto Sans does), else @?@
+-- (the standard 14 fonts). Either way the gap is visible on the page.
+replacementChar :: Metrics -> Style -> Char
+replacementChar m st = if encodable m st '\xFFFD' then '\xFFFD' else '?'
+
+-- | Replaces each character the face cannot show with 'replacementChar'.
 replaceUnencodable :: Metrics -> Style -> Text -> Text
-replaceUnencodable m st = T.map (\c -> if c == '\n' || encodable m st c then c else '?')
+replaceUnencodable m st = T.map (\c -> if c == '\n' || encodable m st c then c else r)
+  where
+    r = replacementChar m st
+
+-- | The characters these blocks show that their face has no glyph for
+-- (each drawn as 'replacementChar'), by face, sorted and without repeats.
+-- An image's alt text counts only when the image has no size, as that is
+-- when it is shown.
+missingGlyphs :: Metrics -> [Block] -> [(Face, Char)]
+missingGlyphs m = Set.toList . Set.fromList . concatMap block
+  where
+    block = \case
+      Para {..} -> concatMap inline (maybe id (:) paraMarker paraRuns)
+      Rule _ -> []
+      Image {..}
+        | Just (pw, ph) <- imageSize m imgSrc, pw > 0, ph > 0 -> []
+        | otherwise -> inline (Inline (Style Italic 11) (if T.null imgAlt then "[image: " <> imgSrc <> "]" else imgAlt))
+      Table {..} -> concatMap (concatMap inline . cellRuns) (concat (tblHead ++ tblBody))
+    inline (Inline st t) = [(styleFace st, c) | c <- T.unpack t, c /= '\n', not (encodable m st c)]
 
 lineHeight :: Style -> Double
 lineHeight st = 1.25 * fromIntegral (styleSize st)

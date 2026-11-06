@@ -1,6 +1,29 @@
 # Changelog
 
-## 0.1.0.0 (unreleased)
+## 0.2.0.0
+
+Embedded fonts and Unicode text. Needs the HPDF fork
+https://github.com/lucasdicioccio/HPDF (branch `unicode-truetype`, commit
+`a0635c5`), which the repository's `cabal.project` pins; a project depending
+on tramaj-hpdf adds the same `source-repository-package` stanza.
+
+- Text is set in Noto Sans and Noto Sans Mono, bundled in `fonts/` (SIL
+  Open Font License 1.1, `fonts/OFL.txt`) and compiled into the library
+  (`loadDefaultFonts`, `defaultFontFiles`): every EU language, Greek and
+  Cyrillic render and copy out as Unicode, with no font needed on the
+  system. A PDF embeds a subset of each face it uses.
+- `renderPdfToFile` uses the bundled fonts by default (it used the standard
+  14 fonts); `optFontDir` / `--fonts DIR` take Noto Sans from a directory
+  instead, and `loadTrueTypeFonts` any TrueType files. `loadFonts` still
+  gives the standard 14 fonts.
+- Missing glyphs: a character the face lacks is drawn as U+FFFD (`?` in
+  the standard 14 fonts), and `renderPdfToFile` lists the characters on
+  stderr, or fails without writing with `optMissingGlyphs =
+  FailOnMissingGlyphs` (`--missing-glyphs error`). `missingGlyphs`,
+  `missingGlyphsIn` and `describeMissingGlyphs` give the list.
+- The licence field is now `MIT AND OFL-1.1` (the code is MIT).
+
+## 0.1.0.0
 
 First version.
 

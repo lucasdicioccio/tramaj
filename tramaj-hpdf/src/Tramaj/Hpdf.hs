@@ -1,27 +1,37 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- | Folds an evaluated tramaj 'Node' into a PDF document with HPDF.
 --
--- > fonts <- loadFonts
+-- > fonts <- loadDefaultFonts
 -- > BL.writeFile "out.pdf" (renderPdf fonts noImages defaultOptions node)
 --
 -- The layout itself is "Tramaj.Hpdf.Layout" (pure, and testable without a
 -- PDF reader); this module supplies HPDF's font metrics to it and draws the
 -- result.
 --
--- __What upstream HPDF limits.__ Text is set in the PDF standard 14 fonts
--- (Helvetica, Courier), which a viewer supplies, so no font is embedded.
--- HPDF writes them with a single-byte encoding (MacRoman), so a character
--- outside it (most of Unicode beyond Western European Latin) is drawn as
--- @?@. The output is not PDF\/A, which requires embedded fonts and XMP
--- metadata. See the package README for what a fork of HPDF would need.
+-- __Fonts.__ By default text is set in Noto Sans and Noto Sans Mono, bundled
+-- in this library (SIL Open Font License 1.1, see @fonts/OFL.txt@) and
+-- embedded in the PDF as subsets, so Latin, Greek and Cyrillic render and
+-- copy out as Unicode. This needs the HPDF fork with TrueType support
+-- (https://github.com/lucasdicioccio/HPDF, branch @unicode-truetype@),
+-- which @cabal.project@ pins. 'loadFonts' still gives the PDF standard 14
+-- fonts (nothing embedded, MacRoman only). A character the face has no
+-- glyph for is drawn as a visible replacement ('replacementChar'), and
+-- 'renderPdfToFile' warns or fails ('MissingGlyphs').
 module Tramaj.Hpdf
   ( -- * Rendering
     Options (..)
+  , MissingGlyphs (..)
   , defaultOptions
   , renderPdf
   , renderPdfToFile
+  , missingGlyphsIn
+  , describeMissingGlyphs
 
     -- * Fonts
   , Fonts
+  , loadDefaultFonts
+  , defaultFontFiles
   , loadFonts
   , loadTrueTypeFonts
   , notoSans
@@ -48,6 +58,12 @@ import qualified Codec.Picture as JP
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Control.Exception (IOException, try)
+import Control.Monad (unless)
+import Data.Char (isPrint, ord)
+import Data.FileEmbed (embedFile, makeRelativeToProject)
+import Data.List (intercalate)
+import System.IO (hPutStrLn, stderr)
+import Text.Printf (printf)
 import Data.Complex (Complex (..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -80,6 +96,7 @@ import Graphics.PDF
   , IsFont (charGlyph, glyphWidth)
   , TrueTypeFontData
   , mkTrueTypeFont
+  , parseTrueTypeFont
   , readTrueTypeFont
   , Line (..)
   , PDF
@@ -137,6 +154,29 @@ loadTrueTypeFonts path = do
   pure (TrueTypeFonts (m Map.!))
   where
     load p = readTrueTypeFont p >>= either (\e -> fail ("tramaj-hpdf: font " <> p <> ": " <> e)) pure
+
+-- | The TrueType files bundled with this library, by face: Noto Sans
+-- (Regular, Bold, Italic, BoldItalic) and Noto Sans Mono (Regular, Bold),
+-- under the SIL Open Font License 1.1 (@fonts/OFL.txt@ in the package).
+defaultFontFiles :: Face -> B.ByteString
+defaultFontFiles = \case
+  Regular -> $(makeRelativeToProject "fonts/NotoSans-Regular.ttf" >>= embedFile)
+  Bold -> $(makeRelativeToProject "fonts/NotoSans-Bold.ttf" >>= embedFile)
+  Italic -> $(makeRelativeToProject "fonts/NotoSans-Italic.ttf" >>= embedFile)
+  BoldItalic -> $(makeRelativeToProject "fonts/NotoSans-BoldItalic.ttf" >>= embedFile)
+  Mono -> $(makeRelativeToProject "fonts/NotoSansMono-Regular.ttf" >>= embedFile)
+  MonoBold -> $(makeRelativeToProject "fonts/NotoSansMono-Bold.ttf" >>= embedFile)
+
+-- | The bundled Noto Sans fonts ('defaultFontFiles'), embedded in the
+-- document as subsets. Needs no file at run time.
+loadDefaultFonts :: IO Fonts
+loadDefaultFonts =
+  either fail pure $ do
+    loaded <- traverse (\face -> (face,) <$> parse face) [minBound .. maxBound]
+    let m = Map.fromList loaded
+    pure (TrueTypeFonts (m Map.!))
+  where
+    parse face = either (\e -> Left ("tramaj-hpdf: bundled font " <> show face <> ": " <> e)) Right (parseTrueTypeFont (defaultFontFiles face))
 
 -- | The Noto Sans family files in a directory (e.g.
 -- @/usr/share/fonts/truetype/noto@).
@@ -273,11 +313,26 @@ data Options = Options
   -- ^ where 'renderPdfToFile' resolves a relative @img src@
   , optFontDir :: Maybe FilePath
   -- ^ for 'renderPdfToFile': embed the Noto Sans fonts from this
-  -- directory ('notoSans') instead of using the standard 14 fonts
+  -- directory ('notoSans') instead of the bundled ones
+  , optMissingGlyphs :: MissingGlyphs
+  -- ^ for 'renderPdfToFile': what to do about characters the fonts cannot
+  -- show
   }
 
+-- | What 'renderPdfToFile' does when the document holds characters its
+-- fonts have no glyph for. Either way nothing is dropped silently: such a
+-- character is drawn as 'replacementChar' (U+FFFD, or @?@ in the standard
+-- 14 fonts).
+data MissingGlyphs
+  = -- | Write the PDF with the replacements, and list the characters on
+    -- stderr.
+    WarnMissingGlyphs
+  | -- | Write nothing and fail, listing the characters.
+    FailOnMissingGlyphs
+  deriving stock (Eq, Show)
+
 defaultOptions :: Options
-defaultOptions = Options a4 "" "" True "." Nothing
+defaultOptions = Options a4 "" "" True "." Nothing WarnMissingGlyphs
 
 -- | The pages a node lays out to with these fonts.
 layoutNode :: Fonts -> Images -> PageSpec -> Node -> [[Placed]]
@@ -325,8 +380,32 @@ renderPdf fonts imgs opts node =
         , compressed = optCompressed opts
         }
 
+-- | The characters of a node its fonts have no glyph for, by face (see
+-- 'missingGlyphs').
+missingGlyphsIn :: Fonts -> Images -> Node -> [(Face, Char)]
+missingGlyphsIn fonts imgs = missingGlyphs (metrics fonts imgs) . nodeBlocks
+
+-- | One line naming each missing character once, as @U+XXXX 'c'@, with
+-- the faces that lack it.
+describeMissingGlyphs :: [(Face, Char)] -> String
+describeMissingGlyphs missing =
+  "no glyph for "
+    <> intercalate ", " [showChar' c <> " (" <> intercalate ", " (map show faces) <> ")" | (c, faces) <- Map.toList byChar]
+  where
+    byChar = Map.fromListWith (flip (<>)) [(c, [f]) | (f, c) <- missing]
+    showChar' c
+      | isPrint c = printf "U+%04X '%c'" (ord c) c
+      | otherwise = printf "U+%04X" (ord c)
+
+-- | Renders with the bundled Noto Sans fonts ('loadDefaultFonts'), or
+-- those in 'optFontDir', reading the images the node names. A character
+-- the fonts lack is reported as 'optMissingGlyphs' says.
 renderPdfToFile :: FilePath -> Options -> Node -> IO ()
 renderPdfToFile path opts node = do
-  fonts <- maybe loadFonts (loadTrueTypeFonts . notoSans) (optFontDir opts)
+  fonts <- maybe loadDefaultFonts (loadTrueTypeFonts . notoSans) (optFontDir opts)
   imgs <- loadImages (optBaseDir opts) node >>= either (fail . ("tramaj-hpdf: " <>)) pure
+  let missing = missingGlyphsIn fonts imgs node
+  unless (null missing) $ case optMissingGlyphs opts of
+    WarnMissingGlyphs -> hPutStrLn stderr ("tramaj-hpdf: warning: " <> describeMissingGlyphs missing <> "; drawn as a replacement character")
+    FailOnMissingGlyphs -> fail ("tramaj-hpdf: " <> describeMissingGlyphs missing)
   BL.writeFile path (renderPdf fonts imgs opts node)

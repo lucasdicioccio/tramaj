@@ -12,7 +12,7 @@ import qualified Data.ByteString.Lazy as BL
 import Tramaj.Hpdf
 
 main = do
-  fonts <- loadFonts
+  fonts <- loadDefaultFonts   -- the bundled Noto Sans; loadFonts for the standard 14
   Right images <- loadImages "." node
   BL.writeFile "out.pdf" (renderPdf fonts images defaultOptions node)
 ```
@@ -20,7 +20,9 @@ main = do
 `renderPdfToFile path opts node` does all three. `Options` sets the page
 size and margins (`a4` by default), the document's author and subject,
 whether page streams are compressed, and the directory a relative
-`img src` is read from (`optBaseDir`; the CLI uses the template's).
+`img src` is read from (`optBaseDir`; the CLI uses the template's), a
+directory of Noto Sans fonts to use instead of the bundled ones
+(`optFontDir`), and what to do about missing glyphs (`optMissingGlyphs`).
 
 The CLI renders a template against a context, or an already-evaluated node
 in the normative Node JSON (`specs/node-json.md`):
@@ -28,7 +30,52 @@ in the normative Node JSON (`specs/node-json.md`):
 ```
 cabal run tramaj-hpdf -- template.tramaj context.json out.pdf
 cabal run tramaj-hpdf -- --node node.json out.pdf
+cabal run tramaj-hpdf -- --fonts /usr/share/fonts/truetype/noto template.tramaj context.json out.pdf
+cabal run tramaj-hpdf -- --missing-glyphs error template.tramaj context.json out.pdf
 ```
+
+## Building: the HPDF fork
+
+Embedding TrueType fonts needs an HPDF fork,
+https://github.com/lucasdicioccio/HPDF (branch `unicode-truetype`), which
+loads TrueType fonts and embeds them as Type0/CIDFontType2 with Identity-H,
+a `ToUnicode` CMap and subsetting. It is not on Hackage and not proposed
+upstream; the repository's `cabal.project` pins it by commit as a
+`source-repository-package`, so a clean checkout builds as is. A project
+that depends on tramaj-hpdf needs the same stanza in its own
+`cabal.project` (copy it from this repository's).
+
+## Fonts
+
+Text is set in Noto Sans (Regular, Bold, Italic, BoldItalic) and Noto Sans
+Mono (Regular, Bold), bundled in [`fonts/`](fonts/) and compiled into the
+library, so nothing is read from the system at run time. They are the
+unmodified Noto Sans 2.004 / Noto Sans Mono 2.006 files (Debian
+`fonts-noto-core`/`fonts-noto-mono` 20201225), under the **SIL Open Font
+License 1.1** ([`fonts/OFL.txt`](fonts/OFL.txt)); the package's own code is
+MIT. A PDF embeds a subset of each face it uses (only the glyphs it shows),
+so `examples/cyrillic` comes to about 45 KB. They cover Latin (every EU language),
+Greek and Cyrillic, and the euro sign; not CJK, Arabic or Indic scripts.
+
+`--fonts DIR` (`optFontDir`) takes the six files from another directory
+instead, by the Noto file names (`notoSans`); `loadTrueTypeFonts` takes any
+TrueType files per face. `loadFonts` keeps the PDF standard 14 fonts
+(Helvetica, Courier: nothing embedded, MacRoman only).
+
+### Missing glyphs
+
+A character the face has no glyph for is never dropped: it is drawn as
+U+FFFD REPLACEMENT CHARACTER (`�`; `?` in the standard 14 fonts, which lack
+it). `renderPdfToFile` and the CLI then list the characters on stderr:
+
+```
+tramaj-hpdf: warning: no glyph for U+65E5 '日' (Regular); drawn as a replacement character
+```
+
+With `optMissingGlyphs = FailOnMissingGlyphs` (`--missing-glyphs error`)
+they fail with that list instead and write no file, for documents such as
+invoices where a replacement character must not go out. `missingGlyphsIn`
+gives the list for a node, to check before rendering with `renderPdf`.
 
 ## Example
 
@@ -83,35 +130,13 @@ tested, or drawn by another backend, without HPDF.
 Lines wrap greedily at spaces; a word wider than the line is cut by
 character; `pre` keeps its spaces and breaks at newlines.
 
-## Limits, and what an HPDF fork would add
+## Limits
 
-Upstream HPDF writes only the PDF standard 14 fonts, which the viewer
-supplies, with a single-byte encoding (MacRoman). So:
-
-- **No Unicode beyond Western European Latin.** A character the encoding
-  lacks (CJK, Greek, Cyrillic, most symbols) is drawn as `?`.
-- **No font embedding.** The output depends on the viewer's Helvetica and
-  Courier.
-- **Not PDF/A.** PDF/A requires every font embedded, plus XMP metadata and
-  an output intent.
-
-Lifting these needs changes inside HPDF itself: loading a TrueType/OpenType
-font, embedding it as a CIDFontType2 with Identity-H encoding, a
-`ToUnicode` CMap so text can be copied out, subsetting to keep files small,
-and the PDF/A metadata objects. That is a fork of HPDF (or patches sent
-upstream), not something this package can do from outside; `fontMetrics`
-and `Metrics.encodable` are where such fonts would plug in.
-
-**Proof of concept, on an HPDF fork.** On this branch, `cabal.project`
-pins an HPDF fork (https://github.com/lucasdicioccio/HPDF, branch
-`unicode-truetype`, not yet proposed upstream) that embeds TrueType fonts
-as Type0/CIDFontType2 with Identity-H and a `ToUnicode` CMap, as a subset
-holding only the glyphs the document shows (`ABCDEF+` tagged).
-`loadTrueTypeFonts (notoSans dir)` (or `tramaj-hpdf --fonts DIR …`) draws
-the six faces in Noto Sans, embedding only the faces a document uses, so
-Cyrillic, Greek and accented Latin render and copy out; the example in
-`examples/cyrillic` comes to about 45 KB with five faces. Still missing:
-kerning, shaping for complex scripts, and PDF/A.
+[`examples/cyrillic`](examples/cyrillic/) shows Cyrillic, Greek and
+accented Latin in all the faces, copied out as Unicode. Still missing:
+kerning, shaping for complex scripts (no glyph substitution or
+positioning), font fallback (one font per face; a character outside it is
+a missing glyph), and PDF/A (it needs XMP metadata and an output intent).
 
 Also not done yet: links (`a href` as a link annotation), `colspan` and
 `rowspan`, a table row taller than a page (it overflows instead of

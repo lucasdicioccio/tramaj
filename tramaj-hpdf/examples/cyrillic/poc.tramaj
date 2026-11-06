@@ -15,5 +15,5 @@
     .tbody(map($ctx.words, (w) => .tr(.td($w.lang), .td($w.word))))
   ),
   .blockquote("Цитата набрана курсивом: «Рукописи не горят»."),
-  .p("Greek works too (Ελληνικά), Noto Sans covers it; 日本語 has no glyph in Noto Sans, so it prints as ?.")
+  .p("Greek works too (Ελληνικά), Noto Sans covers it; 日本語 has no glyph in Noto Sans, so it prints as replacement characters and tramaj-hpdf warns on stderr.")
 )
