@@ -1,0 +1,41 @@
+{
+  "number": "PF-2026-0042",
+  "typeCode": "325",
+  "issueDate": "20261106",
+  "issueDateText": "6 November 2026",
+  "dueDate": "20261206",
+  "dueDateText": "6 December 2026",
+  "currency": "EUR",
+  "currencySuffix": "\u00a0€",
+  "seller": {
+    "name": "Salmon SAS",
+    "street": "12 rue des Saumons",
+    "postcode": "75011",
+    "city": "Paris",
+    "country": "FR",
+    "countryName": "France",
+    "vatId": "FR00123456789",
+    "email": "billing@salmon.example"
+  },
+  "buyer": {
+    "name": "ACME France SARL",
+    "street": "42 avenue du Coyote",
+    "postcode": "69002",
+    "city": "Lyon",
+    "country": "FR",
+    "countryName": "France",
+    "reference": "Wile E. Coyote, procurement"
+  },
+  "lines": [
+    {"id": "1", "name": "Anvil delivery monitoring, November 2026", "quantity": 1, "unit": "C62", "unitText": "month", "price": 1200, "total": 1200},
+    {"id": "2", "name": "On-call support, Road Runner tracking API", "quantity": 6, "unit": "HUR", "unitText": "hours", "price": 85, "total": 510},
+    {"id": "3", "name": "Rocket-skate telemetry storage (per 10 GB)", "quantity": 25, "unit": "C62", "unitText": "units", "price": 4, "total": 100}
+  ],
+  "vat": {"category": "S", "rate": 20, "basis": 1810, "amount": 362},
+  "lineTotal": 1810,
+  "taxBasisTotal": 1810,
+  "taxTotal": 362,
+  "grandTotal": 2172,
+  "duePayable": 2172,
+  "paymentTerms": "Pro-forma: payment of the final invoice within 30 days, by bank transfer."
+}

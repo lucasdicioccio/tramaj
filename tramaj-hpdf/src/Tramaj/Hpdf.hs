@@ -24,9 +24,16 @@ module Tramaj.Hpdf
   , MissingGlyphs (..)
   , defaultOptions
   , renderPdf
+  , renderPdfE
   , renderPdfToFile
   , missingGlyphsIn
   , describeMissingGlyphs
+
+    -- * PDF/A and Factur-X
+  , Archive (..)
+  , facturX
+  , invoiceIssueDate
+  , srgbProfile
 
     -- * Fonts
   , Fonts
@@ -58,7 +65,7 @@ import qualified Codec.Picture as JP
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Control.Exception (IOException, try)
-import Control.Monad (unless)
+import Control.Monad (guard, unless)
 import Data.Char (isPrint, ord)
 import Data.FileEmbed (embedFile, makeRelativeToProject)
 import Data.List (intercalate)
@@ -108,7 +115,17 @@ import Graphics.PDF
   , drawWithPage
   , mkStdFont
   , pdfByteString
+  , pdfByteStringE
   , standardDocInfo
+  , AFRelationship (..)
+  , AssociatedFile (..)
+  , PDFA (..)
+  , XMPExtension
+  , associatedFile
+  , embedAssociatedFile
+  , facturXExtension
+  , pdfa3b
+  , setPDFA
   , stroke
   , text
   )
@@ -317,6 +334,9 @@ data Options = Options
   , optMissingGlyphs :: MissingGlyphs
   -- ^ for 'renderPdfToFile': what to do about characters the fonts cannot
   -- show
+  , optArchive :: Maybe Archive
+  -- ^ write PDF\/A-3b, with these files attached ('facturX'); needs
+  -- embedded (TrueType) fonts, which the bundled ones are
   }
 
 -- | What 'renderPdfToFile' does when the document holds characters its
@@ -332,7 +352,57 @@ data MissingGlyphs
   deriving stock (Eq, Show)
 
 defaultOptions :: Options
-defaultOptions = Options a4 "" "" True "." Nothing WarnMissingGlyphs
+defaultOptions = Options a4 "" "" True "." Nothing WarnMissingGlyphs Nothing
+
+-- | PDF\/A-3b output: the output intent's ICC profile (RGB), the files
+-- attached to the document, and the XMP properties to declare.
+data Archive = Archive
+  { archiveIcc :: BL.ByteString
+  , archiveFiles :: [AssociatedFile]
+  , archiveXmp :: [XMPExtension]
+  }
+
+-- | A Factur-X invoice: PDF\/A-3b with the CII XML attached as
+-- @factur-x.xml@ (relationship @Alternative@, the visual and the XML being
+-- the same invoice) and the Factur-X XMP properties at this conformance
+-- level (@MINIMUM@, @BASIC WL@, @BASIC@, @EN 16931@, @EXTENDED@). The
+-- attachment's @/CreationDate@ and @/ModDate@ are the invoice's issue date
+-- ('invoiceIssueDate'), so the output stays deterministic; with no issue
+-- date in the XML they are left out.
+facturX :: BL.ByteString -> Text -> BL.ByteString -> Archive
+facturX icc level xml =
+  Archive
+    { archiveIcc = icc
+    , archiveFiles =
+        [ (associatedFile "factur-x.xml" "text/xml" xml)
+            { afRelationship = Alternative
+            , afDescription = "Factur-X invoice"
+            , afCreationDate = date
+            , afModDate = date
+            }
+        ]
+    , archiveXmp = [facturXExtension level]
+    }
+  where
+    date = fmap (\d -> "D:" <> d <> "000000Z") (invoiceIssueDate xml)
+
+-- | The @YYYYMMDD@ of the first @format=\"102\"@ date string after
+-- @IssueDateTime@ in a CII document (BT-2, the invoice issue date).
+invoiceIssueDate :: BL.ByteString -> Maybe String
+invoiceIssueDate xml = do
+  let s = BL.toStrict xml
+      (_, fromIssue) = B.breakSubstring "IssueDateTime" s
+      marker = "format=\"102\">"
+      (_, fromDate) = B.breakSubstring marker fromIssue
+  guard (not (B.null fromIssue) && not (B.null fromDate))
+  let digits = B.take 8 (B.drop (B.length marker) fromDate)
+  guard (B.length digits == 8 && B.all (\w -> w >= 48 && w <= 57) digits)
+  pure (map (toEnum . fromIntegral) (B.unpack digits))
+
+-- | Where Debian and Ubuntu install colord's sRGB profile (package
+-- @colord-data@, CC0-1.0).
+srgbProfile :: FilePath
+srgbProfile = "/usr/share/color/icc/colord/sRGB.icc"
 
 -- | The pages a node lays out to with these fonts.
 layoutNode :: Fonts -> Images -> PageSpec -> Node -> [[Placed]]
@@ -367,18 +437,38 @@ drawPlaced faceFont refs = \case
         JpegRef r -> drawXObject r
         RawRef r -> drawXObject r
 
+-- | The document. A PDF\/A problem (a standard 14 font in a document
+-- with 'optArchive') is not reported: see 'renderPdfE'.
 renderPdf :: Fonts -> Images -> Options -> Node -> BL.ByteString
 renderPdf fonts imgs opts node =
-  pdfByteString info rect (drawPages fonts imgs spec (layoutNode fonts imgs spec node))
+  pdfByteString (docInfo opts) (pageRect opts) (documentPdf fonts imgs opts node)
+
+-- | The document, or why it is not the PDF\/A it was asked to be.
+renderPdfE :: Fonts -> Images -> Options -> Node -> Either [String] BL.ByteString
+renderPdfE fonts imgs opts node =
+  pdfByteStringE (docInfo opts) (pageRect opts) (documentPdf fonts imgs opts node)
+
+documentPdf :: Fonts -> Images -> Options -> Node -> PDF ()
+documentPdf fonts imgs opts node = do
+  case optArchive opts of
+    Nothing -> pure ()
+    Just a -> do
+      setPDFA (pdfa3b (archiveIcc a)) {pdfaTitle = optTitle opts, pdfaExtensions = archiveXmp a}
+      mapM_ embedAssociatedFile (archiveFiles a)
+  drawPages fonts imgs spec (layoutNode fonts imgs spec node)
   where
     spec = optPage opts
-    rect = PDFRect 0 0 (pageWidth spec) (pageHeight spec)
-    info =
-      standardDocInfo
-        { author = optAuthor opts
-        , subject = optTitle opts
-        , compressed = optCompressed opts
-        }
+
+pageRect :: Options -> PDFRect
+pageRect opts = PDFRect 0 0 (pageWidth (optPage opts)) (pageHeight (optPage opts))
+
+docInfo :: Options -> PDFDocumentInfo
+docInfo opts =
+  standardDocInfo
+    { author = optAuthor opts
+    , subject = optTitle opts
+    , compressed = optCompressed opts
+    }
 
 -- | The characters of a node its fonts have no glyph for, by face (see
 -- 'missingGlyphs').
@@ -408,4 +498,6 @@ renderPdfToFile path opts node = do
   unless (null missing) $ case optMissingGlyphs opts of
     WarnMissingGlyphs -> hPutStrLn stderr ("tramaj-hpdf: warning: " <> describeMissingGlyphs missing <> "; drawn as a replacement character")
     FailOnMissingGlyphs -> fail ("tramaj-hpdf: " <> describeMissingGlyphs missing)
-  BL.writeFile path (renderPdf fonts imgs opts node)
+  case renderPdfE fonts imgs opts node of
+    Left problems -> fail ("tramaj-hpdf: " <> unwords problems)
+    Right bytes -> BL.writeFile path bytes

@@ -84,6 +84,39 @@ template and a JSON context ([`report.pdf`](examples/report/report.pdf)):
 
 <img src="examples/report/report-page1.png" alt="page 1 of the example report" width="400">
 
+## Factur-X invoices (PDF/A-3b)
+
+With the HPDF fork (below), `optArchive = Just (facturX icc level xml)`
+writes the document as PDF/A-3b: XMP metadata, an sRGB output intent, the
+XML attached as `factur-x.xml` (`/AFRelationship /Alternative`) and the
+Factur-X XMP properties at that level (`BASIC`, `EN 16931`…). It needs the
+TrueType fonts: `renderPdfE` refuses a PDF/A document set in the standard 14
+fonts, which are not embedded.
+
+`Tramaj.Hpdf.Xml.renderXml` writes an evaluated node as XML, so the invoice's
+XML comes from a tramaj template over the same context as the page. A tag
+has no `:`, so a namespace prefix is written with a `-`: `ram-ID` becomes
+`ram:ID` when an `xmlns:ram` attribute is in scope. The CLI:
+
+```
+cabal run tramaj-hpdf -- --fonts /usr/share/fonts/truetype/noto \
+  --factur-x factur-x.tramaj [--factur-x-level BASIC] [--icc sRGB.icc] [--xml-out factur-x.xml] \
+  invoice.tramaj invoice.json invoice.pdf
+cabal run tramaj-hpdf -- --xml factur-x.tramaj invoice.json factur-x.xml
+```
+
+`--factur-x-xml FILE` attaches an XML file as it is. The ICC profile
+defaults to colord's sRGB (`/usr/share/color/icc/colord/sRGB.icc`, CC0-1.0,
+an ICC v4 profile); none is shipped with this package. See
+[`examples/invoice/`](examples/invoice/): a pro-forma invoice, BASIC profile.
+
+<img src="examples/invoice/invoice-page1.png" alt="page 1 of the example invoice" width="400">
+
+Checked so far with qpdf (through pikepdf), pdfinfo, pdffonts and
+pdfdetach: the structure, the XMP fields, the embedded fonts and the
+attachment. Not yet run through veraPDF or Mustang, nor the XML through
+the Factur-X XSD and Schematron.
+
 ## What a node becomes
 
 `Tramaj.Hpdf.Layout` is pure: `nodeBlocks` reads the tree as a document and
@@ -133,10 +166,12 @@ character; `pre` keeps its spaces and breaks at newlines.
 ## Limits
 
 [`examples/cyrillic`](examples/cyrillic/) shows Cyrillic, Greek and
-accented Latin in all the faces, copied out as Unicode. Still missing:
-kerning, shaping for complex scripts (no glyph substitution or
-positioning), font fallback (one font per face; a character outside it is
-a missing glyph), and PDF/A (it needs XMP metadata and an output intent).
+accented Latin in all the faces, copied out as Unicode. PDF/A-3b and
+Factur-X are above; they need the HPDF fork's `factur-x` branch (built on
+`unicode-truetype`), which `cabal.project` pins. Still missing: kerning,
+shaping for complex scripts (no glyph substitution or positioning), and
+font fallback (one font per face; a character outside it is a missing
+glyph).
 
 Also not done yet: links (`a href` as a link annotation), `colspan` and
 `rowspan`, a table row taller than a page (it overflows instead of
