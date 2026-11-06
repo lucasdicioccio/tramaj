@@ -1,8 +1,9 @@
 packages: tramaj-hs tramaj-hpdf
 
--- HPDF fork with embedded TrueType fonts (subset) and Unicode text, not yet
+-- HPDF fork (branch factur-x): embedded TrueType fonts (subset), Unicode text,
+-- PDF/A-3b and associated files (Factur-X), not yet
 -- proposed upstream (https://github.com/hsyl20/HPDF).
 source-repository-package
   type: git
   location: https://github.com/lucasdicioccio/HPDF.git
-  tag: a0635c58859817899b61d3f6cd25701c077e4213
+  tag: 2d602273824249c0565c2e8f1be53027ac4c7815

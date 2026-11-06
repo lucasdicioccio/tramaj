@@ -1,0 +1,27 @@
+.div(
+  .img(src: "../report/logo001.png", width: 64, alt: "salmon"),
+  .h1("Pro-forma invoice ", $ctx.number),
+  .p(.strong($ctx.seller.name), .br(), $ctx.seller.street, .br(), $ctx.seller.postcode, " ", $ctx.seller.city, ", ", $ctx.seller.countryName, .br(), "VAT ", $ctx.seller.vatId, " · ", $ctx.seller.email),
+  .h3("Billed to"),
+  .p(.strong($ctx.buyer.name), .br(), $ctx.buyer.street, .br(), $ctx.buyer.postcode, " ", $ctx.buyer.city, ", ", $ctx.buyer.countryName, .br(), "Attn: ", $ctx.buyer.reference),
+  .p("Issued on ", $ctx.issueDateText, ". Due on ", $ctx.dueDateText, "."),
+  .table(
+    .thead(.tr(.th("#"), .th("description"), .th(align: "right", "quantity"), .th(align: "right", "unit price"), .th(align: "right", "amount"))),
+    .tbody(map($ctx.lines, (l) => .tr(
+      .td($l.id),
+      .td($l.name),
+      .td(align: "right", $l.quantity, " ", $l.unitText),
+      .td(align: "right", format-number($l.price, 2, ","), $ctx.currencySuffix),
+      .td(align: "right", format-number($l.total, 2, ","), $ctx.currencySuffix)
+    )))
+  ),
+  .table(
+    .tbody(
+      .tr(.td("Total excluding VAT"), .td(align: "right", format-number($ctx.taxBasisTotal, 2, ","), $ctx.currencySuffix)),
+      .tr(.td("VAT ", $ctx.vat.rate, " %"), .td(align: "right", format-number($ctx.taxTotal, 2, ","), $ctx.currencySuffix)),
+      .tr(.th("Total including VAT"), .th(align: "right", format-number($ctx.grandTotal, 2, ","), $ctx.currencySuffix))
+    )
+  ),
+  .p($ctx.paymentTerms),
+  .p(.small("This document is a Factur-X invoice (BASIC profile): the PDF/A-3 file carries the same invoice as structured XML, factur-x.xml."))
+)

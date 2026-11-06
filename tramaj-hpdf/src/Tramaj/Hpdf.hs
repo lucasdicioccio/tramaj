@@ -18,7 +18,13 @@ module Tramaj.Hpdf
     Options (..)
   , defaultOptions
   , renderPdf
+  , renderPdfE
   , renderPdfToFile
+
+    -- * PDF/A and Factur-X
+  , Archive (..)
+  , facturX
+  , srgbProfile
 
     -- * Fonts
   , Fonts
@@ -91,7 +97,17 @@ import Graphics.PDF
   , drawWithPage
   , mkStdFont
   , pdfByteString
+  , pdfByteStringE
   , standardDocInfo
+  , AFRelationship (..)
+  , AssociatedFile (..)
+  , PDFA (..)
+  , XMPExtension
+  , associatedFile
+  , embedAssociatedFile
+  , facturXExtension
+  , pdfa3b
+  , setPDFA
   , stroke
   , text
   )
@@ -274,10 +290,43 @@ data Options = Options
   , optFontDir :: Maybe FilePath
   -- ^ for 'renderPdfToFile': embed the Noto Sans fonts from this
   -- directory ('notoSans') instead of using the standard 14 fonts
+  , optArchive :: Maybe Archive
+  -- ^ write PDF\/A-3b, with these files attached ('facturX'); needs
+  -- embedded (TrueType) fonts
   }
 
 defaultOptions :: Options
-defaultOptions = Options a4 "" "" True "." Nothing
+defaultOptions = Options a4 "" "" True "." Nothing Nothing
+
+-- | PDF\/A-3b output: the output intent's ICC profile (RGB), the files
+-- attached to the document, and the XMP properties to declare.
+data Archive = Archive
+  { archiveIcc :: BL.ByteString
+  , archiveFiles :: [AssociatedFile]
+  , archiveXmp :: [XMPExtension]
+  }
+
+-- | A Factur-X invoice: PDF\/A-3b with the CII XML attached as
+-- @factur-x.xml@ (relationship @Alternative@, the visual and the XML being
+-- the same invoice) and the Factur-X XMP properties at this conformance
+-- level (@MINIMUM@, @BASIC WL@, @BASIC@, @EN 16931@, @EXTENDED@).
+facturX :: BL.ByteString -> Text -> BL.ByteString -> Archive
+facturX icc level xml =
+  Archive
+    { archiveIcc = icc
+    , archiveFiles =
+        [ (associatedFile "factur-x.xml" "text/xml" xml)
+            { afRelationship = Alternative
+            , afDescription = "Factur-X invoice"
+            }
+        ]
+    , archiveXmp = [facturXExtension level]
+    }
+
+-- | Where Debian and Ubuntu install colord's sRGB profile (package
+-- @colord-data@, CC0-1.0).
+srgbProfile :: FilePath
+srgbProfile = "/usr/share/color/icc/colord/sRGB.icc"
 
 -- | The pages a node lays out to with these fonts.
 layoutNode :: Fonts -> Images -> PageSpec -> Node -> [[Placed]]
@@ -312,21 +361,43 @@ drawPlaced faceFont refs = \case
         JpegRef r -> drawXObject r
         RawRef r -> drawXObject r
 
+-- | The document. A PDF\/A problem (a standard 14 font in a document
+-- with 'optArchive') is not reported: see 'renderPdfE'.
 renderPdf :: Fonts -> Images -> Options -> Node -> BL.ByteString
 renderPdf fonts imgs opts node =
-  pdfByteString info rect (drawPages fonts imgs spec (layoutNode fonts imgs spec node))
+  pdfByteString (docInfo opts) (pageRect opts) (documentPdf fonts imgs opts node)
+
+-- | The document, or why it is not the PDF\/A it was asked to be.
+renderPdfE :: Fonts -> Images -> Options -> Node -> Either [String] BL.ByteString
+renderPdfE fonts imgs opts node =
+  pdfByteStringE (docInfo opts) (pageRect opts) (documentPdf fonts imgs opts node)
+
+documentPdf :: Fonts -> Images -> Options -> Node -> PDF ()
+documentPdf fonts imgs opts node = do
+  case optArchive opts of
+    Nothing -> pure ()
+    Just a -> do
+      setPDFA (pdfa3b (archiveIcc a)) {pdfaTitle = optTitle opts, pdfaExtensions = archiveXmp a}
+      mapM_ embedAssociatedFile (archiveFiles a)
+  drawPages fonts imgs spec (layoutNode fonts imgs spec node)
   where
     spec = optPage opts
-    rect = PDFRect 0 0 (pageWidth spec) (pageHeight spec)
-    info =
-      standardDocInfo
-        { author = optAuthor opts
-        , subject = optTitle opts
-        , compressed = optCompressed opts
-        }
+
+pageRect :: Options -> PDFRect
+pageRect opts = PDFRect 0 0 (pageWidth (optPage opts)) (pageHeight (optPage opts))
+
+docInfo :: Options -> PDFDocumentInfo
+docInfo opts =
+  standardDocInfo
+    { author = optAuthor opts
+    , subject = optTitle opts
+    , compressed = optCompressed opts
+    }
 
 renderPdfToFile :: FilePath -> Options -> Node -> IO ()
 renderPdfToFile path opts node = do
   fonts <- maybe loadFonts (loadTrueTypeFonts . notoSans) (optFontDir opts)
   imgs <- loadImages (optBaseDir opts) node >>= either (fail . ("tramaj-hpdf: " <>)) pure
-  BL.writeFile path (renderPdf fonts imgs opts node)
+  case renderPdfE fonts imgs opts node of
+    Left problems -> fail ("tramaj-hpdf: " <> unwords problems)
+    Right bytes -> BL.writeFile path bytes
