@@ -8,7 +8,9 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Directory (doesFileExist, listDirectory)
+import Control.Monad (when)
+import System.Directory (doesFileExist, listDirectory, removeFile)
+import System.IO.Error (ioeGetErrorString, isUserError)
 import System.FilePath ((</>))
 import Test.Hspec
 import Tramaj.Hpdf
@@ -17,6 +19,9 @@ import Codec.Picture (PixelRGBA8 (..), generateImage, writePng)
 import System.Directory (getTemporaryDirectory)
 import Tramaj.Json (Json (..), jsonParser)
 import Tramaj.Node (Node (..), NodeAttribute (..), nodeFromJson)
+
+notoDir :: FilePath
+notoDir = "/usr/share/fonts/truetype/noto"
 
 el :: Text -> [Node] -> Node
 el tag cs = NElement tag [] JNull cs Map.empty
@@ -226,6 +231,24 @@ main = hspec $ do
         other -> expectationFailure (show other)
     it "replaces characters the font cannot show" $
       map texts (lay (el "p" [txt "caf\233"])) `shouldBe` [["caf?"]]
+    it "replaces them with U+FFFD when the font has it" $ do
+      let m = monoMetrics {encodable = \_ c -> c < '\x80' || c == '\xFFFD'}
+      map texts (layoutPages m narrow (nodeBlocks (el "p" [txt "caf\233"])))
+        `shouldBe` [["caf\xFFFD"]]
+
+  describe "missingGlyphs" $ do
+    let missing = missingGlyphs monoMetrics . nodeBlocks
+    it "is empty when every character shows" $
+      missing (el "p" [txt "plain ASCII"]) `shouldBe` []
+    it "lists each missing character once, by face" $
+      missing (frag [el "p" [txt "caf\233 \233t\233"], el "h1" [txt "\233"], el "pre" [txt "a\nb"]])
+        `shouldBe` [(Regular, '\233'), (Bold, '\233')]
+    it "looks in list markers, table cells and alt text" $ do
+      missing (el "ul" [el "li" [txt "a"]]) `shouldBe` [(Regular, '\x2022')]
+      missing (el "table" [el "tr" [el "td" [txt "\x416"]]]) `shouldBe` [(Regular, '\x416')]
+      missing (elA "img" [("src", JString "nope.png"), ("alt", JString "\x416")] [])
+        `shouldBe` [(Italic, '\x416')]
+      missing (elA "img" [("src", JString "wide.png"), ("alt", JString "\x416")] []) `shouldBe` []
 
   describe "with HPDF's standard fonts" $ do
     it "can show Latin-1 accents and the bullet, not CJK" $ do
@@ -248,6 +271,62 @@ main = hspec $ do
       -- HPDF writes glyph codes in hex: "120" is <313230>.
       BC.isInfixOf "<313230> Tj" pdf `shouldBe` True
 
+  describe "with embedded TrueType fonts (the HPDF fork)" $ do
+    -- Uses the system's Noto Sans; skipped where it is not installed.
+    let withNoto act = do
+          have <- doesFileExist (notoSans notoDir Regular)
+          if have then loadTrueTypeFonts (notoSans notoDir) >>= act else pendingWith ("no Noto Sans in " <> notoDir)
+    it "can show Cyrillic and accents, not CJK" $ withNoto $ \fonts -> do
+      let ok = encodable (fontMetrics fonts) bodyStyle
+      (ok '\x416', ok '\x491', ok '\x153', ok '\x65E5') `shouldBe` (True, True, True, False)
+    it "measures with the fonts' widths" $ withNoto $ \fonts -> do
+      let w = textWidth (fontMetrics fonts)
+      w bodyStyle "\x456\x456\x456" `shouldSatisfy` (< w bodyStyle "\x416\x416\x416")
+      w (Style Mono 10) "\x456\x456" `shouldBe` w (Style Mono 10) "\x416\x416"
+    it "embeds the faces it uses, with two-byte glyph ids and a ToUnicode map" $ withNoto $ \fonts -> do
+      let node = el "p" [txt "\x416\x443\x43A"]
+          pdf = BL.toStrict (renderPdf fonts noImages defaultOptions {optCompressed = False} node)
+      count "/Subtype /Type0" pdf `shouldBe` 1
+      count "/FontFile2" pdf `shouldBe` 1
+      count "/ToUnicode" pdf `shouldBe` 1
+      BC.isInfixOf "/Encoding /Identity-H" pdf `shouldBe` True
+      -- three characters, three glyph ids of four hex digits each
+      let shown = BC.takeWhileEnd (/= '<') (fst (BC.breakSubstring "> Tj" pdf))
+      BC.length shown `shouldBe` 12
+
+  describe "with the bundled Noto Sans fonts" $ do
+    it "loads without any font file on the system" $ do
+      fonts <- loadDefaultFonts
+      let ok = encodable (fontMetrics fonts)
+      (ok bodyStyle '\x416', ok bodyStyle '\x3A9', ok bodyStyle '\x20AC', ok (Style Mono 10) '\x416')
+        `shouldBe` (True, True, True, True)
+    it "has the European languages' letters in every face" $ do
+      fonts <- loadDefaultFonts
+      let letters = "\xE0\xE9\xF1\xF6\xDF\x153\x142\x15B\x17C\x159\x16F\x151\x171\x103\x219\x21B\x10D\x161\x17E\x101\x113\x12B\x16B\x3B1\x3C9\x416\x44F\x491\x20AC"
+      [(face, c) | face <- [minBound .. maxBound], c <- letters, not (encodable (fontMetrics fonts) (Style face 11) c)]
+        `shouldBe` []
+    it "draws a missing glyph as U+FFFD and reports it" $ do
+      fonts <- loadDefaultFonts
+      let node = el "p" [txt "a\x65E5\&b"]
+      missingGlyphsIn fonts noImages node `shouldBe` [(Regular, '\x65E5')]
+      describeMissingGlyphs (missingGlyphsIn fonts noImages node)
+        `shouldBe` "no glyph for U+65E5 '\x65E5' (Regular)"
+      map texts (layoutNode fonts noImages a4 node) `shouldBe` [["a\xFFFD\&b"]]
+    it "renderPdfToFile warns and writes, or fails and writes nothing" $ do
+      tmp <- getTemporaryDirectory
+      let node = el "p" [txt "\x416 \x65E5"]
+          out = tmp </> "tramaj-hpdf-missing-glyph-test.pdf"
+      removeIfExists out
+      renderPdfToFile out defaultOptions {optMissingGlyphs = FailOnMissingGlyphs} node
+        `shouldThrow` (\e -> isUserError e && "U+65E5" `T.isInfixOf` T.pack (ioeGetErrorString e))
+      doesFileExist out `shouldReturn` False
+      renderPdfToFile out defaultOptions node
+      BC.take 5 <$> BC.readFile out `shouldReturn` "%PDF-"
+      removeIfExists out
+      renderPdfToFile out defaultOptions {optMissingGlyphs = FailOnMissingGlyphs} (el "p" [txt "\x416"])
+      doesFileExist out `shouldReturn` True
+      removeIfExists out
+
   describe "the conformance corpus" $
     it "folds every expected document to a PDF" $ do
       cases <- listDirectory corpusDir
@@ -255,6 +334,10 @@ main = hspec $ do
       nodes <- rights <$> mapM (fmap (\s -> jsonParser s >>= nodeFromJson) . TIO.readFile) expected
       -- Most expected files are values, errors or symbolic envelopes, not nodes.
       length nodes `shouldSatisfy` (>= 20)
-      fonts <- loadFonts
-      forM_ nodes $ \n ->
+      std <- loadFonts
+      noto <- loadDefaultFonts
+      forM_ nodes $ \n -> forM_ [std, noto] $ \fonts ->
         BL.take 5 (renderPdf fonts noImages defaultOptions n) `shouldBe` "%PDF-"
+
+removeIfExists :: FilePath -> IO ()
+removeIfExists p = doesFileExist p >>= \e -> when e (removeFile p)

@@ -1,0 +1,19 @@
+.div(
+  .h1("Кирилиця в PDF: `$ctx.title`"),
+  .p("Этот документ собран ", .strong("tramaj-hpdf"), " из шаблона и JSON-контекста, со встроенным шрифтом TrueType (", .code("Noto Sans"), "). Текст можно выделить и скопировать."),
+  .h2("Русский"),
+  .p("Съешь же ещё этих мягких французских булок, да выпей чаю. В чащах юга жил бы цитрус? Да, но фальшивый экземпляр!"),
+  .h2("Українська"),
+  .p("Чуєш їх, доцю, га? Кумедна ж ти, прощайся без ґольфів! Жебракують філософи при ґанку церкви в Гадячі, ще й шатро їхнє п'яне знаємо."),
+  .h2("Latin with accents"),
+  .p("Ça va? Le cœur déçu mais l'âme plutôt naïve, Louÿs rêva de crapaüter en canoë au delà des îles. Žluťoučký kůň úpěl ďábelské ódy. Pchnąć w tę łódź jeża."),
+  .h3("Styles"),
+  .p(.strong("Жирный текст"), ", ", .em("курсив"), ", ", .strong(.em("жирный курсив")), " и ", .code("моноширинный код"), "."),
+  .ul(map($ctx.items, (s) => .li(.strong($s.name), " — ", $s.note))),
+  .table(
+    .thead(.tr(.th("мова"), .th("слово"))),
+    .tbody(map($ctx.words, (w) => .tr(.td($w.lang), .td($w.word))))
+  ),
+  .blockquote("Цитата набрана курсивом: «Рукописи не горят»."),
+  .p("Greek works too (Ελληνικά), Noto Sans covers it; 日本語 has no glyph in Noto Sans, so it prints as replacement characters and tramaj-hpdf warns on stderr.")
+)

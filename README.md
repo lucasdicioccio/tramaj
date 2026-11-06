@@ -100,7 +100,7 @@ what replaced it.
 | [`tramaj-cli/`](tramaj-cli) | PureScript | Node CLI: template file + JSON context file → the evaluated AST as JSON on stdout. |
 | [`playground/`](playground) | PureScript | Browser playground — edit a template and a JSON context, see the AST, the rendered HTML, and the actions it dispatches. |
 | [`tramaj-hs/`](tramaj-hs) | Haskell | The same five modules on megaparsec + aeson, for evaluating server-side. No browser runtime. |
-| [`tramaj-hpdf/`](tramaj-hpdf) | Haskell | Folds a `tramaj-hs` `Node` into a PDF with HPDF: headings, paragraphs, lists, `pre`, rules, line wrapping and pages. Standard fonts only for now, so no Unicode beyond Latin-1 and no PDF/A. Plus a `tramaj-hpdf` CLI. |
+| [`tramaj-hpdf/`](tramaj-hpdf) | Haskell | Folds a `tramaj-hs` `Node` into a PDF with HPDF: headings, paragraphs, lists, `pre`, tables, images, line wrapping and pages, in bundled Noto Sans fonts (OFL) embedded as subsets, so any EU language, Greek and Cyrillic; missing glyphs are shown and reported. Needs the HPDF fork `cabal.project` pins. No PDF/A yet. Plus a `tramaj-hpdf` CLI. |
 | [`tramaj-py/`](tramaj-py) | Python | The same modules on the standard library alone, plus a `python -m tramaj` CLI. No dependencies. |
 | [`tramaj-go/`](tramaj-go) | Go | The same modules as one Go package on the standard library alone, plus a `tramaj-go` CLI. No dependencies. |
 
