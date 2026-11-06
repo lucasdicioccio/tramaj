@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.3.0.0 (2026-11-06)
+
+A git-tag release, `tramaj-hpdf-v0.3.0.0`; not on Hackage while the HPDF
+changes live only in https://github.com/lucasdicioccio/HPDF. Consumers pin
+the tag and copy the HPDF `source-repository-package` stanza from this
+repository's `cabal.project`.
 
 Factur-X invoices. Needs the HPDF fork's `factur-x` branch (commit
 `dc7cdb7`, built on `unicode-truetype`), which `cabal.project` pins.
