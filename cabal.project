@@ -1,5 +1,8 @@
 packages: tramaj-hs tramaj-hpdf
 
--- Local PoC only: the HPDF fork with embedded TrueType fonts and Unicode
--- text (a clone of https://github.com/hsyl20/HPDF next to this checkout).
-packages: ../HPDF-fork
+-- HPDF fork with embedded TrueType fonts (subset) and Unicode text, not yet
+-- proposed upstream (https://github.com/hsyl20/HPDF).
+source-repository-package
+  type: git
+  location: https://github.com/lucasdicioccio/HPDF.git
+  tag: a0635c58859817899b61d3f6cd25701c077e4213
