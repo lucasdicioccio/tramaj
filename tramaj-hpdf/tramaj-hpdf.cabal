@@ -1,0 +1,81 @@
+cabal-version:      3.4
+name:               tramaj-hpdf
+version:            0.1.0.0
+synopsis:           Fold an evaluated tramaj Node tree into a PDF via HPDF
+description:
+  Folds the evaluated @Node@ tree of @tramaj-hs@ into a PDF document with
+  HPDF: block layout (headings, paragraphs, lists, preformatted text, rules),
+  greedy line wrapping and pagination, on the PDF standard 14 fonts.
+  .
+  The layout is a pure function from a 'Node' to placed text and rules, so it
+  can be tested without reading a PDF back; "Tramaj.Hpdf" draws that layout.
+  .
+  Upstream HPDF only writes the standard 14 fonts with a single-byte
+  encoding, so characters outside it are replaced, nothing is embedded and the
+  output is not PDF\/A. See the package README.
+homepage:           https://github.com/lucasdicioccio/templating-lang
+bug-reports:        https://github.com/lucasdicioccio/templating-lang/issues
+license:            MIT
+license-file:       LICENSE
+author:             Lucas DiCioccio
+maintainer:         lucas.dicioccio@gmail.com
+category:           Text, Graphics
+build-type:         Simple
+extra-doc-files:
+  CHANGELOG.md
+  README.md
+
+source-repository head
+  type:     git
+  location: https://github.com/lucasdicioccio/templating-lang.git
+  subdir:   tramaj-hpdf
+
+common defaults
+  default-language:   GHC2021
+  default-extensions:
+    DerivingStrategies
+    LambdaCase
+    OverloadedStrings
+  ghc-options:        -Wall -Wno-name-shadowing
+
+library
+  import:           defaults
+  hs-source-dirs:   src
+  exposed-modules:
+    Tramaj.Hpdf
+    Tramaj.Hpdf.Layout
+  build-depends:
+    , base        >=4.19 && <4.22
+    , bytestring  >=0.11 && <0.13
+    , containers  >=0.6  && <0.9
+    , HPDF        >=1.7  && <1.9
+    , text        >=2.0  && <2.2
+    , tramaj-hs   >=0.5  && <0.6
+
+executable tramaj-hpdf
+  import:           defaults
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , containers
+    , megaparsec
+    , text
+    , tramaj-hpdf
+    , tramaj-hs
+
+test-suite hpdf
+  import:           defaults
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hspec        >=2.11
+    , text
+    , tramaj-hpdf
+    , tramaj-hs
