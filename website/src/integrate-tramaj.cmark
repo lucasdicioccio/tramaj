@@ -99,11 +99,12 @@ in three places.
 <tr><td><code>tramaj-py</code></td><td>yes</td><td>yes</td><td>yes</td><td>signed 64-bit</td></tr>
 </table>
 
-Every row is on the `main` branch and in no release yet. The packages
-already published (`tramaj-rs` and `tramaj-cli-rs` 0.1.0 on crates.io,
-`tramaj` 0.1.0 on PyPI) predate all of it: there every number is a double,
-`str(1.0)` is `1`, and the arithmetic, sorting and formatting names are
-unbound. On `main` the six implementations give the same output for the
+Every row is in the current releases (`tramaj-purs` and `tramaj-halogen`
+0.5.0, `tramaj-hs` 0.5.0.0, `tramaj-rs`, `tramaj-cli-rs`, `tramaj` and
+`tramaj-go` 0.3.0, `tramaj-js` and `tramaj-react` 0.2.0 on npm). The older
+`tramaj-rs` and `tramaj-cli-rs` 0.1.0 on crates.io and `tramaj` 0.1.0 on PyPI
+predate all of it: there every number is a double, `str(1.0)` is `1`, and the
+arithmetic, sorting and formatting names are unbound. The six implementations give the same output for the
 same template, except where a result depends on the integer range: the
 corpus cases that do are marked `"int53"` or `"int64"` in their `"profiles"`,
 and an implementation skips the cases of the range it does not have. An
@@ -185,9 +186,8 @@ instead).
 that targets the same grammar as the PureScript `tramaj-purs` and shares its
 conformance corpus. It's a normal Cabal library exposing `Tramaj.Ast`,
 `Tramaj.Parser`, `Tramaj.Eval`, `Tramaj.Node`, `Tramaj.Json`,
-`Tramaj.Analysis`, and `Tramaj.Types` — so a Haskell host can depend on it directly (as a
-`source-repository-package` or path dependency; it isn't published to
-Hackage), the same way a PureScript host depends on `tramaj-purs`.
+`Tramaj.Analysis`, and `Tramaj.Types` — so a Haskell host can depend on it directly (from
+Hackage, 0.5.0.0, or as a `source-repository-package` or path dependency), the same way a PureScript host depends on `tramaj-purs`.
 
 What it does *not* have yet is a `tramaj-halogen` equivalent — no fold to
 Lucid, Blaze, or any other Haskell HTML/UI library ships in this
@@ -216,9 +216,8 @@ held to the same shared conformance corpus (`corpus/cases/`, including
 and [`v4-types.md`](/reference-v4-types.html)'s nominal types, not just the
 core language, with the two number types and the arithmetic profile,
 see *Numbers at the boundary*). It's a normal Cargo library crate — `tramaj_rs::{ast, parser,
-eval, json, node, analysis, types}` — depended on as a path or git dependency for
-what this section describes (`tramaj-rs` 0.1.0 is on crates.io, but predates the
-number split and takes `serde_json::Value`), the same way a PureScript host depends on
+eval, json, node, analysis, types}` — on crates.io (0.3.0), or depended on as a
+path or git dependency, the same way a PureScript host depends on
 `tramaj-purs` or a Haskell host depends on `tramaj-hs`:
 
 ```rust
@@ -373,14 +372,13 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (`corpus/cases/`, including
 [`v3-symbols.md`](/reference-v3-symbols.html)'s symbols/constraints and
 [`v4-types.md`](/reference-v4-types.html)'s nominal types; the two number
-types and the ten arithmetic builtins are in this port, on `main`). It needs
+types and the ten arithmetic builtins are in this port). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It's a normal package — `tramaj` with
 `ast`, `parser`, `evaluator`, `node`, `analysis`, `typesys` and `jsonval`
-modules, laid out one-to-one like `tramaj-js` — installed from the
-repository's `tramaj-py/` directory for what this section describes
-(`tramaj` 0.1.0 is on PyPI, but predates the number split):
+modules, laid out one-to-one like `tramaj-js` — installed from PyPI
+(`pip install tramaj`, 0.3.0) or from the repository's `tramaj-py/` directory:
 
 ```python
 from tramaj import parse_program, run_program
@@ -454,7 +452,7 @@ values); the integer range is the signed 64-bit one. The arithmetic profile
 is off unless the host turns it on:
 `tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)`,
 and `tramaj.DeepArithmeticOps` lists the arithmetic names a program
-references. On the `main` branch, in no release yet.
+references. Released in `tramaj-go` v0.3.0.
 
 As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node's `Type`, recurse into

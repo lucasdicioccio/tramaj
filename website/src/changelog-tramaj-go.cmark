@@ -40,7 +40,7 @@ tagged so the site builds one Atom feed per implementation:
   $version({
       "version": "0.3.0",
       "date": "2026-10-24",
-      "summary": "The first release, as the Go module tag \`tramaj-go/v0.3.0\`: \`go get github.com/lucasdicioccio/tramaj/tramaj-go@v0.3.0\`. It is numbered with the other ports of this release, which carry the same language. Go port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a tramaj-go CLI. Standard library only, Go 1.21+.",
+      "summary": "The first release, as the Go module tag \`tramaj-go/v0.3.0\`: \`go get github.com/lucasdicioccio/tramaj/tramaj-go@v0.3.0\`. It is numbered with the other ports of this release, which carry the same language. Go port: parser, evaluator (concrete and symbolic modes), Node JSON codec, static analyses and a tramaj-go CLI. Standard library only, Go 1.21+. On pkg.go.dev.",
       "changes": [
           {
               "kind": "added",

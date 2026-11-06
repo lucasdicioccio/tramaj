@@ -1,4 +1,4 @@
-<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-10-15T12:37:33Z"><meta name="article:modified_time" content="2026-10-15T12:37:33Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-10-15T12:37:33Z","datePublished":"2026-10-15T12:37:33Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Thu, 15 Oct 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 5418 words, 20 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
+<!DOCTYPE HTML><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><title>tramaj - Tramaj v3 — Symbolic values and constraints</title><link rel="icon" type="image/x-icon" href="/tramaj/images/favicon.png"><link rel="canonical" href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://lucasdicioccio.github.io/tramaj/atom.xml"><meta name="author" content="Lucas DiCioccio"><meta name="keywords" content="reference, spec"><meta name="description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta name="twitter:site" content="@lucasdicioccio"><meta name="twitter:creator" content="@lucasdicioccio"><meta property="twitter:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="type" property="og:type" content="article"><meta name="title" property="og:title" content="tramaj - Tramaj v3 — Symbolic values and constraints"><meta property="og:site_name" content="tramaj"><meta name="url" property="og:url" content="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html"><meta property="og:description" content="Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source."><meta name="article:published_time" content="2026-11-06T15:57:50Z"><meta name="article:modified_time" content="2026-11-06T15:57:50Z"><meta name="ks:article_json" content="/tramaj/json/reference-v3-symbols.cmark.json"><meta name="ks:article_text" content="/tramaj/text/reference-v3-symbols.cmark.text"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Lucas DiCioccio"},"dateModified":"2026-11-06T15:57:50Z","datePublished":"2026-11-06T15:57:50Z","description":"Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.","headline":"Tramaj v3 — Symbolic values and constraints","mainEntityOfPage":{"@id":"https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html","@type":"WebPage"},"publisher":{"@type":"Organization","name":"tramaj"}}</script><meta name="article:tag" content="reference"><meta name="article:tag" content="spec"><style>@import "/tramaj/css/dev.css";@import "/tramaj/css/colors.css";@import "/tramaj/css/article.css";@import "/tramaj/css/navigation.css";@import "/tramaj/css/documentation.css";</style></head><body><nav id="site-navigation" class="nav"><a href="/tramaj/" class="home-link">Home</a><div id="doc-search" data-index="/tramaj/json/doc-search.json"><script type="text/javascript" src="/tramaj/js/doc-search.js" async></script></div></nav><div class="main doc-layout"><nav class="doc-nav"><details class="doc-nav-menu" open><summary class="doc-nav-title">Documentation</summary><p class="doc-nav-group">Getting started</p><ul><li><a href="/tramaj/howto-humans.html">Getting started with tramaj</a></li><li><a href="/tramaj/howto-agents.html">tramaj for coding agents</a></li></ul><p class="doc-nav-group">Guides</p><ul><li><a href="/tramaj/integrate-tramaj.html">Integrating tramaj into a host</a></li><li><a href="/tramaj/migrating-to-integers-and-floats.html">Migrating to integers and floats</a></li></ul><p class="doc-nav-group">Reference</p><ul><li><a href="/tramaj/reference.html">Reference</a></li><li><a href="/tramaj/reference-language.html">Tramaj — Language Reference</a></li><li><a href="/tramaj/reference-node-json.html">Tramaj — Normative Node JSON representation</a></li><li><a href="/tramaj/reference-v3-symbols.html" class="doc-nav-current" aria-current="page">Tramaj v3 — Symbolic values and constraints</a></li><li><a href="/tramaj/reference-v4-types.html">Tramaj v4 — Types (draft)</a></li></ul></details></nav><nav class="doc-toc"><p class="doc-toc-title">On this page</p><ul><li class="doc-toc-level-2"><a href="#tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</a></li><li class="doc-toc-level-3"><a href="#0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</a></li><li class="doc-toc-level-3"><a href="#1-symbols">1. Symbols</a></li><li class="doc-toc-level-3"><a href="#2-constraints">2. Constraints</a></li><li class="doc-toc-level-3"><a href="#3-core-ast">3. Core AST</a></li><li class="doc-toc-level-3"><a href="#4-evaluation">4. Evaluation</a></li><li class="doc-toc-level-3"><a href="#5-modes">5. Modes</a></li><li class="doc-toc-level-3"><a href="#6-errors">6. Errors</a></li><li class="doc-toc-level-3"><a href="#7-static-analysis">7. Static analysis</a></li><li class="doc-toc-level-3"><a href="#8-conformance">8. Conformance</a></li><li class="doc-toc-level-3"><a href="#9-not-in-v3">9. Not in v3</a></li></ul></nav><article><header class="heading"><h1>Tramaj v3 — Symbolic values and constraints</h1><p>On <span>Fri, 06 Nov 2026</span>, by <a href="https://twitter.com/lucasdicioccio">@lucasdicioccio</a>, 6747 words, 22 code snippets, 1 links, 0images.</p><div class="topiclist"><div class="topic"><span class="topic-nav topic-prev-link"><a class="topic-nav-link" href="/tramaj/reference-node-json.html">‹</a></span><a class="topic-link" href="/tramaj/topics/reference.html"><span class="topic-name">reference</span><span class="topic-count">3/5</span></a><span class="topic-nav topic-next-link"><a class="topic-nav-link" href="/tramaj/reference-v4-types.html">›</a></span></div></div></header><div class="main-article"><section class="main-section"><p><em>Generated from <a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"><code>specs/v3-symbols.md</code></a> — the repository is the canonical source, and may be ahead of this page.</em></p>
 <h2 id="tramaj-v3--symbolic-values-and-constraints">Tramaj v3 — Symbolic values and constraints</h2>
 <p>This document is <strong>normative</strong> for the symbolic extension. It builds on
 <code>reference.md</code>, which remains normative for everything else; section numbers
@@ -18,6 +18,10 @@ both, for all ten names, <code>round</code> among them. The same holds for the t
 number types (ref §3) wherever this document writes a number: in canon
 (§1.4) and in the envelope (§5.2). All of it is on the <code>main</code> branch and in
 no release yet.</p>
+<p><strong>A traverse form for allocation came later.</strong> <code>?shape(key, shape)</code> and its
+<code>~name</code> markers are accepted design (decisions §19), are normative here, and
+are implemented in all six implementations; every corpus runner requires
+them. Each passage this applies to is marked <strong>[§19]</strong>.</p>
 <hr />
 <h3 id="0-what-v3-adds-and-the-rule-it-follows">0. What v3 adds, and the rule it follows</h3>
 <p>Three things: an expression <code>?</code> that introduces a <strong>symbol</strong>, a statement <code>!</code>
@@ -69,6 +73,106 @@ map($ctx.services, (s) =&gt; ?(&quot;port&quot;))    -- one symbol, shared by ev
 <p>Both are legal and mean what they say. A constant key is a constant symbol.
 What v3 refuses is the version where the author writes nothing and the
 language guesses.</p>
+<h5 id="shapekey-shape--allocation-over-a-structure"><code>?shape(key, shape)</code> — allocation over a structure</h5>
+<p><strong>[§19] Specified, not yet implemented.</strong></p>
+<pre><code>alloc  ::= &quot;?(&quot; expr &quot;)&quot;                 -- above
+         | &quot;?shape(&quot; expr &quot;,&quot; expr &quot;)&quot;   -- key, shape
+marker ::= &quot;~&quot; name                      -- inside a shape only
+         | &quot;~&quot; name &quot;(&quot; expr &quot;)&quot;         -- with a marker key
+field  ::= … | marker                    -- in an object literal: name &quot;:&quot; marker
+
+@d = ?shape(&quot;d&quot;, {~replicas, zone: &quot;eu&quot;, ports: [~http, ~admin]})
+
+@cluster = ?shape(&quot;cluster&quot;, {
+  lb:         ~lb,
+  placements: map($ctx.vms, (vm) =&gt; {vm: $vm.name, ~host($vm.name), ~zone($vm.name)})
+})
+</code></pre>
+<p><code>?shape</code> is a second allocation form. It takes a key and a <strong>shape</strong>, an
+ordinary expression in which each <strong>symbol marker</strong> <code>~name</code> stands for an
+allocation. It is a way to write allocations, not a new kind of one: it
+lowers to <code>?(k)</code> allocations (below), so a structure of symbols is written
+with its key once and one site, instead of one site and a hand-composed key
+per symbol.</p>
+<ul>
+<li><code>~</code> is a leader character (ref §5). The name follows it directly and obeys
+ref §5’s name rule; <code>~ a</code> is a parse error. The <code>(</code> of a marker key follows
+the name directly.
+</li>
+<li>A marker is an expression, and may be written <strong>anywhere in the shape</strong>: an
+array element, a field value, a call’s argument (<code>sum(~a, ~b)</code>), a
+<code>branch</code> arm, an element’s attribute or child, a lambda’s body. A marker
+belongs to the innermost <code>?shape</code> whose shape contains it. A marker
+outside any shape, and a marker in a <code>?shape</code>’s key (also when that form
+is itself inside another form’s shape), is a parse error.
+</li>
+<li><strong>Under a lambda, a marker MUST carry a key.</strong> A lambda’s body is evaluated
+once per application, so a marker in it stands for many symbols, and the
+marker key says which. A bare <code>~name</code> inside a lambda that is itself inside
+the shape is a parse error. A lambda <em>around</em> the whole form does not
+count, since the form’s own key does that job:
+<code>map($ctx.vms, (vm) =&gt; ?shape($vm.name, {host: ~host}))</code>.
+</li>
+<li><strong>Shorthand field.</strong> In an object literal, a marker written alone as a
+field is the field of that name holding that marker: <code>{~replicas}</code> is
+<code>{replicas: ~replicas}</code>, and <code>{~host($vm.name)}</code> is
+<code>{host: ~host($vm.name)}</code>, beside the literal’s own <code>{foo}</code> (ref §5). It is
+expanded before anything else, so every rule here applies to the long
+form. A marker under another field name is written out: <code>{min: ~lo}</code>.
+</li>
+<li>A marker key is legal outside a lambda too. Like any allocation key it is
+an ordinary expression that MUST evaluate to a concrete value; a symbol in
+it is <code>NotConcrete</code>. So is a symbol in the form’s key.
+</li>
+<li>A shape MUST contain at least one marker of its own (markers of a nested
+<code>?shape</code> are that form’s). A marker name appears at most once in a form,
+with or without a key: <code>{web: {port: ~port}, db: {port: ~port}}</code> and
+<code>{a: ~x, b: map($xs, (x) =&gt; ~x($x))}</code> are parse errors. Sharing a symbol is
+written as two reads of one binding.
+</li>
+<li>The form takes exactly two arguments; any other count is a parse error, and
+<code>?(a, b)</code> stays one.
+</li>
+<li><code>shape</code> is a word under the <code>?</code> leader, read the way <code>ctx</code> is in
+<code>?ctx.path</code>. It is not reserved: <code>$shape</code>, <code>@shape</code> and <code>.shape(...)</code> are
+unaffected.
+</li>
+</ul>
+<p>It is a special form, and not a builtin, for the reason <code>?(k)</code> is: it needs a
+site, which the parser assigns (§1.4). Under the core profile it is rejected
+at parse time with every other <code>?</code> (§5.5), and the marker with it.</p>
+<p><strong>Lowering.</strong> The core AST does not change (§3). <code>?shape(k, shape)</code> at site
+<em>n</em> lowers to the shape with each marker replaced by an allocation at that
+same site:</p>
+<pre><code class="language-text">~name        Alloc n [k, &quot;name&quot;]         -- what ?([k, &quot;name&quot;]) would be at site n
+~name(e)     Alloc n [k, &quot;name&quot;, e]      -- what ?([k, &quot;name&quot;, e]) would be at site n
+</code></pre>
+<p>where <code>k</code> is evaluated once, bound to a hidden name (ref §8’s hidden names,
+decisions §17) and read by each marker. Everything else in the shape is left
+as written. The form therefore means exactly what that hand-written
+expression would mean, with two differences a hand-written one cannot have:
+the key is written once, and every allocation shares one site.</p>
+<p>Everything else follows from the lowering:</p>
+<ul>
+<li>The symbols are allocated in the order the lowered expression evaluates
+(§4), so an object’s markers in the order its fields are written, not in
+sorted key order.
+</li>
+<li><code>AllocationInLibrary</code> applies to a <code>?shape</code> as to a <code>?(k)</code>, lexically
+(§1.4), and <code>SymbolsUnavailable</code> to a marker in concrete mode, when the
+marker is evaluated (§5.1).
+</li>
+<li>A demand is an ordinary expression in a shape:
+<code>?shape(&quot;d&quot;, {replicas: ~replicas, zone: ?ctx.zone})</code>.
+</li>
+<li>An annotation (v4-types §7) on a binding of the form,
+<code>@p : Pair = ?shape(&quot;p&quot;, {~a, ~b})</code>, is the existing sugar: one <code>has-type</code>
+on the whole value, none per symbol.
+</li>
+<li>No error kind is added: <code>NotConcrete</code>, <code>SymbolsUnavailable</code>,
+<code>AllocationInLibrary</code>, and the parse errors above.
+</li>
+</ul>
 <h4 id="13-ctxpath--demand">1.3 <code>?ctx.path</code> — demand</h4>
 <pre><code>@replicas = ?ctx.replicas
 </code></pre>
@@ -101,8 +205,8 @@ only in the <code>&quot;binding&quot;</code> the symbol table reports (§5.2).</
 <p><strong>Only a root program may allocate. A library MUST NOT</strong>, because the root
 runs exactly once and a library does not.</p>
 </blockquote>
-<p><code>AllocationInLibrary</code> is raised when a program containing <code>?(k)</code> is loaded as
-a library. The check is <strong>lexical</strong>: it is about where the <code>?</code> is written, not
+<p><code>AllocationInLibrary</code> is raised when a program containing <code>?(k)</code> (or
+<strong>[§19]</strong> <code>?shape</code>) is loaded as a library. The check is <strong>lexical</strong>: it is about where the <code>?</code> is written, not
 where it is evaluated, so a closure created in the root and applied inside a
 library still allocates in the root, which is where its <code>?</code> is written.</p>
 <p>A <code>SymbolId</code> is a string, formed as follows and identical in every conforming
@@ -110,11 +214,16 @@ implementation:</p>
 <table>
 <tr><th>form</th><th>id</th></tr>
 <tr><td><code>?(k)</code>, the <em>n</em>-th <code>?</code> in the program's source</td><td><code>#</code> <em>n</em> <code>:</code> canon(<em>k</em>)</td></tr>
+<tr><td><strong>[§19]</strong> <code>~name</code> in <code>?shape(k, …)</code> at site <em>n</em></td><td><code>#</code> <em>n</em> <code>:</code> canon(<code>[</code><em>k</em><code>, "name"]</code>)</td></tr>
+<tr><td><strong>[§19]</strong> <code>~name(e)</code> in <code>?shape(k, …)</code> at site <em>n</em></td><td><code>#</code> <em>n</em> <code>:</code> canon(<code>[</code><em>k</em><code>, "name",</code> <em>e</em><code>]</code>)</td></tr>
 <tr><td><code>?ctx.a.b</code>, unsupplied at the root</td><td><code>#ctx.a.b</code></td></tr>
 </table>
 <ul>
 <li><em>n</em> is assigned by the parser: the <code>?(k)</code> occurrences of one program are
-numbered <code>0, 1, 2, …</code> in source order. It belongs to the core AST for the
+numbered <code>0, 1, 2, …</code> in source order. <strong>[§19]</strong> A <code>?shape</code> takes a number
+in the same sequence, at the position of its <code>?</code>; a marker takes none.
+So in <code>?shape(&quot;o&quot;, {~a, p: ?(&quot;p&quot;), i: ?shape(&quot;i&quot;, {~b})})</code> the outer form
+is site 0, the <code>?(&quot;p&quot;)</code> site 1 and the inner form site 2. It belongs to the core AST for the
 same reason a binding’s name does — it <em>is</em> the variable’s identity, not
 source trivia.
 </li>
@@ -137,6 +246,29 @@ ids by construction rather than by agreeing on a traversal.</p>
 <p>The site is part of the id, as well as the key, so that two independent
 <code>?(&quot;replicas&quot;)</code> in different places are different variables. A key names a
 distinction, not a variable.</p>
+<p><strong>[§19]</strong> For a marker, the name says which symbol of the shape, the marker
+key says which application of a lambda, and the form’s key says which
+evaluation of the site; each is something the author wrote, and nothing is
+derived from an index or from evaluation order. With <code>vms</code> named <code>&quot;a&quot;</code> and
+<code>&quot;b&quot;</code>, the <code>@cluster</code> of §1.2 at site 0 allocates
+<code>#0:[&quot;cluster&quot;,&quot;lb&quot;]</code>, then <code>#0:[&quot;cluster&quot;,&quot;host&quot;,&quot;a&quot;]</code>,
+<code>#0:[&quot;cluster&quot;,&quot;zone&quot;,&quot;a&quot;]</code>, <code>#0:[&quot;cluster&quot;,&quot;host&quot;,&quot;b&quot;]</code> and
+<code>#0:[&quot;cluster&quot;,&quot;zone&quot;,&quot;b&quot;]</code>.</p>
+<ul>
+<li>Symbols are shared only where the author’s keys are equal: two <code>vms</code> with
+the same name share <code>host</code> and <code>zone</code>. A constant marker key under a lambda
+(<code>~region(&quot;all&quot;)</code>) shares one symbol across applications. Under nested
+lambdas the marker key has to distinguish every level: <code>~cell([$r, $c])</code>.
+</li>
+<li>The position in the shape is not in the id. Reordering the collection, or
+moving a marker to another field, keeps every symbol’s id; renaming a
+marker changes it.
+</li>
+<li>The ids stay injective: a name appears once in a form, a pair and a triple
+differ, and a site is one form or the other, so no id from a <code>?shape</code> can
+meet one from a <code>?(k)</code>.
+</li>
+</ul>
 <h4 id="15-what-may-be-done-with-a-symbol">1.5 What may be done with a symbol</h4>
 <blockquote>
 <p><strong>Control flow and structure must be concrete. Only data may be symbolic.</strong></p>
@@ -157,13 +289,18 @@ language to <em>know</em> something about it is an error:</p>
 <tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code> with a symbol as an operand</td><td><code>NotConcrete</code>; an array or object operand is the <code>TypeMismatch</code> it always was, whatever it holds</td></tr>
 <tr><td><code>str</code> of anything <em>containing</em> a symbol, and so any interpolation of one</td><td><code>NotConcrete</code> — §1.8</td></tr>
 <tr><td><code>cardinality($s)</code>, <code>has($s, k)</code>, <code>lookup($s, k, d)</code></td><td><code>NotConcrete</code></td></tr>
+<tr><td><code>has(c, $s)</code>, <code>lookup(c, $s, d)</code> — a symbol as the key</td><td><code>NotConcrete</code>, whatever <code>c</code> is</td></tr>
 <tr><td><code>format-number</code> with a symbol as any of its three arguments</td><td><code>NotConcrete</code> — the result is text (§1.8); an array argument is a <code>TypeMismatch</code>, whatever it holds</td></tr>
 <tr><td><code>$s &lt;&gt; x</code></td><td><code>NotConcrete</code></td></tr>
 </table>
 <p><code>has</code> and <code>lookup</code> are called out because both are deliberately <em>tolerant</em>
 today — <code>has</code> answers <code>false</code> for a wrong-shaped container and <code>lookup</code> never
-errors. Neither may answer about a symbol: a tolerant <code>false</code> would be a lie,
-and <code>lookup</code>’s fallback would silently discard the symbol.</p>
+errors. Neither may answer about a symbol, given either as the container or as
+the key: a tolerant <code>false</code> would be a lie, and <code>lookup</code>’s fallback would
+silently discard the symbol or read an unknown key as a missing one. The
+tolerance for a concrete key is unchanged: a missing key, an out-of-range
+index, a float where an index is expected, or an array or an object as the key
+still answers <code>false</code> or the fallback, whatever that key holds.</p>
 <p>Consequence worth stating: v3 can constrain the elements of a list whose
 length is known, and cannot constrain a list whose length is symbolic. That is
 the ceiling, and it is where a real symbolic evaluator would have to begin.
@@ -215,6 +352,11 @@ same operations work on it: <code>cardinality([sum($a, 1), 2])</code> is <code>2
 fine; <code>map($d.items, f)</code> is <code>NotConcrete</code>, because the length is unknown. A
 symbol may <em>have</em> structure as far as its host-side meaning is concerned; the
 language cannot walk it.</p>
+<p><strong>[§19]</strong> <code>?shape</code> (§1.2) builds such a structure of symbols in one form,
+over a collection the caller supplies: the spine is the shape’s own, so a
+<code>map</code> in it iterates a concrete array and each marker under it allocates
+per application. It does not give a number of symbols from a number: that
+needs a collection of that length, and is not in the language.</p>
 <p>Two cases fall out of the same rule: a symbol cannot be an object key, because
 keys are static (ref §5) and nothing computes one; and a symbol inside an
 import’s parameters is an ordinary value being passed, so it crosses the
@@ -458,6 +600,8 @@ no separate statement machinery, and <code>Program</code> is unchanged from ref 
 still <code>DocumentProgram Expr | ExpressionProgram Expr</code>.</p>
 <p><code>Emit</code> is representable anywhere an expression is, but the parser produces it
 only at statement position.</p>
+<p><strong>[§19]</strong> <code>?shape</code> and its markers add no constructor: they lower to <code>Let</code>
+and <code>Alloc</code> (§1.2).</p>
 <hr />
 <h3 id="4-evaluation">4. Evaluation</h3>
 <p>Evaluation produces a value <strong>and</strong> an emission record:</p>
@@ -501,6 +645,7 @@ JSON and nothing else.</p>
 <table>
 <tr><th>form</th><th>concrete mode</th></tr>
 <tr><td><code>?(key)</code></td><td><code>SymbolsUnavailable</code></td></tr>
+<tr><td><strong>[§19]</strong> a <code>~name</code> marker, when it is evaluated</td><td><code>SymbolsUnavailable</code>, as for the <code>?(k)</code> it lowers to; a form whose markers are never evaluated (an empty collection, an arm not taken) passes</td></tr>
 <tr><td><code>?ctx.path</code>, supplied</td><td>the value the caller supplied; no symbol involved</td></tr>
 <tr><td><code>?ctx.path</code>, unsupplied at the root</td><td><code>SymbolsUnavailable</code> — that is the same minting</td></tr>
 <tr><td><code>!expr</code></td><td>evaluated; the constraints are discarded</td></tr>
@@ -567,7 +712,12 @@ was used; the language has nothing to add about it, so it is not listed.
 name only when the <code>?(k)</code> or <code>?ctx.path</code> is the whole right-hand side of an
 <code>@name = …</code> binding. Used inline it is <code>null</code>, and so it is in
 <code>@x = sum(?ctx.s, 1)</code>, where <code>x</code> names the term and not the symbol. It is
-provenance for humans. <code>&quot;origin&quot;</code> is the structured form of <code>&quot;id&quot;</code>, so a
+provenance for humans. <strong>[§19]</strong> It is <code>null</code> for every symbol a
+<code>?shape</code> allocates, bound or not: no marker is the whole right-hand side
+of a binding, and in <code>@d = ?shape(&quot;d&quot;, …)</code> the name <code>d</code> names the
+structure. <code>origin.key</code> carries the form’s key, the marker’s name and the
+marker key, as an array; a host decoder needs no new case and cannot tell
+these entries from hand-written allocations. <code>&quot;origin&quot;</code> is the structured form of <code>&quot;id&quot;</code>, so a
 host never has to parse the id.
 </li>
 <li>A demand’s origin <code>&quot;path&quot;</code> is the <code>Demand</code> path of §3: the segments after
@@ -703,7 +853,7 @@ profile.</p>
 <table>
 <tr><th>error</th><th>when</th></tr>
 <tr><td><code>NotConcrete</code></td><td>a symbolic value where the language requires a concrete one — §1.5's table, and a symbol used as an allocation key</td></tr>
-<tr><td><code>AllocationInLibrary</code></td><td>a program containing <code>?(k)</code> is loaded as a library (§1.4)</td></tr>
+<tr><td><code>AllocationInLibrary</code></td><td>a program containing <code>?(k)</code> or <strong>[§19]</strong> <code>?shape</code> is loaded as a library (§1.4)</td></tr>
 <tr><td><code>SymbolsUnavailable</code></td><td>a symbol would have to be minted in concrete mode (§5.1)</td></tr>
 </table>
 <p><code>TypeMismatch</code> covers the rest: a constraint value crossing a JSON boundary,
@@ -726,7 +876,7 @@ stable.</p>
 — alongside ref §9’s existing entries.</p>
 <table>
 <tr><th>function</th><th>answers</th></tr>
-<tr><td><code>symbolSites</code></td><td>the <code>?(k)</code> allocation sites this program contains</td></tr>
+<tr><td><code>symbolSites</code></td><td>the <code>?(k)</code> allocation sites this program contains, and <strong>[§19]</strong> the <code>?shape</code> sites, each reported once</td></tr>
 <tr><td><code>symbolDemands</code> / <code>deepSymbolDemands</code></td><td>which context paths it declares symbolic with <code>?ctx.…</code></td></tr>
 <tr><td><code>constraintKinds</code> / <code>deepConstraintKinds</code></td><td>which constraint names it can emit</td></tr>
 </table>
@@ -746,7 +896,9 @@ and it is answered without running anything.
 </ul>
 <p><code>symbolSites</code> reports sites, not keys, which are computed. The number of
 symbols is a runtime fact; the number of sites is not, and a site inside a
-<code>map</code> is exactly where a reader should look to see what distinguishes them.</p>
+<code>map</code> is exactly where a reader should look to see what distinguishes them.
+<strong>[§19]</strong> The same holds for a <code>?shape</code>: one site, whatever number of
+markers it holds and of symbols they allocate.</p>
 <p>Like the existing analyses, these over-approximate: a kind emitted only under
 a <code>Branch</code> arm that no context will select is still reported.</p>
 <p>Which operations a program’s terms can carry is answered by ref §9’s
@@ -785,13 +937,26 @@ surviving the envelope; a term in each position a symbol may take; every
 refusal; deduplication over equal and over reordered terms; seeding; and the
 residual law, as one program run symbolically, then concretely with the symbol
 seeded as a number.</p>
+<p><strong>[§19]</strong> For <code>?shape</code>: markers at several depths; a shorthand field, bare
+and keyed, equal to its long form; an expression beside a marker; a marker
+in a call, in a <code>branch</code> arm taken and not taken, and in an element; a keyed
+marker under <code>map</code>, with distinct keys and with equal keys sharing; nested
+<code>map</code>s with a composite marker key; an empty collection in both modes; the
+form under a <code>map</code> with a key per iteration; reordered markers and
+reordered elements keeping their ids; table order for an object written in
+non-sorted key order; <code>&quot;binding&quot;</code> bound and inline; a nested form; a
+symbolic form key and a symbolic marker key; concrete mode; the form in a
+library; an annotated binding emitting a single <code>has-type</code>; and every parse
+error of §1.2. They are in the shared corpus under the <code>&quot;shape&quot;</code> profile
+name.</p>
 <hr />
 <h3 id="9-not-in-v3">9. Not in v3</h3>
 <table>
 <tr><th>left out</th><th>where it went</th></tr>
 <tr><td>nominal types, declarations, <code>.types</code>, typed annotations</td><td><code>v4-types.md</code></td></tr>
 <tr><td>any solver, domain or propagation</td><td>the host's, per §0</td></tr>
-<tr><td>a keyless <code>?</code></td><td>§1.2 — a symbol always says what distinguishes it</td></tr>
+<tr><td>a keyless <code>?</code></td><td>§1.2 — a symbol always says what distinguishes it; <strong>[§19]</strong> a <code>?shape</code> marker names its symbol, and under a lambda carries a key</td></tr>
+<tr><td>a number of symbols from a number</td><td><strong>[§19]</strong> §1.7 — <code>?shape</code> walks a collection the caller supplies</td></tr>
 <tr><td>allocation inside libraries, and any call-frame identity scheme</td><td>§1.4 — the root allocates, so identity is a site and a key</td></tr>
 <tr><td>symbolic strings, symbolic control flow</td><td>§1.5, §1.8</td></tr>
 <tr><td>an envelope around concrete output</td><td>§5.1 — an expression program's result must still pipe into <code>jq</code></td></tr>

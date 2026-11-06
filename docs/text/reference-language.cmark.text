@@ -12,6 +12,8 @@ Sorting (`sort-by`, `sort-by-descending`), `format-number` and `round` are accep
 
 Both are on the `main` branch and in no release yet: a released version of an implementation predates them, so there every number is a double, `str(1.0)` is `1`, the two sort names parse as ordinary calls, and the names of §11's _Sorting_, _Number formatting_ and _Arithmetic_ are unbound.
 
+**A third part came later.** The traverse form for allocation, `?shape(key, shape)` with its `~name` markers, is accepted design (decisions §19), normative in `v3-symbols.md` §1.2, and implemented in all six implementations; every corpus runner requires it. Each passage of this document it touches is marked **[§19]**.
+
 -----------------------------
 
 ## 1. Shape of the language
@@ -157,7 +159,7 @@ Serialization — including the strict decoding rules — is specified in [`node
 
 ## 5. Surface syntax
 
-Three leader characters: `.` builds a document, `$` reads a name, `@` defines one.
+Three leader characters: `.` builds a document, `$` reads a name, `@` defines one. The symbolic extension (`v3-symbols.md`) adds three more: `?` introduces a symbol (§1.2, §1.3 there), `!` emits a constraint (§2.2 there) and **[§19]** `~` marks a symbol inside the shape of a `?shape` (§1.2 there). A `~` anywhere else is a parse error.
 
 ```
 @count=cardinality($ctx.items)          -- bindings, one per line
@@ -199,6 +201,10 @@ Three leader characters: `.` builds a document, `$` reads a name, `@` defines on
 <tr><td><code>branch(fallback, p1, v1, …)</code></td><td>conditional</td></tr>
 <tr><td><code>import("name", {k: expr, j: ctx(path)})</code></td><td>import; a parameter may also be left out and supplied later</td></tr>
 <tr><td><code>adapt-actions(node, prefix("ns:") \| identity [, fn])</code></td><td>action adaptation</td></tr>
+<tr><td><code>?(key)</code>, <code>?ctx.a.b</code>, <code>!expr</code></td><td>allocation, demand and emission (v3-symbols §1.2, §1.3, §2.2)</td></tr>
+<tr><td><code>?shape(key, shape)</code></td><td><strong>[§19]</strong> allocation over a structure: each marker in <code>shape</code> is an allocation at the form's one site (v3-symbols §1.2)</td></tr>
+<tr><td><code>~name</code>, <code>~name(key)</code></td><td><strong>[§19]</strong> a symbol marker, inside a <code>?shape</code>'s shape only; under a lambda in the shape it MUST carry a key</td></tr>
+<tr><td><code>{~name}</code>, <code>{~name(key)}</code></td><td><strong>[§19]</strong> shorthand for <code>{name: ~name}</code>, <code>{name: ~name(key)}</code></td></tr>
 </table>
 ```
 
@@ -452,8 +458,8 @@ The vocabulary is fixed, not user-extensible.
 <tr><td><code>and(…)</code>, <code>or(…)</code></td><td>variadic, including zero arguments (<code>and()</code> is <code>true</code>, <code>or()</code> is <code>false</code>)</td></tr>
 <tr><td><code>eq(a, b)</code></td><td>deep equality; no cross-type coercion, so <code>eq(1, "1")</code> is <code>false</code>, and <strong>[§18]</strong> so is <code>eq(1, 1.0)</code></td></tr>
 <tr><td><code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code></td><td>numbers only; <strong>[§18]</strong> two integers or two floats, and a mixed pair is a <code>TypeMismatch</code>, so <code>gt(1.5, 0)</code> is written <code>gt(1.5, 0.0)</code></td></tr>
-<tr><td><code>has(container, key)</code></td><td>tolerant: a missing key, out-of-range index or wrong-shaped container answers <code>false</code></td></tr>
-<tr><td><code>lookup(container, key, fallback)</code></td><td>dynamic access; the fallback is mandatory, so this never errors</td></tr>
+<tr><td><code>has(container, key)</code></td><td>tolerant: a missing key, out-of-range index or wrong-shaped container answers <code>false</code>. In symbolic mode a symbol or a term as the container or as the key is <code>NotConcrete</code> (v3-symbols §1.5)</td></tr>
+<tr><td><code>lookup(container, key, fallback)</code></td><td>dynamic access; the fallback is mandatory, so this never errors in concrete mode. In symbolic mode a symbol or a term as the container or as the key is <code>NotConcrete</code> (v3-symbols §1.5)</td></tr>
 <tr><td><code>map</code>, <code>filter</code>, <code>scan</code>, <code>fold</code></td><td>also core constructors — see below</td></tr>
 <tr><td><code>sort-by(list, fn)</code>, <code>sort-by-descending(list, fn)</code></td><td><strong>[§20]</strong> core constructors too: a stable sort by key — see <em>Sorting</em></td></tr>
 <tr><td><code>format-number(x, decimals, group)</code></td><td><strong>[§20]</strong> a number as positional decimal text — see <em>Number formatting</em></td></tr>

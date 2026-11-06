@@ -44,7 +44,7 @@ says what to do about each.
   $version({
       "version": "0.5.0",
       "date": "2026-10-24",
-      "summary": "The ?shape allocation form, NotConcrete keys, parse errors at the mistake and astral characters. Includes 0.4.2, which was never released.",
+      "summary": "The ?shape allocation form, NotConcrete keys, parse errors at the mistake and astral characters. Includes 0.4.2, which was never released. On the PureScript registry.",
       "changes": [
           {
               "kind": "changed",

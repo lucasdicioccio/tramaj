@@ -138,13 +138,13 @@ Where to get v5 today:
 
 <table>
 <tr><th>package</th><th>language</th><th>where</th></tr>
-<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code></td><td>PureScript</td><td>PureScript registry, 0.4.1</td></tr>
+<tr><td><code>tramaj-purs</code>, <code>tramaj-halogen</code></td><td>PureScript</td><td>PureScript registry, 0.5.0</td></tr>
 <tr><td><code>tramaj-cli</code></td><td>PureScript</td><td>from the repository</td></tr>
-<tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>Hackage, 0.4.0.0</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>Rust</td><td>crates.io, 0.2.0</td></tr>
-<tr><td><code>tramaj</code> (<code>tramaj-py</code>)</td><td>Python</td><td>PyPI, 0.2.0</td></tr>
-<tr><td><code>@lucasdicioccio/tramaj-js</code>, <code>@lucasdicioccio/tramaj-react</code></td><td>TypeScript</td><td>npm, 0.2.0</td></tr>
-<tr><td><code>tramaj-go</code></td><td>Go</td><td>from the repository, as <code>github.com/lucasdicioccio/tramaj/tramaj-go</code>, at a commit on <code>main</code></td></tr>
+<tr><td><code>tramaj-hs</code></td><td>Haskell</td><td>Hackage, 0.5.0.0</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>Rust</td><td>crates.io, 0.3.0</td></tr>
+<tr><td><code>tramaj</code> (<code>tramaj-py</code>)</td><td>Python</td><td>PyPI, 0.3.0</td></tr>
+<tr><td><code>@lucasdicioccio/tramaj-js</code>, <code>@lucasdicioccio/tramaj-react</code></td><td>TypeScript</td><td>npm, 0.2.0 (0.3.0 is tagged, not yet on npm)</td></tr>
+<tr><td><code>tramaj-go</code></td><td>Go</td><td>Go module proxy, v0.3.0, as <code>github.com/lucasdicioccio/tramaj/tramaj-go</code></td></tr>
 </table>
 
 Each package has its own [changelog](/topics/changelog.html) page and Atom
@@ -158,7 +158,9 @@ change. The [roadmap](/roadmap.html) lists what is wanted next: folds to
 more rendering targets, and type definitions for the Python modules. Beyond v5,
 [`?shape`](/design-arithmetic-and-shapes.html) is an accepted design for
 allocating a structure of symbols in one form; no implementation had it at
-v5, and all six have it on `main` now.
+v5, and all six have it now: released in `tramaj-purs`, `tramaj-halogen` 0.5.0
+and `tramaj-hs` 0.5.0.0, and in 0.3.0 of the Rust, Python and Go ports (the
+npm 0.3.0 of `tramaj-js` and `tramaj-react` is not published yet).
 
 =base:main-css.tramaj-json
 { "format": "css"

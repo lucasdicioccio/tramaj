@@ -16,11 +16,10 @@ some existing templates and hosts produce. This page covers the split.&lt;/p&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;p&gt;All six implementations have the change, on the &lt;code&gt;main&lt;/code&gt; branch and in no
-release yet. A host that follows &lt;code&gt;main&lt;/code&gt; as a git dependency gets it on its
-next update. A host on a published package (&lt;code&gt;tramaj-rs&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt;
-0.1.0 from crates.io, &lt;code&gt;tramaj&lt;/code&gt; 0.1.0 from PyPI) still has a single number
-type, and changes the same way when it moves to the next release.&lt;/p&gt;
+&lt;p&gt;All six implementations have the change, released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;).
+A host still on an older package (&lt;code&gt;tramaj-rs&lt;/code&gt; or &lt;code&gt;tramaj-cli-rs&lt;/code&gt; 0.1.0 from
+crates.io, &lt;code&gt;tramaj&lt;/code&gt; 0.1.0 from PyPI, or a &lt;code&gt;tramaj-purs&lt;/code&gt;/&lt;code&gt;tramaj-hs&lt;/code&gt; before
+language v5) has a single number type, and changes as below when it upgrades.&lt;/p&gt;
 &lt;h3 id="the-changes-at-a-glance"&gt;The changes at a glance&lt;/h3&gt;
 &lt;table&gt;
 &lt;tr&gt;&lt;th&gt;what&lt;/th&gt;&lt;th&gt;before&lt;/th&gt;&lt;th&gt;now&lt;/th&gt;&lt;/tr&gt;
@@ -245,11 +244,12 @@ section 1.9). A host that has not turned the profile on never receives one.
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-go&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;&lt;code&gt;tramaj-py&lt;/code&gt;&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;yes&lt;/td&gt;&lt;td&gt;signed 64-bit&lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;p&gt;Every row is on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet. The packages
-already published (&lt;code&gt;tramaj-rs&lt;/code&gt; and &lt;code&gt;tramaj-cli-rs&lt;/code&gt; 0.1.0 on crates.io,
-&lt;code&gt;tramaj&lt;/code&gt; 0.1.0 on PyPI) predate all of it: there every number is a double,
-&lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;, and the arithmetic, sorting and formatting names are
-unbound. On &lt;code&gt;main&lt;/code&gt; the six implementations give the same output for the
+&lt;p&gt;Every row is in the current releases (&lt;code&gt;tramaj-purs&lt;/code&gt; and &lt;code&gt;tramaj-halogen&lt;/code&gt;
+0.5.0, &lt;code&gt;tramaj-hs&lt;/code&gt; 0.5.0.0, &lt;code&gt;tramaj-rs&lt;/code&gt;, &lt;code&gt;tramaj-cli-rs&lt;/code&gt;, &lt;code&gt;tramaj&lt;/code&gt; and
+&lt;code&gt;tramaj-go&lt;/code&gt; 0.3.0, &lt;code&gt;tramaj-js&lt;/code&gt; and &lt;code&gt;tramaj-react&lt;/code&gt; 0.2.0 on npm). The older
+&lt;code&gt;tramaj-rs&lt;/code&gt; and &lt;code&gt;tramaj-cli-rs&lt;/code&gt; 0.1.0 on crates.io and &lt;code&gt;tramaj&lt;/code&gt; 0.1.0 on PyPI
+predate all of it: there every number is a double, &lt;code&gt;str(1.0)&lt;/code&gt; is &lt;code&gt;1&lt;/code&gt;, and the
+arithmetic, sorting and formatting names are unbound. The six implementations give the same output for the
 same template, except where a result depends on the integer range: the
 corpus cases that do are marked &lt;code&gt;&amp;quot;int53&amp;quot;&lt;/code&gt; or &lt;code&gt;&amp;quot;int64&amp;quot;&lt;/code&gt; in their &lt;code&gt;&amp;quot;profiles&amp;quot;&lt;/code&gt;,
 and an implementation skips the cases of the range it does not have. An
@@ -318,9 +318,8 @@ instead).&lt;/p&gt;
 that targets the same grammar as the PureScript &lt;code&gt;tramaj-purs&lt;/code&gt; and shares its
 conformance corpus. It’s a normal Cabal library exposing &lt;code&gt;Tramaj.Ast&lt;/code&gt;,
 &lt;code&gt;Tramaj.Parser&lt;/code&gt;, &lt;code&gt;Tramaj.Eval&lt;/code&gt;, &lt;code&gt;Tramaj.Node&lt;/code&gt;, &lt;code&gt;Tramaj.Json&lt;/code&gt;,
-&lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and &lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (as a
-&lt;code&gt;source-repository-package&lt;/code&gt; or path dependency; it isn’t published to
-Hackage), the same way a PureScript host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;.&lt;/p&gt;
+&lt;code&gt;Tramaj.Analysis&lt;/code&gt;, and &lt;code&gt;Tramaj.Types&lt;/code&gt; — so a Haskell host can depend on it directly (from
+Hackage, 0.5.0.0, or as a &lt;code&gt;source-repository-package&lt;/code&gt; or path dependency), the same way a PureScript host depends on &lt;code&gt;tramaj-purs&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;What it does &lt;em&gt;not&lt;/em&gt; have yet is a &lt;code&gt;tramaj-halogen&lt;/code&gt; equivalent — no fold to
 Lucid, Blaze, or any other Haskell HTML/UI library ships in this
 repository. A Haskell host gets the parser, the evaluator, and the &lt;code&gt;Node&lt;/code&gt;
@@ -344,9 +343,8 @@ held to the same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&g
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints
 and &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types, not just the
 core language, with the two number types and the arithmetic profile,
-see &lt;em&gt;Numbers at the boundary&lt;/em&gt;). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, json, node, analysis, types}&lt;/code&gt; — depended on as a path or git dependency for
-what this section describes (&lt;code&gt;tramaj-rs&lt;/code&gt; 0.1.0 is on crates.io, but predates the
-number split and takes &lt;code&gt;serde_json::Value&lt;/code&gt;), the same way a PureScript host depends on
+see &lt;em&gt;Numbers at the boundary&lt;/em&gt;). It’s a normal Cargo library crate — &lt;code&gt;tramaj_rs::{ast, parser, eval, json, node, analysis, types}&lt;/code&gt; — on crates.io (0.3.0), or depended on as a
+path or git dependency, the same way a PureScript host depends on
 &lt;code&gt;tramaj-purs&lt;/code&gt; or a Haskell host depends on &lt;code&gt;tramaj-hs&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="co"&gt;// tramaj_rs::parser&lt;/span&gt;&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;pub&lt;/span&gt; &lt;span class="kw"&gt;fn&lt;/span&gt; parse_program(src&lt;span class="op"&gt;:&lt;/span&gt; &lt;span class="op"&gt;&amp;amp;&lt;/span&gt;&lt;span class="dt"&gt;str&lt;/span&gt;) &lt;span class="op"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;Result&lt;/span&gt;&lt;span class="op"&gt;&amp;lt;&lt;/span&gt;Program&lt;span class="op"&gt;,&lt;/span&gt; ParseError&lt;span class="op"&gt;&amp;gt;;&lt;/span&gt;&lt;/span&gt;
@@ -472,14 +470,13 @@ and evaluation semantics as the other implementations, held to the
 same shared conformance corpus (&lt;code&gt;corpus/cases/&lt;/code&gt;, including
 &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt;’s symbols/constraints and
 &lt;a href="/tramaj/reference-v4-types.html"&gt;&lt;code&gt;v4-types.md&lt;/code&gt;&lt;/a&gt;’s nominal types; the two number
-types and the ten arithmetic builtins are in this port, on &lt;code&gt;main&lt;/code&gt;). It needs
+types and the ten arithmetic builtins are in this port). It needs
 nothing outside the standard library (Python 3.9+), so it drops into a data
 pipeline, a notebook or a backend service without a Node or PureScript
 toolchain as a runtime dependency. It’s a normal package — &lt;code&gt;tramaj&lt;/code&gt; with
 &lt;code&gt;ast&lt;/code&gt;, &lt;code&gt;parser&lt;/code&gt;, &lt;code&gt;evaluator&lt;/code&gt;, &lt;code&gt;node&lt;/code&gt;, &lt;code&gt;analysis&lt;/code&gt;, &lt;code&gt;typesys&lt;/code&gt; and &lt;code&gt;jsonval&lt;/code&gt;
-modules, laid out one-to-one like &lt;code&gt;tramaj-js&lt;/code&gt; — installed from the
-repository’s &lt;code&gt;tramaj-py/&lt;/code&gt; directory for what this section describes
-(&lt;code&gt;tramaj&lt;/code&gt; 0.1.0 is on PyPI, but predates the number split):&lt;/p&gt;
+modules, laid out one-to-one like &lt;code&gt;tramaj-js&lt;/code&gt; — installed from PyPI
+(&lt;code&gt;pip install tramaj&lt;/code&gt;, 0.3.0) or from the repository’s &lt;code&gt;tramaj-py/&lt;/code&gt; directory:&lt;/p&gt;
 &lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="im"&gt;from&lt;/span&gt; tramaj &lt;span class="im"&gt;import&lt;/span&gt; parse_program, run_program&lt;/span&gt;
 &lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
 &lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;program &lt;span class="op"&gt;=&lt;/span&gt; parse_program(&lt;span class="st"&gt;&amp;#39;.p($ctx.name)&amp;#39;&lt;/span&gt;)          &lt;span class="co"&gt;# raises ParseError&lt;/span&gt;&lt;/span&gt;
@@ -540,7 +537,7 @@ values); the integer range is the signed 64-bit one. The arithmetic profile
 is off unless the host turns it on:
 &lt;code&gt;tramaj.RunProgramWith(tramaj.Options{Mode: tramaj.Concrete, Arithmetic: true}, ...)&lt;/code&gt;,
 and &lt;code&gt;tramaj.DeepArithmeticOps&lt;/code&gt; lists the arithmetic names a program
-references. On the &lt;code&gt;main&lt;/code&gt; branch, in no release yet.&lt;/p&gt;
+references. Released in &lt;code&gt;tramaj-go&lt;/code&gt; v0.3.0.&lt;/p&gt;
 &lt;p&gt;As with Haskell, Rust and Python, no fold is shipped: a Go host writes its
 own following the same shape (switch on the node’s &lt;code&gt;Type&lt;/code&gt;, recurse into
 &lt;code&gt;Children&lt;/code&gt;, decide what an action attribute means in your host). Go also has
@@ -637,8 +634,8 @@ templates written before the split, read
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.
 The split and arithmetic are in all six implementations (PureScript,
 Haskell, TypeScript, Rust, Go and Python), and so are &lt;code&gt;sort-by&lt;/code&gt;,
-&lt;code&gt;sort-by-descending&lt;/code&gt; and &lt;code&gt;format-number&lt;/code&gt;, which need no flag. All of it is on
-the &lt;code&gt;main&lt;/code&gt; branch and in no release yet.&lt;/p&gt;
+&lt;code&gt;sort-by-descending&lt;/code&gt; and &lt;code&gt;format-number&lt;/code&gt;, which need no flag. All of it is
+released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;).&lt;/p&gt;
 &lt;h3 id="splitting-a-template-into-libraries"&gt;Splitting a template into libraries&lt;/h3&gt;
 &lt;p&gt;A template can &lt;code&gt;import(...)&lt;/code&gt; another template as a library. Pass each one
 with &lt;code&gt;--lib name=path&lt;/code&gt;:&lt;/p&gt;
@@ -808,7 +805,7 @@ all strings.
 &lt;p&gt;The reference marks these two and &lt;code&gt;round&lt;/code&gt; &lt;strong&gt;[§20]&lt;/strong&gt;. All six
 implementations (PureScript, Haskell, TypeScript, Rust, Go and Python) have
 the number split, the ten builtins, the two sorts and &lt;code&gt;format-number&lt;/code&gt;. They
-are on the &lt;code&gt;main&lt;/code&gt; branch and in no release yet: a released package predates
+are released with language v5 (&lt;a href="/tramaj/tramaj-v5.html"&gt;where to get it&lt;/a&gt;); a package from before v5 predates
 them, and there every number is a double and these names are unbound.
 Templates written before the split:
 &lt;a href="/tramaj/migrating-to-integers-and-floats.html"&gt;Migrating to integers and floats&lt;/a&gt;.&lt;/p&gt;

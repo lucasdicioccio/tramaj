@@ -15,8 +15,8 @@ description:
   the browser. Both implementations target the same grammar and are kept
   in agreement by hand-ported test fixtures; see the repository README for
   the caveats that come with that.
-homepage:           https://github.com/lucasdicioccio/templating-lang
-bug-reports:        https://github.com/lucasdicioccio/templating-lang/issues
+homepage:           https://github.com/lucasdicioccio/tramaj
+bug-reports:        https://github.com/lucasdicioccio/tramaj/issues
 license:            MIT
 license-file:       LICENSE
 author:             Lucas DiCioccio
@@ -27,7 +27,7 @@ extra-doc-files:    CHANGELOG.md
 
 source-repository head
   type:     git
-  location: https://github.com/lucasdicioccio/templating-lang.git
+  location: https://github.com/lucasdicioccio/tramaj.git
   subdir:   tramaj-hs
 
 common defaults

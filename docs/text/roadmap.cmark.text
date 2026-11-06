@@ -20,7 +20,7 @@ Six independent implementations target the same grammar and are checked against 
 
 ![Every corpus case is run in both modes by each implementation, and every output must equal the expected output byte for byte](/gen/images/conformance.dot.png )
 
-`tramaj-purs` and `tramaj-halogen` are on the PureScript registry (0.4.1), `tramaj-hs` on Hackage (0.4.0.0), `tramaj-rs` and `tramaj-cli-rs` on crates.io (0.2.0), `tramaj-py` on PyPI as `tramaj` (0.2.0), and `tramaj-js` and `tramaj-react` on npm as `@lucasdicioccio/tramaj-js` and `@lucasdicioccio/tramaj-react` (0.2.0), each with language v5. `tramaj-go` and `tramaj-cli` are in no package registry yet, and are used as source or git dependencies. Each has its own [changelog](/topics/changelog.html ) page and Atom feed. See [Integrating tramaj](/integrate-tramaj.html ) for what's actually usable from each right now, including the fold each one does or doesn't ship.
+`tramaj-purs` and `tramaj-halogen` are on the PureScript registry (0.5.0), `tramaj-hs` on Hackage (0.5.0.0), `tramaj-rs` and `tramaj-cli-rs` on crates.io (0.3.0), `tramaj-py` on PyPI as `tramaj` (0.3.0), `tramaj-go` on the Go module proxy (v0.3.0), and `tramaj-js` and `tramaj-react` on npm as `@lucasdicioccio/tramaj-js` and `@lucasdicioccio/tramaj-react` (0.2.0; their 0.3.0 is tagged and not yet published), each with language v5. `tramaj-cli` is in no package registry, and is used from the repository. Each has its own [changelog](/topics/changelog.html ) page and Atom feed. See [Integrating tramaj](/integrate-tramaj.html ) for what's actually usable from each right now, including the fold each one does or doesn't ship.
 
 ## The native-implementation wish list is done
 
@@ -33,18 +33,18 @@ Numbers are now an integer and a float, two types, and a template can compute wi
 ```html
 <table>
 <tr><th>Implementation</th><th>Language v5</th><th>Released in</th></tr>
-<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td><code>tramaj-purs</code> and <code>tramaj-halogen</code> 0.4.1 (PureScript registry)</td></tr>
-<tr><td><code>tramaj-hs</code></td><td>yes</td><td>0.4.0.0 (Hackage)</td></tr>
-<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>0.2.0 (npm)</td></tr>
-<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>0.2.0 (crates.io)</td></tr>
-<tr><td><code>tramaj-go</code></td><td>yes</td><td>on <code>main</code>, no tagged version</td></tr>
-<tr><td><code>tramaj-py</code></td><td>yes</td><td>0.2.0 (PyPI, as <code>tramaj</code>)</td></tr>
+<tr><td><code>tramaj</code> (PureScript), <code>tramaj-halogen</code>, <code>tramaj-cli</code>, playground</td><td>yes</td><td><code>tramaj-purs</code> and <code>tramaj-halogen</code> 0.5.0 (PureScript registry)</td></tr>
+<tr><td><code>tramaj-hs</code></td><td>yes</td><td>0.5.0.0 (Hackage)</td></tr>
+<tr><td><code>tramaj-js</code>, <code>tramaj-react</code></td><td>yes</td><td>0.2.0 (npm); 0.3.0 tagged, not yet on npm</td></tr>
+<tr><td><code>tramaj-rs</code>, <code>tramaj-cli-rs</code></td><td>yes</td><td>0.3.0 (crates.io)</td></tr>
+<tr><td><code>tramaj-go</code></td><td>yes</td><td>v0.3.0 (Go module proxy)</td></tr>
+<tr><td><code>tramaj-py</code></td><td>yes</td><td>0.3.0 (PyPI, as <code>tramaj</code>)</td></tr>
 </table>
 ```
 
-The corpus cases for these carry a `"profiles"` field, and an implementation skips the cases that list a name it does not provide. All six provide every name but one: the integer range, 53 bits in PureScript and TypeScript and 64 bits in the other four, so each skips the few cases written for the other range. The number split and the arithmetic profile are no longer skippable: a case that lists `"int-float"` or `"arithmetic"` fails in an implementation that does not provide it. The split changes existing output: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) lists how.
+The corpus cases for these carry a `"profiles"` field, and an implementation skips the cases that list a name it does not provide. All six provide every name but one: the integer range, 53 bits in PureScript and TypeScript and 64 bits in the other four, so each skips the few cases written for the other range. The number split and the arithmetic profile are no longer skippable: a case that lists `"int-float"`, `"arithmetic"` or `"shape"` fails in an implementation that does not provide it. The split changes existing output: [Migrating to integers and floats](/migrating-to-integers-and-floats.html ) lists how.
 
-`?shape` is an accepted design without normative text, and no implementation has it. See [Two designs accepted](/design-arithmetic-and-shapes.html ).
+`?shape`, the form that allocates a structure of symbols, is normative (decisions §19) and all six implementations have it, released in `tramaj-purs`/`tramaj-halogen` 0.5.0, `tramaj-hs` 0.5.0.0 and 0.3.0 of the Rust, Python and Go ports (npm 0.3.0 not published yet); every corpus runner requires it. See [Two designs accepted](/design-arithmetic-and-shapes.html ).
 
 ## Desired next: folds, and Python type definitions
 

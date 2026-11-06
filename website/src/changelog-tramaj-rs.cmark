@@ -44,7 +44,7 @@ says what to do about each.
   $version({
       "version": "0.3.0",
       "date": "2026-10-24",
-      "summary": "\`?shape\` and \`~name\` markers, a symbol or term key of \`has\`/\`lookup\` is \`NotConcrete\`, and parse errors that point at an unclosed opener.",
+      "summary": "\`?shape\` and \`~name\` markers, a symbol or term key of \`has\`/\`lookup\` is \`NotConcrete\`, and parse errors that point at an unclosed opener. On crates.io.",
       "changes": [
           {
               "kind": "changed",
