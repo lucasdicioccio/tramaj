@@ -1,0 +1,25 @@
+.div(
+  .img(src: "logo001.png", width: 72, alt: "salmon"),
+  .h1("Deployment report: `$ctx.name`"),
+  .p("This document was rendered by ", .strong("tramaj-hpdf"), " from a template and a JSON context. Inline styles work: ", .em("emphasis"), ", ", .strong("bold"), ", ", .code("code"), " and ", .small("small text"), ". Long paragraphs wrap at the right margin and break onto new pages when they run out of room."),
+  .h2("Services"),
+  .ul(map($ctx.services, (s) => .li(.strong($s.name), " — `$s.replicas` replicas"))),
+  .h2("Rollout steps"),
+  .ol(
+    .li("Drain the old pool"),
+    .li("Deploy the new version", .ul(.li("canary first"), .li("then the rest"))),
+    .li("Verify health checks")
+  ),
+  .h3("Numbers keep their type"),
+  .p("integer: ", $ctx.count, ", float: ", $ctx.ratio),
+  .blockquote("A quoted block is indented and set in italics."),
+  .pre("$ tramaj-hpdf report.tramaj ctx.json out.pdf\n  wrote 1 page"),
+  .hr(),
+  .h3("A table, laid out as a grid"),
+  .table(
+    .thead(.tr(.th("service"), .th("replicas"), .th("notes"))),
+    .tbody(map($ctx.services, (s) => .tr(.td($s.name), .td($s.replicas), .td($s.notes))))
+  ),
+  .h3("Unicode outside Latin-1"),
+  .p("café and naïve work; 日本語, Ελληνικά and → do not.")
+)

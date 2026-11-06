@@ -30,6 +30,13 @@ cabal run tramaj-hpdf -- template.tramaj context.json out.pdf
 cabal run tramaj-hpdf -- --node node.json out.pdf
 ```
 
+## Example
+
+[`examples/report/`](examples/report/) renders a deployment report from a
+template and a JSON context ([`report.pdf`](examples/report/report.pdf)):
+
+<img src="examples/report/report-page1.png" alt="page 1 of the example report" width="400">
+
 ## What a node becomes
 
 `Tramaj.Hpdf.Layout` is pure: `nodeBlocks` reads the tree as a document and
