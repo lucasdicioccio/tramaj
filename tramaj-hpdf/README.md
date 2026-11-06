@@ -37,13 +37,31 @@ cabal run tramaj-hpdf -- --missing-glyphs error template.tramaj context.json out
 ## Building: the HPDF fork
 
 Embedding TrueType fonts needs an HPDF fork,
-https://github.com/lucasdicioccio/HPDF (branch `unicode-truetype`), which
-loads TrueType fonts and embeds them as Type0/CIDFontType2 with Identity-H,
-a `ToUnicode` CMap and subsetting. It is not on Hackage and not proposed
+https://github.com/lucasdicioccio/HPDF (branch `factur-x`, built on
+`unicode-truetype`), which loads TrueType fonts and embeds them as
+Type0/CIDFontType2 with Identity-H, a `ToUnicode` CMap and subsetting, and
+writes PDF/A-3b with associated files. It is not on Hackage and not proposed
 upstream; the repository's `cabal.project` pins it by commit as a
 `source-repository-package`, so a clean checkout builds as is. A project
 that depends on tramaj-hpdf needs the same stanza in its own
 `cabal.project` (copy it from this repository's).
+
+## Releases
+
+tramaj-hpdf is released as git tags (`tramaj-hpdf-v0.3.0.0` is the latest),
+not on Hackage while the HPDF changes live only in
+https://github.com/lucasdicioccio/HPDF. To depend on it, pin the tag and
+copy the HPDF stanza from this repository's `cabal.project`:
+
+```
+source-repository-package
+  type: git
+  location: https://github.com/lucasdicioccio/tramaj.git
+  tag: tramaj-hpdf-v0.3.0.0
+  subdir: tramaj-hpdf
+
+-- plus the HPDF source-repository-package stanza from tramaj's cabal.project
+```
 
 ## Fonts
 
