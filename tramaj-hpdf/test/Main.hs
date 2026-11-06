@@ -15,6 +15,9 @@ import System.FilePath ((</>))
 import Test.Hspec
 import Tramaj.Hpdf
 import Tramaj.Hpdf.Layout
+import Tramaj.Hpdf.Xml (renderXml, renderXmlFragment)
+import Tramaj.Eval (Mode (..), Output (..), evalProgram)
+import Tramaj.Parser (parseProgram)
 import Codec.Picture (PixelRGBA8 (..), generateImage, writePng)
 import System.Directory (getTemporaryDirectory)
 import Tramaj.Json (Json (..), jsonParser)
@@ -293,6 +296,57 @@ main = hspec $ do
       -- three characters, three glyph ids of four hex digits each
       let shown = BC.takeWhileEnd (/= '<') (fst (BC.breakSubstring "> Tj" pdf))
       BC.length shown `shouldBe` 12
+    it "writes a Factur-X PDF/A-3b with the XML attached, in the bundled fonts" $ do
+      fonts <- loadDefaultFonts
+      let xml = "<?xml version=\"1.0\"?><x><IssueDateTime><DateTimeString format=\"102\">20261106</DateTimeString></IssueDateTime></x>"
+          opts = defaultOptions {optCompressed = False, optTitle = "Invoice 1", optArchive = Just (facturX "icc" "BASIC" xml)}
+          Right pdf = BL.toStrict <$> renderPdfE fonts noImages opts (el "p" [txt "Facture \x20AC"])
+      BC.isPrefixOf "%PDF-1.7\n" pdf `shouldBe` True
+      forM_
+        [ "<pdfaid:part>3</pdfaid:part>", "<fx:ConformanceLevel>BASIC</fx:ConformanceLevel>"
+        , "/AFRelationship /Alternative", "/Subtype /text#2Fxml", "/UF (factur-x.xml)"
+        , "/OutputIntents", "/Title (Invoice 1)", "<x><IssueDateTime>"
+        , "/CreationDate (D:20261106000000Z)", "/ModDate (D:20261106000000Z)" ]
+        $ \needle -> (needle, BC.isInfixOf needle pdf) `shouldBe` (needle, True)
+
+  describe "invoiceIssueDate" $
+    it "reads the CII issue date, if any" $ do
+      invoiceIssueDate "<a><ram:IssueDateTime><udt:DateTimeString format=\"102\">20261106</udt:DateTimeString></ram:IssueDateTime></a>"
+        `shouldBe` Just "20261106"
+      invoiceIssueDate "<a><DueDateDateTime><DateTimeString format=\"102\">20261106</DateTimeString></DueDateDateTime></a>" `shouldBe` Nothing
+
+  describe "PDF/A with the standard 14 fonts" $
+    it "is refused: they are not embedded" $ do
+      fonts <- loadFonts
+      let opts = defaultOptions {optArchive = Just (facturX "icc" "BASIC" "<x/>")}
+      either (const True) (const False) (renderPdfE fonts noImages opts (el "p" [txt "x"])) `shouldBe` True
+
+  describe "XML (Tramaj.Hpdf.Xml)" $ do
+    let ns = ("xmlns:ram", JString "urn:ram")
+    it "writes declared prefixes with a colon, and escapes text and attributes" $
+      renderXml (elA "ram-Doc" [ns] [elA "ram-ID" [("schemeID", JString "a\"b")] [txt "1 < 2 & 3"], elA "other-Tag" [] []])
+        `shouldBe` Right "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ram:Doc xmlns:ram=\"urn:ram\">\n  <ram:ID schemeID=\"a&quot;b\">1 &lt; 2 &amp; 3</ram:ID>\n  <other-Tag/>\n</ram:Doc>\n"
+    it "writes numbers as str does, and looks through fragments" $
+      renderXmlFragment (el "a" [frag [num 3, txt " ", NText (JFloat 2) Map.empty]]) `shouldBe` Right "<a>3 2.0</a>"
+    it "refuses actions and structured values" $ do
+      renderXmlFragment (NElement "a" [NAction "click" "k" JNull] JNull [] Map.empty) `shouldSatisfy` either (const True) (const False)
+      renderXmlFragment (el "a" [NText (JArray []) Map.empty]) `shouldSatisfy` either (const True) (const False)
+    it "needs one root element" $
+      renderXml (frag [el "a" [], el "b" []]) `shouldSatisfy` either (const True) (const False)
+    it "renders the example Factur-X template" $ do
+      tmpl <- TIO.readFile "examples/invoice/factur-x.tramaj"
+      ctxSrc <- TIO.readFile "examples/invoice/invoice.json"
+      let Right prog = parseProgram tmpl
+          Right ctx = jsonParser ctxSrc
+          Right (ONode node) = evalProgram Concrete Map.empty ctx prog
+          Right xml = renderXml node
+      forM_
+        [ "<rsm:CrossIndustryInvoice xmlns:rsm=", "<ram:ID>urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic</ram:ID>"
+        , "<udt:DateTimeString format=\"102\">20261106</udt:DateTimeString>"
+        , "<ram:TaxTotalAmount currencyID=\"EUR\">362.00</ram:TaxTotalAmount>"
+        , "<ram:BilledQuantity unitCode=\"HUR\">6.0000</ram:BilledQuantity>"
+        , "<ram:TypeCode>380</ram:TypeCode>" ]
+        $ \needle -> (needle, T.isInfixOf needle xml) `shouldBe` (needle, True)
 
   describe "with the bundled Noto Sans fonts" $ do
     it "loads without any font file on the system" $ do

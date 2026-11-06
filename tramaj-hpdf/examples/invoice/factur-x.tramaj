@@ -1,0 +1,97 @@
+.rsm-CrossIndustryInvoice(
+  "xmlns:rsm": "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100",
+  "xmlns:qdt": "urn:un:unece:uncefact:data:standard:QualifiedDataType:100",
+  "xmlns:ram": "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100",
+  "xmlns:udt": "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100",
+  .rsm-ExchangedDocumentContext(
+    .ram-GuidelineSpecifiedDocumentContextParameter(
+      .ram-ID("urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic")
+    )
+  ),
+  .rsm-ExchangedDocument(
+    .ram-ID($ctx.number),
+    .ram-TypeCode($ctx.typeCode),
+    .ram-IssueDateTime(.udt-DateTimeString(format: "102", $ctx.issueDate)),
+    map($ctx.notes, (n) => .ram-IncludedNote(
+      .ram-Content($n.text),
+      .ram-SubjectCode($n.subject)
+    ))
+  ),
+  .rsm-SupplyChainTradeTransaction(
+    map($ctx.lines, (l) => .ram-IncludedSupplyChainTradeLineItem(
+      .ram-AssociatedDocumentLineDocument(.ram-LineID($l.id)),
+      .ram-SpecifiedTradeProduct(.ram-Name($l.name)),
+      .ram-SpecifiedLineTradeAgreement(
+        .ram-NetPriceProductTradePrice(.ram-ChargeAmount(format-number($l.price, 2, "")))
+      ),
+      .ram-SpecifiedLineTradeDelivery(
+        .ram-BilledQuantity(unitCode: $l.unit, format-number($l.quantity, 4, ""))
+      ),
+      .ram-SpecifiedLineTradeSettlement(
+        .ram-ApplicableTradeTax(
+          .ram-TypeCode("VAT"),
+          .ram-CategoryCode($ctx.vat.category),
+          .ram-RateApplicablePercent(format-number($ctx.vat.rate, 2, ""))
+        ),
+        .ram-SpecifiedTradeSettlementLineMonetarySummation(
+          .ram-LineTotalAmount(format-number($l.total, 2, ""))
+        )
+      )
+    )),
+    .ram-ApplicableHeaderTradeAgreement(
+      .ram-SellerTradeParty(
+        .ram-Name($ctx.seller.name),
+        .ram-SpecifiedLegalOrganization(.ram-ID(schemeID: "0002", $ctx.seller.siren)),
+        .ram-PostalTradeAddress(
+          .ram-PostcodeCode($ctx.seller.postcode),
+          .ram-LineOne($ctx.seller.street),
+          .ram-CityName($ctx.seller.city),
+          .ram-CountryID($ctx.seller.country)
+        ),
+        .ram-URIUniversalCommunication(
+          .ram-URIID(schemeID: $ctx.seller.electronicAddress.scheme, $ctx.seller.electronicAddress.id)
+        ),
+        .ram-SpecifiedTaxRegistration(.ram-ID(schemeID: "VA", $ctx.seller.vatId))
+      ),
+      .ram-BuyerTradeParty(
+        .ram-Name($ctx.buyer.name),
+        .ram-SpecifiedLegalOrganization(.ram-ID(schemeID: "0002", $ctx.buyer.siren)),
+        .ram-PostalTradeAddress(
+          .ram-PostcodeCode($ctx.buyer.postcode),
+          .ram-LineOne($ctx.buyer.street),
+          .ram-CityName($ctx.buyer.city),
+          .ram-CountryID($ctx.buyer.country)
+        ),
+        .ram-URIUniversalCommunication(
+          .ram-URIID(schemeID: $ctx.buyer.electronicAddress.scheme, $ctx.buyer.electronicAddress.id)
+        )
+      )
+    ),
+    .ram-ApplicableHeaderTradeDelivery(
+      .ram-ActualDeliverySupplyChainEvent(
+        .ram-OccurrenceDateTime(.udt-DateTimeString(format: "102", $ctx.deliveryDate))
+      )
+    ),
+    .ram-ApplicableHeaderTradeSettlement(
+      .ram-InvoiceCurrencyCode($ctx.currency),
+      .ram-ApplicableTradeTax(
+        .ram-CalculatedAmount(format-number($ctx.vat.amount, 2, "")),
+        .ram-TypeCode("VAT"),
+        .ram-BasisAmount(format-number($ctx.vat.basis, 2, "")),
+        .ram-CategoryCode($ctx.vat.category),
+        .ram-RateApplicablePercent(format-number($ctx.vat.rate, 2, ""))
+      ),
+      .ram-SpecifiedTradePaymentTerms(
+        .ram-Description($ctx.paymentTerms),
+        .ram-DueDateDateTime(.udt-DateTimeString(format: "102", $ctx.dueDate))
+      ),
+      .ram-SpecifiedTradeSettlementHeaderMonetarySummation(
+        .ram-LineTotalAmount(format-number($ctx.lineTotal, 2, "")),
+        .ram-TaxBasisTotalAmount(format-number($ctx.taxBasisTotal, 2, "")),
+        .ram-TaxTotalAmount(currencyID: $ctx.currency, format-number($ctx.taxTotal, 2, "")),
+        .ram-GrandTotalAmount(format-number($ctx.grandTotal, 2, "")),
+        .ram-DuePayableAmount(format-number($ctx.duePayable, 2, ""))
+      )
+    )
+  )
+)

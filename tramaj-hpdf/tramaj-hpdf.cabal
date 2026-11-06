@@ -54,6 +54,7 @@ library
   exposed-modules:
     Tramaj.Hpdf
     Tramaj.Hpdf.Layout
+    Tramaj.Hpdf.Xml
   build-depends:
     , base        >=4.19 && <4.22
     , bytestring  >=0.11 && <0.13
@@ -72,6 +73,7 @@ executable tramaj-hpdf
   main-is:          Main.hs
   build-depends:
     , base
+    , bytestring
     , containers
     , filepath
     , megaparsec
