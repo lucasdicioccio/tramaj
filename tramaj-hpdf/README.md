@@ -102,6 +102,15 @@ and the PDF/A metadata objects. That is a fork of HPDF (or patches sent
 upstream), not something this package can do from outside; `fontMetrics`
 and `Metrics.encodable` are where such fonts would plug in.
 
+**Local proof of concept (not published).** On this branch, `cabal.project`
+points at a local HPDF fork (`../HPDF-fork`) that embeds TrueType fonts as
+Type0/CIDFontType2 with Identity-H and a `ToUnicode` CMap.
+`loadTrueTypeFonts (notoSans dir)` (or `tramaj-hpdf --fonts DIR …`) draws
+the six faces in Noto Sans, embedding only the faces a document uses, so
+Cyrillic, Greek and accented Latin render and copy out. Still missing:
+subsetting (each face embeds the whole font, ~250 KB compressed), kerning,
+shaping for complex scripts, and PDF/A.
+
 Also not done yet: links (`a href` as a link annotation), `colspan` and
 `rowspan`, a table row taller than a page (it overflows instead of
 splitting), images inline in text or in table cells, the v3 symbol and

@@ -18,6 +18,9 @@ import System.Directory (getTemporaryDirectory)
 import Tramaj.Json (Json (..), jsonParser)
 import Tramaj.Node (Node (..), NodeAttribute (..), nodeFromJson)
 
+notoDir :: FilePath
+notoDir = "/usr/share/fonts/truetype/noto"
+
 el :: Text -> [Node] -> Node
 el tag cs = NElement tag [] JNull cs Map.empty
 
@@ -247,6 +250,29 @@ main = hspec $ do
       count "/Type /Page" pdf - count "/Type /Pages" pdf `shouldBe` pages
       -- HPDF writes glyph codes in hex: "120" is <313230>.
       BC.isInfixOf "<313230> Tj" pdf `shouldBe` True
+
+  describe "with embedded TrueType fonts (the HPDF fork)" $ do
+    -- Uses the system's Noto Sans; skipped where it is not installed.
+    let withNoto act = do
+          have <- doesFileExist (notoSans notoDir Regular)
+          if have then loadTrueTypeFonts (notoSans notoDir) >>= act else pendingWith ("no Noto Sans in " <> notoDir)
+    it "can show Cyrillic and accents, not CJK" $ withNoto $ \fonts -> do
+      let ok = encodable (fontMetrics fonts) bodyStyle
+      (ok '\x416', ok '\x491', ok '\x153', ok '\x65E5') `shouldBe` (True, True, True, False)
+    it "measures with the fonts' widths" $ withNoto $ \fonts -> do
+      let w = textWidth (fontMetrics fonts)
+      w bodyStyle "\x456\x456\x456" `shouldSatisfy` (< w bodyStyle "\x416\x416\x416")
+      w (Style Mono 10) "\x456\x456" `shouldBe` w (Style Mono 10) "\x416\x416"
+    it "embeds the faces it uses, with two-byte glyph ids and a ToUnicode map" $ withNoto $ \fonts -> do
+      let node = el "p" [txt "\x416\x443\x43A"]
+          pdf = BL.toStrict (renderPdf fonts noImages defaultOptions {optCompressed = False} node)
+      count "/Subtype /Type0" pdf `shouldBe` 1
+      count "/FontFile2" pdf `shouldBe` 1
+      count "/ToUnicode" pdf `shouldBe` 1
+      BC.isInfixOf "/Encoding /Identity-H" pdf `shouldBe` True
+      -- three characters, three glyph ids of four hex digits each
+      let shown = BC.takeWhileEnd (/= '<') (fst (BC.breakSubstring "> Tj" pdf))
+      BC.length shown `shouldBe` 12
 
   describe "the conformance corpus" $
     it "folds every expected document to a PDF" $ do
