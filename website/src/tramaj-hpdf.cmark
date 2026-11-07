@@ -144,7 +144,8 @@ has no PDF/A output. A fold that prints invoices in any EU language needed
 four changes. They are on two branches of a fork,
 [`lucasdicioccio/HPDF`](https://github.com/lucasdicioccio/HPDF):
 `unicode-truetype` (the fonts) and `factur-x` (PDF/A-3 and attached files,
-built on the first), and they are proposed upstream. Output with the
+built on the first), and they are proposed upstream in
+[hsyl20/HPDF#22](https://github.com/hsyl20/HPDF/pull/22). Output with the
 standard 14 and Type 1 fonts is unchanged: the library's demo PDF comes out
 byte-identical.
 

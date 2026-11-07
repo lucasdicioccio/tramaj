@@ -40,8 +40,8 @@ Embedding TrueType fonts needs an HPDF fork,
 https://github.com/lucasdicioccio/HPDF (branch `factur-x`, built on
 `unicode-truetype`), which loads TrueType fonts and embeds them as
 Type0/CIDFontType2 with Identity-H, a `ToUnicode` CMap and subsetting, and
-writes PDF/A-3b with associated files. It is not on Hackage and not proposed
-upstream; the repository's `cabal.project` pins it by commit as a
+writes PDF/A-3b with associated files. It is not on Hackage; the changes are proposed
+upstream in https://github.com/hsyl20/HPDF/pull/22. The repository's `cabal.project` pins it by commit as a
 `source-repository-package`, so a clean checkout builds as is. A project
 that depends on tramaj-hpdf needs the same stanza in its own
 `cabal.project` (copy it from this repository's).

@@ -81,7 +81,8 @@ has no PDF/A output. A fold that prints invoices in any EU language needed
 four changes. They are on two branches of a fork,
 &lt;a href="https://github.com/lucasdicioccio/HPDF"&gt;&lt;code&gt;lucasdicioccio/HPDF&lt;/code&gt;&lt;/a&gt;:
 &lt;code&gt;unicode-truetype&lt;/code&gt; (the fonts) and &lt;code&gt;factur-x&lt;/code&gt; (PDF/A-3 and attached files,
-built on the first), and they are proposed upstream. Output with the
+built on the first), and they are proposed upstream in
+&lt;a href="https://github.com/hsyl20/HPDF/pull/22"&gt;hsyl20/HPDF&lt;a href="/tramaj/hashtags/22.html"&gt;&lt;span class="hashtag" data-hashtag="22"&gt;#22&lt;/span&gt;&lt;/a&gt;&lt;/a&gt;. Output with the
 standard 14 and Type 1 fonts is unchanged: the library’s demo PDF comes out
 byte-identical.&lt;/p&gt;
 &lt;p&gt;All the snippets below are plain HPDF, no tramaj. Together they make this
