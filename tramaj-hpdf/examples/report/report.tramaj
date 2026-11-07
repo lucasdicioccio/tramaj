@@ -21,5 +21,5 @@
     .tbody(map($ctx.services, (s) => .tr(.td($s.name), .td($s.replicas), .td($s.notes))))
   ),
   .h3("Unicode outside Latin-1"),
-  .p("café and naïve work; 日本語, Ελληνικά and → do not.")
+  .p("café, naïve, Ελληνικά and кириллица work; 日本語 and → are not in Noto Sans and come out as a replacement character.")
 )

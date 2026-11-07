@@ -21,6 +21,7 @@ https://lucasdicioccio.github.io/tramaj/changelog-tramaj-cli.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-cli-rs.html
 https://lucasdicioccio.github.io/tramaj/changelog-tramaj-go.html
 https://lucasdicioccio.github.io/tramaj/what-sets-tramaj-apart.html
+https://lucasdicioccio.github.io/tramaj/tramaj-hpdf.html
 https://lucasdicioccio.github.io/tramaj/reference.html
 https://lucasdicioccio.github.io/tramaj/index.html
 https://lucasdicioccio.github.io/tramaj/about.html

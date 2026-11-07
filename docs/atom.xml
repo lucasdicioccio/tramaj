@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-15T12:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title type="text">tramaj</title><id>https://lucasdicioccio.github.io/tramaj/atom.xml</id><updated>2026-10-15T12:00:00Z</updated><entry><id>https://lucasdicioccio.github.io/tramaj/reference-language.html</id><title type="text">Tramaj — Language Reference</title><updated>2026-11-07T12:04:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md"&gt;&lt;code&gt;specs/reference.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--language-reference"&gt;Tramaj — Language Reference&lt;/h2&gt;
 &lt;p&gt;This is the reference for the language &lt;strong&gt;as implemented&lt;/strong&gt;. Where the earlier
 drafts disagree with each other or with this document, this document wins;
@@ -919,7 +919,7 @@ declarations and &lt;code&gt;@x : T = e&lt;/code&gt; annotations both fit inside
 affected (roadmap-to-v4 Phase 15’s version decision).
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-language.html" rel="alternate"/><summary type="text">Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-language.html" rel="alternate"/><summary type="text">Generated from [`specs/reference.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/reference.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v4-types.html</id><title type="text">Tramaj v4 — Types (draft)</title><updated>2026-11-07T12:04:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md"&gt;&lt;code&gt;specs/v4-types.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v4--types-draft"&gt;Tramaj v4 — Types (draft)&lt;/h2&gt;
 &lt;p&gt;Status: &lt;strong&gt;draft, not frozen, implemented.&lt;/strong&gt; Split out of the v3 design so
 that &lt;a href="/tramaj/reference-v3-symbols.html"&gt;&lt;code&gt;v3-symbols.md&lt;/code&gt;&lt;/a&gt; could be frozen without waiting on the
@@ -1354,7 +1354,7 @@ what &lt;code&gt;!type-constraint&lt;/code&gt; is likely to be abused into expre
 abuse becomes common the honest fix is a former, not a constraint name.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v4-types.html" rel="alternate"/><summary type="text">Generated from [`specs/v4-types.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v4-types.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html</id><title type="text">Tramaj v3 — Symbolic values and constraints</title><updated>2026-11-07T12:04:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md"&gt;&lt;code&gt;specs/v3-symbols.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj-v3--symbolic-values-and-constraints"&gt;Tramaj v3 — Symbolic values and constraints&lt;/h2&gt;
 &lt;p&gt;This document is &lt;strong&gt;normative&lt;/strong&gt; for the symbolic extension. It builds on
 &lt;code&gt;reference.md&lt;/code&gt;, which remains normative for everything else; section numbers
@@ -2341,7 +2341,7 @@ are closed; text has one, separate children, which a form renderer wants
 anyway.
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-11-06T15:57:50Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-v3-symbols.html" rel="alternate"/><summary type="text">Generated from [`specs/v3-symbols.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/v3-symbols.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/reference-node-json.html</id><title type="text">Tramaj — Normative Node JSON representation</title><updated>2026-11-07T12:04:40Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;p&gt;&lt;em&gt;Generated from &lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md"&gt;&lt;code&gt;specs/node-json.md&lt;/code&gt;&lt;/a&gt; — the repository is the canonical source, and may be ahead of this page.&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="tramaj--normative-node-json-representation"&gt;Tramaj — Normative Node JSON representation&lt;/h2&gt;
 &lt;p&gt;The evaluated &lt;code&gt;Node&lt;/code&gt; AST is the portable interchange boundary between Tramaj
 implementations and their hosts. This document defines its &lt;strong&gt;normative&lt;/strong&gt; JSON
@@ -2488,7 +2488,241 @@ evaluator reports them as a &lt;code&gt;TypeMismatch&lt;/code&gt; (&lt;code&gt;r
 &lt;p&gt;A decoder MUST NOT infer a missing field from a default. Defaults are an encoder’s
 job; on the wire the representation is explicit, so that a missing field is a bug
 rather than a silent &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
-&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/reference-node-json.html" rel="alternate"/><summary type="text">Generated from [`specs/node-json.md`](https://github.com/lucasdicioccio/tramaj/blob/main/specs/node-json.md) — the repository is the canonical source.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-hpdf.html</id><title type="text">Printing a tramaj tree: the PDF fold, and what we added to HPDF</title><updated>2026-11-07T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="printing-a-tramaj-tree-the-pdf-fold-and-what-we-added-to-hpdf"&gt;Printing a tramaj tree: the PDF fold, and what we added to HPDF&lt;/h2&gt;
+&lt;p&gt;A tramaj template is evaluated against a context into a tree of nodes. What
+the tree looks like is decided later, by a &lt;em&gt;fold&lt;/em&gt;: &lt;code&gt;tramaj-react&lt;/code&gt; and
+&lt;code&gt;tramaj-halogen&lt;/code&gt; fold it into HTML in the browser.
+&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/tramaj-hpdf"&gt;&lt;code&gt;tramaj-hpdf&lt;/code&gt;&lt;/a&gt;
+is a new fold, from the same tree to a PDF document, written in Haskell over
+&lt;a href="https://hackage.haskell.org/package/HPDF"&gt;HPDF&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;One template and one context, then: a report you show on a page can also be
+printed, without a second template written in a print language.&lt;/p&gt;
+&lt;p&gt;This post has two parts. The first is the fold, with two example documents.
+The second is what we added to HPDF to make it possible, with a document
+made with HPDF alone.&lt;/p&gt;
+&lt;h3 id="the-fold"&gt;The fold&lt;/h3&gt;
+&lt;h4 id="what-a-node-becomes"&gt;What a node becomes&lt;/h4&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;nodes&lt;/th&gt;&lt;th&gt;on the page&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;h1&lt;/code&gt;–&lt;code&gt;h6&lt;/code&gt;&lt;/td&gt;&lt;td&gt;bold headings, 22pt down to 11pt&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;p&lt;/code&gt;, &lt;code&gt;blockquote&lt;/code&gt;, &lt;code&gt;pre&lt;/code&gt;, &lt;code&gt;hr&lt;/code&gt;&lt;/td&gt;&lt;td&gt;paragraphs, indented quotes, preformatted monospace text, rules&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;ul&lt;/code&gt;, &lt;code&gt;ol&lt;/code&gt;, &lt;code&gt;li&lt;/code&gt;&lt;/td&gt;&lt;td&gt;bulleted and numbered lists, nested&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;strong&lt;/code&gt;, &lt;code&gt;em&lt;/code&gt;, &lt;code&gt;code&lt;/code&gt;, &lt;code&gt;small&lt;/code&gt;, …&lt;/td&gt;&lt;td&gt;styled text inside a paragraph; &lt;code&gt;br&lt;/code&gt; breaks the line&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;table&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a grid: columns sized to their content, wrapping cells, numbers right-aligned, the header repeated at the top of each new page&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;code&gt;img&lt;/code&gt;&lt;/td&gt;&lt;td&gt;a PNG or JPEG, scaled to its &lt;code&gt;width&lt;/code&gt;/&lt;code&gt;height&lt;/code&gt; or to the text width&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;Any other tag is a plain container, so its content still shows. Actions are
+ignored: a page has nothing to wire them to. The layout is pure Haskell
+(&lt;code&gt;Tramaj.Hpdf.Layout&lt;/code&gt;), tested with a fixed-width fake font, and every node
+of the conformance corpus must fold to a PDF.&lt;/p&gt;
+&lt;p&gt;The command-line tool takes a template and a context, or an evaluated node
+in the normative &lt;a href="/tramaj/reference-node-json.html"&gt;Node JSON&lt;/a&gt;:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-hpdf&lt;/span&gt; report.tramaj report.json report.pdf&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-hpdf&lt;/span&gt; &lt;span class="at"&gt;--node&lt;/span&gt; node.json out.pdf&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;h4 id="example-a-report"&gt;Example: a report&lt;/h4&gt;
+&lt;p&gt;&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/tramaj-hpdf/examples/report/report.tramaj"&gt;&lt;code&gt;report.tramaj&lt;/code&gt;&lt;/a&gt;
+rendered against a small JSON context. It has headings, inline styles,
+nested lists, a quote, a &lt;code&gt;pre&lt;/code&gt; block, a table with a wrapped column, a PNG
+image, and a last line with characters the font does not have.&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/tramaj-hpdf-report.pdf"&gt;&lt;img src="/tramaj/images/tramaj-hpdf-report.png" alt="Page 1 of the example report: headings, lists, a quote, a code block, a table laid out as a grid, and a line of Unicode text" width="420"&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/tramaj-hpdf-report.pdf"&gt;Download the PDF&lt;/a&gt; (61 KB, one A4 page).&lt;/p&gt;
+&lt;h4 id="fonts-every-eu-language-greek-and-cyrillic"&gt;Fonts: every EU language, Greek and Cyrillic&lt;/h4&gt;
+&lt;p&gt;Text is set in Noto Sans and Noto Sans Mono (Regular, Bold, Italic, Bold
+Italic, under the SIL Open Font License), bundled with the package and
+compiled into it: nothing is read from the system. The PDF embeds a subset
+of each face it uses, with a &lt;code&gt;ToUnicode&lt;/code&gt; map, so Latin with every EU
+language’s accents, Greek, Cyrillic and the euro sign render, and copy out
+of the PDF as the text they are.&lt;/p&gt;
+&lt;p&gt;What the fonts do not have (CJK, Arabic, Indic scripts, some symbols) is
+never dropped silently. It is drawn as U+FFFD, the replacement character,
+and listed on stderr:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-text"&gt;tramaj-hpdf: warning: no glyph for U+2192 '→' (Regular), U+65E5 '日' (Regular), …; drawn as a replacement character
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For a document where a replacement character must not go out, such as an
+invoice, &lt;code&gt;--missing-glyphs error&lt;/code&gt; (&lt;code&gt;optMissingGlyphs = FailOnMissingGlyphs&lt;/code&gt;
+in Haskell) makes it an error, and no file is written.&lt;/p&gt;
+&lt;h4 id="example-a-factur-x-invoice"&gt;Example: a Factur-X invoice&lt;/h4&gt;
+&lt;p&gt;Factur-X (ZUGFeRD in Germany) is a Franco-German format for electronic invoices: a PDF/A-3
+document that people read, with the same invoice attached as XML that
+software reads. tramaj can write XML as well as HTML, so the XML comes from
+a second template over the &lt;strong&gt;same JSON context&lt;/strong&gt;. A tag cannot contain a
+&lt;code&gt;:&lt;/code&gt;, so a namespace prefix is written with a &lt;code&gt;-&lt;/code&gt; (&lt;code&gt;ram-ID&lt;/code&gt; is written
+&lt;code&gt;ram:ID&lt;/code&gt;):&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-text"&gt;.rsm-ExchangedDocument(
+  .ram-ID($ctx.number),
+  .ram-TypeCode($ctx.typeCode),
+  .ram-IssueDateTime(.udt-DateTimeString(format: &amp;quot;102&amp;quot;, $ctx.issueDate))
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ex"&gt;tramaj-hpdf&lt;/span&gt; &lt;span class="at"&gt;--factur-x&lt;/span&gt; factur-x.tramaj &lt;span class="at"&gt;--xml-out&lt;/span&gt; factur-x.xml &lt;span class="dt"&gt;\&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  invoice.tramaj invoice.json invoice.pdf&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;The PDF is PDF/A-3b, with &lt;code&gt;factur-x.xml&lt;/code&gt; attached and the Factur-X metadata
+(BASIC profile). The example passes
+&lt;a href="https://verapdf.org/"&gt;veraPDF&lt;/a&gt; (PDF/A-3b, compliant) and
+&lt;a href="https://www.mustangproject.org/"&gt;Mustang&lt;/a&gt; 2.26.0 (valid, 0 errors and 0
+warnings). The companies and identifiers in it are made up.&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/tramaj-hpdf-invoice.pdf"&gt;&lt;img src="/tramaj/images/tramaj-hpdf-invoice.png" alt="Page 1 of the example Factur-X invoice: seller, buyer, a table of lines, VAT and totals" width="420"&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/tramaj-hpdf-invoice.pdf"&gt;Download the PDF&lt;/a&gt; (64 KB; &lt;code&gt;pdfdetach -list&lt;/code&gt;
+shows the attached XML). The templates and the context are in
+&lt;a href="https://github.com/lucasdicioccio/tramaj/tree/main/tramaj-hpdf/examples/invoice"&gt;&lt;code&gt;examples/invoice/&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="what-we-added-to-hpdf"&gt;What we added to HPDF&lt;/h3&gt;
+&lt;p&gt;HPDF is a pure-Haskell PDF library: pages, drawing, text, images,
+typesetting. Out of the box its text uses the PDF standard 14 fonts, which
+are not embedded and only cover a Western European character set, and it
+has no PDF/A output. A fold that prints invoices in any EU language needed
+four changes. They are on two branches of a fork,
+&lt;a href="https://github.com/lucasdicioccio/HPDF"&gt;&lt;code&gt;lucasdicioccio/HPDF&lt;/code&gt;&lt;/a&gt;:
+&lt;code&gt;unicode-truetype&lt;/code&gt; (the fonts) and &lt;code&gt;factur-x&lt;/code&gt; (PDF/A-3 and attached files,
+built on the first), and they are proposed upstream in
+&lt;a href="https://github.com/hsyl20/HPDF/pull/22"&gt;hsyl20/HPDF&lt;a href="/tramaj/hashtags/22.html"&gt;&lt;span class="hashtag" data-hashtag="22"&gt;#22&lt;/span&gt;&lt;/a&gt;&lt;/a&gt;. Output with the
+standard 14 and Type 1 fonts is unchanged: the library’s demo PDF comes out
+byte-identical.&lt;/p&gt;
+&lt;p&gt;All the snippets below are plain HPDF, no tramaj. Together they make this
+page:&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/hpdf-unicode-pdfa.pdf"&gt;&lt;img src="/tramaj/images/hpdf-unicode-pdfa.png" alt="A page made with HPDF alone: French, German, Polish, Czech, Greek, Russian, Bulgarian and Romanian text in Noto Sans" width="462"&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href="/tramaj/docs/hpdf-unicode-pdfa.pdf"&gt;Download the PDF&lt;/a&gt; (36 KB). It passes veraPDF
+as PDF/A-3b, &lt;code&gt;pdffonts&lt;/code&gt; lists both faces as embedded subsets with a Unicode
+map, &lt;code&gt;pdftotext&lt;/code&gt; gets the text back, and &lt;code&gt;pdfdetach -list&lt;/code&gt; shows
+&lt;code&gt;greetings.csv&lt;/code&gt;.&lt;/p&gt;
+&lt;h4 id="1-truetype-fonts-with-unicode-text"&gt;1. TrueType fonts with Unicode text&lt;/h4&gt;
+&lt;p&gt;&lt;code&gt;Graphics.PDF.Fonts.TrueType&lt;/code&gt; reads a TrueType file (a small pure parser for
+the tables a PDF needs: &lt;code&gt;head&lt;/code&gt;, &lt;code&gt;hhea&lt;/code&gt;, &lt;code&gt;hmtx&lt;/code&gt;, &lt;code&gt;maxp&lt;/code&gt;, &lt;code&gt;cmap&lt;/code&gt; formats 4 and
+12, &lt;code&gt;OS/2&lt;/code&gt;, &lt;code&gt;post&lt;/code&gt;, &lt;code&gt;name&lt;/code&gt;) and embeds it as a Type0 font over a
+CIDFontType2, with Identity-H encoding, &lt;code&gt;/W&lt;/code&gt; widths and a &lt;code&gt;ToUnicode&lt;/code&gt; CMap.
+Glyph codes widen to 16 bits; a font says how many bytes a code takes, so
+the standard fonts keep writing one.&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF.Fonts.TrueType&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;main &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="dt"&gt;Right&lt;/span&gt; regular &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; readTrueTypeFont &lt;span class="st"&gt;&amp;quot;NotoSans-Regular.ttf&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  runPdf &lt;span class="st"&gt;&amp;quot;cyrillic.pdf&amp;quot;&lt;/span&gt; standardDocInfo (&lt;span class="dt"&gt;PDFRect&lt;/span&gt; &lt;span class="dv"&gt;0&lt;/span&gt; &lt;span class="dv"&gt;0&lt;/span&gt; &lt;span class="dv"&gt;420&lt;/span&gt; &lt;span class="dv"&gt;300&lt;/span&gt;) &lt;span class="op"&gt;$&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    font &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; mkTrueTypeFont regular&lt;/span&gt;
+&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    page &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; addPage &lt;span class="dt"&gt;Nothing&lt;/span&gt;&lt;/span&gt;
+&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    drawWithPage page &lt;span class="op"&gt;$&lt;/span&gt;&lt;/span&gt;
+&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;      drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; font &lt;span class="dv"&gt;12&lt;/span&gt;) &lt;span class="dv"&gt;24&lt;/span&gt; &lt;span class="dv"&gt;150&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;Съешь же ещё этих мягких булок.&amp;quot;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;text&lt;/code&gt;, &lt;code&gt;displayText&lt;/code&gt; and the typesetting code (paragraphs, line breaking)
+work with these fonts as with the others.&lt;/p&gt;
+&lt;h4 id="2-subsetting"&gt;2. Subsetting&lt;/h4&gt;
+&lt;p&gt;A font file is large: Noto Sans Regular is about 500 KB. &lt;code&gt;mkTrueTypeFont&lt;/code&gt;
+now embeds a subset. While the pages are drawn, the glyphs each font shows
+are recorded; when the document is saved, the font program keeps only those
+(plus glyph 0 and the parts of composite glyphs), with their ids unchanged
+so the content streams need no rewriting. &lt;code&gt;/W&lt;/code&gt; and &lt;code&gt;ToUnicode&lt;/code&gt; cover the
+glyphs kept, and the font name takes a subset tag (&lt;code&gt;ZPBQAA+NotoSans-Regular&lt;/code&gt;).&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;document&lt;/th&gt;&lt;th&gt;whole fonts&lt;/th&gt;&lt;th&gt;subset&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;the HPDF page above, two faces&lt;/td&gt;&lt;td&gt;584 KB&lt;/td&gt;&lt;td&gt;36 KB&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;tramaj-hpdf's Cyrillic sample, five faces&lt;/td&gt;&lt;td&gt;1.4 MB&lt;/td&gt;&lt;td&gt;45 KB&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;The subset renders pixel-identically. &lt;code&gt;mkTrueTypeFontWith EmbedWhole&lt;/code&gt; keeps
+the whole file.&lt;/p&gt;
+&lt;h4 id="3-pdfa-3b"&gt;3. PDF/A-3b&lt;/h4&gt;
+&lt;p&gt;&lt;code&gt;Graphics.PDF.Archive&lt;/code&gt; writes a document as PDF/A, the ISO profile for
+archiving. One call, anywhere in the document:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF.Archive&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;document icc &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  setPDFA (pdfa3b icc) { pdfaTitle &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;Unicode text in HPDF&amp;quot;&lt;/span&gt; }&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="co"&gt;-- ... pages drawn with embedded fonts only&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;When the document is saved this adds XMP metadata (the PDF/A part and
+conformance, Dublin Core title and creator, the producer, and any extension
+schema with its description), an sRGB output intent, a PDF 1.7 header with
+its binary comment line, and no image interpolation. Every document, PDF/A
+or not, now gets a trailer &lt;code&gt;/ID&lt;/code&gt;, a hash of its objects, so the same input
+still gives the same bytes. PDF/A requires every font to be embedded:
+&lt;code&gt;pdfByteStringE&lt;/code&gt; returns the document, or the reasons it is not the PDF/A it
+was asked to be, such as a standard 14 font.&lt;/p&gt;
+&lt;h4 id="4-associated-files"&gt;4. Associated files&lt;/h4&gt;
+&lt;p&gt;PDF/A-3 lets a document carry files that belong with it. &lt;code&gt;embedAssociatedFile&lt;/code&gt;
+writes an &lt;code&gt;EmbeddedFile&lt;/code&gt; stream (MIME type, size, optional dates) and a file
+specification with its &lt;code&gt;/AFRelationship&lt;/code&gt;, listed in the catalog’s &lt;code&gt;/AF&lt;/code&gt; and
+in the &lt;code&gt;EmbeddedFiles&lt;/code&gt; name tree, where viewers show attachments:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;_ &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; embedAssociatedFile&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;       (associatedFile &lt;span class="st"&gt;&amp;quot;greetings.csv&amp;quot;&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;text/csv&amp;quot;&lt;/span&gt; greetings)&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;         { afRelationship &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="dt"&gt;Data&lt;/span&gt;, afDescription &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;The greetings on the page&amp;quot;&lt;/span&gt; }&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;Factur-X is this plus its own XMP properties, which &lt;code&gt;facturXExtension&lt;/code&gt; gives:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;setPDFA (pdfa3b icc) { pdfaTitle &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;Invoice 42&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;                     , pdfaExtensions &lt;span class="ot"&gt;=&lt;/span&gt; [facturXExtension &lt;span class="st"&gt;&amp;quot;BASIC&amp;quot;&lt;/span&gt;] }&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;_ &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; embedAssociatedFile (associatedFile &lt;span class="st"&gt;&amp;quot;factur-x.xml&amp;quot;&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;text/xml&amp;quot;&lt;/span&gt; xml)&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;       { afRelationship &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="dt"&gt;Alternative&lt;/span&gt; }&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;h4 id="the-whole-program"&gt;The whole program&lt;/h4&gt;
+&lt;p&gt;The page above, fonts, PDF/A and attachment together. Run with the two
+Noto Sans files next to it, it writes the PDF linked above, byte for byte:&lt;/p&gt;
+&lt;div class="code code--highlighted"&gt;&lt;div class="sourceCode"&gt;&lt;pre class="sourceCode"&gt;&lt;code class="sourceCode"&gt;&lt;span id="1"&gt;&lt;a href="#1" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ot"&gt;{-# LANGUAGE OverloadedStrings #-}&lt;/span&gt;&lt;/span&gt;
+&lt;span id="2"&gt;&lt;a href="#2" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF&lt;/span&gt;&lt;/span&gt;
+&lt;span id="3"&gt;&lt;a href="#3" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF.Archive&lt;/span&gt;&lt;/span&gt;
+&lt;span id="4"&gt;&lt;a href="#4" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="dt"&gt;Graphics.PDF.Fonts.TrueType&lt;/span&gt;&lt;/span&gt;
+&lt;span id="5"&gt;&lt;a href="#5" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="kw"&gt;qualified&lt;/span&gt; &lt;span class="dt"&gt;Data.ByteString.Lazy&lt;/span&gt; &lt;span class="kw"&gt;as&lt;/span&gt; &lt;span class="dt"&gt;BL&lt;/span&gt;&lt;/span&gt;
+&lt;span id="6"&gt;&lt;a href="#6" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="kw"&gt;qualified&lt;/span&gt; &lt;span class="dt"&gt;Data.Text&lt;/span&gt; &lt;span class="kw"&gt;as&lt;/span&gt; &lt;span class="dt"&gt;T&lt;/span&gt;&lt;/span&gt;
+&lt;span id="7"&gt;&lt;a href="#7" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="kw"&gt;import&lt;/span&gt; &lt;span class="kw"&gt;qualified&lt;/span&gt; &lt;span class="dt"&gt;Data.Text.Encoding&lt;/span&gt; &lt;span class="kw"&gt;as&lt;/span&gt; &lt;span class="dt"&gt;TE&lt;/span&gt;&lt;/span&gt;
+&lt;span id="8"&gt;&lt;a href="#8" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="9"&gt;&lt;a href="#9" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ot"&gt;main ::&lt;/span&gt; &lt;span class="dt"&gt;IO&lt;/span&gt; ()&lt;/span&gt;
+&lt;span id="10"&gt;&lt;a href="#10" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;main &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="11"&gt;&lt;a href="#11" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="dt"&gt;Right&lt;/span&gt; regular &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; readTrueTypeFont &lt;span class="st"&gt;&amp;quot;NotoSans-Regular.ttf&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="12"&gt;&lt;a href="#12" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="dt"&gt;Right&lt;/span&gt; bold &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; readTrueTypeFont &lt;span class="st"&gt;&amp;quot;NotoSans-Bold.ttf&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="13"&gt;&lt;a href="#13" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  icc &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; BL.readFile &lt;span class="st"&gt;&amp;quot;/usr/share/color/icc/colord/sRGB.icc&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="14"&gt;&lt;a href="#14" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="kw"&gt;let&lt;/span&gt; info &lt;span class="ot"&gt;=&lt;/span&gt; standardDocInfo { author &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;HPDF demo&amp;quot;&lt;/span&gt;, compressed &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="dt"&gt;True&lt;/span&gt; }&lt;/span&gt;
+&lt;span id="15"&gt;&lt;a href="#15" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="kw"&gt;case&lt;/span&gt; pdfByteStringE info (&lt;span class="dt"&gt;PDFRect&lt;/span&gt; &lt;span class="dv"&gt;0&lt;/span&gt; &lt;span class="dv"&gt;0&lt;/span&gt; &lt;span class="dv"&gt;420&lt;/span&gt; &lt;span class="dv"&gt;300&lt;/span&gt;) (document regular bold icc) &lt;span class="kw"&gt;of&lt;/span&gt;&lt;/span&gt;
+&lt;span id="16"&gt;&lt;a href="#16" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    &lt;span class="dt"&gt;Left&lt;/span&gt; problems &lt;span class="ot"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="fu"&gt;mapM_&lt;/span&gt; &lt;span class="fu"&gt;putStrLn&lt;/span&gt; problems&lt;/span&gt;
+&lt;span id="17"&gt;&lt;a href="#17" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    &lt;span class="dt"&gt;Right&lt;/span&gt; bytes &lt;span class="ot"&gt;-&amp;gt;&lt;/span&gt; BL.writeFile &lt;span class="st"&gt;&amp;quot;hpdf-unicode-pdfa.pdf&amp;quot;&lt;/span&gt; bytes&lt;/span&gt;
+&lt;span id="18"&gt;&lt;a href="#18" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="19"&gt;&lt;a href="#19" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ot"&gt;document ::&lt;/span&gt; &lt;span class="dt"&gt;TrueTypeFontData&lt;/span&gt; &lt;span class="ot"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;TrueTypeFontData&lt;/span&gt; &lt;span class="ot"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;BL.ByteString&lt;/span&gt; &lt;span class="ot"&gt;-&amp;gt;&lt;/span&gt; &lt;span class="dt"&gt;PDF&lt;/span&gt; ()&lt;/span&gt;
+&lt;span id="20"&gt;&lt;a href="#20" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;document regularData boldData icc &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="21"&gt;&lt;a href="#21" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  setPDFA (pdfa3b icc) { pdfaTitle &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;Unicode text in HPDF&amp;quot;&lt;/span&gt; }&lt;/span&gt;
+&lt;span id="22"&gt;&lt;a href="#22" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  _ &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; embedAssociatedFile&lt;/span&gt;
+&lt;span id="23"&gt;&lt;a href="#23" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;         (associatedFile &lt;span class="st"&gt;&amp;quot;greetings.csv&amp;quot;&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;text/csv&amp;quot;&lt;/span&gt; greetings)&lt;/span&gt;
+&lt;span id="24"&gt;&lt;a href="#24" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;           { afRelationship &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="dt"&gt;Data&lt;/span&gt;, afDescription &lt;span class="ot"&gt;=&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;The greetings on the page&amp;quot;&lt;/span&gt; }&lt;/span&gt;
+&lt;span id="25"&gt;&lt;a href="#25" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  regular &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; mkTrueTypeFont regularData&lt;/span&gt;
+&lt;span id="26"&gt;&lt;a href="#26" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  bold &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; mkTrueTypeFont boldData&lt;/span&gt;
+&lt;span id="27"&gt;&lt;a href="#27" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  page &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; addPage &lt;span class="dt"&gt;Nothing&lt;/span&gt;&lt;/span&gt;
+&lt;span id="28"&gt;&lt;a href="#28" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  drawWithPage page &lt;span class="op"&gt;$&lt;/span&gt; &lt;span class="kw"&gt;do&lt;/span&gt;&lt;/span&gt;
+&lt;span id="29"&gt;&lt;a href="#29" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; bold &lt;span class="dv"&gt;18&lt;/span&gt;) &lt;span class="dv"&gt;24&lt;/span&gt; &lt;span class="dv"&gt;262&lt;/span&gt; &lt;span class="st"&gt;&amp;quot;Unicode text in HPDF&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="30"&gt;&lt;a href="#30" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; regular &lt;span class="dv"&gt;10&lt;/span&gt;) &lt;span class="dv"&gt;24&lt;/span&gt; &lt;span class="dv"&gt;244&lt;/span&gt;&lt;/span&gt;
+&lt;span id="31"&gt;&lt;a href="#31" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;      &lt;span class="st"&gt;&amp;quot;Noto Sans, embedded as a subset, with a ToUnicode CMap.&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="32"&gt;&lt;a href="#32" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    strokeColor (&lt;span class="dt"&gt;Rgb&lt;/span&gt; &lt;span class="fl"&gt;0.6&lt;/span&gt; &lt;span class="fl"&gt;0.6&lt;/span&gt; &lt;span class="fl"&gt;0.6&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="33"&gt;&lt;a href="#33" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    stroke (&lt;span class="dt"&gt;Line&lt;/span&gt; &lt;span class="dv"&gt;24&lt;/span&gt; &lt;span class="dv"&gt;234&lt;/span&gt; &lt;span class="dv"&gt;396&lt;/span&gt; &lt;span class="dv"&gt;234&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="34"&gt;&lt;a href="#34" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    &lt;span class="fu"&gt;sequence_&lt;/span&gt;&lt;/span&gt;
+&lt;span id="35"&gt;&lt;a href="#35" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;      [ &lt;span class="kw"&gt;do&lt;/span&gt; drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; bold &lt;span class="dv"&gt;12&lt;/span&gt;) &lt;span class="dv"&gt;24&lt;/span&gt; y lang&lt;/span&gt;
+&lt;span id="36"&gt;&lt;a href="#36" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;           drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; regular &lt;span class="dv"&gt;12&lt;/span&gt;) &lt;span class="dv"&gt;120&lt;/span&gt; y line&lt;/span&gt;
+&lt;span id="37"&gt;&lt;a href="#37" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;      &lt;span class="op"&gt;|&lt;/span&gt; ((lang, line), y) &lt;span class="ot"&gt;&amp;lt;-&lt;/span&gt; &lt;span class="fu"&gt;zip&lt;/span&gt; samples [&lt;span class="dv"&gt;210&lt;/span&gt;, &lt;span class="dv"&gt;188&lt;/span&gt; &lt;span class="op"&gt;..&lt;/span&gt;] ]&lt;/span&gt;
+&lt;span id="38"&gt;&lt;a href="#38" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;    drawText &lt;span class="op"&gt;$&lt;/span&gt; text (&lt;span class="dt"&gt;PDFFont&lt;/span&gt; regular &lt;span class="dv"&gt;9&lt;/span&gt;) &lt;span class="dv"&gt;24&lt;/span&gt; &lt;span class="dv"&gt;24&lt;/span&gt;&lt;/span&gt;
+&lt;span id="39"&gt;&lt;a href="#39" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;      &lt;span class="st"&gt;&amp;quot;PDF/A-3b, with greetings.csv attached.&amp;quot;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="40"&gt;&lt;a href="#40" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="41"&gt;&lt;a href="#41" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ot"&gt;samples ::&lt;/span&gt; [(&lt;span class="dt"&gt;T.Text&lt;/span&gt;, &lt;span class="dt"&gt;T.Text&lt;/span&gt;)]&lt;/span&gt;
+&lt;span id="42"&gt;&lt;a href="#42" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;samples &lt;span class="ot"&gt;=&lt;/span&gt;&lt;/span&gt;
+&lt;span id="43"&gt;&lt;a href="#43" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  [ (&lt;span class="st"&gt;&amp;quot;French&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Ça déçoit, mais l’été arrive à Noël ?&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="44"&gt;&lt;a href="#44" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;German&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Grüße aus Köln: 20 € für Straßenkäse.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="45"&gt;&lt;a href="#45" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Polish&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Zażółć gęślą jaźń.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="46"&gt;&lt;a href="#46" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Czech&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Příliš žluťoučký kůň úpěl ďábelské ódy.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="47"&gt;&lt;a href="#47" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Greek&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Καλημέρα κόσμε· ξεσκεπάζω την ψυχοφθόρα.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="48"&gt;&lt;a href="#48" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Russian&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Съешь же ещё этих мягких булок.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="49"&gt;&lt;a href="#49" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Bulgarian&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Здравей, свят! Щастие и юнашко сърце.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="50"&gt;&lt;a href="#50" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  , (&lt;span class="st"&gt;&amp;quot;Romanian&amp;quot;&lt;/span&gt;, &lt;span class="st"&gt;&amp;quot;Șapte țânțari în față.&amp;quot;&lt;/span&gt;)&lt;/span&gt;
+&lt;span id="51"&gt;&lt;a href="#51" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  ]&lt;/span&gt;
+&lt;span id="52"&gt;&lt;a href="#52" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;/span&gt;
+&lt;span id="53"&gt;&lt;a href="#53" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;&lt;span class="ot"&gt;greetings ::&lt;/span&gt; &lt;span class="dt"&gt;BL.ByteString&lt;/span&gt;&lt;/span&gt;
+&lt;span id="54"&gt;&lt;a href="#54" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;greetings &lt;span class="ot"&gt;=&lt;/span&gt; BL.fromStrict &lt;span class="op"&gt;.&lt;/span&gt; TE.encodeUtf8 &lt;span class="op"&gt;$&lt;/span&gt;&lt;/span&gt;
+&lt;span id="55"&gt;&lt;a href="#55" aria-hidden="true" tabindex="-1"&gt;&lt;/a&gt;  &lt;span class="st"&gt;&amp;quot;language,greeting\nFrench,Bonjour\nGreek,Γειά σου\nRussian,Привет\n&amp;quot;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;Still missing, in HPDF and so in the fold: kerning, shaping for complex
+scripts, font fallback, and CFF-flavoured OpenType fonts.&lt;/p&gt;
+&lt;h3 id="status"&gt;Status&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;tramaj-hpdf&lt;/code&gt; is released as a git tag, &lt;code&gt;tramaj-hpdf-v0.3.0.0&lt;/code&gt;. It is not on
+Hackage: it depends on the HPDF changes above, which for now live only in
+the fork, and Hackage packages cannot depend on a fork. The repository’s
+&lt;code&gt;cabal.project&lt;/code&gt; pins the fork by commit, so a clean checkout builds as is.
+To depend on it, pin the tag and copy the HPDF stanza from tramaj’s
+&lt;code&gt;cabal.project&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-text"&gt;source-repository-package
+  type: git
+  location: https://github.com/lucasdicioccio/tramaj.git
+  tag: tramaj-hpdf-v0.3.0.0
+  subdir: tramaj-hpdf
+
+-- plus the HPDF source-repository-package stanza from tramaj's cabal.project
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Once HPDF has the changes in a release, tramaj-hpdf can go to Hackage like
+&lt;code&gt;tramaj-hs&lt;/code&gt;. Not done yet in the fold itself: links, &lt;code&gt;colspan&lt;/code&gt; and
+&lt;code&gt;rowspan&lt;/code&gt;, table rows taller than a page, images inside text or table
+cells, and page headers and footers. The
+&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/tramaj-hpdf/README.md"&gt;README&lt;/a&gt;
+and the
+&lt;a href="https://github.com/lucasdicioccio/tramaj/blob/main/tramaj-hpdf/CHANGELOG.md"&gt;changelog&lt;/a&gt;
+have the details.&lt;/p&gt;
+&lt;/section&gt;&lt;/div&gt;</content><link href="https://lucasdicioccio.github.io/tramaj/tramaj-hpdf.html" rel="alternate"/><summary type="text">tramaj-hpdf folds an evaluated tramaj tree into a PDF, the way the React and Halogen folds turn the same tree into a web page. It sets text in embedded Noto Sans, so every EU language, Greek and Cyrillic print and copy out, and it writes Factur-X invoices as PDF/A-3b. Getting there took four changes to HPDF, which live in a fork for now.</summary></entry><entry><id>https://lucasdicioccio.github.io/tramaj/tramaj-v5.html</id><title type="text">tramaj v5: numbers that compute, in all six implementations</title><updated>2026-10-15T12:00:00Z</updated><author><name>Lucas DiCioccio</name></author><content type="html">&lt;div class="main-article"&gt;&lt;section class="main-section"&gt;&lt;h2 id="tramaj-v5-numbers-that-compute-in-all-six-implementations"&gt;tramaj v5: numbers that compute, in all six implementations&lt;/h2&gt;
 &lt;p&gt;tramaj has gone through four iterations so far: v1 (the original
 block/template split), v2 (expression-oriented documents, static analyses
 and the &lt;code&gt;Node&lt;/code&gt; JSON format), v3 (symbols and constraints) and v4 (types).
