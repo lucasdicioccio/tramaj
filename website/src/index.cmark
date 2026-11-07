@@ -80,6 +80,9 @@ on GitHub for the full spec, or explore the site below.
 - [**tramaj v5**](/tramaj-v5.html) — the fifth iteration of the language:
   integers and floats, arithmetic, sorting and number formatting, in all six
   implementations.
+- [**Printing a tramaj tree**](/tramaj-hpdf.html) — `tramaj-hpdf`, the
+  fold to PDF: Unicode text in embedded fonts, Factur-X invoices, and what
+  we added to HPDF for it.
 - [**Roadmap**](/roadmap.html) — where the six implementations stand, and
   the folds and Python type definitions that are wanted next.
 - [**Two designs accepted**](/design-arithmetic-and-shapes.html) — arithmetic
